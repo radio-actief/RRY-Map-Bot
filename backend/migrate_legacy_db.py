@@ -6,23 +6,26 @@ This script:
 2. For existing nodes: Copy city if source has different city and owner
 3. For source-only nodes: Only migrate if they have an owner
 4. Logs all operations to files
+
+Usage:
+    python3 migrate_legacy_db.py [--target-db PATH]
+    
+    --target-db PATH    Target database path (default: data/belgian_nodes.db relative to script)
 """
 
 import sqlite3
 import json
 import os
+import argparse
 from pathlib import Path
 from typing import Dict, Any, Optional, List, Tuple
 from datetime import datetime
 
-# Paths
-LEGACY_DB_PATH = Path(__file__).parent.parent / 'legacy_meshcore_bot.db'
-NEW_DB_PATH = Path(__file__).parent.parent / 'data' / 'belgian_nodes.db'
-
 # Import new database utilities
 import sys
 sys.path.insert(0, str(Path(__file__).parent))
-from database import get_connection, init_database, json_serialize, get_current_timestamp
+
+# Note: Database module will be imported in main() after setting DATABASE_PATH
 
 
 def get_legacy_connection() -> sqlite3.Connection:
@@ -224,8 +227,72 @@ def insert_node_from_source(cursor: sqlite3.Cursor, node_data: Dict[str, Any],
 
 def main():
     """Main migration function."""
+    # Parse command-line arguments
+    parser = argparse.ArgumentParser(
+        description='Migrate data from legacy_meshcore_bot.db to belgian_nodes.db',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Use default path (data/belgian_nodes.db relative to script)
+  python3 migrate_legacy_db.py
+  
+  # Specify custom target database path
+  python3 migrate_legacy_db.py --target-db /opt/stacks/RRY-Map-Bot/data/belgian_nodes.db
+  
+  # Specify both legacy and target paths
+  python3 migrate_legacy_db.py --legacy-db /path/to/legacy.db --target-db /path/to/new.db
+        """
+    )
+    parser.add_argument(
+        '--target-db',
+        type=str,
+        default=None,
+        help='Target database path (default: data/belgian_nodes.db relative to script)'
+    )
+    parser.add_argument(
+        '--legacy-db',
+        type=str,
+        default=None,
+        help='Legacy database path (default: legacy_meshcore_bot.db in migration/ or parent directory)'
+    )
+    
+    args = parser.parse_args()
+    
+    # Set up paths
+    script_dir = Path(__file__).parent.parent
+    if args.legacy_db:
+        legacy_db_path = Path(args.legacy_db)
+    else:
+        # Try migration directory first, then parent directory
+        legacy_db_path = script_dir / 'migration' / 'legacy_meshcore_bot.db'
+        if not legacy_db_path.exists():
+            legacy_db_path = script_dir / 'legacy_meshcore_bot.db'
+    
+    if args.target_db:
+        target_db_path = Path(args.target_db)
+    else:
+        target_db_path = script_dir / 'data' / 'belgian_nodes.db'
+    
+    # Ensure target directory exists
+    target_db_path.parent.mkdir(parents=True, exist_ok=True)
+    
+    # Set DATABASE_PATH environment variable before importing database module
+    # This ensures the database module uses the correct path
+    os.environ['DATABASE_PATH'] = str(target_db_path)
+    
+    # Now import database utilities (after setting DATABASE_PATH)
+    from database import get_connection, init_database, json_serialize, get_current_timestamp
+    
+    # Store paths as module-level variables for use in other functions
+    global LEGACY_DB_PATH, NEW_DB_PATH
+    LEGACY_DB_PATH = legacy_db_path
+    NEW_DB_PATH = target_db_path
+    
     print("="*60)
     print("LEGACY DATABASE MIGRATION")
+    print("="*60)
+    print(f"Legacy DB: {LEGACY_DB_PATH}")
+    print(f"Target DB: {NEW_DB_PATH}")
     print("="*60)
     
     # Check legacy database exists

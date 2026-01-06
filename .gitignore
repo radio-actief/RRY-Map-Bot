@@ -91,6 +91,12 @@ migration/*.log
 coverage/
 .nyc_output/
 
+# Production configuration
+docker-compose.prod.yml
+rry-map-bot.env
+# Keep example file for reference
+!rry-map-bot.env.example
+
 # Optional: Keep package-lock.json if you want to lock dependency versions
 # Uncomment the line below if you want to commit package-lock.json
 # !package-lock.json

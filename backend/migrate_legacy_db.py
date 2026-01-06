@@ -366,11 +366,22 @@ Examples:
         # Process 1: For existing nodes, copy owner info if source has owner
         print("\n3. Processing existing nodes - copying owner info...")
         claiming_count = 0
+        debug_count = 0
+        debug_matches = 0
         
         for dest_key, dest_node in dest_nodes.items():
             if dest_key in legacy_nodes:
+                debug_matches += 1
                 legacy_node = legacy_nodes[dest_key]
                 owner_id = legacy_node.get('owner_discord_id')
+                
+                # Debug first few matches
+                if debug_count < 5:
+                    print(f"  DEBUG: Match found - {dest_node.get('adv_name', 'N/A')}")
+                    print(f"    Legacy owner_id: {owner_id} (type: {type(owner_id).__name__})")
+                    print(f"    Owner in users dict: {owner_id in legacy_users if owner_id else False}")
+                    print(f"    Dest has owner: {bool(dest_node.get('discord_owner_id'))}")
+                    debug_count += 1
                 
                 if owner_id and owner_id in legacy_users:
                     # Source has owner, check if destination doesn't
@@ -390,6 +401,7 @@ Examples:
                         claiming_file.write(log_entry)
                         print(f"  ✅ Claimed {dest_key[:8]}... for {username}")
         
+        print(f"   Total matches found: {debug_matches}")
         print(f"   Claimed {claiming_count} nodes")
         
         # Process 2: For existing nodes, handle city differences

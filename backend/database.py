@@ -22,7 +22,13 @@ except (ImportError, ModuleNotFoundError):
 
 def get_db_path() -> str:
     """Get the database file path, creating directory if needed."""
-    db_path = Path(DATABASE_PATH)
+    # Check environment variable first (allows runtime override)
+    env_path = os.getenv('DATABASE_PATH')
+    db_path_str = env_path if env_path else DATABASE_PATH
+    db_path = Path(db_path_str)
+    # If path is relative, make it absolute based on current working directory
+    if not db_path.is_absolute():
+        db_path = Path.cwd() / db_path
     db_path.parent.mkdir(parents=True, exist_ok=True)
     return str(db_path)
 

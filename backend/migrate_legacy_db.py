@@ -282,8 +282,8 @@ Examples:
     target_db_path.parent.mkdir(parents=True, exist_ok=True)
     
     # Set DATABASE_PATH environment variable before importing database module
-    # This ensures the database module uses the correct path
-    os.environ['DATABASE_PATH'] = str(target_db_path)
+    # Use absolute path to ensure we're using the correct database file
+    os.environ['DATABASE_PATH'] = str(target_db_path.absolute())
     
     # Now import database utilities (after setting DATABASE_PATH)
     from database import get_connection as _get_connection, init_database as _init_database, json_serialize as _json_serialize, get_current_timestamp as _get_current_timestamp

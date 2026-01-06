@@ -26,6 +26,11 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent))
 
 # Note: Database module will be imported in main() after setting DATABASE_PATH
+# These will be set as module-level variables after import
+get_connection = None
+init_database = None
+json_serialize = None
+get_current_timestamp = None
 
 
 def get_legacy_connection() -> sqlite3.Connection:
@@ -281,10 +286,14 @@ Examples:
     os.environ['DATABASE_PATH'] = str(target_db_path)
     
     # Now import database utilities (after setting DATABASE_PATH)
-    from database import get_connection, init_database, json_serialize, get_current_timestamp
+    from database import get_connection as _get_connection, init_database as _init_database, json_serialize as _json_serialize, get_current_timestamp as _get_current_timestamp
     
-    # Store paths as module-level variables for use in other functions
-    global LEGACY_DB_PATH, NEW_DB_PATH
+    # Make database functions available at module level for other functions to use
+    global get_connection, init_database, json_serialize, get_current_timestamp, LEGACY_DB_PATH, NEW_DB_PATH
+    get_connection = _get_connection
+    init_database = _init_database
+    json_serialize = _json_serialize
+    get_current_timestamp = _get_current_timestamp
     LEGACY_DB_PATH = legacy_db_path
     NEW_DB_PATH = target_db_path
     

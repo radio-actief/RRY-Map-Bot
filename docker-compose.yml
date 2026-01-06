@@ -1,0 +1,92 @@
+services:
+  # Discord Bot Service
+  discord-bot:
+    build: .
+    container_name: rry-map-bot-discord
+    restart: unless-stopped
+    command: python3 backend/discord_bot.py
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    networks:
+      - rry-map-bot-network
+    depends_on:
+      - api
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import sys; sys.exit(0)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # API and Web Map Service
+  api:
+    build: .
+    container_name: rry-map-bot-api
+    restart: unless-stopped
+    command: python3 backend/api/app.py
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    networks:
+      - rry-map-bot-network
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python3",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health').read()",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Sync Service (runs on schedule)
+  sync:
+    build: .
+    container_name: rry-map-bot-sync
+    restart: unless-stopped
+    command: >
+      sh -c "
+        echo 'Sync service started. Waiting for initial delay...' &&
+        sleep 60 &&
+        SYNC_INTERVAL_HOURS=$${SYNC_INTERVAL_HOURS:-6} &&
+        SYNC_INTERVAL_SECONDS=$$((SYNC_INTERVAL_HOURS * 3600)) &&
+        while true; do
+          echo 'Running sync at $$(date)' &&
+          python3 backend/sync_belgian_nodes.py &&
+          echo \"Sync completed. Next run in $${SYNC_INTERVAL_HOURS} hour(s)...\" &&
+          sleep $${SYNC_INTERVAL_SECONDS}
+        done
+      "
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    networks:
+      - rry-map-bot-network
+    depends_on:
+      - api
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import sys; sys.exit(0)"]
+      interval: 1m
+      timeout: 10s
+      retries: 3
+
+networks:
+  rry-map-bot-network:
+    driver: bridge
+
+volumes:
+  data:
+    driver: local
+  logs:
+    driver: local

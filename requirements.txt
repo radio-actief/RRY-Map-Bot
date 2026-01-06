@@ -1,0 +1,20 @@
+# RRY-Map-Bot Python Dependencies
+
+# Discord Bot
+discord.py>=2.3.0
+
+# HTTP Requests
+requests>=2.31.0
+
+# Geocoding Service
+geopy>=2.4.0
+
+# Environment Variables
+python-dotenv>=1.0.0
+
+# REST API Framework
+flask>=3.0.0
+flask-cors>=4.0.0
+
+# SQLite is built-in to Python, no external dependency needed
+

@@ -1,0 +1,12 @@
+{
+  "name": "rry-map-bot",
+  "version": "1.0.0",
+  "description": "MeshCore Map Frontend - Utility script for parsing meshcore:// links",
+  "type": "module",
+  "scripts": {
+    "parse-link": "node parse_meshcore_link.mjs"
+  },
+  "dependencies": {
+    "@liamcottle/meshcore.js": "^1.10.0"
+  }
+}

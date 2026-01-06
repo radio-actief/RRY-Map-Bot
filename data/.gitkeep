@@ -1,0 +1,3 @@
+# This file ensures the data/ directory is tracked by git
+# The actual database file (belgian_nodes.db) will be created here but is gitignored
+

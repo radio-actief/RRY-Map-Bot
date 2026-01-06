@@ -377,10 +377,14 @@ Examples:
                 
                 # Debug first few matches
                 if debug_count < 5:
+                    dest_owner_id = dest_node.get('discord_owner_id')
                     print(f"  DEBUG: Match found - {dest_node.get('adv_name', 'N/A')}")
                     print(f"    Legacy owner_id: {owner_id} (type: {type(owner_id).__name__})")
                     print(f"    Owner in users dict: {owner_id in legacy_users if owner_id else False}")
-                    print(f"    Dest has owner: {bool(dest_node.get('discord_owner_id'))}")
+                    print(f"    Dest owner_id value: {repr(dest_owner_id)} (type: {type(dest_owner_id).__name__})")
+                    print(f"    Dest has owner (bool check): {bool(dest_owner_id)}")
+                    print(f"    Dest has owner (is None check): {dest_owner_id is not None}")
+                    print(f"    Will claim? {owner_id and owner_id in legacy_users and not dest_owner_id}")
                     debug_count += 1
                 
                 if owner_id and owner_id in legacy_users:

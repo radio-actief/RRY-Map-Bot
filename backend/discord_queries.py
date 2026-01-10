@@ -1397,9 +1397,21 @@ def get_recently_updated_nodes(limit: int = 25, days: Optional[int] = None) -> L
         nodes = []
         for row in rows:
             node = dict_from_row(row)
-            # Deserialize JSON fields
-            if node.get('params'):
-                node['params'] = json_deserialize(node['params'])
+            # Ensure params is always a dict (deserialize if needed)
+            if 'params' in node and node['params'] is not None:
+                if isinstance(node['params'], str):
+                    # Try to deserialize JSON string
+                    if node['params'].strip():
+                        try:
+                            node['params'] = json_deserialize(node['params']) or {}
+                        except Exception:
+                            node['params'] = {}
+                    else:
+                        node['params'] = {}
+                elif not isinstance(node['params'], dict):
+                    node['params'] = {}
+            else:
+                node['params'] = {}
             nodes.append(node)
         
         return nodes

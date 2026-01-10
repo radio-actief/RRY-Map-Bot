@@ -188,9 +188,17 @@ def dict_from_row(row: sqlite3.Row) -> Dict[str, Any]:
     
     result = dict(row)
     
-    # Deserialize JSON fields
-    if 'params' in result and result['params']:
-        result['params'] = json_deserialize(result['params'])
+    # Deserialize JSON fields - ensure params is always a dict
+    if 'params' in result and result['params'] is not None:
+        if isinstance(result['params'], str) and result['params'].strip():
+            try:
+                result['params'] = json_deserialize(result['params']) or {}
+            except Exception:
+                result['params'] = {}
+        elif not isinstance(result['params'], dict):
+            result['params'] = {}
+    else:
+        result['params'] = {}
     
     if 'details' in result and result['details']:
         result['details'] = json_deserialize(result['details'])

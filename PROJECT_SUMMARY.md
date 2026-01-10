@@ -160,8 +160,7 @@ BELGIUM_BOUNDS = {
    - Identify **updated nodes** (data changed) → **Merge with conflict resolution** (to be elaborated later)
    - Store change log in `sync_history` and `node_changes` tables
    - **Integration**: Changes are integrated immediately during sync (automatic integration)
-   - **Discord Bot**: ALL commands filter inactive nodes (`WHERE is_active = TRUE`) - exception: `/manage list` shows both
-   - **See**: `PROJECT_DATA_INTEGRATION_SCHEME.md` for detailed merge processes and conflict resolution
+   - **Discord Bot**: ALL commands filter inactive nodes (`WHERE is_active = TRUE`) - exception: `/mynodes` shows both active and inactive
 
 #### Execution
 - Runs **a few times per day** (resource-intensive due to Geopy API calls)
@@ -218,7 +217,6 @@ BELGIUM_BOUNDS = {
 - **Web Map**: REST API endpoint (`GET /api/v1/belgian-nodes`)
 - **API Framework**: Flask or FastAPI (lightweight)
 
-**See**: `DATA_ARCHITECTURE_ANALYSIS.md` for detailed analysis and alternatives.
 
 #### Database Choice: SQLite
 
@@ -228,7 +226,6 @@ BELGIUM_BOUNDS = {
 - **Best for**: Small to medium scale, single server, perfect for this project
 - **Future**: Can migrate to PostgreSQL if needed for higher concurrency or network access
 
-**Note**: See `DATA_ARCHITECTURE_ANALYSIS.md` for detailed analysis of alternatives (JSON, PostgreSQL) and why SQLite was chosen.
 
 #### Database Schema (SQLite Implementation)
 ```sql
@@ -1327,7 +1324,6 @@ bot.run(os.getenv('DISCORD_BOT_TOKEN'))
 - **Exception**: `/manage list` shows both active and inactive nodes (with clear indication of inactive status)
 - Prepared statements for security
 - Connection pooling for performance
-- **See**: `PROJECT_DATA_INTEGRATION_SCHEME.md` for complete query filters and inactive node handling
 - **Case-Insensitive Storage and Queries**:
   - All text fields (node names, cities, etc.) stored and queried case-insensitively
   - Public keys stored in **lowercase** in database
@@ -1390,7 +1386,6 @@ const apiUrl = "/api/v1/belgian-nodes";  // Local REST API endpoint
 - **Endpoint**: `GET /api/v1/belgian-nodes`
 - **Returns**: JSON array of all Belgian nodes
 - **Benefits**: Real-time updates, single source of truth, proper separation of concerns
-- **See**: `DATA_ARCHITECTURE_ANALYSIS.md` for detailed architecture analysis
 
 2. **Add city display**:
 ```javascript
@@ -1462,7 +1457,6 @@ let params = { lat: 50.5039, lon: 4.4699, zoom: 8 };  // Brussels
 - Inactive nodes: `is_active = FALSE` (removed from official map, preserved for history)
 - Change tracking stored in `sync_history` and `node_changes` tables
 - **Integration**: Automatic immediate integration during sync
-- **See**: `PROJECT_DATA_INTEGRATION_SCHEME.md` for complete merge processes and conflict resolution
 
 ### Discord Bot Workflow
 ```
@@ -1510,14 +1504,12 @@ let params = { lat: 50.5039, lon: 4.4699, zoom: 8 };  // Brussels
 RRY-Map-Bot/
 ├── README.md
 ├── PROJECT_SUMMARY.md (this file) ⭐ MAIN SPECIFICATION
-├── PROJECT_DATA_INTEGRATION_SCHEME.md (data integration workflow)
-├── PROJECT_REVIEW.md (review report)
-├── DATA_ARCHITECTURE_ANALYSIS.md (architecture decision)
 ├── DISCORDBOT_INSTRUCTIONS.md (bot instructions for Discord post)
-├── DOCUMENTATION_INDEX.md (documentation index and file status)
+├── DEPLOYMENT.md (deployment guide)
+├── DOCUMENTATION_INDEX.md (documentation index)
 ├── package.json
 ├── requirements.txt (Python dependencies)
-├── .env.example (environment variables template)
+├── rry-map-bot.env.example (environment variables template)
 ├── .env (environment variables - NOT committed to git)
 ├── .gitignore
 │
@@ -1544,7 +1536,7 @@ RRY-Map-Bot/
 │   └── config.py (configuration)
 │
 ├── .env (environment variables - NOT committed to git)
-├── .env.example (environment variables template)
+├── rry-map-bot.env.example (environment variables template)
 └── DISCORDBOT_INSTRUCTIONS.md (bot instructions for Discord post)
 ```
 
@@ -1575,7 +1567,7 @@ RRY-Map-Bot/
 
 ### Environment Variables
 
-**File**: `.env` (create from `.env.example`)
+**File**: `.env` (create from `rry-map-bot.env.example`)
 
 ```bash
 # Discord Bot
@@ -1604,7 +1596,7 @@ LOCAL_API_URL=http://localhost:8000/api/v1
 SYNC_INTERVAL_HOURS=6  # Run every 6 hours
 ```
 
-**Security Note**: Never commit `.env` file to git. Always use `.env.example` as a template.
+**Security Note**: Never commit `.env` file to git. Always use `rry-map-bot.env.example` as a template.
 
 ---
 
@@ -1651,10 +1643,10 @@ SYNC_INTERVAL_HOURS=6  # Run every 6 hours
 
 ## Questions to Resolve
 
-1. ✅ **Data Storage**: **DECIDED** - SQLite database with REST API (see `DATA_ARCHITECTURE_ANALYSIS.md`)
-2. ✅ **API Architecture**: **DECIDED** - REST API (Flask/FastAPI) for web map (see `DATA_ARCHITECTURE_ANALYSIS.md`)
-3. ✅ **Sync Integration**: **DEFINED** - Automatic immediate integration during sync (see `PROJECT_DATA_INTEGRATION_SCHEME.md`)
-4. ✅ **Node Removal Handling**: **DEFINED** - Mark as inactive, preserve data for history (see `PROJECT_DATA_INTEGRATION_SCHEME.md`)
+1. ✅ **Data Storage**: **DECIDED** - SQLite database with REST API
+2. ✅ **API Architecture**: **DECIDED** - REST API (Flask) for web map
+3. ✅ **Sync Integration**: **DEFINED** - Automatic immediate integration during sync
+4. ✅ **Node Removal Handling**: **DEFINED** - Mark as inactive, preserve data for history
 5. **Geopy Caching**: How long to cache Geopy results?
 6. **Discord Permissions**: Who can claim/manage nodes?
 7. **Node Ownership**: Can users unclaim nodes? Transfer ownership? *(Answer: Yes, users can unclaim via `/manage unclaim`)*
@@ -1664,7 +1656,7 @@ SYNC_INTERVAL_HOURS=6  # Run every 6 hours
 
 ## Next Steps
 
-1. ✅ **Architecture Decision**: SQLite database + REST API architecture chosen (see `DATA_ARCHITECTURE_ANALYSIS.md`)
+1. ✅ **Architecture Decision**: SQLite database + REST API architecture chosen
 2. **Phase 1: Database Setup**
    - Create SQLite database schema (`database.py`)
    - Initialize database with tables (belgian_nodes, sync_history, node_changes)
@@ -1704,16 +1696,15 @@ SYNC_INTERVAL_HOURS=6  # Run every 6 hours
 - Focus is **exclusively on Belgian nodes**
 - Sync service is **resource-intensive** - run sparingly (few times per day)
 - Geopy verification is **critical** - ensures only Belgian nodes are included
-- **Separate Documents**:
-  - `PROJECT_DATA_INTEGRATION_SCHEME.md` - **DEFINED** - Complete integration workflow:
-    - Automatic immediate integration during sync
-    - Node lifecycle management (added/removed/updated)
-    - Conflict resolution between official map and Discord user edits
-    - Field-level update rules and merge strategies
-    - Data preservation and historical tracking
+- Integration workflow includes:
+  - Automatic immediate integration during sync
+  - Node lifecycle management (added/removed/updated)
+  - Conflict resolution between official map and Discord user edits
+  - Field-level update rules and merge strategies
+  - Data preservation and historical tracking
 
 ---
 
-*Last Updated: 2026-01-02*
+*Last Updated: 2026-01-04*
 *Project: RRY-Map-Bot - Belgian MeshCore Node Mapping System*
 

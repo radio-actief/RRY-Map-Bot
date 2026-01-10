@@ -31,11 +31,11 @@ cd RRY-Map-Bot
 ### 2. Set Up Environment Variables
 
 ```bash
-cp .env.example .env
+cp rry-map-bot.env.example .env
 nano .env  # Edit with your values
 ```
 
-**Note**: For Docker deployment, the `.env` file is used directly (not `.env.production`).
+**Note**: For Docker deployment, the `.env` file is used directly.
 
 Required variables:
 - `DISCORD_BOT_TOKEN` - Your Discord bot token
@@ -108,7 +108,7 @@ The sync service:
 - Filters by Belgian geographic bounds
 - Verifies with Geopy (respects rate limits)
 - Integrates changes into database
-- Runs automatically every 6 hours
+- Runs automatically every X hours (env var)
 
 ## Database Management
 
@@ -120,30 +120,21 @@ The database is stored in `./data/belgian_nodes.db` on the host, mounted to `/ap
 
 #### Automated Backups
 
-Create a backup script:
+A backup script is provided: `backup-db.sh`
 
-```bash
-#!/bin/bash
-# backup-db.sh
+This script:
+- Creates timestamped database backups
+- Compresses backups with gzip (saves space)
+- Keeps only the last 30 days of backups
+- Automatically cleans old backups
 
-BACKUP_DIR="./backups"
-DATE=$(date +%Y%m%d_%H%M%S)
-BACKUP_FILE="$BACKUP_DIR/belgian_nodes_$DATE.db"
-
-mkdir -p $BACKUP_DIR
-cp ./data/belgian_nodes.db $BACKUP_FILE
-
-# Keep only last 30 days of backups
-find $BACKUP_DIR -name "belgian_nodes_*.db" -mtime +30 -delete
-
-echo "Backup created: $BACKUP_FILE"
-```
-
-Add to crontab (on host):
+To set up automated backups, add to crontab (on host):
 ```bash
 # Backup database daily at 2 AM
-0 2 * * * /path/to/backup-db.sh
+0 2 * * * /path/to/RRY-Map-Bot/backup-db.sh >> /path/to/RRY-Map-Bot/logs/backup.log 2>&1
 ```
+
+**Note**: The backup script is not automatically scheduled. You need to configure cron manually or integrate it into your deployment system.
 
 #### Manual Backup
 
@@ -221,8 +212,8 @@ docker-compose up -d --build
 ### Update Environment Variables
 
 ```bash
-# Edit .env.production
-nano .env.production
+# Edit .env
+nano .env
 
 # Restart services to pick up changes
 docker-compose restart
@@ -232,7 +223,7 @@ docker-compose restart
 
 ### Discord Bot Not Connecting
 
-1. Check token is correct in `.env.production`
+1. Check token is correct in `.env`
 2. Check bot has proper permissions in Discord
 3. Check logs: `docker-compose logs discord-bot`
 
@@ -260,7 +251,7 @@ docker-compose restart
 
 ### Security
 
-1. **Never commit `.env.production`** - It contains sensitive tokens
+1. **Never commit `.env`** - It contains sensitive tokens
 2. **Use secrets management** - Consider Docker secrets or external secret managers
 3. **Firewall** - Only expose port 8000 if needed, or use reverse proxy
 4. **Database backups** - Implement automated backups (see above)

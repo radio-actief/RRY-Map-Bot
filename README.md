@@ -91,7 +91,7 @@ A comprehensive system for managing and visualizing Belgian MeshCore network nod
 
 2. **Set up environment variables**
    ```bash
-   cp .env.example .env
+   cp rry-map-bot.env.example .env
    # Edit .env with your Discord bot token and other settings
    ```
 
@@ -102,7 +102,7 @@ A comprehensive system for managing and visualizing Belgian MeshCore network nod
 
 4. **Initialize database**
    ```bash
-   python3 -c "from backend.database import initialize_db; initialize_db()"
+   python3 -c "from backend.database import init_database; init_database()"
    ```
 
 5. **Run sync service** (one-time or scheduled)
@@ -134,7 +134,7 @@ docker-compose up -d
 
 ### Environment Variables
 
-See `.env.example` for all available options:
+See `rry-map-bot.env.example` for all available options:
 
 - `DISCORD_BOT_TOKEN` - Discord bot token (required)
 - `DISCORD_GUILD_ID` - Discord server ID (optional, for guild-specific commands)
@@ -177,8 +177,6 @@ RRY-Map-Bot/
 - **`PROJECT_SUMMARY.md`** - Complete project specification and features
 - **`DEPLOYMENT.md`** - Deployment guide and Docker setup
 - **`DISCORDBOT_INSTRUCTIONS.md`** - Discord bot command reference
-- **`CODE_REVIEW.md`** - Code review and quality assessment
-- **`SYNC_LOGIC_REVIEW.md`** - Data synchronization logic review
 - **`DOCUMENTATION_INDEX.md`** - Complete documentation index
 
 ---

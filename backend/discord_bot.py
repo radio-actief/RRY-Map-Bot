@@ -1674,40 +1674,14 @@ async def search_nodes(
     else:
         # Multiple nodes: paginate across multiple messages if needed
         # Discord embed description limit: 4096 characters
-        # Each node entry: ~50-80 characters
-        # Safe chunk size: dynamically calculated to stay under limit
         DISCORD_EMBED_DESC_LIMIT = 4096
-        HEADER_TEXT_LENGTH = 200  # Approximate length of header text
-        SAFE_BUFFER = 100  # Safety buffer
+        SAFE_BUFFER = 50  # Safety buffer to prevent truncation
         
         total_nodes = len(nodes)
         
-        # Helper function to split nodes into chunks that fit within Discord limits
-        def split_nodes_into_chunks(node_list, max_chars_per_chunk):
-            chunks = []
-            current_chunk = []
-            current_length = HEADER_TEXT_LENGTH  # Start with header length
-            
-            for node in node_list:
-                # Format single node to estimate length
-                test_line = format_node_list([node], show_full_keys=False)
-                line_length = len(test_line) + 1  # +1 for newline
-                
-                # Check if adding this node would exceed limit
-                if current_length + line_length > max_chars_per_chunk and current_chunk:
-                    # Save current chunk and start new one
-                    chunks.append(current_chunk)
-                    current_chunk = [node]
-                    current_length = HEADER_TEXT_LENGTH + line_length
-                else:
-                    current_chunk.append(node)
-                    current_length += line_length
-            
-            # Add final chunk if not empty
-            if current_chunk:
-                chunks.append(current_chunk)
-            
-            return chunks
+        # Build actual header text first to get accurate length
+        header_text = f"**Search result for:** {search_query_str}\n\nFound **{total_nodes}** node(s):\n\n"
+        actual_header_length = len(header_text)
         
         # Format all nodes in simplified format (for search, show owner, no coords)
         formatted_nodes = []
@@ -1726,18 +1700,21 @@ async def search_nodes(
             formatted_nodes.append(formatted)
         
         # Split nodes into chunks that fit within Discord limits
-        max_chars = DISCORD_EMBED_DESC_LIMIT - SAFE_BUFFER
+        # Use actual header length, not estimate
+        max_chars = DISCORD_EMBED_DESC_LIMIT - actual_header_length - SAFE_BUFFER
         chunks = []
         current_chunk = []
-        current_length = HEADER_TEXT_LENGTH
+        current_length = 0  # Start at 0, we'll add header when building description
         
         for formatted_node in formatted_nodes:
-            node_length = len(formatted_node) + 4  # +4 for "\n\n" separators
+            node_length = len(formatted_node) + 4  # +4 for "\n\n" separators between nodes
             
+            # Check if adding this node would exceed the available space
             if current_length + node_length > max_chars and current_chunk:
+                # Save current chunk and start new one
                 chunks.append(current_chunk)
                 current_chunk = [formatted_node]
-                current_length = HEADER_TEXT_LENGTH + node_length
+                current_length = node_length
             else:
                 current_chunk.append(formatted_node)
                 current_length += node_length
@@ -1751,15 +1728,25 @@ async def search_nodes(
         first_chunk = chunks[0]
         first_response = "\n\n".join(first_chunk)
         
-        # Build description with length check
-        header_text = f"**Search result for:** {search_query_str}\n\nFound **{total_nodes}** node(s):\n\n"
+        # Build description with actual header
         description = header_text + first_response
         
-        # Truncate if somehow still too long (shouldn't happen, but safety check)
+        # Final safety check - if somehow still too long, truncate at node boundary
         if len(description) > DISCORD_EMBED_DESC_LIMIT:
-            # Truncate and add note
-            max_content_length = DISCORD_EMBED_DESC_LIMIT - len(header_text) - 50
-            truncated_response = first_response[:max_content_length] + "\n\n*... (truncated)*"
+            # Calculate how much space we have for content
+            max_content_length = DISCORD_EMBED_DESC_LIMIT - len(header_text) - SAFE_BUFFER
+            # Truncate at a safe point (try to end at a complete node)
+            truncated_response = first_response[:max_content_length]
+            # Try to find last complete node (ends with \n\n)
+            last_node_separator = truncated_response.rfind('\n\n')
+            if last_node_separator > max_content_length * 0.7:  # If we can keep at least 70% of content
+                truncated_response = truncated_response[:last_node_separator]
+                # Recalculate first_chunk to match what actually fits
+                actual_nodes_in_first = truncated_response.count('\n\n') + 1 if truncated_response else 0
+                first_chunk = first_chunk[:actual_nodes_in_first] if actual_nodes_in_first < len(first_chunk) else first_chunk
+            else:
+                # Can't find good break point, just truncate and note it
+                truncated_response = truncated_response.rstrip() + "\n\n*... (truncated)*"
             description = header_text + truncated_response
         
         # Create first embed
@@ -1787,12 +1774,25 @@ async def search_nodes(
             
             # Build description with length check
             followup_header = f"**Search result for:** {search_query_str}\n\n"
+            followup_header_length = len(followup_header)
             followup_description = followup_header + chunk_response
             
-            # Truncate if too long (safety check)
+            # Truncate if too long (safety check) - truncate at node boundary
             if len(followup_description) > DISCORD_EMBED_DESC_LIMIT:
-                max_content_length = DISCORD_EMBED_DESC_LIMIT - len(followup_header) - 50
-                truncated_response = chunk_response[:max_content_length] + "\n\n*... (truncated)*"
+                max_content_length = DISCORD_EMBED_DESC_LIMIT - followup_header_length - SAFE_BUFFER
+                truncated_response = chunk_response[:max_content_length]
+                # Try to find last complete node (ends with \n\n)
+                last_node_separator = truncated_response.rfind('\n\n')
+                if last_node_separator > max_content_length * 0.7:  # If we can keep at least 70% of content
+                    truncated_response = truncated_response[:last_node_separator]
+                    # Update chunk to match what actually fits
+                    actual_nodes_in_chunk = truncated_response.count('\n\n') + 1 if truncated_response else 0
+                    chunk = chunk[:actual_nodes_in_chunk] if actual_nodes_in_chunk < len(chunk) else chunk
+                    # Recalculate end_idx
+                    end_idx = start_idx + len(chunk) - 1
+                else:
+                    # Can't find good break point, just truncate and note it
+                    truncated_response = truncated_response.rstrip() + "\n\n*... (truncated)*"
                 followup_description = followup_header + truncated_response
             
             # Create follow-up embed

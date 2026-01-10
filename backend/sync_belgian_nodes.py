@@ -981,7 +981,7 @@ def send_sync_notification(
                 # Build notification embed
                 embed = discord.Embed(
                     title="🔄 Sync Complete",
-                    description="Sync completed and updated the [Belgian MeshCore Network](https://map.axistem.eu)",
+                    description="Sync completed and updated the [Belgian MeshCore Network](https://map.axistem.eu)\n\u200b",
                     color=discord.Color.blue()
                 )
                 
@@ -989,9 +989,9 @@ def send_sync_notification(
                 embed.add_field(
                     name="🔄 Sync Process",
                     value=(
-                        f"**Downloaded:** {total_downloaded}\n"
-                        f"**Verified Belgian:** {verified}\n"
-                        f"**Duration:** {elapsed_time:.1f}s"
+                        f"- **Downloaded:** {total_downloaded}\n"
+                        f"- **Verified Belgian:** {verified}\n"
+                        f"- **Duration:** {elapsed_time:.1f}s\n\u200b"
                     ),
                     inline=True
                 )
@@ -999,19 +999,27 @@ def send_sync_notification(
                 # Inline 1: Changes Summary (only show non-zero counts, hide field if all are 0)
                 changes_lines = []
                 if changes['added_count'] > 0:
-                    changes_lines.append(f"**Added:** {changes['added_count']}")
+                    changes_lines.append(f"- **Added:** {changes['added_count']}")
                 if changes['updated_count'] > 0:
-                    changes_lines.append(f"**Updated:** {changes['updated_count']}")
+                    changes_lines.append(f"- **Updated:** {changes['updated_count']}")
                 if changes['removed_count'] > 0:
-                    changes_lines.append(f"**Deactivated:** {changes['removed_count']}")
+                    changes_lines.append(f"- **Deactivated:** {changes['removed_count']}")
                 if changes['restored_count'] > 0:
-                    changes_lines.append(f"**Restored:** {changes['restored_count']}")
+                    changes_lines.append(f"- **Restored:** {changes['restored_count']}")
                 
                 # Only add the Changes field if there are any changes
                 if changes_lines:
                     embed.add_field(
                         name="📝 Changes",
-                        value="\n".join(changes_lines),
+                        value="\n".join(changes_lines) + "\n\u200b",
+                        inline=True
+                    )
+                
+                # Add empty field for spacing if we have 2 fields in first row
+                if changes_lines:
+                    embed.add_field(
+                        name="\u200b",
+                        value="\u200b",
                         inline=True
                     )
                 
@@ -1019,11 +1027,11 @@ def send_sync_notification(
                 embed.add_field(
                     name="📊 Overall Statistics",
                     value=(
-                        f"**Total Active Nodes:** {stats['total_nodes']}\n"
-                        f"**Claimed:** {stats['claimed_nodes']}\n"
-                        f"**Unclaimed:** {stats['unclaimed_nodes']}\n"
-                        f"**Registered Users:** {stats['registered_users']}\n"
-                        f"**Total Cities:** {stats['total_cities']}"
+                        f"- **Total Active Nodes:** {stats['total_nodes']}\n"
+                        f"- **Claimed:** {stats['claimed_nodes']}\n"
+                        f"- **Unclaimed:** {stats['unclaimed_nodes']}\n"
+                        f"- **Registered Users:** {stats['registered_users']}\n"
+                        f"- **Total Cities:** {stats['total_cities']}\n\u200b"
                     ),
                     inline=True
                 )
@@ -1032,7 +1040,13 @@ def send_sync_notification(
                 if by_type_text:
                     embed.add_field(
                         name="📱 Nodes by Type",
-                        value="\n".join(by_type_text),
+                        value="\n".join([f"- {text}" for text in by_type_text]) + "\n\u200b",
+                        inline=True
+                    )
+                    # Add empty field for spacing if we have 2 fields in second row
+                    embed.add_field(
+                        name="\u200b",
+                        value="\u200b",
                         inline=True
                     )
                 
@@ -1058,7 +1072,7 @@ def send_sync_notification(
                 # Only show if there are actual items
                 
                 if added_nodes:
-                    formatted = "\n".join([format_node_for_sync_notification(node) for node in added_nodes])
+                    formatted = "\n".join([f"- {format_node_for_sync_notification(node)}" for node in added_nodes])
                     total_count = len(changes.get('added', []))
                     if total_count > 50:
                         formatted += f"\n\n*... and {total_count - 50} more*"
@@ -1069,7 +1083,7 @@ def send_sync_notification(
                     )
                 
                 if updated_nodes:
-                    formatted = "\n".join([format_node_for_sync_notification(node) for node in updated_nodes])
+                    formatted = "\n".join([f"- {format_node_for_sync_notification(node)}" for node in updated_nodes])
                     total_count = len(changes.get('updated', []))
                     if total_count > 50:
                         formatted += f"\n\n*... and {total_count - 50} more*"
@@ -1080,7 +1094,7 @@ def send_sync_notification(
                     )
                 
                 if removed_nodes:
-                    formatted = "\n".join([format_node_for_sync_notification(node) for node in removed_nodes])
+                    formatted = "\n".join([f"- {format_node_for_sync_notification(node)}" for node in removed_nodes])
                     total_count = len(changes.get('removed', []))
                     if total_count > 50:
                         formatted += f"\n\n*... and {total_count - 50} more*"
@@ -1091,7 +1105,7 @@ def send_sync_notification(
                     )
                 
                 if deactivated_discord_nodes:
-                    formatted = "\n".join([format_node_for_sync_notification(node) for node in deactivated_discord_nodes])
+                    formatted = "\n".join([f"- {format_node_for_sync_notification(node)}" for node in deactivated_discord_nodes])
                     total_count = len(deactivated_unclaimed_discord_keys)
                     if total_count > 50:
                         formatted += f"\n\n*... and {total_count - 50} more*"

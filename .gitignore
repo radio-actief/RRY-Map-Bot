@@ -78,9 +78,8 @@ data/*.sqlite3
 *.sqlite
 *.sqlite3
 
-# Migration backups and logs (keep migrate_legacy_db.py)
-migration/*.db
-migration/*.log
+# Archive folder (all historical documentation and migration files)
+docs/archive/
 
 # Temporary files
 *.tmp

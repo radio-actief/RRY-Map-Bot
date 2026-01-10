@@ -37,11 +37,17 @@ logs/
 backups/
 *.db.gz
 
-# Environment variables
+# Environment variables - exclude all actual config files
 .env
 .env.local
 .env.*.local
 .env.production
+.env.dev
+.env.prod
+.env.development
+.env.*
+# Keep example files
+!.env.example
 
 # Python
 __pycache__/

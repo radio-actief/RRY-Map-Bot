@@ -17,8 +17,9 @@ const types = {
   4: "Sensor",
 };
 
-// Frequency Presets (matching backend config)
-const FREQUENCY_PRESETS = [
+// Frequency Presets (fallback - matching backend config)
+// Will be replaced by dynamic presets from API if available
+let FREQUENCY_PRESETS = [
   { name: "Australia", freq: 915.8, sf: 10, bw: 250, cr: 5 },
   { name: "Australia: Victoria", freq: 916.675, sf: 7, bw: 62.5, cr: 8 },
   {
@@ -39,6 +40,44 @@ const FREQUENCY_PRESETS = [
   { name: "USA/Canada (Recommended)", freq: 910.525, sf: 7, bw: 62.5, cr: 5 },
   { name: "Vietnam", freq: 920.25, sf: 11, bw: 250, cr: 5 },
 ];
+
+// Fetch presets from API (upstream approach with our endpoint)
+let presetsFetched = false;
+async function getPresets() {
+	// If already fetched, return cached presets
+	if(presetsFetched && FREQUENCY_PRESETS.length > 0) {
+		return FREQUENCY_PRESETS;
+	}
+
+	try {
+		const res = await fetch('/api/v1/config');
+		if (!res.ok) {
+			throw new Error(`HTTP ${res.status}`);
+		}
+		const config = await res.json();
+		const presetsApi = config.config.suggested_radio_settings.entries;
+
+		// Transform API format to our format
+		// Handle both string and number formats (official API uses strings)
+		FREQUENCY_PRESETS = presetsApi.map(p => ({
+			name: p.title,
+			desc: p.description,
+			freq: typeof p.frequency === 'string' ? parseFloat(p.frequency) : p.frequency,
+			sf: typeof p.spreading_factor === 'string' ? parseInt(p.spreading_factor, 10) : p.spreading_factor,
+			bw: typeof p.bandwidth === 'string' ? parseFloat(p.bandwidth) : p.bandwidth,
+			cr: typeof p.coding_rate === 'string' ? parseInt(p.coding_rate, 10) : p.coding_rate
+		}));
+
+		presetsFetched = true;
+		console.log('Loaded presets from API:', FREQUENCY_PRESETS.length);
+		return FREQUENCY_PRESETS;
+	} catch (e) {
+		console.warn('Failed to fetch presets from API, using fallback:', e);
+		// Keep fallback presets (already in FREQUENCY_PRESETS)
+		presetsFetched = false;
+		return FREQUENCY_PRESETS;
+	}
+}
 
 // Copy to clipboard with confirmation
 function copyToClipboard(text, element) {
@@ -136,56 +175,39 @@ function formatRadioParams(params) {
   return html;
 }
 
-// Format date as relative time (e.g., "5 days ago", "3 hours ago", "45 minutes ago")
+// Format date as relative time (exact upstream implementation)
+function timeAgo(msec) {
+	const seconds = Math.floor((Date.now() - msec) / 1000);
+
+	const units = [
+		{ name: 'year', limit: 31536000 },
+		{ name: 'month', limit: 2592000 },
+		{ name: 'day', limit: 86400 },
+		{ name: 'hour', limit: 3600 },
+		{ name: 'minute', limit: 60 },
+		{ name: 'second', limit: 1 }
+	];
+
+	for (const unit of units) {
+		const count = Math.floor(seconds / unit.limit);
+
+		if (count >= 1) {
+			return `${count} ${unit.name}${count > 1 ? 's' : ''} ago`;
+		}
+	}
+
+	return 'just now';
+}
+
+// Helper function to format date string with timeAgo
 function formatRelativeTime(dateString) {
   if (!dateString) return "N/A";
 
   const date = new Date(dateString);
   if (isNaN(date.getTime())) return "Invalid date";
 
-  const now = new Date();
-  const diffMs = now - date;
-
-  // Handle future dates or very recent dates
-  if (diffMs < 0) {
-    // Future date - show as "in X time" or just show the date
-    const fullDate = date.toLocaleString();
-    const escapedFullDate = fullDate
-      .replace(/&/g, "&amp;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#39;");
-    return `<time title="${escapedFullDate}">${fullDate}</time>`;
-  }
-
-  const diffMinutes = Math.floor(diffMs / (1000 * 60));
-  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
-  let relativeText;
-  if (diffMinutes < 1) {
-    // Less than 1 minute: show "just now"
-    relativeText = "just now";
-  } else if (diffMinutes < 90) {
-    // Less than 90 minutes: show minutes
-    relativeText = `${diffMinutes} minute${diffMinutes !== 1 ? "s" : ""} ago`;
-  } else if (diffHours < 24) {
-    // Less than 1 day: show hours
-    relativeText = `${diffHours} hour${diffHours !== 1 ? "s" : ""} ago`;
-  } else {
-    // 1 day or more: show days
-    relativeText = `${diffDays} day${diffDays !== 1 ? "s" : ""} ago`;
-  }
-
-  // Full date/time for title attribute
-  const fullDate = date.toLocaleString();
-
-  // Escape HTML for title attribute
-  const escapedFullDate = fullDate
-    .replace(/&/g, "&amp;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-
-  return `<time title="${escapedFullDate}">${relativeText}</time>`;
+  const dt = new Date(dateString);
+  return `<time datetime="${dateString}" title="${dt.toLocaleString()}">${timeAgo(dt.getTime())}</time>`;
 }
 
 // Create clickable copy element
@@ -206,8 +228,9 @@ function createCopyableElement(text, displayText = null) {
 
 const columnOrder = [
   "adv_name",
-  "public_key",
   "type",
+  "status",
+  "public_key",
   "city",
   "coords",
   "discord_owner_name",
@@ -232,6 +255,10 @@ const columns = {
   },
   adv_name: {
     label: "Name",
+  },
+  status: {
+    label: "Update status",
+    value: (val) => updateStatusDesc[val] || "N/A",
   },
   inserted_date: {
     label: "Inserted date",
@@ -495,6 +522,30 @@ function getMostRecentDate(node) {
   return new Date(mostRecentTimestamp).toISOString();
 }
 
+// Get node update status (exact upstream implementation - day-based)
+function getDaysEpochMsec(days) {
+	return days * 24 * 60 * 60 * 1000;
+}
+
+function getNodeUpdateStatus(node) {
+	if(node.source !== 'uploader') return 'none';
+	const updateEpoch = new Date(node.updated_date).getTime();
+	if(updateEpoch < Date.now() - getDaysEpochMsec(20)) return 'extinct';
+	else if(updateEpoch < Date.now() - getDaysEpochMsec(10)) return 'old';
+	else if(updateEpoch < Date.now() - getDaysEpochMsec(5)) return 'stale';
+
+	return 'recent';
+}
+
+// Update status descriptions (exact upstream - note: 'manualy' is typo in upstream)
+const updateStatusDesc = {
+	'none': 'manualy added',
+	'recent': 'updated recently',
+	'stale': 'updated while ago',
+	'old': 'not updated',
+	'extinct': 'will be deleted soon'
+};
+
 const deletionMailUrl = new URL("mailto:recrof@gmail.com");
 deletionMailUrl.searchParams.append(
   "subject",
@@ -507,11 +558,7 @@ deletionMailUrl.searchParams.append(
 );
 
 const appAttribution = `
-	App: recrof, <a target="_blank" href="https://www.paypal.com/donate/?business=DREHF5HM265ES&no_recurring=0&item_name=If+you+enjoy+my+work%2C+you+can+support+me+here%3A&currency_code=EUR">
-	<strong>support my work</strong></a> |
-	<a target="_blank" href="${deletionMailUrl
-    .toString()
-    .replaceAll("+", "%20")}"><strong>Node deletion request</strong></a>
+	Original map by <a target="_blank" href="https://github.com/sponsors/recrof?frequency=one-time&sponsor=recrof"><strong>recrof</strong></a> | Modified by the <a target="_blank" href="https://github.com/radio-actief"><strong>Radio-Actief.be</strong></a> community
 `;
 
 const baseMapSelected =
@@ -530,7 +577,7 @@ const baseMaps = {
   ),
 };
 
-let params = { lat: 50.75, lon: 4.471, zoom: 8 }; // Brussels, Belgium
+let params = { lat: 50.75, lon: 4.471, zoom: 9 }; // Brussels, Belgium
 
 const urlParams = Object.fromEntries(new URLSearchParams(location.search));
 if (Number(urlParams.lat) && Number(urlParams.lon) && Number(urlParams.zoom)) {
@@ -558,15 +605,22 @@ map.on("baselayerchange", function (ev) {
 L.control.layers(baseMaps, null, { position: "bottomleft" }).addTo(map);
 
 // map.zoomControl.setPosition('bottomleft');
+// Icon structure: nested by update status, then by node type (upstream implementation)
 const icons = Object.fromEntries(
-  [1, 2, 3, 4].map((id) => [
-    id,
-    L.icon({
-      iconUrl: `img/node_types/${id}.svg`,
-      iconSize: [32, 32],
-      iconAnchor: [17, 17],
-      popupAnchor: [0, -16],
-    }),
+  ["none", "recent", "stale", "old", "extinct"].map((color) => [
+    color,
+    Object.fromEntries(
+      [1, 2, 3, 4].map((id) => [
+        id,
+        L.icon({
+          iconUrl: `img/node_types/${id}.svg`,
+          iconSize: [32, 32],
+          iconAnchor: [17, 17],
+          popupAnchor: [0, -16],
+          className: `update-${color}`,
+        }),
+      ])
+    ),
   ])
 );
 
@@ -579,9 +633,12 @@ createApp({
       search: "",
       cityFilter: "",
       nodeFilter: [],
+      sourceFilter: ['discord', 'app', 'uploader'],
+      claimedFilter: ['claimed', 'unclaimed'],
       fromDate: "",
-      clusteringZoom: 5,
+      clusteringZoom: 11,
       urlParams,
+      loading: false,
     }));
 
     async function refreshMap({ clusteringZoom = 0 } = {}) {
@@ -641,66 +698,98 @@ createApp({
 
     function clearFilters() {
       app.nodeFilter = [1, 2, 3, 4];
+      app.sourceFilter = ['discord', 'app', 'uploader'];
+      app.claimedFilter = ['claimed', 'unclaimed'];
       app.fromDate = "2025-03-01";
       app.cityFilter = "";
-      app.clusteringZoom = 5;
+      app.clusteringZoom = 11;
+      // Clear filtered nodes to show all nodes
+      app.filteredNodes = [];
+      // Clear URL parameters
+      delete app.urlParams.nodes;
+      delete app.urlParams.source;
+      delete app.urlParams.claimed;
+      delete app.urlParams.date;
+      delete app.urlParams.city;
+      app.urlParams.cluster = 11;
+      // Refresh the map
+      refreshMap({ clusteringZoom: 11 });
     }
 
     async function downloadNodes() {
-      const nodesReq = await fetch(apiUrl);
-      app.nodes = await nodesReq.json();
-      for (const node of app.nodes) {
-        // Skip nodes without valid coordinates
-        if (node.adv_lat == null || node.adv_lon == null) {
-          console.warn(
-            `Skipping node ${
-              node.adv_name || node.public_key
-            }: missing coordinates`
-          );
-          continue;
-        }
+      try {
+        app.loading = true;
+        const nodesReq = await fetch(apiUrl);
+        app.nodes = await nodesReq.json();
 
-        let icon = icons[node.type.toString()];
-        (app.nodesByType[node.type] ??= []).push(node);
-
-        if (node.type === 1) {
-          const label = ntools.getNameIconLabel(node.adv_name);
-          const color = ntools.getColourForName(node.adv_name);
-          icon = getSvgIconUrl(label, color);
-        }
-
-        const marker = (node.marker = L.marker([node.adv_lat, node.adv_lon], {
-          icon,
-          title: node.adv_name,
-        }));
-
-        node.coords = `${node.adv_lat.toFixed(4)}, ${node.adv_lon.toFixed(4)}`;
-        node.lastAdvertDate = new Date(node.last_advert);
-        node.insertDate = new Date(node.inserted_date);
-        node.updatedDate = node.updated_date && new Date(node.updated_date);
-        const popup = L.popup({
-          minWidth: 350,
-          maxWidth: 350,
-          content: getTable(node),
+        // Fetch presets from API (similar to upstream)
+        getPresets().then((presets) => {
+          // Presets are now loaded and cached in FREQUENCY_PRESETS
+          console.log('Presets ready:', presets.length);
+        }).catch((err) => {
+          console.warn('Preset loading error (using fallback):', err);
         });
-        marker.bindPopup(popup);
 
-        // Re-setup copy handlers when popup opens (for dynamically created content)
-        marker.on("popupopen", function () {
-          // Small delay to ensure popup content is in DOM
-          setTimeout(() => {
-            const popupContent = popup.getElement();
-            if (popupContent) {
-              const copyableElements =
-                popupContent.querySelectorAll(".copyable");
-              copyableElements.forEach((el) => {
-                if (!el.hasAttribute("data-handler-setup")) {
-                  el.setAttribute("data-handler-setup", "true");
-                }
-              });
-            }
-          }, 100);
-        });
+        for (const node of app.nodes) {
+          // Skip nodes without valid coordinates
+          if (node.adv_lat == null || node.adv_lon == null) {
+            console.warn(
+              `Skipping node ${
+                node.adv_name || node.public_key
+              }: missing coordinates`
+            );
+            continue;
+          }
+
+          const updateStatus = getNodeUpdateStatus(node);
+          let icon = icons[updateStatus][node.type.toString()];
+
+          (app.nodesByType[node.type] ??= []).push(node);
+
+          if (node.type === 1) {
+            const label = ntools.getNameIconLabel(node.adv_name);
+            const color = ntools.getColourForName(node.adv_name);
+            icon = getSvgIconUrl(label, color);
+          }
+
+          const marker = (node.marker = L.marker([node.adv_lat, node.adv_lon], {
+            icon,
+            title: node.adv_name,
+          }));
+
+          node.status = updateStatus;
+          node.coords = `${node.adv_lat.toFixed(4)}, ${node.adv_lon.toFixed(4)}`;
+          node.lastAdvertDate = new Date(node.last_advert);
+          node.insertDate = new Date(node.inserted_date);
+          node.updatedDate = node.updated_date && new Date(node.updated_date);
+          const popup = L.popup({
+            minWidth: 350,
+            maxWidth: 350,
+            content: getTable(node),
+          });
+          marker.bindPopup(popup);
+
+          // Re-setup copy handlers when popup opens (for dynamically created content)
+          marker.on("popupopen", function () {
+            // Small delay to ensure popup content is in DOM
+            setTimeout(() => {
+              const popupContent = popup.getElement();
+              if (popupContent) {
+                const copyableElements =
+                  popupContent.querySelectorAll(".copyable");
+                copyableElements.forEach((el) => {
+                  if (!el.hasAttribute("data-handler-setup")) {
+                    el.setAttribute("data-handler-setup", "true");
+                  }
+                });
+              }
+            }, 100);
+          });
+        }
+      } catch (e) {
+        alert("There was an error loading map nodes: " + e);
+      } finally {
+        app.loading = false;
       }
     }
 
@@ -713,7 +802,7 @@ createApp({
     );
 
     watch(
-      [() => app.nodeFilter, () => app.fromDate, () => app.cityFilter],
+      [() => app.nodeFilter, () => app.sourceFilter, () => app.claimedFilter, () => app.fromDate, () => app.cityFilter],
       () => {
         const fromDate = new Date(app.fromDate);
         const cityFilterLower = app.cityFilter.toLowerCase().trim();
@@ -727,15 +816,33 @@ createApp({
                 : node.insertDate > fromDate) &&
               (!cityFilterLower ||
                 (node.city &&
-                  node.city.toLowerCase().includes(cityFilterLower)))
+                  node.city.toLowerCase().includes(cityFilterLower))) &&
+              (app.sourceFilter.length === 0 ||
+                (node.source && (
+                  app.sourceFilter.includes(node.source.toLowerCase()) ||
+                  (app.sourceFilter.includes('app') && (node.source.toLowerCase() === 'app' || node.source.toLowerCase() === 'web'))
+                ))) &&
+              (app.claimedFilter.length === 0 ||
+                (app.claimedFilter.includes('claimed') && node.discord_owner_name && node.discord_owner_name.trim() !== '') ||
+                (app.claimedFilter.includes('unclaimed') && (!node.discord_owner_name || node.discord_owner_name.trim() === '')))
           );
-        console.log("refresh", app.nodeFilter, app.filteredNodes.length);
+        console.log("refresh", app.nodeFilter, app.sourceFilter, app.claimedFilter, app.filteredNodes.length);
         app.urlParams.nodes = app.nodeFilter.join(",");
         app.urlParams.date = app.fromDate;
         if (app.cityFilter) {
           app.urlParams.city = app.cityFilter;
         } else {
           delete app.urlParams.city;
+        }
+        if (app.sourceFilter.length > 0) {
+          app.urlParams.source = app.sourceFilter.join(",");
+        } else {
+          delete app.urlParams.source;
+        }
+        if (app.claimedFilter.length > 0) {
+          app.urlParams.claimed = app.claimedFilter.join(",");
+        } else {
+          delete app.urlParams.claimed;
         }
         refreshMap({ download: false });
       }
@@ -869,8 +976,75 @@ createApp({
         if (urlParams.city) {
           app.cityFilter = urlParams.city;
         }
+        if (urlParams.source) {
+          app.sourceFilter = urlParams.source.split(",");
+        }
+        if (urlParams.claimed) {
+          app.claimedFilter = urlParams.claimed.split(",");
+        }
         refreshMap();
       });
+
+      // Fix: Prevent menu from closing when clicking on input fields
+      // This fixes the bug where clicking on city filter jumps to date field
+      const menu = document.getElementById('node-filter');
+      if (menu) {
+        // Prevent clicks inside menu from closing it, but allow buttons to work
+        const stopMenuClose = (e) => {
+          // Allow button clicks to work normally
+          if (e.target.tagName === 'BUTTON' || e.target.closest('button')) {
+            return; // Don't stop propagation for buttons
+          }
+          // Stop propagation for input fields and their containers
+          if (e.target.tagName === 'INPUT' || e.target.closest('.field')) {
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+          }
+        };
+        
+        menu.addEventListener('click', stopMenuClose, true); // Use capture phase
+        menu.addEventListener('mousedown', stopMenuClose, true);
+        menu.addEventListener('mouseup', stopMenuClose, true);
+        
+        // Specifically handle city input - ensure it gets focus on click
+        const cityInput = document.getElementById('city-filter-input');
+        if (cityInput) {
+          // Handle click with higher priority
+          cityInput.addEventListener('click', (e) => {
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            // Immediately focus the input
+            cityInput.focus();
+          }, true); // Capture phase - runs before other handlers
+          
+          cityInput.addEventListener('mousedown', (e) => {
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            // Focus on mousedown (before click)
+            setTimeout(() => {
+              cityInput.focus();
+            }, 0);
+          }, true);
+          
+          // Also handle focus event to prevent it from being stolen
+          cityInput.addEventListener('focus', (e) => {
+            e.stopPropagation();
+          });
+        }
+        
+        // Also handle date input to prevent it from stealing focus
+        const dateInput = menu.querySelector('input[type="date"]');
+        if (dateInput) {
+          dateInput.addEventListener('focus', (e) => {
+            // Only allow focus if city input is not being clicked
+            const cityInput = document.getElementById('city-filter-input');
+            if (cityInput && cityInput === document.activeElement) {
+              // Don't steal focus from city input
+              return;
+            }
+          });
+        }
+      }
     });
 
     window.refreshMap = refreshMap;

@@ -17,26 +17,25 @@
 
 		<div class="container">
 			<div id="map"></div>
-			<div id="app" v-if="app.nodes" v-cloak>
+			<div id="app" v-cloak>
+				<div class="loading" v-if="app.loading"></div>
+				<a class="manual-add square round light-blue extra" title="Add node to map" target="_blank" href="https://github.com/meshcore-dev/MeshCore/blob/main/docs/faq.md#512-q-how-do-i-add-a-node-to-the-meshcore-map"><i class="extra">add</i></a>
 				<div class="stats">
 						<span title="Stats">
 							<i>monitoring</i>
 						</span>
 						<span v-for="stat in stats" v-html="stat"></span>
 						<span style="flex-grow: 1"></span>
-						<a href="https://github.com/recrof/map.meshcore.dev" class="github" title="go to github repo" target="_blank">
+						<a href="https://github.com/radio-actief/RRY-Map-Bot" class="github" title="Go to Radio-Actief GitHub repo" target="_blank">
 							<img src="./lib/images/github-mark.svg">
 						</a>
 					</a>
 				</div>
 				<form class="search no-margin" action="javascript:;">
-					<div class="field border no-margin">
-						<input type="text" class="background" list="nodes" v-model="app.search" placeholder="Search Nodes">
-						<button class="filter" :class="{ circle: !filtersActive, transparent: !filtersActive, 'error-container': filtersActive }" data-ui="#node-filter">
-							<i>filter_alt</i>
-							<span v-if="filtersActive">Filters active</span>
-						</button>
-						<menu class="left no-wrap" id="node-filter" data-ui="#node-filter">
+					<menu class="left no-wrap" id="node-filter" data-ui="#node-filter">
+							<li style="margin-top: 4px; padding-top: 4px; border-top: 1px solid #ddd;">
+								<span style="font-weight: bold; font-size: 0.9em;">Type</span>
+							</li>
 							<li>
 								<label class="checkbox">
 									<input type="checkbox" value="1" v-model="app.nodeFilter"><span>Clients</span>
@@ -57,6 +56,37 @@
 									<input type="checkbox" value="4" v-model="app.nodeFilter"><span>Sensors</span>
 								</label>
 							</li>
+							<li style="margin-top: 4px; padding-top: 4px; border-top: 1px solid #ddd;">
+								<span style="font-weight: bold; font-size: 0.9em;">Source</span>
+							</li>
+							<li>
+								<label class="checkbox">
+									<input type="checkbox" value="discord" v-model="app.sourceFilter"><span>Discord</span>
+								</label>
+							</li>
+							<li>
+								<label class="checkbox">
+									<input type="checkbox" value="app" v-model="app.sourceFilter"><span>App</span>
+								</label>
+							</li>
+							<li>
+								<label class="checkbox">
+									<input type="checkbox" value="uploader" v-model="app.sourceFilter"><span>Uploader</span>
+								</label>
+							</li>
+							<li style="margin-top: 4px; padding-top: 4px; border-top: 1px solid #ddd;">
+								<span style="font-weight: bold; font-size: 0.9em;">Discord status</span>
+							</li>
+							<li>
+								<label class="checkbox">
+									<input type="checkbox" value="claimed" v-model="app.claimedFilter"><span>Claimed</span>
+								</label>
+							</li>
+							<li>
+								<label class="checkbox">
+									<input type="checkbox" value="unclaimed" v-model="app.claimedFilter"><span>Unclaimed</span>
+								</label>
+							</li>
 							<li class="padding">
 								<div class="field label prefix fill small">
 									<i>today</i>
@@ -66,13 +96,13 @@
 							</li>
 							<li class="padding">
 								<div class="field border">
-									<input type="text" v-model="app.cityFilter" placeholder="Filter by city">
+									<input type="text" v-model="app.cityFilter" placeholder="Filter by city" id="city-filter-input">
 								</div>
 							</li>
 							<li style="flex-direction:column;gap:0">
 								<span>Clustering zoom level</span>
 								<label class="slider tiny">
-									<input min="10" max="17" type="range" v-model="app.clusteringZoom">
+									<input min="8" max="13" type="range" v-model="app.clusteringZoom">
 									<span></span>
 								</label>
 							</li>
@@ -80,6 +110,12 @@
 								<button class="small max" @click="clearFilters">Clear filters</button>
 							</li>
 						</menu>
+					<div class="field border no-margin">
+						<input type="text" class="background" list="nodes" v-model="app.search" placeholder="Search Nodes" v-if="app.nodes">
+						<button type="button" class="filter" :class="{ circle: !filtersActive, transparent: !filtersActive, 'error-container': filtersActive }" data-ui="#node-filter">
+							<i>filter_alt</i>
+							<span v-if="filtersActive">Filters active</span>
+						</button>
 					</div>
 					<article class="search-results no-margin no-padding" v-if="searchResults?.length > 0">
 						<ul class="list no-space border">

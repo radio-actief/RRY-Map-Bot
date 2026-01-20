@@ -187,6 +187,69 @@ def get_stats():
         }), 500
 
 
+@app.route('/api/v1/config', methods=['GET'])
+def get_config():
+    """
+    GET /api/v1/config
+    
+    Returns configuration including frequency presets.
+    Matches official API format exactly (https://api.meshcore.nz/api/v1/config).
+    
+    Returns:
+        JSON object with config structure:
+        {
+            "config": {
+                "suggested_radio_settings": {
+                    "entries": [
+                        {
+                            "title": "Australia",
+                            "description": "915.800MHz / SF10 / BW250 / CR5",
+                            "frequency": "915.800",  # String format (matches official API)
+                            "bandwidth": "250",       # String format
+                            "spreading_factor": "10", # String format
+                            "coding_rate": "5"        # String format
+                        },
+                        ...
+                    ]
+                }
+            }
+        }
+        
+    Note: Numeric values are returned as strings to match official API format.
+    Frontend handles conversion automatically.
+    """
+    try:
+        from config.config import FREQUENCY_PRESETS
+        
+        # Transform our preset format to upstream format (matches official API exactly)
+        # Note: Official API returns strings for numeric values
+        presets = [
+            {
+                "title": p["name"],
+                "description": f"{p['freq']}MHz / SF{p['sf']} / BW{p['bw']} / CR{p['cr']}",
+                "frequency": str(p["freq"]),  # String format to match official API
+                "bandwidth": str(p["bw"]),     # String format to match official API
+                "spreading_factor": str(p["sf"]),  # String format to match official API
+                "coding_rate": str(p["cr"])     # String format to match official API
+            }
+            for p in FREQUENCY_PRESETS
+        ]
+        
+        return jsonify({
+            "config": {
+                "suggested_radio_settings": {
+                    "entries": presets
+                }
+            }
+        }), 200
+    except Exception as e:
+        print(f"Error in get_config endpoint: {e}")
+        return jsonify({
+            'error': 'Internal server error',
+            'message': str(e)
+        }), 500
+
+
 @app.errorhandler(404)
 def not_found(error):
     """Handle 404 errors for API routes only."""

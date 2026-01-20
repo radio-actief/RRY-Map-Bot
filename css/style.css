@@ -15,14 +15,29 @@ body {
   margin: 0;
 }
 body:has(dialog[open])::after {
-  content: "";
-  position: absolute;
-  z-index: 1049;
-  top: 0;
-  left: 0;
-  bottom: 0;
-  right: 0;
-  backdrop-filter: blur(10px);
+	content: "";
+	position: absolute;
+	z-index: 1049;
+	top: 0;
+	left: 0;
+	bottom: 0;
+	right: 0;
+	backdrop-filter: blur(10px);
+}
+
+body:has(#app .loading)::before {
+	content: '';
+	position: absolute;
+	z-index: 1049;
+	top: 0;
+	left: 0;
+	bottom: 0;
+	right: 0;
+	backdrop-filter: grayscale(1) blur(2px);
+	background-image: url('../img/loader.svg');
+	background-position: center;
+	background-repeat: no-repeat;
+	background-size: 64px;
 }
 
 dialog[open] {
@@ -225,4 +240,96 @@ time {
   cursor: help;
   text-decoration: underline;
   text-decoration-style: dotted;
+}
+
+/* Color coding for nodes with source 'uploader' based on update status */
+.leaflet-marker-icon.update-recent {
+  filter: saturate(5) hue-rotate(260deg);
+}
+
+.leaflet-marker-icon.update-stale {
+  filter: saturate(28) hue-rotate(228deg);
+}
+
+.leaflet-marker-icon.update-old {
+  filter: saturate(5) hue-rotate(165deg);
+}
+
+.leaflet-marker-icon.update-extinct {
+	filter: grayscale(100) contrast(16);
+	opacity: 0.6;
+}
+
+.manual-add {
+	position: fixed;
+	z-index: 1000;
+	display: block;
+	padding: 12px !important;
+	bottom: 55px;
+	right: 10px;
+	width: 50px;
+	height: 50px;
+	border-radius: 5px;
+}
+
+.user-actions {
+	display: flex;
+	justify-content: space-between;
+	width: 100%;
+	margin-top: 15px;
+}
+
+/* Reduce spacing in filter dropdown menu */
+#node-filter {
+	gap: 2px !important;
+	padding: 4px !important;
+}
+
+#node-filter > li {
+	margin: 0 !important;
+	padding: 0 !important;
+	min-height: auto !important;
+}
+
+#node-filter > li.padding {
+	padding: 2px 8px !important;
+	margin: 0 !important;
+}
+
+#node-filter > li .field {
+	margin: 0 !important;
+	padding: 0 !important;
+}
+
+#node-filter > li label {
+	margin: 0 !important;
+	padding: 2px 0 !important;
+}
+
+#node-filter > li .checkbox {
+	margin: 0 !important;
+	padding: 2px 0 !important;
+}
+
+/* Reduce vertical height of clustering zoom slider track and thumb */
+#node-filter .slider.tiny input[type="range"] {
+	height: 14px !important;
+}
+
+#node-filter .slider.tiny input[type="range"]::-webkit-slider-runnable-track {
+	height: 4px !important;
+}
+
+#node-filter .slider.tiny input[type="range"]::-moz-range-track {
+	height: 4px !important;
+}
+
+#node-filter .slider.tiny input[type="range"]::-webkit-slider-thumb {
+	height: 14px !important;
+	width: 14px !important;
+}
+
+#node-filter .slider.tiny input[type="range"]::-moz-range-thumb {
+	height: 14px !important;
+	width: 14px !important;
 }

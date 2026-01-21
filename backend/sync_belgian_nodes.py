@@ -223,6 +223,7 @@ def track_changes(current_nodes: List[Dict[str, Any]],
     Returns:
         Dictionary with added, removed, restored, and updated node lists.
     """
+    # Public keys are already normalized from sync_belgian_nodes step 1
     current_keys = {node['public_key'] for node in current_nodes}
     previous_keys = set(previous_nodes.keys())
     
@@ -1163,6 +1164,12 @@ def sync_belgian_nodes(geopy_delay: float = 1.5, skip_geopy: bool = False) -> Di
         # 1. Download nodes from official API
         all_nodes = download_official_nodes()
         
+        # Normalize public_key in all nodes to ensure consistency
+        # Database stores normalized keys (lowercase, no spaces/dashes)
+        for node in all_nodes:
+            if 'public_key' in node:
+                node['public_key'] = node['public_key'].replace(' ', '').replace('-', '').lower()
+        
         # 2. Filter by Belgian geographic bounds
         bounded_nodes = filter_by_bounds(all_nodes)
         
@@ -1190,6 +1197,7 @@ def sync_belgian_nodes(geopy_delay: float = 1.5, skip_geopy: bool = False) -> Di
         print("\nIntegrating changes into database...")
         
         # Create a lookup for current nodes by public_key
+        # Keys are already normalized from step 1
         current_nodes_dict = {node['public_key']: node for node in belgian_nodes}
         
         # Process added nodes

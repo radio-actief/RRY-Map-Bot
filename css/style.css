@@ -267,6 +267,32 @@ time {
   z-index: 1000 !important;
 }
 
+/* Combine color coding with purple glow for owned nodes with uploader source */
+.leaflet-marker-icon.update-recent.user-owned {
+  filter: saturate(5) hue-rotate(260deg) drop-shadow(0 0 4px #5865f2)
+    drop-shadow(0 0 8px #5865f2) drop-shadow(0 0 12px rgba(88, 101, 242, 0.6));
+  z-index: 1000 !important;
+}
+
+.leaflet-marker-icon.update-stale.user-owned {
+  filter: saturate(28) hue-rotate(228deg) drop-shadow(0 0 4px #5865f2)
+    drop-shadow(0 0 8px #5865f2) drop-shadow(0 0 12px rgba(88, 101, 242, 0.6));
+  z-index: 1000 !important;
+}
+
+.leaflet-marker-icon.update-old.user-owned {
+  filter: saturate(5) hue-rotate(165deg) drop-shadow(0 0 4px #5865f2)
+    drop-shadow(0 0 8px #5865f2) drop-shadow(0 0 12px rgba(88, 101, 242, 0.6));
+  z-index: 1000 !important;
+}
+
+.leaflet-marker-icon.update-extinct.user-owned {
+  filter: grayscale(100) contrast(16) drop-shadow(0 0 4px #5865f2)
+    drop-shadow(0 0 8px #5865f2) drop-shadow(0 0 12px rgba(88, 101, 242, 0.6));
+  opacity: 0.6;
+  z-index: 1000 !important;
+}
+
 .manual-add {
   position: fixed;
   z-index: 1000;

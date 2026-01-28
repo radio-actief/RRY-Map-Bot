@@ -1020,6 +1020,7 @@ createApp({
           node.isOwned = isOwned;
 
           // Add className to icon for owned nodes (purple glow)
+          // Preserve existing className (e.g., update-recent, update-stale) and add user-owned
           if (isOwned) {
             // Get icon properties
             const iconUrl = icon.options?.iconUrl || icon._iconUrl || "";
@@ -1029,9 +1030,10 @@ createApp({
               icon._iconAnchor || [17, 17];
             const popupAnchor = icon.options?.popupAnchor ||
               icon._popupAnchor || [0, -16];
+            // Preserve existing className (for uploader nodes: update-recent, update-stale, etc.)
             const existingClassName = icon.options?.className || "";
 
-            // Create new icon with user-owned class
+            // Create new icon with both existing className and user-owned class
             icon = L.icon({
               iconUrl: iconUrl,
               iconSize: iconSize,

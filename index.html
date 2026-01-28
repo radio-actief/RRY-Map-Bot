@@ -26,6 +26,19 @@
 						</span>
 						<span v-for="stat in stats" v-html="stat"></span>
 						<span style="flex-grow: 1"></span>
+						<!-- Personal Stats (when logged in) -->
+						<span v-if="auth.authenticated" v-for="stat in personalStats" v-html="stat" style="margin-right: 8px;"></span>
+						<!-- Authentication UI -->
+						<span v-if="auth.authenticated" style="display: flex; align-items: center; gap: 8px; margin-right: 8px;">
+							<span style="font-size: 0.9em; color: #4CAF50;">
+								Logged in as <strong style="text-decoration: underline;">@{{ auth.user.username }}</strong> via <span style="color: #5865F2;">Discord</span>
+							</span>
+							<a href="/auth/logout" style="color: #f44336; text-decoration: none; font-size: 0.85em;" title="Logout">Logout</a>
+						</span>
+						<a v-else href="/auth/login" style="display: flex; align-items: center; gap: 6px; color: #5865F2; text-decoration: none; font-size: 0.85em; margin-right: 8px;" title="Login with Discord">
+							<img src="./img/discord-logo.svg" alt="Discord" style="width: 18px; height: 18px; vertical-align: middle;">
+							Login with Discord
+						</a>
 						<a href="https://github.com/radio-actief/RRY-Map-Bot" class="github" title="Go to Radio-Actief GitHub repo" target="_blank">
 							<img src="./lib/images/github-mark.svg">
 						</a>

@@ -5,8 +5,10 @@ Provides API endpoints for the frontend web map to access Belgian node data.
 
 import sys
 import os
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, jsonify, request, send_from_directory, session, redirect
 from flask_cors import CORS
+from flask_session import Session
+import secrets
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../..'))
@@ -15,6 +17,29 @@ from backend.database import (
     get_connection,
     init_database,
     dict_from_row
+)
+from backend.auth import (
+    get_authorization_url,
+    exchange_code_for_token,
+    get_user_info,
+    is_authenticated,
+    get_current_user,
+    login_required,
+    generate_state,
+    is_guild_member,
+    verify_guild_membership_bot,
+    DISCORD_SERVER_INVITE_URL
+)
+from backend.discord_queries import (
+    update_ownership,
+    update_node_properties,
+    verify_ownership,
+    remove_ownership,
+    get_node_by_key
+)
+from backend.discord_notifications import (
+    notify_node_claimed,
+    notify_node_unclaimed
 )
 
 # Get project root directory (parent of backend directory)
@@ -26,8 +51,22 @@ app = Flask(__name__,
             static_url_path='',
             template_folder=PROJECT_ROOT)
 
+# Configure session
+app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', secrets.token_hex(32))
+app.config['SESSION_TYPE'] = 'filesystem'
+app.config['SESSION_PERMANENT'] = False
+app.config['SESSION_USE_SIGNER'] = True
+app.config['SESSION_KEY_PREFIX'] = 'rry_map_bot:'
+app.config['SESSION_COOKIE_SECURE'] = os.getenv('SESSION_COOKIE_SECURE', 'False').lower() == 'true'  # Set to True in production with HTTPS
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+
+# Initialize session
+Session(app)
+
 # Enable CORS for all routes (needed if frontend is on different origin)
-CORS(app)
+# Allow credentials for session cookies
+CORS(app, supports_credentials=True)
 
 
 def get_all_belgian_nodes():
@@ -281,6 +320,327 @@ def internal_error(error):
         'error': 'Internal server error',
         'message': 'An unexpected error occurred'
     }), 500
+
+
+# OAuth2 Routes
+@app.route('/auth/login')
+def auth_login():
+    """Initiate Discord OAuth2 login flow."""
+    state = generate_state()
+    session['oauth_state'] = state
+    auth_url = get_authorization_url(state=state)
+    return redirect(auth_url)
+
+
+@app.route('/auth/callback')
+def auth_callback():
+    """Handle Discord OAuth2 callback."""
+    code = request.args.get('code')
+    state = request.args.get('state')
+    error = request.args.get('error')
+    
+    # Check for errors
+    if error:
+        return redirect('/?error=auth_failed')
+    
+    # Verify state
+    if not state or state != session.get('oauth_state'):
+        return redirect('/?error=invalid_state')
+    
+    # Remove state from session
+    session.pop('oauth_state', None)
+    
+    # Exchange code for token
+    if not code:
+        return redirect('/?error=no_code')
+    
+    token_response = exchange_code_for_token(code)
+    if not token_response:
+        return redirect('/?error=token_exchange_failed')
+    
+    access_token = token_response.get('access_token')
+    if not access_token:
+        return redirect('/?error=no_access_token')
+    
+    # Get user info
+    user_info = get_user_info(access_token)
+    if not user_info:
+        return redirect('/?error=user_info_failed')
+    
+    # Check if user is a member of the Discord server
+    from backend.auth import is_guild_member, DISCORD_SERVER_INVITE_URL
+    from config.config import DISCORD_OAUTH2_REDIRECT_URI
+    
+    is_member = is_guild_member(access_token)
+    
+    # Store user info in session
+    session['user_id'] = str(user_info['id'])
+    session['username'] = user_info.get('username', 'Unknown')
+    session['discriminator'] = user_info.get('discriminator', '0000')
+    session['avatar'] = user_info.get('avatar')
+    session['is_guild_member'] = is_member
+    
+    # If not a member, redirect to Discord server invite with return URL
+    if not is_member:
+        invite_url = f"{DISCORD_SERVER_INVITE_URL}?redirect_uri={DISCORD_OAUTH2_REDIRECT_URI}"
+        return redirect(f'/?error=not_guild_member&invite_url={invite_url}')
+    
+    # Redirect to home page
+    return redirect('/?login=success')
+
+
+@app.route('/auth/logout')
+def auth_logout():
+    """Logout user and clear session."""
+    session.clear()
+    return redirect('/?logout=success')
+
+
+@app.route('/auth/me')
+def auth_me():
+    """Get current authenticated user info."""
+    if not is_authenticated():
+        return jsonify({'authenticated': False}), 200
+    
+    user = get_current_user()
+    return jsonify({
+        'authenticated': True,
+        'user': user
+    }), 200
+
+
+# Authenticated API Endpoints
+@app.route('/api/v1/nodes/<public_key>/claim', methods=['POST'])
+@login_required
+def claim_node(public_key: str):
+    """
+    Claim ownership of an unclaimed node.
+    
+    Requires authentication and Discord server membership.
+    """
+    user = get_current_user()
+    if not user:
+        return jsonify({'error': 'Not authenticated'}), 401
+    
+    # Real-time check: Verify user is still a member of the Discord server
+    # This prevents users who were banned/kicked from claiming nodes
+    is_member = verify_guild_membership_bot(user['id'])
+    
+    if not is_member:
+        # Also clear the session flag if it was incorrectly set
+        session['is_guild_member'] = False
+        return jsonify({
+            'error': 'You must be a member of our Discord server to claim nodes. Please join the server and log out/log back in.',
+            'discord_invite_url': DISCORD_SERVER_INVITE_URL
+        }), 403
+    
+    # Normalize public key
+    public_key_normalized = public_key.replace(' ', '').replace('-', '').lower()
+    
+    # Claim the node
+    success = update_ownership(
+        public_key_normalized,
+        user['id'],
+        user['username']
+    )
+    
+    if not success:
+        return jsonify({
+            'error': 'Failed to claim node. Node may not exist, may already be claimed, or may be inactive.'
+        }), 400
+    
+    # Get the updated node data for Discord notification
+    node = get_node_by_key(public_key_normalized)
+    if node:
+        # Send Discord notification (non-blocking - don't fail if notification fails)
+        try:
+            notify_node_claimed(node, user['id'], user['username'])
+        except Exception as e:
+            print(f"Error sending Discord notification for claim: {e}")
+            # Continue even if notification fails
+    
+    return jsonify({
+        'success': True,
+        'message': 'Node claimed successfully'
+    }), 200
+
+
+@app.route('/api/v1/nodes/<public_key>/unclaim', methods=['POST'])
+@login_required
+def unclaim_node(public_key: str):
+    """
+    Unclaim a node (remove ownership).
+    
+    Requires authentication and ownership.
+    """
+    user = get_current_user()
+    if not user:
+        return jsonify({'error': 'Not authenticated'}), 401
+    
+    # Normalize public key
+    public_key_normalized = public_key.replace(' ', '').replace('-', '').lower()
+    
+    # Verify ownership
+    if not verify_ownership(public_key_normalized, user['id']):
+        return jsonify({
+            'error': 'You do not own this node.'
+        }), 403
+    
+    # Get node data before unclaiming (for Discord notification)
+    node = get_node_by_key(public_key_normalized, include_inactive=True)
+    if not node:
+        return jsonify({
+            'error': 'Node not found.'
+        }), 404
+    
+    # Remove ownership
+    success = remove_ownership(public_key_normalized, user['id'])
+    
+    if not success:
+        return jsonify({
+            'error': 'Failed to unclaim node.'
+        }), 400
+    
+    # Send Discord notification (non-blocking - don't fail if notification fails)
+    try:
+        notify_node_unclaimed(node, user['id'], user['username'])
+    except Exception as e:
+        print(f"Error sending Discord notification for unclaim: {e}")
+        # Continue even if notification fails
+    
+    return jsonify({
+        'success': True,
+        'message': 'Node unclaimed successfully'
+    }), 200
+
+
+@app.route('/api/v1/nodes/<public_key>/update', methods=['POST'])
+@login_required
+def update_node(public_key: str):
+    """
+    Update node properties (name, city, params, coordinates).
+    
+    Requires authentication and ownership.
+    """
+    user = get_current_user()
+    if not user:
+        return jsonify({'error': 'Not authenticated'}), 401
+    
+    # Normalize public key
+    public_key_normalized = public_key.replace(' ', '').replace('-', '').lower()
+    
+    # Verify ownership
+    if not verify_ownership(public_key_normalized, user['id']):
+        return jsonify({
+            'error': 'You do not own this node.'
+        }), 403
+    
+    # Get update data from request
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+    
+    # Extract update fields
+    name = data.get('name')
+    city = data.get('city')
+    params = data.get('params')
+    adv_lat = data.get('lat')
+    adv_lon = data.get('lon')
+    
+    # Update node properties
+    result = update_node_properties(
+        public_key_normalized,
+        user['id'],
+        name=name,
+        city=city,
+        params=params,
+        adv_lat=adv_lat,
+        adv_lon=adv_lon
+    )
+    
+    if not result.get('success'):
+        return jsonify({
+            'error': result.get('message', 'Failed to update node')
+        }), 400
+    
+    return jsonify({
+        'success': True,
+        'message': 'Node updated successfully',
+        'changes': result.get('changes', {})
+    }), 200
+
+
+@app.route('/api/v1/nodes/<public_key>/ownership', methods=['GET'])
+def check_ownership(public_key: str):
+    """
+    Check if current user owns a node.
+    
+    Returns ownership status (no authentication required, but returns False if not authenticated).
+    """
+    # Normalize public key
+    public_key_normalized = public_key.replace(' ', '').replace('-', '').lower()
+    
+    if not is_authenticated():
+        return jsonify({
+            'owned': False,
+            'authenticated': False
+        }), 200
+    
+    user = get_current_user()
+    owned = verify_ownership(public_key_normalized, user['id'])
+    
+    return jsonify({
+        'owned': owned,
+        'authenticated': True
+    }), 200
+
+
+@app.route('/api/v1/my-nodes', methods=['GET'])
+@login_required
+def get_my_nodes():
+    """
+    Get all nodes owned by the current authenticated user.
+    
+    Requires authentication.
+    """
+    user = get_current_user()
+    if not user:
+        return jsonify({'error': 'Not authenticated'}), 401
+    
+    from backend.discord_queries import get_user_nodes
+    
+    # Get user's nodes (active only for display)
+    user_nodes = get_user_nodes(user['id'], include_inactive=False)
+    
+    # Format nodes similar to get_all_belgian_nodes format
+    formatted_nodes = []
+    for node_dict in user_nodes:
+        # Skip nodes without valid coordinates
+        if node_dict.get('adv_lat') is None or node_dict.get('adv_lon') is None:
+            continue
+        
+        formatted_node = {
+            'public_key': node_dict.get('public_key', ''),
+            'type': node_dict.get('type'),
+            'adv_name': node_dict.get('adv_name'),
+            'adv_lat': node_dict.get('adv_lat'),
+            'adv_lon': node_dict.get('adv_lon'),
+            'last_advert': node_dict.get('last_advert'),
+            'inserted_date': node_dict.get('inserted_date'),
+            'updated_date': node_dict.get('updated_date'),
+            'params': node_dict.get('params', {}),
+            'link': node_dict.get('link'),
+            'source': node_dict.get('source'),
+            'city': node_dict.get('city'),
+            'discord_owner_name': node_dict.get('discord_owner_name'),
+            'discord_owner_id': node_dict.get('discord_owner_id'),
+            'discord_updated_date': node_dict.get('discord_updated_date'),
+        }
+        
+        formatted_node['coords'] = f"{node_dict['adv_lat']}, {node_dict['adv_lon']}"
+        formatted_nodes.append(formatted_node)
+    
+    return jsonify(formatted_nodes), 200
 
 
 @app.route('/')

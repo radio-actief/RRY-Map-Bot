@@ -44,39 +44,47 @@ let FREQUENCY_PRESETS = [
 // Fetch presets from API (upstream approach with our endpoint)
 let presetsFetched = false;
 async function getPresets() {
-	// If already fetched, return cached presets
-	if(presetsFetched && FREQUENCY_PRESETS.length > 0) {
-		return FREQUENCY_PRESETS;
-	}
+  // If already fetched, return cached presets
+  if (presetsFetched && FREQUENCY_PRESETS.length > 0) {
+    return FREQUENCY_PRESETS;
+  }
 
-	try {
-		const res = await fetch('/api/v1/config');
-		if (!res.ok) {
-			throw new Error(`HTTP ${res.status}`);
-		}
-		const config = await res.json();
-		const presetsApi = config.config.suggested_radio_settings.entries;
+  try {
+    const res = await fetch("/api/v1/config");
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
+    const config = await res.json();
+    const presetsApi = config.config.suggested_radio_settings.entries;
 
-		// Transform API format to our format
-		// Handle both string and number formats (official API uses strings)
-		FREQUENCY_PRESETS = presetsApi.map(p => ({
-			name: p.title,
-			desc: p.description,
-			freq: typeof p.frequency === 'string' ? parseFloat(p.frequency) : p.frequency,
-			sf: typeof p.spreading_factor === 'string' ? parseInt(p.spreading_factor, 10) : p.spreading_factor,
-			bw: typeof p.bandwidth === 'string' ? parseFloat(p.bandwidth) : p.bandwidth,
-			cr: typeof p.coding_rate === 'string' ? parseInt(p.coding_rate, 10) : p.coding_rate
-		}));
+    // Transform API format to our format
+    // Handle both string and number formats (official API uses strings)
+    FREQUENCY_PRESETS = presetsApi.map((p) => ({
+      name: p.title,
+      desc: p.description,
+      freq:
+        typeof p.frequency === "string" ? parseFloat(p.frequency) : p.frequency,
+      sf:
+        typeof p.spreading_factor === "string"
+          ? parseInt(p.spreading_factor, 10)
+          : p.spreading_factor,
+      bw:
+        typeof p.bandwidth === "string" ? parseFloat(p.bandwidth) : p.bandwidth,
+      cr:
+        typeof p.coding_rate === "string"
+          ? parseInt(p.coding_rate, 10)
+          : p.coding_rate,
+    }));
 
-		presetsFetched = true;
-		console.log('Loaded presets from API:', FREQUENCY_PRESETS.length);
-		return FREQUENCY_PRESETS;
-	} catch (e) {
-		console.warn('Failed to fetch presets from API, using fallback:', e);
-		// Keep fallback presets (already in FREQUENCY_PRESETS)
-		presetsFetched = false;
-		return FREQUENCY_PRESETS;
-	}
+    presetsFetched = true;
+    console.log("Loaded presets from API:", FREQUENCY_PRESETS.length);
+    return FREQUENCY_PRESETS;
+  } catch (e) {
+    console.warn("Failed to fetch presets from API, using fallback:", e);
+    // Keep fallback presets (already in FREQUENCY_PRESETS)
+    presetsFetched = false;
+    return FREQUENCY_PRESETS;
+  }
 }
 
 // Copy to clipboard with confirmation
@@ -177,26 +185,26 @@ function formatRadioParams(params) {
 
 // Format date as relative time (exact upstream implementation)
 function timeAgo(msec) {
-	const seconds = Math.floor((Date.now() - msec) / 1000);
+  const seconds = Math.floor((Date.now() - msec) / 1000);
 
-	const units = [
-		{ name: 'year', limit: 31536000 },
-		{ name: 'month', limit: 2592000 },
-		{ name: 'day', limit: 86400 },
-		{ name: 'hour', limit: 3600 },
-		{ name: 'minute', limit: 60 },
-		{ name: 'second', limit: 1 }
-	];
+  const units = [
+    { name: "year", limit: 31536000 },
+    { name: "month", limit: 2592000 },
+    { name: "day", limit: 86400 },
+    { name: "hour", limit: 3600 },
+    { name: "minute", limit: 60 },
+    { name: "second", limit: 1 },
+  ];
 
-	for (const unit of units) {
-		const count = Math.floor(seconds / unit.limit);
+  for (const unit of units) {
+    const count = Math.floor(seconds / unit.limit);
 
-		if (count >= 1) {
-			return `${count} ${unit.name}${count > 1 ? 's' : ''} ago`;
-		}
-	}
+    if (count >= 1) {
+      return `${count} ${unit.name}${count > 1 ? "s" : ""} ago`;
+    }
+  }
 
-	return 'just now';
+  return "just now";
 }
 
 // Helper function to format date string with timeAgo
@@ -250,7 +258,7 @@ const columns = {
     value: (val) =>
       `<a target="_blank" href="https://google.com/maps/place/${val.replace(
         " ",
-        ""
+        "",
       )}">${val}</a>`,
   },
   adv_name: {
@@ -375,7 +383,7 @@ function clearLocationHash() {
   history.pushState("", document.title, location.pathname + location.search);
 }
 
-function getTable(node) {
+function getTable(node, authState = null) {
   // Map node type to analyzer URL type
   // User specified: companions (type 1), repeaters (type 2), rooms (type 3), sensors (type 5)
   const typeMap = {
@@ -419,6 +427,7 @@ function getTable(node) {
         !node.discord_owner_name || node.discord_owner_name.trim() === "";
       const discordServerUrl = "https://discord.gg/kvybAgqnhD";
       const discordColor = "#5865F2"; // Discord purple/burple color
+      const publicKey = node.public_key || "";
 
       // Build footer with links
       let footerLinks = [];
@@ -427,15 +436,43 @@ function getTable(node) {
       footerLinks.push(
         `<a href="${analyzerUrl}" target="_blank" rel="noopener noreferrer" style="color: #4CAF50; text-decoration: none; font-size: 0.75em;">
           <strong>Analyzer</strong>
-        </a>`
+        </a>`,
       );
 
-      // Add Claim link if unclaimed
-      if (isUnclaimed) {
+      // Add Claim/Unclaim link based on authentication and ownership
+      if (authState && authState.authenticated) {
+        // User is authenticated - show claim/unclaim based on ownership
+        if (isUnclaimed) {
+          // Unclaimed node - show claim button
+          footerLinks.push(
+            `<a href="javascript:void(0)" onclick="window.claimNode('${publicKey}')" style="color: ${discordColor}; text-decoration: none; font-size: 0.75em; cursor: pointer;">
+              <strong>Claim</strong>
+            </a>`,
+          );
+        } else {
+          // Check if current user owns this node
+          const nodeOwnerId = node.discord_owner_id;
+          const currentUserId = authState.user?.id;
+
+          // Only show unclaim button if the current user is the owner
+          if (
+            nodeOwnerId &&
+            currentUserId &&
+            String(nodeOwnerId) === String(currentUserId)
+          ) {
+            footerLinks.push(
+              `<a href="javascript:void(0)" onclick="window.unclaimNode('${publicKey}')" style="color: #f44336; text-decoration: none; font-size: 0.75em; cursor: pointer;">
+                <strong>Unclaim</strong>
+              </a>`,
+            );
+          }
+        }
+      } else if (isUnclaimed) {
+        // Not authenticated and unclaimed - redirect to login
         footerLinks.push(
-          `<a href="${discordServerUrl}" target="_blank" rel="noopener noreferrer" style="color: ${discordColor}; text-decoration: none; font-size: 0.75em;">
+          `<a href="/auth/login" style="color: ${discordColor}; text-decoration: none; font-size: 0.75em; cursor: pointer;">
             <strong>Claim</strong>
-          </a>`
+          </a>`,
         );
       }
 
@@ -446,23 +483,22 @@ function getTable(node) {
         (source === "app" || source === "uploader" || source === "web");
 
       if (isNotDiscordSource) {
-        const publicKey = node.public_key || "";
         const emailSubject = encodeURIComponent(
-          "MeshCore Map node deletion request"
+          "MeshCore Map node deletion request",
         );
         const emailBody = encodeURIComponent(
           `Please delete my node(s) from MeshCore Map database\n` +
             `MeshCore link(s) or Public key(s):\n\n` +
             `${publicKey}\n\n` +
             `*** IMPORTANT ***\n` +
-            `if you have multiple nodes to delete, put them into single email, delimited by newline. public key is enough, you don't need to add name or screenshot of the node.`
+            `if you have multiple nodes to delete, put them into single email, delimited by newline. public key is enough, you don't need to add name or screenshot of the node.`,
         );
         const mailtoUrl = `mailto:recrof@gmail.com?subject=${emailSubject}&body=${emailBody}`;
 
         footerLinks.push(
           `<a href="${mailtoUrl}" style="color: #f44336; text-decoration: none; font-size: 0.75em;">
             <strong>Request deletion</strong>
-          </a>`
+          </a>`,
         );
       }
 
@@ -478,7 +514,7 @@ function getTable(node) {
                 (link) =>
                   `<td style="width: ${columnWidth}; text-align: center; padding: 0 5px;">
                 ${link}
-              </td>`
+              </td>`,
               )
               .join("")}
           </tr>
@@ -524,37 +560,37 @@ function getMostRecentDate(node) {
 
 // Get node update status (exact upstream implementation - day-based)
 function getDaysEpochMsec(days) {
-	return days * 24 * 60 * 60 * 1000;
+  return days * 24 * 60 * 60 * 1000;
 }
 
 function getNodeUpdateStatus(node) {
-	if(node.source !== 'uploader') return 'none';
-	const updateEpoch = new Date(node.updated_date).getTime();
-	if(updateEpoch < Date.now() - getDaysEpochMsec(20)) return 'extinct';
-	else if(updateEpoch < Date.now() - getDaysEpochMsec(10)) return 'old';
-	else if(updateEpoch < Date.now() - getDaysEpochMsec(5)) return 'stale';
+  if (node.source !== "uploader") return "none";
+  const updateEpoch = new Date(node.updated_date).getTime();
+  if (updateEpoch < Date.now() - getDaysEpochMsec(20)) return "extinct";
+  else if (updateEpoch < Date.now() - getDaysEpochMsec(10)) return "old";
+  else if (updateEpoch < Date.now() - getDaysEpochMsec(5)) return "stale";
 
-	return 'recent';
+  return "recent";
 }
 
 // Update status descriptions (exact upstream - note: 'manualy' is typo in upstream)
 const updateStatusDesc = {
-	'none': 'manualy added',
-	'recent': 'updated recently',
-	'stale': 'updated while ago',
-	'old': 'not updated',
-	'extinct': 'will be deleted soon'
+  none: "manualy added",
+  recent: "updated recently",
+  stale: "updated while ago",
+  old: "not updated",
+  extinct: "will be deleted soon",
 };
 
 const deletionMailUrl = new URL("mailto:recrof@gmail.com");
 deletionMailUrl.searchParams.append(
   "subject",
-  "MeshCore Map node deletion request"
+  "MeshCore Map node deletion request",
 );
 deletionMailUrl.searchParams.append(
   "body",
   "Please delete my node from MeshCore Map database\n" +
-    "MeshCore link: <please insert meshcore:// link here>\n"
+    "MeshCore link: <please insert meshcore:// link here>\n",
 );
 
 const appAttribution = `
@@ -573,7 +609,7 @@ const baseMaps = {
     {
       maxZoom: 18,
       attribution: `Tiles: &copy; Esri | Sources: Esri, DigitalGlobe, GeoEye, i-cubed, USDA FSA, USGS, AEX, Getmapping, Aerogrid, IGN, IGP, swisstopo, GIS Users | ${appAttribution}`,
-    }
+    },
   ),
 };
 
@@ -619,9 +655,9 @@ const icons = Object.fromEntries(
           popupAnchor: [0, -16],
           className: `update-${color}`,
         }),
-      ])
+      ]),
     ),
-  ])
+  ]),
 );
 
 createApp({
@@ -633,13 +669,210 @@ createApp({
       search: "",
       cityFilter: "",
       nodeFilter: [],
-      sourceFilter: ['discord', 'app', 'uploader'],
-      claimedFilter: ['claimed', 'unclaimed'],
+      sourceFilter: ["discord", "app", "uploader"],
+      claimedFilter: ["claimed", "unclaimed"],
       fromDate: "",
       clusteringZoom: 11,
       urlParams,
       loading: false,
     }));
+
+    // Authentication state
+    const auth = reactive({
+      authenticated: false,
+      user: null,
+      loading: true,
+    });
+
+    // Check authentication status
+    async function checkAuth() {
+      try {
+        const res = await fetch("/auth/me", { credentials: "include" });
+        const data = await res.json();
+        auth.authenticated = data.authenticated || false;
+        auth.user = data.user || null;
+      } catch (e) {
+        console.error("Error checking auth:", e);
+        auth.authenticated = false;
+        auth.user = null;
+      } finally {
+        auth.loading = false;
+      }
+    }
+
+    // Claim a node
+    async function claimNode(publicKey) {
+      if (!auth.authenticated) {
+        // Redirect directly to login (alert would be invisible due to instant redirect)
+        window.location.href = "/auth/login";
+        return;
+      }
+
+      if (
+        !confirm(
+          "Claim this node?\n\nYou will become the owner and can edit its details.",
+        )
+      ) {
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/v1/nodes/${publicKey}/claim`, {
+          method: "POST",
+          credentials: "include",
+        });
+        const data = await res.json();
+
+        if (res.ok && data.success) {
+          alert(
+            "✓ Node claimed successfully!\n\nYou are now the owner of this node.",
+          );
+          // Reload nodes to reflect changes
+          await downloadNodes();
+          refreshMap();
+          // Update marker glows and any open popups
+          app.nodes.forEach((node) => {
+            // Update marker glow
+            if (node.marker) {
+              const isOwned =
+                auth.authenticated &&
+                auth.user &&
+                node.discord_owner_id &&
+                String(node.discord_owner_id) === String(auth.user.id);
+
+              const iconElement = node.marker._icon;
+              if (iconElement) {
+                if (isOwned) {
+                  iconElement.classList.add("user-owned");
+                } else {
+                  iconElement.classList.remove("user-owned");
+                }
+              }
+            }
+            // Update popup
+            if (node.popup && node.popup.isOpen()) {
+              node.popup.setContent(getTable(node, auth));
+            }
+          });
+        } else {
+          // Handle specific error cases
+          if (res.status === 403 && data.discord_invite_url) {
+            const message = `⚠️ Discord Server Membership Required\n\n${data.error}\n\nTo claim nodes, you must be a member of our Discord server.\n\nAfter joining, please log out and log back in to refresh your membership status.`;
+            if (confirm(message + "\n\nOpen Discord invite in a new tab?")) {
+              window.open(data.discord_invite_url, "_blank");
+            }
+          } else {
+            const errorMsg = data.error || "Failed to claim node";
+            alert(
+              `❌ Unable to Claim Node\n\n${errorMsg}\n\nPlease check that:\n• The node exists and is active\n• The node is not already claimed by someone else`,
+            );
+          }
+        }
+      } catch (e) {
+        console.error("Error claiming node:", e);
+        const supportLink =
+          "https://discord.com/channels/1391758345622257665/1454797139959091412";
+        alert(
+          `❌ Network Error\n\nUnable to claim node due to a connection error.\n\nIf this issue persists, please report it in our Discord support channel:\n${supportLink}`,
+        );
+      }
+    }
+
+    // Unclaim a node
+    async function unclaimNode(publicKey) {
+      if (!auth.authenticated) {
+        return;
+      }
+
+      if (
+        !confirm(
+          "Unclaim this node?\n\nYou will lose ownership and anyone will be able to claim it.",
+        )
+      ) {
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/v1/nodes/${publicKey}/unclaim`, {
+          method: "POST",
+          credentials: "include",
+        });
+        const data = await res.json();
+
+        if (res.ok && data.success) {
+          alert(
+            "✓ Node unclaimed successfully!\n\nThe node is now available for others to claim.",
+          );
+          // Reload nodes to reflect changes
+          await downloadNodes();
+          refreshMap();
+          // Update marker glows and any open popups
+          app.nodes.forEach((node) => {
+            // Update marker glow
+            if (node.marker) {
+              const isOwned =
+                auth.authenticated &&
+                auth.user &&
+                node.discord_owner_id &&
+                String(node.discord_owner_id) === String(auth.user.id);
+
+              const iconElement = node.marker._icon;
+              if (iconElement) {
+                if (isOwned) {
+                  iconElement.classList.add("user-owned");
+                } else {
+                  iconElement.classList.remove("user-owned");
+                }
+              }
+            }
+            // Update popup
+            if (node.popup && node.popup.isOpen()) {
+              node.popup.setContent(getTable(node, auth));
+            }
+          });
+        } else {
+          const errorMsg = data.error || "Failed to unclaim node";
+          if (data.error === "You do not own this node.") {
+            alert(
+              `❌ Ownership Error\n\n${errorMsg}\n\nYou can only unclaim nodes that you own.`,
+            );
+          } else if (data.error === "Node not found.") {
+            alert(
+              `❌ Node Not Found\n\n${errorMsg}\n\nThe node may have been deleted or the identifier is incorrect.`,
+            );
+          } else {
+            alert(
+              `❌ Unable to Unclaim Node\n\n${errorMsg}\n\nPlease try again or contact support if the issue persists.`,
+            );
+          }
+        }
+      } catch (e) {
+        console.error("Error unclaiming node:", e);
+        const supportLink =
+          "https://discord.com/channels/1391758345622257665/1454797139959091412";
+        alert(
+          `❌ Network Error\n\nUnable to unclaim node due to a connection error.\n\nIf this issue persists, please report it in our Discord support channel:\n${supportLink}`,
+        );
+      }
+    }
+
+    // Check if user owns a node
+    async function checkOwnership(publicKey) {
+      if (!auth.authenticated) {
+        return false;
+      }
+
+      try {
+        const res = await fetch(`/api/v1/nodes/${publicKey}/ownership`, {
+          credentials: "include",
+        });
+        const data = await res.json();
+        return data.owned || false;
+      } catch (e) {
+        console.error("Error checking ownership:", e);
+        return false;
+      }
+    }
 
     async function refreshMap({ clusteringZoom = 0 } = {}) {
       markerClusterGroup.clearLayers();
@@ -662,6 +895,28 @@ createApp({
       }
 
       map.addLayer(markerClusterGroup);
+
+      // Update marker glows after markers are added to map
+      setTimeout(() => {
+        nodes.forEach((node) => {
+          if (node.marker) {
+            const isOwned =
+              auth.authenticated &&
+              auth.user &&
+              node.discord_owner_id &&
+              String(node.discord_owner_id) === String(auth.user?.id);
+
+            const iconElement = node.marker._icon;
+            if (iconElement) {
+              if (isOwned) {
+                iconElement.classList.add("user-owned");
+              } else {
+                iconElement.classList.remove("user-owned");
+              }
+            }
+          }
+        });
+      }, 50);
     }
 
     function showNode(node) {
@@ -669,7 +924,7 @@ createApp({
         console.warn(
           `Cannot show node ${
             node.adv_name || node.public_key
-          }: missing marker (no coordinates)`
+          }: missing marker (no coordinates)`,
         );
         return;
       }
@@ -692,14 +947,14 @@ createApp({
           : toHighlight;
       return escapedSource.replace(
         highlightString,
-        `<b>${highlightString}</b>`
+        `<b>${highlightString}</b>`,
       );
     }
 
     function clearFilters() {
       app.nodeFilter = [1, 2, 3, 4];
-      app.sourceFilter = ['discord', 'app', 'uploader'];
-      app.claimedFilter = ['claimed', 'unclaimed'];
+      app.sourceFilter = ["discord", "app", "uploader"];
+      app.claimedFilter = ["claimed", "unclaimed"];
       app.fromDate = "2025-03-01";
       app.cityFilter = "";
       app.clusteringZoom = 11;
@@ -723,12 +978,14 @@ createApp({
         app.nodes = await nodesReq.json();
 
         // Fetch presets from API (similar to upstream)
-        getPresets().then((presets) => {
-          // Presets are now loaded and cached in FREQUENCY_PRESETS
-          console.log('Presets ready:', presets.length);
-        }).catch((err) => {
-          console.warn('Preset loading error (using fallback):', err);
-        });
+        getPresets()
+          .then((presets) => {
+            // Presets are now loaded and cached in FREQUENCY_PRESETS
+            console.log("Presets ready:", presets.length);
+          })
+          .catch((err) => {
+            console.warn("Preset loading error (using fallback):", err);
+          });
 
         for (const node of app.nodes) {
           // Skip nodes without valid coordinates
@@ -736,7 +993,7 @@ createApp({
             console.warn(
               `Skipping node ${
                 node.adv_name || node.public_key
-              }: missing coordinates`
+              }: missing coordinates`,
             );
             continue;
           }
@@ -752,6 +1009,40 @@ createApp({
             icon = getSvgIconUrl(label, color);
           }
 
+          // Check if node is owned by current user and add glow effect
+          const isOwned =
+            auth.authenticated &&
+            auth.user &&
+            node.discord_owner_id &&
+            String(node.discord_owner_id) === String(auth.user.id);
+
+          // Store ownership status on node for later updates
+          node.isOwned = isOwned;
+
+          // Add className to icon for owned nodes (purple glow)
+          if (isOwned) {
+            // Get icon properties
+            const iconUrl = icon.options?.iconUrl || icon._iconUrl || "";
+            const iconSize = icon.options?.iconSize ||
+              icon._iconSize || [32, 32];
+            const iconAnchor = icon.options?.iconAnchor ||
+              icon._iconAnchor || [17, 17];
+            const popupAnchor = icon.options?.popupAnchor ||
+              icon._popupAnchor || [0, -16];
+            const existingClassName = icon.options?.className || "";
+
+            // Create new icon with user-owned class
+            icon = L.icon({
+              iconUrl: iconUrl,
+              iconSize: iconSize,
+              iconAnchor: iconAnchor,
+              popupAnchor: popupAnchor,
+              className: existingClassName
+                ? `${existingClassName} user-owned`
+                : "user-owned",
+            });
+          }
+
           const marker = (node.marker = L.marker([node.adv_lat, node.adv_lon], {
             icon,
             title: node.adv_name,
@@ -762,12 +1053,16 @@ createApp({
           node.lastAdvertDate = new Date(node.last_advert);
           node.insertDate = new Date(node.inserted_date);
           node.updatedDate = node.updated_date && new Date(node.updated_date);
+          // Create popup - will be updated when auth state changes
           const popup = L.popup({
             minWidth: 350,
             maxWidth: 350,
-            content: getTable(node),
+            content: getTable(node, auth),
           });
           marker.bindPopup(popup);
+
+          // Store reference to node for popup updates
+          node.popup = popup;
 
           // Re-setup copy handlers when popup opens (for dynamically created content)
           marker.on("popupopen", function () {
@@ -786,8 +1081,35 @@ createApp({
             }, 100);
           });
         }
+
+        // Update marker glows for owned nodes after all markers are created
+        setTimeout(() => {
+          app.nodes.forEach((node) => {
+            if (node.marker) {
+              const isOwned =
+                auth.authenticated &&
+                auth.user &&
+                node.discord_owner_id &&
+                String(node.discord_owner_id) === String(auth.user.id);
+
+              const iconElement = node.marker._icon;
+              if (iconElement) {
+                if (isOwned) {
+                  iconElement.classList.add("user-owned");
+                } else {
+                  iconElement.classList.remove("user-owned");
+                }
+              }
+            }
+          });
+        }, 100);
       } catch (e) {
-        alert("There was an error loading map nodes: " + e);
+        console.error("Error loading map nodes:", e);
+        const supportLink =
+          "https://discord.com/channels/1391758345622257665/1454797139959091412";
+        alert(
+          `❌ Failed to Load Map Data\n\nUnable to load nodes from the server.\n\nError: ${e.message || e}\n\nIf this issue persists, please report it in our Discord support channel:\n${supportLink}`,
+        );
       } finally {
         app.loading = false;
       }
@@ -798,11 +1120,17 @@ createApp({
     const filtersActive = computed(
       () =>
         app.filteredNodes.length &&
-        app.nodes.length !== app.filteredNodes.length
+        app.nodes.length !== app.filteredNodes.length,
     );
 
     watch(
-      [() => app.nodeFilter, () => app.sourceFilter, () => app.claimedFilter, () => app.fromDate, () => app.cityFilter],
+      [
+        () => app.nodeFilter,
+        () => app.sourceFilter,
+        () => app.claimedFilter,
+        () => app.fromDate,
+        () => app.cityFilter,
+      ],
       () => {
         const fromDate = new Date(app.fromDate);
         const cityFilterLower = app.cityFilter.toLowerCase().trim();
@@ -818,15 +1146,26 @@ createApp({
                 (node.city &&
                   node.city.toLowerCase().includes(cityFilterLower))) &&
               (app.sourceFilter.length === 0 ||
-                (node.source && (
-                  app.sourceFilter.includes(node.source.toLowerCase()) ||
-                  (app.sourceFilter.includes('app') && (node.source.toLowerCase() === 'app' || node.source.toLowerCase() === 'web'))
-                ))) &&
+                (node.source &&
+                  (app.sourceFilter.includes(node.source.toLowerCase()) ||
+                    (app.sourceFilter.includes("app") &&
+                      (node.source.toLowerCase() === "app" ||
+                        node.source.toLowerCase() === "web"))))) &&
               (app.claimedFilter.length === 0 ||
-                (app.claimedFilter.includes('claimed') && node.discord_owner_name && node.discord_owner_name.trim() !== '') ||
-                (app.claimedFilter.includes('unclaimed') && (!node.discord_owner_name || node.discord_owner_name.trim() === '')))
+                (app.claimedFilter.includes("claimed") &&
+                  node.discord_owner_name &&
+                  node.discord_owner_name.trim() !== "") ||
+                (app.claimedFilter.includes("unclaimed") &&
+                  (!node.discord_owner_name ||
+                    node.discord_owner_name.trim() === ""))),
           );
-        console.log("refresh", app.nodeFilter, app.sourceFilter, app.claimedFilter, app.filteredNodes.length);
+        console.log(
+          "refresh",
+          app.nodeFilter,
+          app.sourceFilter,
+          app.claimedFilter,
+          app.filteredNodes.length,
+        );
         app.urlParams.nodes = app.nodeFilter.join(",");
         app.urlParams.date = app.fromDate;
         if (app.cityFilter) {
@@ -845,7 +1184,7 @@ createApp({
           delete app.urlParams.claimed;
         }
         refreshMap({ download: false });
-      }
+      },
     );
 
     watch(
@@ -853,7 +1192,7 @@ createApp({
       () => {
         app.urlParams.cluster = app.clusteringZoom;
         refreshMap({ download: false, clusteringZoom: app.clusteringZoom });
-      }
+      },
     );
 
     const stats = computed(() => {
@@ -887,7 +1226,7 @@ createApp({
         return mostRecent && isNewerThan(mostRecent, 1);
       }).length;
       result.push(
-        `<span class="pointer-help" title="Devices active in last 24 hours">24h: <b>${active24h}</b></span>`
+        `<span class="pointer-help" title="Devices active in last 24 hours">24h: <b>${active24h}</b></span>`,
       );
 
       // Count nodes active in last 7 days (based on most recent date)
@@ -896,7 +1235,7 @@ createApp({
         return mostRecent && isNewerThan(mostRecent, 7);
       }).length;
       result.push(
-        `<span class="pointer-help" title="Devices active in last 7 days">7d: <b>${active7d}</b></span>`
+        `<span class="pointer-help" title="Devices active in last 7 days">7d: <b>${active7d}</b></span>`,
       );
 
       // Count nodes active in last 30 days (based on most recent date)
@@ -905,8 +1244,90 @@ createApp({
         return mostRecent && isNewerThan(mostRecent, 30);
       }).length;
       result.push(
-        `<span class="pointer-help" title="Devices active in last 30 days">30d: <b>${active30d}</b></span>`
+        `<span class="pointer-help" title="Devices active in last 30 days">30d: <b>${active30d}</b></span>`,
       );
+
+      return result;
+    });
+
+    // Personal stats for logged-in user
+    const personalStats = computed(() => {
+      if (!auth.authenticated || !auth.user) {
+        return [];
+      }
+
+      // Filter nodes owned by current user
+      const userNodes = app.nodes.filter(
+        (node) =>
+          node.discord_owner_id &&
+          String(node.discord_owner_id) === String(auth.user.id),
+      );
+
+      if (userNodes.length === 0) {
+        return [
+          `<span class="pointer-help" title="Your owned nodes">my nodes: <b>0</b></span>`,
+        ];
+      }
+
+      const result = [];
+
+      // Count nodes by type
+      const companionsCount = userNodes.filter((n) => n.type === 1).length;
+      const repeatersCount = userNodes.filter((n) => n.type === 2).length;
+      const roomServersCount = userNodes.filter((n) => n.type === 3).length;
+      const sensorsCount = userNodes.filter((n) => n.type === 4).length;
+
+      // Build personal stats string (black color, not green)
+      let statsString = `<span class="pointer-help" title="Your owned nodes">my nodes: <b>${userNodes.length}</b></span>&nbsp;|`;
+      if (companionsCount > 0) {
+        statsString += ` <i class="node-type pointer-help" title="Your client nodes">person</i><b>${companionsCount}</b>`;
+      }
+      if (repeatersCount > 0) {
+        statsString += `&nbsp;| <i class="node-type pointer-help" title="Your repeater nodes">cell_tower</i><b>${repeatersCount}</b>`;
+      }
+      if (roomServersCount > 0) {
+        statsString += `&nbsp;| <i class="node-type pointer-help" title="Your room server nodes">forum</i><b>${roomServersCount}</b>`;
+      }
+      if (sensorsCount > 0) {
+        statsString += `&nbsp;| <img src="img/node_types/4.svg" class="node-type pointer-help" style="width: 24px; height: 24px; vertical-align: middle; margin-left: 7px; margin-right: 4px;" title="Your sensor nodes" alt="Sensor"><b>${sensorsCount}</b>`;
+      }
+
+      result.push(statsString);
+
+      // Count user's nodes active in last 24 hours, 7 days, and 30 days
+      const active24h = userNodes.filter((n) => {
+        const mostRecent = getMostRecentDate(n);
+        return mostRecent && isNewerThan(mostRecent, 1);
+      }).length;
+
+      const active7d = userNodes.filter((n) => {
+        const mostRecent = getMostRecentDate(n);
+        return mostRecent && isNewerThan(mostRecent, 7);
+      }).length;
+
+      const active30d = userNodes.filter((n) => {
+        const mostRecent = getMostRecentDate(n);
+        return mostRecent && isNewerThan(mostRecent, 30);
+      }).length;
+
+      // Show stats only if > 0 (hide if 0)
+      if (active24h > 0) {
+        result.push(
+          `<span class="pointer-help" title="Your nodes active in last 24 hours">24h: <b>${active24h}</b></span>`,
+        );
+      }
+
+      if (active7d > 0) {
+        result.push(
+          `<span class="pointer-help" title="Your nodes active in last 7 days">7d: <b>${active7d}</b></span>`,
+        );
+      }
+
+      if (active30d > 0) {
+        result.push(
+          `<span class="pointer-help" title="Your nodes active in last 30 days">30d: <b>${active30d}</b></span>`,
+        );
+      }
 
       return result;
     });
@@ -951,7 +1372,7 @@ createApp({
       () => {
         history.replaceState({}, "", `/?${new URLSearchParams(app.urlParams)}`);
       },
-      { deep: true }
+      { deep: true },
     );
 
     map.on("moveend", function (e) {
@@ -962,7 +1383,90 @@ createApp({
       app.urlParams.lon = pos.lng.toFixed(4);
     });
 
+    // Expose functions globally for onclick handlers
+    window.claimNode = claimNode;
+    window.unclaimNode = unclaimNode;
+
     onMounted(() => {
+      // Check for URL parameters indicating errors
+      const urlParams = new URLSearchParams(window.location.search);
+      const error = urlParams.get("error");
+      const inviteUrl = urlParams.get("invite_url");
+
+      if (error === "not_guild_member" && inviteUrl) {
+        const message =
+          "⚠️ Discord Server Membership Required\n\nTo claim nodes, you must be a member of our Discord server.\n\nAfter joining, please log out and log back in to refresh your membership status.";
+        if (confirm(message + "\n\nOpen Discord invite in a new tab?")) {
+          window.open(inviteUrl, "_blank");
+        }
+        // Clean up URL
+        window.history.replaceState(
+          {},
+          document.title,
+          window.location.pathname,
+        );
+      }
+
+      // Check authentication status first
+      checkAuth().then(() => {
+        // Watch for auth changes and update popups and markers
+        watch(
+          () => auth.authenticated,
+          () => {
+            // Update all open popups when auth state changes
+            app.nodes.forEach((node) => {
+              if (node.popup && node.popup.isOpen()) {
+                node.popup.setContent(getTable(node, auth));
+              }
+
+              // Update marker glow for owned nodes
+              if (node.marker) {
+                const isOwned =
+                  auth.authenticated &&
+                  auth.user &&
+                  node.discord_owner_id &&
+                  String(node.discord_owner_id) === String(auth.user.id);
+
+                const iconElement = node.marker._icon;
+                if (iconElement) {
+                  if (isOwned) {
+                    iconElement.classList.add("user-owned");
+                  } else {
+                    iconElement.classList.remove("user-owned");
+                  }
+                }
+              }
+            });
+          },
+        );
+
+        // Also watch for user changes (in case user ID changes)
+        watch(
+          () => auth.user?.id,
+          () => {
+            // Update marker glows when user changes
+            app.nodes.forEach((node) => {
+              if (node.marker) {
+                const isOwned =
+                  auth.authenticated &&
+                  auth.user &&
+                  node.discord_owner_id &&
+                  String(node.discord_owner_id) === String(auth.user?.id);
+
+                const iconElement = node.marker._icon;
+                if (iconElement) {
+                  if (isOwned) {
+                    iconElement.classList.add("user-owned");
+                  } else {
+                    iconElement.classList.remove("user-owned");
+                  }
+                }
+              }
+            });
+          },
+        );
+      });
+
       downloadNodes().then(() => {
         if (urlParams.nodes) {
           app.nodeFilter = urlParams.nodes.split(",");
@@ -987,57 +1491,65 @@ createApp({
 
       // Fix: Prevent menu from closing when clicking on input fields
       // This fixes the bug where clicking on city filter jumps to date field
-      const menu = document.getElementById('node-filter');
+      const menu = document.getElementById("node-filter");
       if (menu) {
         // Prevent clicks inside menu from closing it, but allow buttons to work
         const stopMenuClose = (e) => {
           // Allow button clicks to work normally
-          if (e.target.tagName === 'BUTTON' || e.target.closest('button')) {
+          if (e.target.tagName === "BUTTON" || e.target.closest("button")) {
             return; // Don't stop propagation for buttons
           }
           // Stop propagation for input fields and their containers
-          if (e.target.tagName === 'INPUT' || e.target.closest('.field')) {
+          if (e.target.tagName === "INPUT" || e.target.closest(".field")) {
             e.stopPropagation();
             e.stopImmediatePropagation();
           }
         };
-        
-        menu.addEventListener('click', stopMenuClose, true); // Use capture phase
-        menu.addEventListener('mousedown', stopMenuClose, true);
-        menu.addEventListener('mouseup', stopMenuClose, true);
-        
+
+        menu.addEventListener("click", stopMenuClose, true); // Use capture phase
+        menu.addEventListener("mousedown", stopMenuClose, true);
+        menu.addEventListener("mouseup", stopMenuClose, true);
+
         // Specifically handle city input - ensure it gets focus on click
-        const cityInput = document.getElementById('city-filter-input');
+        const cityInput = document.getElementById("city-filter-input");
         if (cityInput) {
           // Handle click with higher priority
-          cityInput.addEventListener('click', (e) => {
-            e.stopPropagation();
-            e.stopImmediatePropagation();
-            // Immediately focus the input
-            cityInput.focus();
-          }, true); // Capture phase - runs before other handlers
-          
-          cityInput.addEventListener('mousedown', (e) => {
-            e.stopPropagation();
-            e.stopImmediatePropagation();
-            // Focus on mousedown (before click)
-            setTimeout(() => {
+          cityInput.addEventListener(
+            "click",
+            (e) => {
+              e.stopPropagation();
+              e.stopImmediatePropagation();
+              // Immediately focus the input
               cityInput.focus();
-            }, 0);
-          }, true);
-          
+            },
+            true,
+          ); // Capture phase - runs before other handlers
+
+          cityInput.addEventListener(
+            "mousedown",
+            (e) => {
+              e.stopPropagation();
+              e.stopImmediatePropagation();
+              // Focus on mousedown (before click)
+              setTimeout(() => {
+                cityInput.focus();
+              }, 0);
+            },
+            true,
+          );
+
           // Also handle focus event to prevent it from being stolen
-          cityInput.addEventListener('focus', (e) => {
+          cityInput.addEventListener("focus", (e) => {
             e.stopPropagation();
           });
         }
-        
+
         // Also handle date input to prevent it from stealing focus
         const dateInput = menu.querySelector('input[type="date"]');
         if (dateInput) {
-          dateInput.addEventListener('focus', (e) => {
+          dateInput.addEventListener("focus", (e) => {
             // Only allow focus if city input is not being clicked
-            const cityInput = document.getElementById('city-filter-input');
+            const cityInput = document.getElementById("city-filter-input");
             if (cityInput && cityInput === document.activeElement) {
               // Don't steal focus from city input
               return;
@@ -1050,13 +1562,18 @@ createApp({
     window.refreshMap = refreshMap;
     return {
       app,
+      auth,
       refreshMap,
       stats,
+      personalStats,
       searchResults,
       filtersActive,
       showNode,
       highlightString,
       clearFilters,
+      checkAuth,
+      claimNode,
+      unclaimNode,
     };
   },
 }).mount("#app");

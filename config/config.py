@@ -27,6 +27,14 @@ LOCAL_API_URL = os.getenv('LOCAL_API_URL', 'http://localhost:8000/api/v1')
 # Sync Configuration
 SYNC_INTERVAL_HOURS = int(os.getenv('SYNC_INTERVAL_HOURS', '6'))
 
+# Discord OAuth2 Configuration
+DISCORD_OAUTH2_CLIENT_ID = os.getenv('DISCORD_OAUTH2_CLIENT_ID')
+DISCORD_OAUTH2_CLIENT_SECRET = os.getenv('DISCORD_OAUTH2_CLIENT_SECRET')
+DISCORD_OAUTH2_REDIRECT_URI = os.getenv('DISCORD_OAUTH2_REDIRECT_URI', 'http://localhost:8000/auth/callback')
+DISCORD_OAUTH2_SCOPE = 'identify guilds'  # Need identify and guilds to check server membership
+DISCORD_API_BASE_URL = 'https://discord.com/api/v10'
+DISCORD_SERVER_INVITE_URL = os.getenv('DISCORD_SERVER_INVITE_URL', 'https://discord.gg/kvybAgqnhD')
+
 # Belgian Geographic Bounds
 BELGIUM_BOUNDS = {
     'min_lat': 49.5,

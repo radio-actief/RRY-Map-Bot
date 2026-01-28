@@ -15,6 +15,7 @@ python-dotenv>=1.0.0
 # REST API Framework
 flask>=3.0.0
 flask-cors>=4.0.0
+flask-session>=0.5.0
 
 # SQLite is built-in to Python, no external dependency needed
 

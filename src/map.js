@@ -680,7 +680,7 @@ const FooterControl = L.Control.extend({
       <a href="https://radio-actief.be" class="app-footer-link" title="Radio-Actief website" target="_blank" rel="noopener noreferrer">
         <svg class="app-footer-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="${mdiWeb}" fill="currentColor"/></svg>
       </a>
-      <a href="https://radioactief.axistem.eu" class="app-footer-link" title="Documentation" target="_blank" rel="noopener noreferrer">
+      <a href="https://docs.axistem.eu" class="app-footer-link" title="Documentation" target="_blank" rel="noopener noreferrer">
         <svg class="app-footer-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="${mdiFileDocument}" fill="currentColor"/></svg>
       </a>
       <a href="https://discord.gg/kvybAgqnhD" class="app-footer-link" title="Join our Discord server" target="_blank" rel="noopener noreferrer">

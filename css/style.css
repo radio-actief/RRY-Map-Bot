@@ -549,35 +549,83 @@ time {
   opacity: 0.6;
 }
 
-/* Purple Discord glow for user-owned nodes */
+/* Yellow glow for claimed nodes (any owner) – medium (between subtle and original) */
+.leaflet-marker-icon.claimed {
+  filter: drop-shadow(0 0 3px rgba(240, 200, 80, 0.55))
+    drop-shadow(0 0 6px rgba(240, 200, 80, 0.45))
+    drop-shadow(0 0 10px rgba(240, 200, 80, 0.4));
+  z-index: 999 !important;
+}
+
+/* Purple Discord glow for user-owned nodes – stronger medium (overrides yellow when ours) */
 .leaflet-marker-icon.user-owned {
-  filter: drop-shadow(0 0 4px #5865f2) drop-shadow(0 0 8px #5865f2)
-    drop-shadow(0 0 12px rgba(88, 101, 242, 0.6));
+  filter: drop-shadow(0 0 4px rgba(88, 101, 242, 0.65))
+    drop-shadow(0 0 8px rgba(88, 101, 242, 0.55))
+    drop-shadow(0 0 12px rgba(88, 101, 242, 0.5));
   z-index: 1000 !important;
 }
 
-/* Combine color coding with purple glow for owned nodes with uploader source */
+/* Yellow glow for claimed nodes with uploader color coding – medium */
+.leaflet-marker-icon.update-recent.claimed {
+  filter: saturate(5) hue-rotate(260deg)
+    drop-shadow(0 0 3px rgba(240, 200, 80, 0.55))
+    drop-shadow(0 0 6px rgba(240, 200, 80, 0.45))
+    drop-shadow(0 0 10px rgba(240, 200, 80, 0.4));
+  z-index: 999 !important;
+}
+.leaflet-marker-icon.update-stale.claimed {
+  filter: saturate(28) hue-rotate(228deg)
+    drop-shadow(0 0 3px rgba(240, 200, 80, 0.55))
+    drop-shadow(0 0 6px rgba(240, 200, 80, 0.45))
+    drop-shadow(0 0 10px rgba(240, 200, 80, 0.4));
+  z-index: 999 !important;
+}
+.leaflet-marker-icon.update-old.claimed {
+  filter: saturate(5) hue-rotate(165deg)
+    drop-shadow(0 0 3px rgba(240, 200, 80, 0.55))
+    drop-shadow(0 0 6px rgba(240, 200, 80, 0.45))
+    drop-shadow(0 0 10px rgba(240, 200, 80, 0.4));
+  z-index: 999 !important;
+}
+.leaflet-marker-icon.update-extinct.claimed {
+  filter: grayscale(100) contrast(16)
+    drop-shadow(0 0 3px rgba(240, 200, 80, 0.55))
+    drop-shadow(0 0 6px rgba(240, 200, 80, 0.45))
+    drop-shadow(0 0 10px rgba(240, 200, 80, 0.4));
+  opacity: 0.6;
+  z-index: 999 !important;
+}
+
+/* Combine color coding with purple glow for owned nodes – stronger medium */
 .leaflet-marker-icon.update-recent.user-owned {
-  filter: saturate(5) hue-rotate(260deg) drop-shadow(0 0 4px #5865f2)
-    drop-shadow(0 0 8px #5865f2) drop-shadow(0 0 12px rgba(88, 101, 242, 0.6));
+  filter: saturate(5) hue-rotate(260deg)
+    drop-shadow(0 0 4px rgba(88, 101, 242, 0.65))
+    drop-shadow(0 0 8px rgba(88, 101, 242, 0.55))
+    drop-shadow(0 0 12px rgba(88, 101, 242, 0.5));
   z-index: 1000 !important;
 }
 
 .leaflet-marker-icon.update-stale.user-owned {
-  filter: saturate(28) hue-rotate(228deg) drop-shadow(0 0 4px #5865f2)
-    drop-shadow(0 0 8px #5865f2) drop-shadow(0 0 12px rgba(88, 101, 242, 0.6));
+  filter: saturate(28) hue-rotate(228deg)
+    drop-shadow(0 0 4px rgba(88, 101, 242, 0.65))
+    drop-shadow(0 0 8px rgba(88, 101, 242, 0.55))
+    drop-shadow(0 0 12px rgba(88, 101, 242, 0.5));
   z-index: 1000 !important;
 }
 
 .leaflet-marker-icon.update-old.user-owned {
-  filter: saturate(5) hue-rotate(165deg) drop-shadow(0 0 4px #5865f2)
-    drop-shadow(0 0 8px #5865f2) drop-shadow(0 0 12px rgba(88, 101, 242, 0.6));
+  filter: saturate(5) hue-rotate(165deg)
+    drop-shadow(0 0 4px rgba(88, 101, 242, 0.65))
+    drop-shadow(0 0 8px rgba(88, 101, 242, 0.55))
+    drop-shadow(0 0 12px rgba(88, 101, 242, 0.5));
   z-index: 1000 !important;
 }
 
 .leaflet-marker-icon.update-extinct.user-owned {
-  filter: grayscale(100) contrast(16) drop-shadow(0 0 4px #5865f2)
-    drop-shadow(0 0 8px #5865f2) drop-shadow(0 0 12px rgba(88, 101, 242, 0.6));
+  filter: grayscale(100) contrast(16)
+    drop-shadow(0 0 4px rgba(88, 101, 242, 0.65))
+    drop-shadow(0 0 8px rgba(88, 101, 242, 0.55))
+    drop-shadow(0 0 12px rgba(88, 101, 242, 0.5));
   opacity: 0.6;
   z-index: 1000 !important;
 }

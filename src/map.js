@@ -771,21 +771,21 @@ createApp({
           refreshMap();
           // Update marker glows and any open popups
           app.nodes.forEach((node) => {
-            // Update marker glow
+            // Update marker glow (claimed = yellow, user-owned = purple)
             if (node.marker) {
               const isOwned =
                 auth.authenticated &&
                 auth.user &&
                 node.discord_owner_id &&
                 String(node.discord_owner_id) === String(auth.user.id);
+              const isClaimed = Boolean(node.discord_owner_id);
 
               const iconElement = node.marker._icon;
               if (iconElement) {
-                if (isOwned) {
-                  iconElement.classList.add("user-owned");
-                } else {
-                  iconElement.classList.remove("user-owned");
-                }
+                if (isClaimed) iconElement.classList.add("claimed");
+                else iconElement.classList.remove("claimed");
+                if (isOwned) iconElement.classList.add("user-owned");
+                else iconElement.classList.remove("user-owned");
               }
             }
             // Update popup
@@ -847,21 +847,21 @@ createApp({
           refreshMap();
           // Update marker glows and any open popups
           app.nodes.forEach((node) => {
-            // Update marker glow
+            // Update marker glow (claimed = yellow, user-owned = purple)
             if (node.marker) {
               const isOwned =
                 auth.authenticated &&
                 auth.user &&
                 node.discord_owner_id &&
                 String(node.discord_owner_id) === String(auth.user.id);
+              const isClaimed = Boolean(node.discord_owner_id);
 
               const iconElement = node.marker._icon;
               if (iconElement) {
-                if (isOwned) {
-                  iconElement.classList.add("user-owned");
-                } else {
-                  iconElement.classList.remove("user-owned");
-                }
+                if (isClaimed) iconElement.classList.add("claimed");
+                else iconElement.classList.remove("claimed");
+                if (isOwned) iconElement.classList.add("user-owned");
+                else iconElement.classList.remove("user-owned");
               }
             }
             // Update popup
@@ -947,11 +947,11 @@ createApp({
 
             const iconElement = node.marker._icon;
             if (iconElement) {
-              if (isOwned) {
-                iconElement.classList.add("user-owned");
-              } else {
-                iconElement.classList.remove("user-owned");
-              }
+              const isClaimed = Boolean(node.discord_owner_id);
+              if (isClaimed) iconElement.classList.add("claimed");
+              else iconElement.classList.remove("claimed");
+              if (isOwned) iconElement.classList.add("user-owned");
+              else iconElement.classList.remove("user-owned");
             }
           }
         });
@@ -1048,20 +1048,19 @@ createApp({
             icon = getSvgIconUrl(label, color);
           }
 
-          // Check if node is owned by current user and add glow effect
+          // Check if node is owned by current user (purple glow) or claimed by anyone (yellow glow)
           const isOwned =
             auth.authenticated &&
             auth.user &&
             node.discord_owner_id &&
             String(node.discord_owner_id) === String(auth.user.id);
+          const isClaimed = Boolean(node.discord_owner_id);
 
           // Store ownership status on node for later updates
           node.isOwned = isOwned;
 
-          // Add className to icon for owned nodes (purple glow)
-          // Preserve existing className (e.g., update-recent, update-stale) and add user-owned
-          if (isOwned) {
-            // Get icon properties
+          // Add className to icon for claimed (yellow) and/or user-owned (purple) glow
+          if (isClaimed || isOwned) {
             const iconUrl = icon.options?.iconUrl || icon._iconUrl || "";
             const iconSize = icon.options?.iconSize ||
               icon._iconSize || [32, 32];
@@ -1069,18 +1068,23 @@ createApp({
               icon._iconAnchor || [17, 17];
             const popupAnchor = icon.options?.popupAnchor ||
               icon._popupAnchor || [0, -16];
-            // Preserve existing className (for uploader nodes: update-recent, update-stale, etc.)
             const existingClassName = icon.options?.className || "";
+            const extraClasses = [
+              isClaimed ? "claimed" : "",
+              isOwned ? "user-owned" : "",
+            ]
+              .filter(Boolean)
+              .join(" ");
+            const newClassName = existingClassName
+              ? `${existingClassName} ${extraClasses}`.trim()
+              : extraClasses;
 
-            // Create new icon with both existing className and user-owned class
             icon = L.icon({
               iconUrl: iconUrl,
               iconSize: iconSize,
               iconAnchor: iconAnchor,
               popupAnchor: popupAnchor,
-              className: existingClassName
-                ? `${existingClassName} user-owned`
-                : "user-owned",
+              className: newClassName,
             });
           }
 
@@ -1125,7 +1129,7 @@ createApp({
           });
         }
 
-        // Update marker glows for owned nodes after all markers are created
+        // Update marker glows for claimed (yellow) and user-owned (purple) after all markers are created
         setTimeout(() => {
           app.nodes.forEach((node) => {
             if (node.marker) {
@@ -1134,9 +1138,15 @@ createApp({
                 auth.user &&
                 node.discord_owner_id &&
                 String(node.discord_owner_id) === String(auth.user.id);
+              const isClaimed = Boolean(node.discord_owner_id);
 
               const iconElement = node.marker._icon;
               if (iconElement) {
+                if (isClaimed) {
+                  iconElement.classList.add("claimed");
+                } else {
+                  iconElement.classList.remove("claimed");
+                }
                 if (isOwned) {
                   iconElement.classList.add("user-owned");
                 } else {
@@ -1511,21 +1521,21 @@ createApp({
                 node.popup.setContent(getTable(node, auth));
               }
 
-              // Update marker glow for owned nodes
+              // Update marker glow (claimed = yellow, user-owned = purple)
               if (node.marker) {
                 const isOwned =
                   auth.authenticated &&
                   auth.user &&
                   node.discord_owner_id &&
                   String(node.discord_owner_id) === String(auth.user.id);
+                const isClaimed = Boolean(node.discord_owner_id);
 
                 const iconElement = node.marker._icon;
                 if (iconElement) {
-                  if (isOwned) {
-                    iconElement.classList.add("user-owned");
-                  } else {
-                    iconElement.classList.remove("user-owned");
-                  }
+                  if (isClaimed) iconElement.classList.add("claimed");
+                  else iconElement.classList.remove("claimed");
+                  if (isOwned) iconElement.classList.add("user-owned");
+                  else iconElement.classList.remove("user-owned");
                 }
               }
             });
@@ -1544,14 +1554,14 @@ createApp({
                   auth.user &&
                   node.discord_owner_id &&
                   String(node.discord_owner_id) === String(auth.user?.id);
+                const isClaimed = Boolean(node.discord_owner_id);
 
                 const iconElement = node.marker._icon;
                 if (iconElement) {
-                  if (isOwned) {
-                    iconElement.classList.add("user-owned");
-                  } else {
-                    iconElement.classList.remove("user-owned");
-                  }
+                  if (isClaimed) iconElement.classList.add("claimed");
+                  else iconElement.classList.remove("claimed");
+                  if (isOwned) iconElement.classList.add("user-owned");
+                  else iconElement.classList.remove("user-owned");
                 }
               }
             });

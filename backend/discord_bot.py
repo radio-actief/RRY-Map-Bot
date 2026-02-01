@@ -1619,6 +1619,23 @@ async def search_nodes(
     source: Optional[app_commands.Choice[str]] = None
 ):
     """Search for Belgian MeshCore nodes with various filters."""
+    # Require at least one search criterion (disallow /search with no filters)
+    has_query = query and str(query).strip()
+    has_type = node_type is not None
+    has_city = city and str(city).strip()
+    has_freq = frequency_preset is not None
+    has_owner = owner is not None
+    has_claimed = claimed is not None
+    has_inactive = inactive is not None
+    has_source = source is not None
+    if not any([has_query, has_type, has_city, has_freq, has_owner, has_claimed, has_inactive, has_source]):
+        await interaction.response.send_message(
+            "Please provide at least one search criterion: **query** (name, key, or owner name), **node type**, **city**, **frequency preset**, **owner**, **claimed**, **inactive**, or **source**.",
+            ephemeral=True
+        )
+        log_command("SEARCH", interaction.user, None, "REJECTED: no search criteria")
+        return
+
     # Convert node_type choice to number if provided
     type_num = None
     if node_type:
@@ -1659,7 +1676,7 @@ async def search_nodes(
         include_inactive=inactive if inactive else False,
         claimed=claimed,
         source=source_value,
-        limit=500  # High limit to get all results, we'll paginate in Discord messages
+        limit=50  # Max 50 nodes per search; paginate across Discord messages (25 per message)
     )
     
     # Log command
@@ -1715,10 +1732,9 @@ async def search_nodes(
         await interaction.response.send_message(embed=embed)
     else:
         # Multiple nodes: paginate across multiple messages if needed
-        # Discord embed description limit: 4096 characters
-        # Note: Discord may count emojis, mentions, and markdown differently
+        # Per-reply limits: embed description max 4096 chars; we use 3596 (500 buffer). Max 25 nodes per message; follow-ups for more.
         DISCORD_EMBED_DESC_LIMIT = 4096
-        SAFE_BUFFER = 500  # Very large safety buffer (Discord counts emojis/mentions differently)
+        SAFE_BUFFER = 500  # Safety buffer (Discord counts emojis/mentions differently)
         
         total_nodes = len(nodes)
         

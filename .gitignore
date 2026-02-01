@@ -37,7 +37,7 @@ logs/
 backups/
 *.db.gz
 
-# Environment variables - exclude all actual config files
+# Environment variables and env switching
 .env
 .env.local
 .env.*.local
@@ -46,6 +46,8 @@ backups/
 .env.prod
 .env.development
 .env.*
+ENV_SWITCHING.md
+switch-env.sh
 # Keep example files (safe to commit - contain only placeholders)
 !.env.example
 !.env.production.example

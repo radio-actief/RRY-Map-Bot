@@ -21,28 +21,34 @@
 				<div class="loading" v-if="app.loading"></div>
 				<a class="manual-add square round light-blue extra" title="Add node to map" target="_blank" href="https://github.com/meshcore-dev/MeshCore/blob/main/docs/faq.md#512-q-how-do-i-add-a-node-to-the-meshcore-map"><i class="extra">add</i></a>
 				<div class="stats">
-						<span title="Stats">
-							<i>monitoring</i>
-						</span>
-						<span v-for="stat in stats" v-html="stat"></span>
-						<span style="flex-grow: 1"></span>
-						<!-- Personal Stats (when logged in) -->
-						<span v-if="auth.authenticated" v-for="stat in personalStats" v-html="stat" style="margin-right: 8px;"></span>
-						<!-- Authentication UI -->
-						<span v-if="auth.authenticated" style="display: flex; align-items: center; gap: 8px; margin-right: 8px;">
-							<span style="font-size: 0.9em; color: #4CAF50;">
-								Logged in as <strong style="text-decoration: underline;">@{{ auth.user.username }}</strong> via <span style="color: #5865F2;">Discord</span>
+					<div class="stats-rows">
+						<div class="stats-row stats-row-main">
+							<span class="stats-icon-wrap" title="Stats">
+								<svg class="stats-icon mdi-chart-line" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path :d="mdiChartLine" fill="currentColor"/></svg>
 							</span>
-							<a href="/auth/logout" style="color: #f44336; text-decoration: none; font-size: 0.85em;" title="Logout">Logout</a>
+							<span v-for="stat in stats" v-html="stat"></span>
+						</div>
+						<div v-if="auth.authenticated" class="stats-row stats-row-personal">
+							<span class="stats-icon-wrap" title="Personal stats">
+								<svg class="stats-icon mdi-counter" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path :d="mdiCounter" fill="currentColor"/></svg>
+							</span>
+							<span v-for="stat in personalStats" v-html="stat" style="margin-right: 8px;"></span>
+						</div>
+					</div>
+					<!-- Auth + GitHub: right column, spans both rows -->
+					<div class="stats-auth">
+						<span v-if="auth.authenticated" class="auth-display" style="display: flex; align-items: center; gap: 8px; margin-right: 8px; white-space: nowrap;">
+							<span class="auth-text" style="color: #000;">
+								<span class="auth-full">Logged in as <strong style="text-decoration: underline; color: #4CAF50;">@{{ auth.user.username }}</strong> via <span style="color: #5865F2;">Discord</span></span>
+								<span class="auth-compact"><strong style="text-decoration: underline; color: #4CAF50;">@{{ auth.user.username }}</strong></span>
+							</span>
+							<a href="/auth/logout" class="logout-link" style="display: inline-flex; align-items: center; color: #f44336; text-decoration: none; flex-shrink: 0;" title="Logout"><svg class="mdi-logout" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path :d="mdiLogout" fill="currentColor"/></svg></a>
 						</span>
-						<a v-else href="/auth/login" style="display: flex; align-items: center; gap: 6px; color: #5865F2; text-decoration: none; font-size: 0.85em; margin-right: 8px;" title="Login with Discord">
+						<a v-else href="/auth/login" style="display: flex; align-items: center; gap: 6px; color: #5865F2; text-decoration: none; margin-right: 8px;" title="Login with Discord">
 							<img src="./img/discord-logo.svg" alt="Discord" style="width: 18px; height: 18px; vertical-align: middle;">
 							Login with Discord
 						</a>
-						<a href="https://github.com/radio-actief/RRY-Map-Bot" class="github" title="Go to Radio-Actief GitHub repo" target="_blank">
-							<img src="./lib/images/github-mark.svg">
-						</a>
-					</a>
+					</div>
 				</div>
 				<form class="search no-margin" action="javascript:;">
 					<menu class="left no-wrap" id="node-filter" data-ui="#node-filter">

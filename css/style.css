@@ -113,29 +113,243 @@ table.node-info tr td:last-child {
   z-index: 1000;
   top: 0;
   left: 0;
-  display: flex;
-  align-self: center;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-rows: auto;
   align-items: center;
-  flex-direction: row;
-  flex-wrap: wrap;
-  column-gap: 15px;
-  row-gap: 32px;
-  height: 30px;
+  min-height: 30px;
   width: 100%;
   min-width: 700px;
-  overflow-y: hidden;
-  overflow-x: auto;
+  overflow: visible;
   color: #000;
   background-color: #ffffff55;
   backdrop-filter: blur(10px);
-  padding-left: 15px;
+  padding: 4px 15px;
+  box-sizing: border-box;
 }
 
-.stats > span {
+.stats-rows {
+  grid-column: 1;
+  display: flex;
+  flex-direction: column;
+  row-gap: 6px;
+  min-width: 0;
+  width: max-content;
+  max-width: 100%;
+}
+
+.stats-row {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 15px;
+  row-gap: 4px;
+  min-height: 26px;
+  font-size: 1em;
+}
+.stats .stats-row > span {
   line-height: 0;
   display: flex;
   flex-direction: row;
   align-items: center;
+}
+
+/* General stats icon: MDI chart-line (inline SVG) */
+.stats-icon-wrap {
+  display: inline-flex;
+  align-items: center;
+  line-height: 0;
+}
+.stats .mdi-chart-line,
+.stats .mdi-counter {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+
+/* Logout: MDI icon in red */
+.stats-auth .logout-link {
+  color: #f44336;
+}
+.stats-auth .logout-link .mdi-logout {
+  width: 24px;
+  height: 24px;
+  fill: currentColor;
+}
+
+/* Auth + GitHub: right column, spans both rows – same font size as stats rows */
+.stats-auth {
+  grid-column: 2;
+  grid-row: 1 / -1;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  align-self: center;
+  margin-left: 15px;
+  font-size: 1em;
+}
+.stats-auth .auth-text,
+.stats-auth a[href="/auth/login"] {
+  font-size: 1em;
+}
+
+/* Mobile responsiveness for top bar - single row with smart shrinking */
+@media (max-width: 768px) {
+  .stats {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    min-width: 100% !important;
+    width: 100% !important;
+    min-height: auto;
+    padding: 4px 6px;
+    gap: 6px;
+    overflow: hidden;
+    mask-image: none;
+    -webkit-mask-image: none;
+  }
+
+  .stats-auth {
+    grid-column: unset;
+    grid-row: unset;
+    margin-left: 0;
+    justify-content: flex-end;
+    flex-shrink: 0;
+  }
+
+  /* Stats block: one row, can shrink to fit */
+  .stats-rows {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    flex: 1 1 0;
+    min-width: 0;
+    gap: 6px 10px;
+    row-gap: 2px;
+  }
+
+  .stats-rows .stats-row {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    font-size: 0.75em;
+    column-gap: 6px;
+    row-gap: 2px;
+    min-height: 0;
+  }
+
+  .stats .stats-row > span {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 1;
+    min-width: 0;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Smaller icons on mobile to fit one row */
+  .stats .stats-icon-wrap {
+    flex-shrink: 0;
+  }
+  .stats .mdi-chart-line,
+  .stats .mdi-counter {
+    width: 18px;
+    height: 18px;
+  }
+  .stats .node-type,
+  .stats .stats-row img {
+    width: 16px !important;
+    height: 16px !important;
+    margin-left: 4px !important;
+    margin-right: 2px !important;
+  }
+  .stats i.node-type {
+    font-size: 12px;
+  }
+
+  .stats-auth {
+    font-size: 0.8em;
+  }
+
+  .stats-auth .logout-link .mdi-logout {
+    width: 20px;
+    height: 20px;
+  }
+
+  .stats a[href="/auth/login"],
+  .stats a[href="/auth/logout"] {
+    white-space: nowrap;
+  }
+
+  /* Show compact version of logged-in text on mobile */
+  .auth-display .auth-full {
+    display: none;
+  }
+
+  .auth-display .auth-compact {
+    display: inline;
+  }
+
+  .auth-display {
+    flex-shrink: 0;
+    min-width: 0;
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .logout-link {
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  /* Adjust search field position - will be set dynamically by JS */
+  .search {
+    top: 60px; /* Fallback, JS will adjust based on actual height */
+  }
+}
+
+/* Very small screens - even more compact, still one row */
+@media (max-width: 480px) {
+  .stats {
+    padding: 3px 4px;
+    gap: 4px;
+  }
+
+  .stats-rows .stats-row {
+    font-size: 0.7em;
+    column-gap: 4px;
+  }
+
+  .stats .mdi-chart-line,
+  .stats .mdi-counter {
+    width: 16px;
+    height: 16px;
+  }
+
+  .stats-auth {
+    font-size: 0.75em;
+  }
+
+  .auth-display {
+    max-width: 90px;
+  }
+
+  .logout-link {
+    padding: 2px 4px;
+  }
+
+  .logout-link .mdi-logout {
+    width: 18px;
+    height: 18px;
+  }
 }
 
 .stats i.node-type {
@@ -151,8 +365,83 @@ table.node-info tr td:last-child {
   width: 16px;
   min-inline-size: 0px !important;
 }
-.stats a.github {
-  margin-right: 15px;
+
+/* Leaflet bottom-left: layer control on top, footer below */
+.leaflet-bottom.leaflet-left {
+  display: flex;
+  flex-direction: column;
+  bottom: 48px; /* raise block so footer stays above right controls on short screens */
+}
+.leaflet-bottom.leaflet-left .leaflet-control:not(.app-footer) {
+  order: 1;
+  flex-shrink: 0; /* keep layer control square, don't shrink */
+}
+.leaflet-bottom.leaflet-left .leaflet-control-layers {
+  flex-shrink: 0;
+}
+/* Restore layer control toggle as perfect square with visible icon (layers.png may be missing) */
+.leaflet-control-layers-toggle {
+  width: 36px !important;
+  height: 36px !important;
+  min-width: 36px !important;
+  min-height: 36px !important;
+  background-image: url(../lib/css/images/layers-2x.png);
+  background-size: 26px 26px;
+  background-position: 50% 50%;
+  background-repeat: no-repeat;
+}
+.leaflet-touch .leaflet-control-layers-toggle {
+  width: 44px !important;
+  height: 44px !important;
+  min-width: 44px !important;
+  min-height: 44px !important;
+  background-size: 30px 30px;
+}
+.leaflet-bottom.leaflet-left .app-footer {
+  order: 2;
+  margin-top: 3px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  background-color: #ffffffdd;
+  backdrop-filter: blur(10px);
+  border-radius: 4px;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.15);
+  box-sizing: border-box;
+}
+.app-footer-link {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+  color: #000;
+}
+.app-footer-link .app-footer-icon,
+.app-footer-link img {
+  width: 20px;
+  height: 20px;
+  display: block;
+  fill: #000;
+  color: #000;
+}
+.app-footer-link .app-footer-icon {
+  flex-shrink: 0;
+}
+.app-footer-link img {
+  filter: brightness(0);
+}
+.app-footer-link:nth-child(3) {
+  margin-right: 2px;
+}
+
+/* Default: show full auth text, hide compact */
+.auth-compact {
+  display: none;
+}
+
+.auth-full {
+  display: inline;
 }
 .search {
   position: fixed;
@@ -208,7 +497,7 @@ button.manual-add::after {
   margin-block-start: 0 !important;
 }
 .leaflet-bottom .leaflet-control-layers {
-  margin-bottom: 55px !important;
+  margin-bottom: 5px !important; /* space below layer control; bottom offset is on .leaflet-bottom.leaflet-left */
 }
 .marker-cluster span {
   color: #000;

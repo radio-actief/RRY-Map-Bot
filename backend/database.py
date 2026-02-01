@@ -6,7 +6,7 @@ Handles SQLite database initialization, schema creation, and connection manageme
 import sqlite3
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 from pathlib import Path
 import sys
@@ -219,8 +219,8 @@ def dict_from_row(row: sqlite3.Row) -> Dict[str, Any]:
 
 
 def get_current_timestamp() -> str:
-    """Get current timestamp as ISO format string."""
-    return datetime.now().isoformat()
+    """Get current timestamp as ISO format string in UTC."""
+    return datetime.now(timezone.utc).isoformat()
 
 
 def verify_schema() -> bool:

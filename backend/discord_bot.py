@@ -8,7 +8,8 @@ from discord import app_commands
 from discord.ext import commands
 import sys
 import os
-from datetime import datetime
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 from typing import Optional, Dict, Any, List
 
 # Add parent directory to path for imports
@@ -240,34 +241,37 @@ def match_frequency_preset(params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 
 def format_date_display(date_string: Optional[str]) -> str:
     """
-    Format date string for Discord display.
-    Converts ISO format to readable format: YYYY-MM-DD HH:MM (no seconds).
+    Format date string for Discord display in CET/CEST with timezone label.
+    Expects stored dates in UTC (or ISO with Z/+00:00); naive strings are treated as UTC.
     
     Args:
-        date_string: ISO format date string (e.g., "2026-01-02T18:45:49" or "2026-01-02T18:45:49.123456").
+        date_string: ISO format date string (e.g., "2026-01-02T18:45:49Z" or "2026-01-02T18:45:49.123456").
     
     Returns:
-        Formatted date string (e.g., "2026-01-02 18:45") or "N/A" if invalid.
+        Formatted date string (e.g., "2026-01-02 19:45 CET") or "N/A" if invalid.
     """
     if not date_string:
         return "N/A"
     
     try:
-        # Parse ISO format (handles both with and without microseconds, with or without timezone)
-        # Remove timezone info first (split on '+' or 'Z'), then remove microseconds (split on '.')
-        date_str_clean = date_string
-        # Remove timezone offset (e.g., "+01:00" or "Z")
-        if '+' in date_str_clean:
-            date_str_clean = date_str_clean.split('+')[0]
-        elif date_str_clean.endswith('Z'):
-            date_str_clean = date_str_clean[:-1]
-        # Remove microseconds (e.g., ".123456")
-        if '.' in date_str_clean:
-            date_str_clean = date_str_clean.split('.')[0]
+        # Normalize: Z -> +00:00 for fromisoformat; strip microseconds for consistent parsing
+        date_str_clean = date_string.strip()
+        if date_str_clean.endswith("Z"):
+            date_str_clean = date_str_clean[:-1] + "+00:00"
+        if "." in date_str_clean and "+" in date_str_clean:
+            date_str_clean = date_str_clean.split(".")[0] + date_str_clean[date_str_clean.index("+"):]
+        elif "." in date_str_clean:
+            date_str_clean = date_str_clean.split(".")[0]
         
         dt = datetime.fromisoformat(date_str_clean)
-        # Format as YYYY-MM-DD HH:MM (no seconds)
-        return dt.strftime("%Y-%m-%d %H:%M")
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        else:
+            dt = dt.astimezone(timezone.utc)
+        
+        cet = ZoneInfo("Europe/Brussels")
+        dt_cet = dt.astimezone(cet)
+        return dt_cet.strftime("%Y-%m-%d %H:%M") + " " + dt_cet.tzname()
     except (ValueError, AttributeError):
         return "N/A"
 
@@ -416,38 +420,41 @@ def format_full_node_details(node: Dict[str, Any], show_coordinates: bool = Fals
 def get_most_recent_date(node: Dict[str, Any]) -> Optional[str]:
     """
     Get the most recent date from a node's date fields.
-    Checks: inserted_date, updated_date, last_advert, discord_updated_date
+    Checks: inserted_date, updated_date, last_advert, discord_updated_date.
+    All dates are interpreted as UTC (naive = UTC); result is shown in CET with timezone label.
     
     Args:
         node: Node dictionary.
     
     Returns:
-        Most recent date as string, or None if no dates found.
+        Most recent date as string in CET (e.g. "2026-01-02 19:45 CET"), or None if no dates found.
     """
-    from datetime import datetime
-    
-    dates = []
+    cet = ZoneInfo("Europe/Brussels")
+    dates_utc = []
     for date_field in ['inserted_date', 'updated_date', 'last_advert', 'discord_updated_date']:
         date_val = node.get(date_field)
         if date_val:
             try:
                 if isinstance(date_val, str):
-                    if 'T' in date_val:
-                        dt = datetime.fromisoformat(date_val.replace('Z', '+00:00').split('.')[0])
+                    s = date_val.replace('Z', '+00:00').split('.')[0]
+                    if 'T' in s or '+' in s:
+                        dt = datetime.fromisoformat(s)
                     else:
-                        dt = datetime.strptime(date_val, '%Y-%m-%d %H:%M:%S')
+                        dt = datetime.strptime(s, '%Y-%m-%d %H:%M:%S')
                 else:
                     dt = date_val
-                if dt.tzinfo:
-                    dt = dt.replace(tzinfo=None)
-                dates.append(dt)
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                else:
+                    dt = dt.astimezone(timezone.utc)
+                dates_utc.append(dt)
             except (ValueError, TypeError, AttributeError):
                 continue
     
-    if dates:
-        most_recent = max(dates)
-        # Format as relative time or simple date
-        return most_recent.strftime('%Y-%m-%d %H:%M')
+    if dates_utc:
+        most_recent_utc = max(dates_utc)
+        dt_cet = most_recent_utc.astimezone(cet)
+        return dt_cet.strftime('%Y-%m-%d %H:%M') + " " + dt_cet.tzname()
     return None
 
 

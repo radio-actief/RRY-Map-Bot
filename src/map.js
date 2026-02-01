@@ -221,7 +221,18 @@ function timeAgo(msec) {
   return "just now";
 }
 
-// Helper function to format date string with timeAgo
+// Format date in CET/CEST with timezone label (for tooltips and display)
+function formatInCET(date) {
+  if (!(date instanceof Date) || isNaN(date.getTime())) return "Invalid date";
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/Brussels",
+    dateStyle: "short",
+    timeStyle: "short",
+    timeZoneName: "short",
+  }).format(date);
+}
+
+// Helper function to format date string with timeAgo; tooltip shows exact time in CET
 function formatRelativeTime(dateString) {
   if (!dateString) return "N/A";
 
@@ -229,7 +240,8 @@ function formatRelativeTime(dateString) {
   if (isNaN(date.getTime())) return "Invalid date";
 
   const dt = new Date(dateString);
-  return `<time datetime="${dateString}" title="${dt.toLocaleString()}">${timeAgo(
+  const titleCET = formatInCET(dt);
+  return `<time datetime="${dateString}" title="${titleCET}">${timeAgo(
     dt.getTime()
   )}</time>`;
 }

@@ -9,7 +9,8 @@ import time
 import sys
 import os
 from typing import Dict, List, Any, Optional, Set
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 from geopy.geocoders import Nominatim
 from geopy.exc import GeocoderTimedOut, GeocoderServiceError, GeocoderUnavailable
 
@@ -957,10 +958,10 @@ def send_sync_notification(
                 from backend.discord_queries import get_statistics
                 stats = get_statistics()
                 
-                # Calculate next sync time (for footer, no seconds)
-                from datetime import datetime, timedelta
-                next_sync = datetime.now() + timedelta(hours=SYNC_INTERVAL_HOURS)
-                next_sync_str = next_sync.strftime("%Y-%m-%d %H:%M")
+                # Calculate next sync time in CET for footer (user-facing)
+                next_sync_utc = datetime.now(timezone.utc) + timedelta(hours=SYNC_INTERVAL_HOURS)
+                next_sync_cet = next_sync_utc.astimezone(ZoneInfo("Europe/Brussels"))
+                next_sync_str = next_sync_cet.strftime("%Y-%m-%d %H:%M") + " " + next_sync_cet.tzname()
                 
                 # Node type names (plural)
                 node_type_names = {

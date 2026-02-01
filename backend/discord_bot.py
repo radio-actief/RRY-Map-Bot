@@ -626,6 +626,31 @@ def load_bot_instructions() -> str:
     return "Bot instructions file (DISCORDBOT_INSTRUCTIONS.md) not found."
 
 
+def resolve_custom_emojis_in_text(text: str, guild: Optional[discord.Guild]) -> str:
+    """
+    Replace :emoji_name: shortcodes with Discord custom emoji format <:name:id>
+    (or <a:name:id> for animated) so server emojis render in the message.
+    Standard Unicode emojis (e.g. :flag_be:) are left as-is.
+    Replaces longer names first to avoid partial matches.
+    """
+    if not text or not guild:
+        return text
+    # Build list of (name, replacement) for all custom emojis, sort by name length desc
+    replacements = []
+    for emoji in guild.emojis:
+        if emoji.animated:
+            replacement = f"<a:{emoji.name}:{emoji.id}>"
+        else:
+            replacement = f"<:{emoji.name}:{emoji.id}>"
+        replacements.append((emoji.name, replacement))
+    replacements.sort(key=lambda x: -len(x[0]))  # longest first
+    result = text
+    for name, replacement in replacements:
+        # Replace :name: only as whole shortcode (avoid replacing inside :longername:)
+        result = result.replace(f":{name}:", replacement)
+    return result
+
+
 async def update_bot_instructions_post() -> None:
     """
     Update bot instructions post in Discord channel as an embed.
@@ -720,9 +745,19 @@ async def update_bot_instructions_post() -> None:
                 formatted_content = truncated[:max_length] + truncation_notice
             print(f"Warning: Instructions truncated from {len(formatted_content)} to {max_length} characters")
         
+        # Resolve server custom emojis (:radioactief:, :meshcore:, etc.) so they render
+        guild = getattr(channel, 'guild', None)
+        formatted_content = resolve_custom_emojis_in_text(formatted_content, guild)
+        embed_title = resolve_custom_emojis_in_text(
+            ":radioactief: Radio-Actieve Bot - :meshcore: MeshCore Node Beheer", guild
+        )
+        # Fallback if no guild or emojis not found (avoid showing raw :name: in title)
+        if embed_title.startswith(":"):
+            embed_title = "📡 Radio-Actieve Bot - MeshCore Node Beheer"
+        
         # Create embed with everything in description (like old bot, but better formatted)
         embed = discord.Embed(
-            title="📡 Radio-Actieve Bot - MeshCore Node Beheer",
+            title=embed_title,
             description=formatted_content,
             color=embed_color
         )

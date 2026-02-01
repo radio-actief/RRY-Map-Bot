@@ -222,12 +222,16 @@ function timeAgo(msec) {
 }
 
 // Format date in CET/CEST with timezone label (for tooltips and display)
+// Note: timeZoneName cannot be used with dateStyle/timeStyle, so we use explicit options.
 function formatInCET(date) {
   if (!(date instanceof Date) || isNaN(date.getTime())) return "Invalid date";
   return new Intl.DateTimeFormat("en-GB", {
     timeZone: "Europe/Brussels",
-    dateStyle: "short",
-    timeStyle: "short",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
     timeZoneName: "short",
   }).format(date);
 }

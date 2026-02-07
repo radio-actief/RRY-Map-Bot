@@ -52,7 +52,11 @@
             rgba(13, 148, 136, 0.06),
             transparent
           ),
-          linear-gradient(180deg, var(--stats-bg) 0%, var(--stats-bg-subtle) 100%);
+          linear-gradient(
+            180deg,
+            var(--stats-bg) 0%,
+            var(--stats-bg-subtle) 100%
+          );
         color: var(--stats-text);
         min-height: 100vh;
       }
@@ -508,8 +512,14 @@
     <div class="stats-wrap">
       <div class="stats-header">
         <div>
-          <h1>#BEmesh node stats</h1>
-          <p class="stats-header-desc" id="stats-summary-intro" aria-live="polite">—</p>
+          <h1>#BEmesh MeshCore statistics</h1>
+          <p
+            class="stats-header-desc"
+            id="stats-summary-intro"
+            aria-live="polite"
+          >
+            —
+          </p>
         </div>
         <a href="/" class="back-link">← Back to map</a>
       </div>
@@ -984,14 +994,16 @@
                       .map(function (c) {
                         return (
                           c.city +
-                          " (<span class=\"value\">" +
+                          ' (<span class="value">' +
                           Number(c.count).toLocaleString() +
                           "</span>)"
                         );
                       })
                       .join(", ");
                   }
-                  var top5Repeaters = cityListWithCounts(s.top_cities_repeaters);
+                  var top5Repeaters = cityListWithCounts(
+                    s.top_cities_repeaters,
+                  );
                   var citiesPhrase =
                     "The five most covered cities (by repeaters) are " +
                     (top5Repeaters || "—") +
@@ -1003,7 +1015,7 @@
                       total.toLocaleString() +
                       "</span> nodes in total" +
                       typePhrase +
-                      " across <span class=\"value\">" +
+                      ' across <span class="value">' +
                       cities.toLocaleString() +
                       "</span> cities.<br>" +
                       'In the last 24 hours <span class="value">' +
@@ -1133,7 +1145,8 @@
               (style && style.getPropertyValue("--stats-chart-added").trim()) ||
               "#0d9488";
             var colorRemoved =
-              (style && style.getPropertyValue("--stats-chart-removed").trim()) ||
+              (style &&
+                style.getPropertyValue("--stats-chart-removed").trim()) ||
               "#b91c1c";
             var colorCumulative =
               (style &&

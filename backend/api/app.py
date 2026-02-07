@@ -924,6 +924,8 @@ def serve_static(path):
     mimetype = None
     if path.endswith('.js') or path.endswith('.mjs'):
         mimetype = 'application/javascript'
+    elif path.endswith('.ico'):
+        mimetype = 'image/x-icon'
     return send_from_directory(PROJECT_ROOT, path, mimetype=mimetype)
 
 

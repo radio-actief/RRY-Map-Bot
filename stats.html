@@ -506,6 +506,20 @@
         border: none;
         border-radius: 0;
       }
+      .stats-footer {
+        margin-top: 2rem;
+        padding-top: 1rem;
+        border-top: 1px solid var(--stats-border);
+      }
+      .stats-footer-note {
+        margin: 0;
+        font-size: 0.8125rem;
+        color: var(--stats-text-muted);
+        line-height: 1.4;
+      }
+      .stats-footer-note sup {
+        font-size: 0.75em;
+      }
     </style>
   </head>
   <body class="light stats-body">
@@ -702,6 +716,14 @@
             </div>
           </div>
         </div>
+        <footer class="stats-footer">
+          <p class="stats-footer-note">
+            <sup>*</sup> Node counts and map data are synced from the official MeshCore
+            official internet <a href="https://map.meshcore.dev/" target="_blank" rel="noopener noreferrer">map</a> — either manually uploaded by users or reported by
+            companions with uploader software. No data is read from MQTT servers
+            or other analyzers.
+          </p>
+        </footer>
       </div>
     </div>
 
@@ -1013,14 +1035,14 @@
                     introEl.innerHTML =
                       'The Belgian MeshCore network has <span class="value">' +
                       total.toLocaleString() +
-                      "</span> nodes in total" +
+                      "</span> nodes in total<sup>*</sup>" +
                       typePhrase +
                       ' across <span class="value">' +
                       cities.toLocaleString() +
                       "</span> cities.<br>" +
                       'In the last 24 hours <span class="value">' +
                       active24h.toLocaleString() +
-                      '</span> nodes were active, <span class="value">' +
+                      '</span> nodes were reported as active<sup>*</sup>, <span class="value">' +
                       active7d.toLocaleString() +
                       '</span> in the last 7 days, and <span class="value">' +
                       active30d.toLocaleString() +

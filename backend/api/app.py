@@ -912,6 +912,21 @@ def stats_page():
     return send_from_directory(PROJECT_ROOT, 'stats.html')
 
 
+@app.route('/<path:path>')
+def serve_static(path):
+    """Serve static files (lib/, css/, src/, etc.) with correct MIME types."""
+    from werkzeug.exceptions import NotFound
+    if path.startswith('api/') or path.startswith('auth/'):
+        raise NotFound()
+    full_path = os.path.join(PROJECT_ROOT, path)
+    if not os.path.isfile(full_path):
+        raise NotFound()
+    mimetype = None
+    if path.endswith('.js') or path.endswith('.mjs'):
+        mimetype = 'application/javascript'
+    return send_from_directory(PROJECT_ROOT, path, mimetype=mimetype)
+
+
 if __name__ == '__main__':
     # Ensure database is initialized before starting API
     print("Initializing database...")

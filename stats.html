@@ -1,0 +1,1584 @@
+<!doctype html>
+<html lang="en" class="stats-page">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="initial-scale=1.0, width=device-width" />
+    <meta
+      name="description"
+      content="Historical node statistics for the Belgian MeshCore map"
+    />
+    <link rel="icon" type="image/x-icon" href="./favicon.ico" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=Syne:wght@500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./lib/css/beer.css" />
+    <link rel="stylesheet" href="./lib/css/leaflet.css" />
+    <title>Stats - #BEmesh Map</title>
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts@3.45.1/dist/apexcharts.min.js"></script>
+    <script src="./lib/leaflet.js"></script>
+    <style>
+      :root.stats-page {
+        --stats-font-body: "Sora", system-ui, sans-serif;
+        --stats-font-display: "Syne", system-ui, sans-serif;
+        --stats-bg: #f6f5f2;
+        --stats-bg-subtle: #f0eeea;
+        --stats-surface: #ffffff;
+        --stats-surface-hover: #fafaf9;
+        --stats-text: #1a1917;
+        --stats-text-muted: #57534e;
+        --stats-accent: #0d9488;
+        --stats-accent-hover: #0f766e;
+        --stats-border: #e7e5e4;
+        --stats-shadow: 0 1px 3px rgba(26, 25, 23, 0.06);
+        --stats-shadow-lg: 0 4px 20px rgba(26, 25, 23, 0.08);
+        --stats-radius: 12px;
+        --stats-radius-sm: 8px;
+        --stats-chart-added: #0d9488;
+        --stats-chart-removed: #b91c1c;
+        --stats-chart-cumulative: #0f766e;
+      }
+
+      body.stats-body {
+        margin: 0;
+        padding: 0;
+        font-family: var(--stats-font-body);
+        background: var(--stats-bg);
+        background-image:
+          radial-gradient(
+            ellipse 120% 80% at 50% -20%,
+            rgba(13, 148, 136, 0.06),
+            transparent
+          ),
+          linear-gradient(180deg, var(--stats-bg) 0%, var(--stats-bg-subtle) 100%);
+        color: var(--stats-text);
+        min-height: 100vh;
+      }
+
+      .stats-wrap {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 1.5rem 0.625rem 3rem;
+      }
+
+      .stats-header {
+        position: relative;
+        display: flex;
+        align-items: flex-start;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 1.25rem;
+        margin-bottom: 2rem;
+        text-align: center;
+      }
+      .stats-header > div {
+        max-width: 72ch;
+      }
+      .stats-header h1 {
+        margin: 0;
+        font-family: var(--stats-font-display);
+        font-size: 1.75rem;
+        font-weight: 700;
+        letter-spacing: -0.025em;
+        color: var(--stats-text);
+      }
+      .stats-header-desc {
+        margin: 0.5rem 0 0;
+        font-size: 0.9375rem;
+        line-height: 1.55;
+        color: var(--stats-text);
+        text-align: left;
+      }
+      .stats-header-desc .value {
+        font-weight: 600;
+        color: var(--stats-accent);
+      }
+      .stats-header .back-link {
+        position: absolute;
+        right: 0;
+        top: 0;
+      }
+      .back-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 0.75rem;
+        font-weight: 500;
+        font-size: 0.9rem;
+        color: var(--stats-accent);
+        text-decoration: none;
+        border-radius: var(--stats-radius-sm);
+        transition:
+          background 0.2s ease,
+          color 0.2s ease,
+          transform 0.2s ease;
+      }
+      .back-link:hover {
+        background: var(--stats-bg-subtle);
+        color: var(--stats-accent-hover);
+        transform: translateX(-3px);
+      }
+
+      .stats-loading {
+        font-size: 0.95rem;
+        color: var(--stats-text-muted);
+        padding: 2rem;
+      }
+      .stats-error {
+        color: #b91c1c;
+        padding: 1rem;
+        font-weight: 500;
+      }
+
+      #stats-content {
+        animation: stats-reveal 0.45s ease-out forwards;
+      }
+      #stats-content .stats-chart {
+        animation: stats-reveal 0.5s ease-out 0.06s both;
+      }
+      #stats-content .stats-playback {
+        animation: stats-reveal 0.5s ease-out 0.12s both;
+      }
+      #stats-content .stats-tables {
+        animation: stats-reveal 0.5s ease-out 0.18s both;
+      }
+      @keyframes stats-reveal {
+        from {
+          opacity: 0;
+          transform: translateY(12px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .stats-chart-and-map {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1.25rem;
+        margin-bottom: 2rem;
+        align-items: flex-start;
+      }
+      .stats-chart {
+        flex: 1 1 500px;
+        min-width: 0;
+        height: auto;
+        min-height: 420px;
+        display: block;
+        background: var(--stats-surface);
+        border-radius: var(--stats-radius);
+        box-shadow: var(--stats-shadow);
+        padding: 1rem;
+        border: 1px solid var(--stats-border);
+        box-sizing: border-box;
+      }
+      .stats-chart #stats-chart {
+        display: block;
+        width: 100%;
+        height: 400px;
+        min-height: 400px;
+        max-height: 400px;
+        overflow: hidden;
+      }
+      .stats-block-title {
+        margin: 0 0 0.25rem;
+        font-family: var(--stats-font-display);
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--stats-text);
+        letter-spacing: -0.01em;
+      }
+      .stats-block-desc {
+        margin: 0 0 0.75rem;
+        font-size: 0.8125rem;
+        color: var(--stats-text-muted);
+        line-height: 1.4;
+      }
+      .stats-chart .stats-block-desc {
+        margin-bottom: 0.5rem;
+      }
+      .stats-playback .stats-block-desc {
+        margin-bottom: 0.5rem;
+      }
+      .stats-tables-title {
+        grid-column: 1 / -1;
+        margin-bottom: 0.25rem;
+      }
+      .stats-tables .stats-table-card {
+        margin-top: 0;
+      }
+      .stats-chart-range-wrap {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 0.75rem;
+      }
+      .stats-chart-range-label {
+        font-size: 0.8125rem;
+        font-weight: 600;
+        color: var(--stats-text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      .stats-chart-range {
+        padding: 0.35rem 0.6rem;
+        font-size: 0.875rem;
+        font-family: var(--stats-font-body);
+        border: 1px solid var(--stats-border);
+        border-radius: var(--stats-radius-sm);
+        background: var(--stats-surface);
+        color: var(--stats-text);
+        cursor: pointer;
+      }
+      .stats-playback {
+        flex: 0 1 560px;
+        min-width: 320px;
+        background: var(--stats-surface);
+        border-radius: var(--stats-radius);
+        box-shadow: var(--stats-shadow);
+        padding: 1rem;
+        border: 1px solid var(--stats-border);
+      }
+      .stats-playback .stats-map-label {
+        font-size: 0.8125rem;
+        font-weight: 600;
+        color: var(--stats-text-muted);
+        margin-bottom: 0.5rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      .stats-playback .stats-map-container {
+        height: 360px;
+        border-radius: var(--stats-radius-sm);
+        overflow: hidden;
+        border: 1px solid var(--stats-border);
+        background: var(--stats-bg-subtle);
+      }
+      .stats-playback .stats-map-container #stats-map {
+        height: 100%;
+        width: 100%;
+      }
+      .stats-playback-controls {
+        margin-top: 0.75rem;
+      }
+      .stats-playback-controls .playback-row {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+      }
+      .stats-playback-controls .playback-transport {
+        display: flex;
+        align-items: center;
+        gap: 0.2rem;
+        padding: 0.2rem 0.4rem;
+        background: var(--stats-bg-subtle);
+        border-radius: var(--stats-radius-sm);
+        border: 1px solid var(--stats-border);
+      }
+      .stats-playback-controls .playback-transport button {
+        width: 32px;
+        height: 32px;
+        padding: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1rem;
+        line-height: 1;
+        cursor: pointer;
+        border: none;
+        border-radius: 6px;
+        background: transparent;
+        color: var(--stats-text);
+        transition:
+          background 0.15s ease,
+          color 0.15s ease;
+      }
+      .stats-playback-controls .playback-transport button:hover {
+        background: var(--stats-surface);
+        color: var(--stats-accent);
+      }
+      .stats-playback-controls .playback-transport button#playback-play {
+        width: 36px;
+        height: 36px;
+        font-size: 1.1rem;
+        background: var(--stats-accent);
+        color: #fff;
+      }
+      .stats-playback-controls .playback-transport button#playback-play:hover {
+        background: var(--stats-accent-hover);
+      }
+      .stats-playback-controls .playback-meta {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        flex: 1;
+        min-width: 0;
+      }
+      .stats-playback-controls .playback-date {
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: var(--stats-text);
+        min-width: 120px;
+      }
+      .stats-playback-controls .playback-speed-wrap {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+      }
+      .stats-playback-controls .playback-speed-wrap label {
+        font-size: 0.8rem;
+        color: var(--stats-text-muted);
+        white-space: nowrap;
+      }
+      .stats-playback-controls select#playback-speed {
+        padding: 0.35rem 0.5rem;
+        font-size: 0.85rem;
+        border: 1px solid var(--stats-border);
+        border-radius: 6px;
+        background: var(--stats-surface);
+        color: var(--stats-text);
+        cursor: pointer;
+      }
+      .stats-playback-controls .playback-slider-wrap {
+        margin-top: 0.5rem;
+        width: 100%;
+      }
+      .stats-playback-controls .playback-slider-wrap input[type="range"] {
+        width: 100%;
+        height: 8px;
+        accent-color: var(--stats-accent);
+      }
+      .stats-playback-legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem 1.25rem;
+        margin-top: 0.5rem;
+        font-size: 0.8125rem;
+        color: var(--stats-text-muted);
+      }
+      .stats-playback-legend span {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+      }
+      .stats-playback-legend .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        flex-shrink: 0;
+      }
+      .stats-playback-legend .legend-count {
+        font-weight: 600;
+        color: var(--stats-text);
+      }
+
+      .stats-table {
+        overflow-x: auto;
+        background: var(--stats-surface);
+        border-radius: var(--stats-radius);
+        box-shadow: var(--stats-shadow);
+        border: 1px solid var(--stats-border);
+      }
+      .stats-table table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      .stats-table th,
+      .stats-table td {
+        padding: 0.65rem 1rem;
+        text-align: left;
+        border-bottom: 1px solid var(--stats-border);
+      }
+      .stats-table tbody tr {
+        transition: background 0.12s ease;
+      }
+      .stats-table tbody tr:hover {
+        background: var(--stats-surface-hover);
+      }
+      .stats-table th {
+        font-family: var(--stats-font-display);
+        font-weight: 600;
+        font-size: 0.8125rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--stats-text-muted);
+        cursor: pointer;
+        user-select: none;
+      }
+      .stats-table th:hover {
+        color: var(--stats-text);
+      }
+      .stats-table th .sort-icon {
+        margin-left: 0.35rem;
+        font-size: 0.85em;
+        opacity: 0.6;
+      }
+      .stats-table th.sort-asc .sort-icon,
+      .stats-table th.sort-desc .sort-icon {
+        opacity: 1;
+      }
+      .stats-table th .sort-icon::before {
+        content: "\21C5";
+      }
+      .stats-table th.sort-asc .sort-icon::before {
+        content: "\2191";
+      }
+      .stats-table th.sort-desc .sort-icon::before {
+        content: "\2193";
+      }
+      .stats-table .num {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+      }
+      .stats-table .date {
+        white-space: nowrap;
+      }
+      .stats-tables {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1.25rem;
+      }
+      @media (max-width: 900px) {
+        .stats-tables {
+          grid-template-columns: repeat(2, 1fr);
+        }
+      }
+      @media (max-width: 480px) {
+        .stats-tables {
+          grid-template-columns: 1fr;
+        }
+      }
+      /* Mobile: back link above title so it’s visible */
+      @media (max-width: 640px) {
+        .stats-header {
+          flex-direction: column;
+          align-items: stretch;
+          text-align: center;
+        }
+        .stats-header .back-link {
+          position: static;
+          order: -1;
+          align-self: flex-start;
+        }
+      }
+      /* Mobile: timeline playback controls stack so speed stays on screen */
+      @media (max-width: 640px) {
+        .stats-playback-controls .playback-row {
+          flex-direction: column;
+          align-items: stretch;
+          gap: 0.5rem;
+        }
+        .stats-playback-controls .playback-meta {
+          flex-wrap: wrap;
+          min-width: 0;
+        }
+        .stats-playback-controls .playback-date {
+          min-width: 0;
+        }
+      }
+      .stats-table-card {
+        background: var(--stats-surface);
+        border-radius: var(--stats-radius);
+        box-shadow: var(--stats-shadow);
+        border: 1px solid var(--stats-border);
+        overflow: hidden;
+      }
+      .stats-table-card h3 {
+        margin: 0;
+        padding: 0.75rem 1rem;
+        font-family: var(--stats-font-body);
+        font-size: 0.9375rem;
+        font-weight: 600;
+        color: var(--stats-text);
+        border-bottom: 1px solid var(--stats-border);
+        background: var(--stats-bg-subtle);
+      }
+      .stats-table-card .stats-table {
+        box-shadow: none;
+        border: none;
+        border-radius: 0;
+      }
+    </style>
+  </head>
+  <body class="light stats-body">
+    <div class="stats-wrap">
+      <div class="stats-header">
+        <div>
+          <h1>#BEmesh node stats</h1>
+          <p class="stats-header-desc" id="stats-summary-intro" aria-live="polite">—</p>
+        </div>
+        <a href="/" class="back-link">← Back to map</a>
+      </div>
+
+      <div id="stats-loading" class="stats-loading">Loading sync history…</div>
+      <div id="stats-error" class="stats-error" style="display: none"></div>
+
+      <div id="stats-content" style="display: none">
+        <div class="stats-chart-and-map">
+          <div class="stats-chart">
+            <h2 class="stats-block-title">Changes graph</h2>
+            <div class="stats-chart-range-wrap">
+              <label for="stats-chart-range" class="stats-chart-range-label"
+                >Range</label
+              >
+              <select
+                id="stats-chart-range"
+                class="stats-chart-range"
+                title="Time range"
+              >
+                <option value="week">Last 7 days</option>
+                <option value="month" selected>Month</option>
+                <option value="3m">3 months</option>
+                <option value="6m">6 months</option>
+                <option value="ytd">YTD</option>
+                <option value="1y">1 year</option>
+                <option value="all">All</option>
+              </select>
+            </div>
+            <div id="stats-chart"></div>
+          </div>
+          <div class="stats-playback">
+            <h2 class="stats-block-title">Timeline playback</h2>
+            <div class="stats-map-container">
+              <div id="stats-map"></div>
+            </div>
+            <div class="stats-playback-controls">
+              <div class="playback-row">
+                <div class="playback-transport">
+                  <button
+                    type="button"
+                    id="playback-prev"
+                    title="Previous frame"
+                  >
+                    &#9664;
+                  </button>
+                  <button type="button" id="playback-play" title="Play / Pause">
+                    &#9658;
+                  </button>
+                  <button type="button" id="playback-next" title="Next frame">
+                    &#9654;
+                  </button>
+                </div>
+                <div class="playback-meta">
+                  <span class="playback-date" id="playback-date"></span>
+                  <div class="playback-speed-wrap">
+                    <label for="playback-speed">Speed</label>
+                    <select id="playback-speed" title="Playback speed">
+                      <option value="0.5">0.5×</option>
+                      <option value="1" selected>1×</option>
+                      <option value="2">2×</option>
+                      <option value="4">4×</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <div class="playback-slider-wrap">
+                <input
+                  type="range"
+                  id="playback-slider"
+                  min="0"
+                  max="0"
+                  value="0"
+                  title="Scrub timeline"
+                />
+              </div>
+            </div>
+            <div class="stats-playback-legend" id="playback-legend">
+              <span data-type="1"
+                ><i
+                  class="dot"
+                  style="background: #2196f3; border: 1px solid #1565c0"
+                ></i>
+                <span class="legend-label">Client</span>
+                <span class="legend-count" id="playback-legend-count-1"
+                  >0</span
+                ></span
+              >
+              <span data-type="2"
+                ><i
+                  class="dot"
+                  style="background: #4caf50; border: 1px solid #2e7d32"
+                ></i>
+                <span class="legend-label">Repeater</span>
+                <span class="legend-count" id="playback-legend-count-2"
+                  >0</span
+                ></span
+              >
+              <span data-type="3"
+                ><i
+                  class="dot"
+                  style="background: #9c27b0; border: 1px solid #6a1b9a"
+                ></i>
+                <span class="legend-label">Room Server</span>
+                <span class="legend-count" id="playback-legend-count-3"
+                  >0</span
+                ></span
+              >
+              <span data-type="4"
+                ><i
+                  class="dot"
+                  style="background: #ff9800; border: 1px solid #e65100"
+                ></i>
+                <span class="legend-label">Sensor</span>
+                <span class="legend-count" id="playback-legend-count-4"
+                  >0</span
+                ></span
+              >
+            </div>
+          </div>
+        </div>
+        <div class="stats-tables">
+          <h2 class="stats-block-title stats-tables-title">
+            Top days by metric
+          </h2>
+          <div class="stats-table-card">
+            <h3>Most added</h3>
+            <div class="stats-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th class="date">Date</th>
+                    <th class="num">Added</th>
+                  </tr>
+                </thead>
+                <tbody id="stats-tbody-added"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="stats-table-card">
+            <h3>Most removed</h3>
+            <div class="stats-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th class="date">Date</th>
+                    <th class="num">Removed</th>
+                  </tr>
+                </thead>
+                <tbody id="stats-tbody-removed"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="stats-table-card">
+            <h3>Best growth</h3>
+            <div class="stats-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th class="date">Date</th>
+                    <th class="num">Net growth</th>
+                  </tr>
+                </thead>
+                <tbody id="stats-tbody-growth"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="stats-table-card">
+            <h3>Worst decline</h3>
+            <div class="stats-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th class="date">Date</th>
+                    <th class="num">Net decline</th>
+                  </tr>
+                </thead>
+                <tbody id="stats-tbody-decline"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        const loadingEl = document.getElementById("stats-loading");
+        const errorEl = document.getElementById("stats-error");
+        const contentEl = document.getElementById("stats-content");
+        const tbodyAdded = document.getElementById("stats-tbody-added");
+        const tbodyRemoved = document.getElementById("stats-tbody-removed");
+        const tbodyGrowth = document.getElementById("stats-tbody-growth");
+        const tbodyDecline = document.getElementById("stats-tbody-decline");
+
+        function showError(msg) {
+          loadingEl.style.display = "none";
+          contentEl.style.display = "none";
+          errorEl.textContent = msg;
+          errorEl.style.display = "block";
+        }
+
+        function formatDate(iso) {
+          if (!iso) return "—";
+          const d = new Date(iso);
+          return d.toLocaleString(undefined, {
+            dateStyle: "short",
+            timeStyle: "short",
+          });
+        }
+
+        fetch("/api/v1/sync-history?limit=500")
+          .then(function (r) {
+            if (!r.ok) throw new Error("Failed to load sync history");
+            return r.json();
+          })
+          .then(function (history) {
+            loadingEl.style.display = "none";
+            if (!history || history.length === 0) {
+              showError(
+                "No sync history yet. Syncs will appear here once the sync service has run.",
+              );
+              return;
+            }
+
+            // Aggregate by day (date only, local timezone for grouping)
+            const byDay = {};
+            history.forEach(function (row) {
+              const d = new Date(row.sync_date);
+              const key =
+                d.getFullYear() +
+                "-" +
+                String(d.getMonth() + 1).padStart(2, "0") +
+                "-" +
+                String(d.getDate()).padStart(2, "0");
+              if (!byDay[key]) {
+                byDay[key] = {
+                  date: key,
+                  nodes_added: 0,
+                  nodes_removed: 0,
+                  nodes_restored: 0,
+                  nodes_updated: 0,
+                  hasSyncData: false,
+                };
+              }
+              byDay[key].nodes_added += row.nodes_added || 0;
+              byDay[key].nodes_removed += row.nodes_removed || 0;
+              byDay[key].nodes_restored += row.nodes_restored || 0;
+              byDay[key].nodes_updated += row.nodes_updated || 0;
+              if (row.from_sync === true) byDay[key].hasSyncData = true;
+            });
+            const dailyRows = Object.keys(byDay)
+              .sort()
+              .map(function (k) {
+                return byDay[k];
+              });
+
+            if (dailyRows.length === 0) {
+              showError(
+                "No sync history yet. Syncs will appear here once the sync service has run.",
+              );
+              return;
+            }
+
+            // Build a continuous timeline (every day from first to last) for the chart, so gaps are visible
+            function dateKeyToMs(key) {
+              return new Date(key + "T12:00:00").getTime();
+            }
+            function msToDateKey(ms) {
+              var d = new Date(ms);
+              return (
+                d.getFullYear() +
+                "-" +
+                String(d.getMonth() + 1).padStart(2, "0") +
+                "-" +
+                String(d.getDate()).padStart(2, "0")
+              );
+            }
+            var chartStartDate = dailyRows[0].date;
+            var firstMs = dateKeyToMs(dailyRows[0].date);
+            var lastMs = dateKeyToMs(dailyRows[dailyRows.length - 1].date);
+            var oneDayMs = 24 * 60 * 60 * 1000;
+            var dailyRowsChart = [];
+            for (var t = firstMs; t <= lastMs; t += oneDayMs) {
+              var key = msToDateKey(t);
+              var row = byDay[key]
+                ? {
+                    date: key,
+                    nodes_added: byDay[key].nodes_added,
+                    nodes_removed: byDay[key].nodes_removed,
+                    nodes_restored: byDay[key].nodes_restored,
+                    nodes_updated: byDay[key].nodes_updated,
+                    hasSyncData: !!byDay[key].hasSyncData,
+                  }
+                : {
+                    date: key,
+                    nodes_added: 0,
+                    nodes_removed: 0,
+                    nodes_restored: 0,
+                    nodes_updated: 0,
+                    hasSyncData: false,
+                  };
+              row.hasData = !!byDay[key];
+              dailyRowsChart.push(row);
+            }
+
+            // Distribute a metric across gap runs. useSyncData: for removed/restored we use
+            // "days with no sync" as gap so they spread over periods without syncs; for added we use "no data".
+            function distributeMetric(metric, useSyncData) {
+              var hasVal = useSyncData ? "hasSyncData" : "hasData";
+              var i = 0;
+              while (i < dailyRowsChart.length) {
+                if (dailyRowsChart[i][hasVal]) {
+                  i++;
+                  continue;
+                }
+                var runStart = i;
+                while (i < dailyRowsChart.length && !dailyRowsChart[i][hasVal])
+                  i++;
+                if (i >= dailyRowsChart.length) break;
+                var runEnd = i;
+                var runLen = runEnd - runStart + 1;
+                var total = dailyRowsChart[runEnd][metric];
+                var base = Math.floor(total / runLen);
+                var rem = total % runLen;
+                for (var j = runStart; j <= runEnd; j++) {
+                  var idx = j - runStart;
+                  dailyRowsChart[j][metric] =
+                    idx < runLen - rem ? base : base + 1;
+                }
+                i = runEnd + 1;
+              }
+            }
+            distributeMetric("nodes_added", false);
+            distributeMetric("nodes_removed", true);
+            distributeMetric("nodes_restored", true);
+
+            var syncStatsStartDate = "2026-01-12";
+            dailyRowsChart.forEach(function (r) {
+              if (r.date < syncStatsStartDate) {
+                r.nodes_removed = 0;
+                r.nodes_restored = 0;
+              }
+            });
+
+            // Table rows: from chart, date >= chartStartDate, restored merged into added
+            var dailyRowsTable = dailyRows
+              .filter(function (r) {
+                return r.date >= chartStartDate;
+              })
+              .map(function (r) {
+                var cr = dailyRowsChart.find(function (c) {
+                  return c.date === r.date;
+                });
+                if (!cr) return null;
+                return {
+                  date: r.date,
+                  nodes_added: cr.nodes_added + cr.nodes_restored,
+                  nodes_removed: cr.nodes_removed,
+                };
+              })
+              .filter(Boolean);
+
+            contentEl.style.display = "block";
+
+            function setEl(id, value) {
+              var el = document.getElementById(id);
+              if (el)
+                el.textContent =
+                  value != null ? Number(value).toLocaleString() : "—";
+            }
+            function loadStatsSummary() {
+              fetch("/api/v1/stats")
+                .then(function (r) {
+                  return r.ok ? r.json() : Promise.reject();
+                })
+                .then(function (s) {
+                  var byType = s.by_type || {};
+                  var total = s.total_nodes != null ? Number(s.total_nodes) : 0;
+                  var companions = byType[1] != null ? Number(byType[1]) : 0;
+                  var repeaters = byType[2] != null ? Number(byType[2]) : 0;
+                  var roomServers = byType[3] != null ? Number(byType[3]) : 0;
+                  var sensors = byType[4] != null ? Number(byType[4]) : 0;
+                  var cities =
+                    s.total_cities != null ? Number(s.total_cities) : 0;
+                  var claimed =
+                    s.claimed_nodes != null ? Number(s.claimed_nodes) : 0;
+                  var users =
+                    s.registered_users != null ? Number(s.registered_users) : 0;
+                  var active24h =
+                    s.active_24h != null ? Number(s.active_24h) : 0;
+                  var active7d = s.active_7d != null ? Number(s.active_7d) : 0;
+                  var active30d =
+                    s.active_30d != null ? Number(s.active_30d) : 0;
+                  var presets = s.frequency_presets || {};
+                  var presetOrder = [
+                    "EU/UK (Narrow)",
+                    "EU 433MHz (Long Range)",
+                    "EU/UK (Long Range)",
+                    "EU/UK (Medium Range)",
+                  ];
+                  var presetParts = [];
+                  presetOrder.forEach(function (name) {
+                    if (presets[name] != null && presets[name] > 0)
+                      presetParts.push(
+                        '<span class="value">' +
+                          Number(presets[name]).toLocaleString() +
+                          "</span> use " +
+                          name,
+                      );
+                  });
+                  Object.keys(presets).forEach(function (name) {
+                    if (
+                      presetOrder.indexOf(name) === -1 &&
+                      presets[name] != null &&
+                      presets[name] > 0
+                    )
+                      presetParts.push(
+                        '<span class="value">' +
+                          Number(presets[name]).toLocaleString() +
+                          "</span> use " +
+                          name,
+                      );
+                  });
+                  if (s.custom_frequency != null && s.custom_frequency > 0)
+                    presetParts.push(
+                      '<span class="value">' +
+                        Number(s.custom_frequency).toLocaleString() +
+                        "</span> use custom settings",
+                    );
+                  if (s.unknown_frequency != null && s.unknown_frequency > 0)
+                    presetParts.push(
+                      '<span class="value">' +
+                        Number(s.unknown_frequency).toLocaleString() +
+                        "</span> are unknown",
+                    );
+                  var presetPhrase = presetParts.length
+                    ? presetParts.join(", ") + "."
+                    : "—";
+                  var typeParts = [];
+                  if (companions > 0)
+                    typeParts.push(
+                      '<span class="value">' +
+                        companions.toLocaleString() +
+                        "</span> companions",
+                    );
+                  if (repeaters > 0)
+                    typeParts.push(
+                      '<span class="value">' +
+                        repeaters.toLocaleString() +
+                        "</span> repeaters",
+                    );
+                  if (roomServers > 0)
+                    typeParts.push(
+                      '<span class="value">' +
+                        roomServers.toLocaleString() +
+                        "</span> room servers",
+                    );
+                  if (sensors > 0)
+                    typeParts.push(
+                      '<span class="value">' +
+                        sensors.toLocaleString() +
+                        "</span> sensors",
+                    );
+                  var typePhrase =
+                    typeParts.length > 0
+                      ? " (" + typeParts.join(", ") + ")"
+                      : "";
+                  function cityListWithCounts(arr) {
+                    return (arr || [])
+                      .slice(0, 5)
+                      .map(function (c) {
+                        return (
+                          c.city +
+                          " (<span class=\"value\">" +
+                          Number(c.count).toLocaleString() +
+                          "</span>)"
+                        );
+                      })
+                      .join(", ");
+                  }
+                  var top5Repeaters = cityListWithCounts(s.top_cities_repeaters);
+                  var citiesPhrase =
+                    "The five most covered cities (by repeaters) are " +
+                    (top5Repeaters || "—") +
+                    ".";
+                  var introEl = document.getElementById("stats-summary-intro");
+                  if (introEl) {
+                    introEl.innerHTML =
+                      'The Belgian MeshCore network has <span class="value">' +
+                      total.toLocaleString() +
+                      "</span> nodes in total" +
+                      typePhrase +
+                      " across <span class=\"value\">" +
+                      cities.toLocaleString() +
+                      "</span> cities.<br>" +
+                      'In the last 24 hours <span class="value">' +
+                      active24h.toLocaleString() +
+                      '</span> nodes were active, <span class="value">' +
+                      active7d.toLocaleString() +
+                      '</span> in the last 7 days, and <span class="value">' +
+                      active30d.toLocaleString() +
+                      "</span> in the last 30 days.<br>" +
+                      "By frequency preset, " +
+                      presetPhrase +
+                      "<br>" +
+                      '<span class="value">' +
+                      claimed.toLocaleString() +
+                      '</span> nodes are claimed by <span class="value">' +
+                      users.toLocaleString() +
+                      "</span> unique Discord users.<br>" +
+                      citiesPhrase;
+                  }
+                })
+                .catch(function () {});
+            }
+            loadStatsSummary();
+
+            function formatDateOnly(dateStr) {
+              const d = new Date(dateStr + "T12:00:00");
+              return d.toLocaleDateString(undefined, { dateStyle: "medium" });
+            }
+
+            var topN = 5;
+            var topAdded = dailyRowsTable
+              .slice()
+              .sort(function (a, b) {
+                return b.nodes_added - a.nodes_added;
+              })
+              .slice(0, topN);
+            var topRemoved = dailyRowsTable
+              .slice()
+              .sort(function (a, b) {
+                return b.nodes_removed - a.nodes_removed;
+              })
+              .slice(0, topN);
+            var topGrowth = dailyRowsTable
+              .slice()
+              .map(function (r) {
+                return {
+                  date: r.date,
+                  growth: r.nodes_added - r.nodes_removed,
+                };
+              })
+              .sort(function (a, b) {
+                return b.growth - a.growth;
+              })
+              .slice(0, topN);
+
+            var topDecline = dailyRowsTable
+              .slice()
+              .map(function (r) {
+                return {
+                  date: r.date,
+                  growth: r.nodes_added - r.nodes_removed,
+                };
+              })
+              .filter(function (r) {
+                return r.growth < 0;
+              })
+              .sort(function (a, b) {
+                return a.growth - b.growth;
+              })
+              .slice(0, topN);
+
+            function fillTopTable(tbody, rows, valueKey) {
+              tbody.innerHTML = "";
+              rows.forEach(function (row) {
+                var tr = document.createElement("tr");
+                tr.innerHTML =
+                  '<td class="date">' +
+                  formatDateOnly(row.date) +
+                  "</td>" +
+                  '<td class="num">' +
+                  row[valueKey] +
+                  "</td>";
+                tbody.appendChild(tr);
+              });
+            }
+            fillTopTable(tbodyAdded, topAdded, "nodes_added");
+            fillTopTable(tbodyRemoved, topRemoved, "nodes_removed");
+            fillTopTable(tbodyGrowth, topGrowth, "growth");
+            fillTopTable(tbodyDecline, topDecline, "growth");
+
+            // Cumulative = (added + restored) - removed (restored merged into added), full timeline, no reset
+            var cumulative = 0;
+            var cumulativeData = dailyRowsChart.map(function (r) {
+              cumulative += r.nodes_added + r.nodes_restored - r.nodes_removed;
+              return cumulative;
+            });
+            // Chart from 12 Jan 2026 only; cumulative keeps full running total
+            var chartFromIdx = dailyRowsChart.findIndex(function (r) {
+              return r.date >= chartStartDate;
+            });
+            if (chartFromIdx < 0) chartFromIdx = 0;
+            var chartRows = dailyRowsChart.slice(chartFromIdx);
+            function sparseLabels(rows, maxLabels) {
+              var step = Math.max(1, Math.floor(rows.length / maxLabels));
+              return rows.map(function (r, i) {
+                return i % step === 0 ? formatDateOnly(r.date) : "";
+              });
+            }
+            var labels = sparseLabels(chartRows, 10);
+            var cumulativeDisplay = chartRows.map(function (_, i) {
+              return cumulativeData[chartFromIdx + i];
+            });
+            var chartTooltipDates = chartRows.map(function (r) {
+              return r.date;
+            });
+
+            // ApexCharts: mixed column + line, dual axis, theme-aligned palette
+            var chartAdded = chartRows.map(function (r) {
+              return r.nodes_added + r.nodes_restored;
+            });
+            var chartRemoved = chartRows.map(function (r) {
+              return r.nodes_removed;
+            });
+            var chartEl = document.getElementById("stats-chart");
+            var style = chartEl && getComputedStyle(document.documentElement);
+            var colorAdded =
+              (style && style.getPropertyValue("--stats-chart-added").trim()) ||
+              "#0d9488";
+            var colorRemoved =
+              (style && style.getPropertyValue("--stats-chart-removed").trim()) ||
+              "#b91c1c";
+            var colorCumulative =
+              (style &&
+                style.getPropertyValue("--stats-chart-cumulative").trim()) ||
+              "#0f766e";
+
+            function rangeStartDate(rangeValue, latestDateStr) {
+              if (rangeValue === "all") return chartStartDate;
+              var latestMs = dateKeyToMs(latestDateStr);
+              var days = 0;
+              if (rangeValue === "week") days = 7;
+              else if (rangeValue === "month") days = 30;
+              else if (rangeValue === "3m") days = 90;
+              else if (rangeValue === "6m") days = 180;
+              else if (rangeValue === "1y") days = 365;
+              else if (rangeValue === "ytd") {
+                var ytdStr = latestDateStr.slice(0, 4) + "-01-01";
+                return ytdStr < chartStartDate ? chartStartDate : ytdStr;
+              }
+              var startMs = latestMs - days * oneDayMs;
+              var startStr = msToDateKey(startMs);
+              return startStr < chartStartDate ? chartStartDate : startStr;
+            }
+
+            function applyChartRange(rangeValue) {
+              if (!statsChartInstance || !chartRows.length) return;
+              var latestDateStr = chartRows[chartRows.length - 1].date;
+              var startStr = rangeStartDate(rangeValue, latestDateStr);
+              var startIdx = chartRows.findIndex(function (r) {
+                return r.date >= startStr;
+              });
+              if (startIdx < 0) startIdx = 0;
+              var filteredRows = chartRows.slice(startIdx);
+              chartTooltipDates = filteredRows.map(function (r) {
+                return r.date;
+              });
+              var filteredLabels = sparseLabels(filteredRows, 10);
+              var filteredCumulative = filteredRows.map(function (_, i) {
+                return cumulativeData[chartFromIdx + startIdx + i];
+              });
+              var filteredAdded = filteredRows.map(function (r) {
+                return r.nodes_added + r.nodes_restored;
+              });
+              var filteredRemoved = filteredRows.map(function (r) {
+                return r.nodes_removed;
+              });
+              var filteredCountMax = Math.max(
+                0,
+                Math.max.apply(null, filteredAdded),
+                Math.max.apply(null, filteredRemoved),
+              );
+              statsChartInstance.updateOptions({
+                series: [
+                  {
+                    name: "Added",
+                    type: "column",
+                    data: filteredAdded,
+                  },
+                  {
+                    name: "Removed",
+                    type: "column",
+                    data: filteredRemoved,
+                  },
+                  {
+                    name: "Total",
+                    type: "line",
+                    data: filteredCumulative,
+                  },
+                ],
+                xaxis: { categories: filteredLabels },
+                yaxis: [
+                  {
+                    seriesName: "Added",
+                    title: {
+                      text: "Count per day",
+                      style: { color: "#57534e", fontSize: "12px" },
+                    },
+                    labels: { style: { colors: "#57534e" } },
+                    axisBorder: { show: true, color: "#e7e5e4" },
+                    min: 0,
+                    max: filteredCountMax,
+                    tickAmount: 6,
+                    show: true,
+                  },
+                  {
+                    seriesName: "Added",
+                    min: 0,
+                    max: filteredCountMax,
+                    tickAmount: 6,
+                    show: false,
+                    title: { text: "" },
+                    labels: { show: false },
+                    axisBorder: { show: false },
+                    axisTicks: { show: false },
+                  },
+                  {
+                    seriesName: "Total",
+                    opposite: true,
+                    title: {
+                      text: "Total",
+                      style: { color: "#57534e", fontSize: "12px" },
+                    },
+                    labels: { style: { colors: "#57534e" } },
+                    min: 0,
+                    tickAmount: 6,
+                    show: true,
+                  },
+                ],
+              });
+            }
+
+            var statsChartInstance = null;
+            if (typeof ApexCharts !== "undefined" && chartEl) {
+              var countAxisMax = Math.max(
+                0,
+                Math.max.apply(null, chartAdded),
+                Math.max.apply(null, chartRemoved),
+              );
+              statsChartInstance = new ApexCharts(chartEl, {
+                chart: {
+                  type: "line",
+                  fontFamily: "Sora, system-ui, sans-serif",
+                  toolbar: { show: false },
+                  zoom: { enabled: false },
+                  animations: {
+                    enabled: true,
+                    speed: 400,
+                    dynamicAnimation: { enabled: true },
+                  },
+                },
+                series: [
+                  {
+                    name: "Added",
+                    type: "column",
+                    data: chartAdded,
+                  },
+                  {
+                    name: "Removed",
+                    type: "column",
+                    data: chartRemoved,
+                  },
+                  {
+                    name: "Total",
+                    type: "line",
+                    data: cumulativeDisplay,
+                  },
+                ],
+                colors: [colorAdded, colorRemoved, colorCumulative],
+                stroke: {
+                  width: [0, 0, 3],
+                  curve: "smooth",
+                },
+                plotOptions: {
+                  bar: {
+                    columnWidth: "70%",
+                    borderRadius: 6,
+                    distributed: false,
+                    stacked: false,
+                  },
+                },
+                xaxis: {
+                  categories: labels,
+                  tickAmount: 8,
+                  labels: {
+                    style: { colors: "#57534e", fontSize: "11px" },
+                    hideOverlappingLabels: true,
+                    maxHeight: 80,
+                  },
+                  axisBorder: { show: true, color: "#e7e5e4" },
+                  axisTicks: { show: true, color: "#e7e5e4" },
+                },
+                yaxis: [
+                  {
+                    seriesName: "Added",
+                    title: {
+                      text: "Count per day",
+                      style: { color: "#57534e", fontSize: "12px" },
+                    },
+                    labels: { style: { colors: "#57534e" } },
+                    axisBorder: { show: true, color: "#e7e5e4" },
+                    min: 0,
+                    max: countAxisMax,
+                    tickAmount: 6,
+                    show: true,
+                  },
+                  {
+                    seriesName: "Added",
+                    min: 0,
+                    max: countAxisMax,
+                    tickAmount: 6,
+                    show: false,
+                    title: { text: "" },
+                    labels: { show: false },
+                    axisBorder: { show: false },
+                    axisTicks: { show: false },
+                  },
+                  {
+                    seriesName: "Total",
+                    opposite: true,
+                    title: {
+                      text: "Total",
+                      style: { color: "#57534e", fontSize: "12px" },
+                    },
+                    labels: { style: { colors: "#57534e" } },
+                    min: 0,
+                    tickAmount: 6,
+                    show: true,
+                  },
+                ],
+                grid: {
+                  borderColor: "#e7e5e4",
+                  strokeDashArray: 4,
+                  xaxis: { lines: { show: false } },
+                  yaxis: { lines: { show: true } },
+                },
+                legend: {
+                  position: "top",
+                  horizontalAlign: "left",
+                  fontSize: "12px",
+                  labels: { colors: "#57534e" },
+                  itemMargin: { horizontal: 12, vertical: 4 },
+                  markers: { radius: 4 },
+                },
+                tooltip: {
+                  shared: true,
+                  intersect: false,
+                  theme: "light",
+                  style: { fontSize: "12px" },
+                  x: {
+                    formatter: function (val, opts) {
+                      if (
+                        opts &&
+                        opts.dataPointIndex != null &&
+                        chartTooltipDates[opts.dataPointIndex]
+                      ) {
+                        return formatDateOnly(
+                          chartTooltipDates[opts.dataPointIndex],
+                        );
+                      }
+                      return val || "";
+                    },
+                  },
+                  y: {
+                    formatter: function (val, opts) {
+                      if (opts && opts.seriesIndex === 2) {
+                        return val;
+                      }
+                      return val;
+                    },
+                  },
+                },
+                dataLabels: { enabled: false },
+              });
+              statsChartInstance.render();
+              applyChartRange("month");
+              document
+                .getElementById("stats-chart-range")
+                .addEventListener("change", function () {
+                  applyChartRange(this.value);
+                });
+            }
+
+            // Playback map: fetch all node_changes so state at 12 Jan includes nodes added before that date
+            fetch("/api/v1/node-changes?limit=15000")
+              .then(function (res) {
+                return res.ok
+                  ? res.json()
+                  : Promise.reject(new Error("Node changes failed"));
+              })
+              .then(function (changes) {
+                if (!changes || changes.length === 0) return;
+                var byDate = {};
+                changes.forEach(function (c) {
+                  var d = (c.sync_date || "").slice(0, 10);
+                  if (!byDate[d]) byDate[d] = [];
+                  byDate[d].push(c);
+                });
+                var sortedDates = Object.keys(byDate).sort();
+                var frames = [];
+                var visible = {};
+                sortedDates.forEach(function (d) {
+                  byDate[d].forEach(function (c) {
+                    if (
+                      c.change_type === "added" ||
+                      c.change_type === "restored"
+                    ) {
+                      visible[c.public_key] = {
+                        lat: c.lat,
+                        lon: c.lon,
+                        adv_name: c.adv_name,
+                        type: c.type || 1,
+                      };
+                    } else if (
+                      c.change_type === "updated" &&
+                      visible[c.public_key]
+                    ) {
+                      visible[c.public_key] = {
+                        lat: c.lat,
+                        lon: c.lon,
+                        adv_name: c.adv_name,
+                        type: c.type || 1,
+                      };
+                    } else if (c.change_type === "removed") {
+                      delete visible[c.public_key];
+                    }
+                  });
+                  frames.push({
+                    date: d,
+                    nodes: Object.keys(visible).map(function (k) {
+                      return visible[k];
+                    }),
+                  });
+                });
+                if (frames.length === 0) return;
+
+                var nodeTypeColors = {
+                  1: { fill: "#2196F3", stroke: "#1565C0" },
+                  2: { fill: "#4CAF50", stroke: "#2E7D32" },
+                  3: { fill: "#9C27B0", stroke: "#6A1B9A" },
+                  4: { fill: "#FF9800", stroke: "#E65100" },
+                };
+                function colorForType(t) {
+                  return nodeTypeColors[t] || nodeTypeColors[1];
+                }
+
+                var map = L.map("stats-map", {
+                  center: [50.8503, 4.3517],
+                  zoom: 7,
+                });
+                L.tileLayer(
+                  "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+                  {
+                    attribution:
+                      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+                  },
+                ).addTo(map);
+                var markersLayer = L.layerGroup().addTo(map);
+
+                var slider = document.getElementById("playback-slider");
+                var dateEl = document.getElementById("playback-date");
+                var playBtn = document.getElementById("playback-play");
+                var speedSelect = document.getElementById("playback-speed");
+                slider.max = Math.max(0, frames.length - 1);
+
+                function setFrame(i) {
+                  i = Math.max(0, Math.min(i, frames.length - 1));
+                  slider.value = i;
+                  var f = frames[i];
+                  dateEl.textContent = formatDateOnly(f.date);
+                  var countsByType = { 1: 0, 2: 0, 3: 0, 4: 0 };
+                  f.nodes.forEach(function (n) {
+                    var t = n.type || 1;
+                    countsByType[t] = (countsByType[t] || 0) + 1;
+                  });
+                  for (var t = 1; t <= 4; t++) {
+                    var el = document.getElementById(
+                      "playback-legend-count-" + t,
+                    );
+                    if (el) el.textContent = countsByType[t] || 0;
+                  }
+                  markersLayer.clearLayers();
+                  f.nodes.forEach(function (n) {
+                    var c = colorForType(n.type);
+                    var m = L.circleMarker([n.lat, n.lon], {
+                      radius: 6,
+                      fillColor: c.fill,
+                      color: c.stroke,
+                      weight: 1,
+                      fillOpacity: 0.9,
+                    });
+                    var tip = n.adv_name || "";
+                    if (n.type) {
+                      var typeNames = {
+                        1: "Client",
+                        2: "Repeater",
+                        3: "Room Server",
+                        4: "Sensor",
+                      };
+                      tip =
+                        (tip ? tip + " \u2014 " : "") +
+                        (typeNames[n.type] || "Node");
+                    }
+                    if (tip) m.bindTooltip(tip, { permanent: false });
+                    markersLayer.addLayer(m);
+                  });
+                }
+
+                setFrame(frames.length - 1);
+
+                var playInterval = null;
+                function stopPlay() {
+                  if (playInterval) {
+                    clearInterval(playInterval);
+                    playInterval = null;
+                  }
+                  playBtn.textContent = "\u25B6";
+                  playBtn.title = "Play";
+                }
+                function startPlay() {
+                  var speed = parseFloat(speedSelect.value) || 1;
+                  var ms = Math.max(200, 800 / speed);
+                  playBtn.textContent = "\u23F8";
+                  playBtn.title = "Pause";
+                  playInterval = setInterval(function () {
+                    var next = parseInt(slider.value, 10) + 1;
+                    if (next >= frames.length) next = 0;
+                    setFrame(next);
+                  }, ms);
+                }
+                playBtn.addEventListener("click", function () {
+                  if (playInterval) stopPlay();
+                  else startPlay();
+                });
+                speedSelect.addEventListener("change", function () {
+                  if (playInterval) {
+                    stopPlay();
+                    startPlay();
+                  }
+                });
+
+                document
+                  .getElementById("playback-prev")
+                  .addEventListener("click", function () {
+                    stopPlay();
+                    setFrame(parseInt(slider.value, 10) - 1);
+                  });
+                document
+                  .getElementById("playback-next")
+                  .addEventListener("click", function () {
+                    stopPlay();
+                    setFrame(parseInt(slider.value, 10) + 1);
+                  });
+                slider.addEventListener("input", function () {
+                  stopPlay();
+                  setFrame(parseInt(slider.value, 10));
+                });
+              })
+              .catch(function () {
+                /* no playback if node_changes missing or empty */
+              });
+          })
+          .catch(function (err) {
+            showError(err.message || "Could not load sync history.");
+          });
+      })();
+    </script>
+  </body>
+</html>

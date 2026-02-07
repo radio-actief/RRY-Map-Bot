@@ -5,6 +5,7 @@ Provides API endpoints for the frontend web map to access Belgian node data.
 
 import sys
 import os
+from typing import Optional
 from flask import Flask, jsonify, request, send_from_directory, session, redirect
 from flask_cors import CORS
 from flask_session import Session
@@ -135,6 +136,40 @@ def get_all_belgian_nodes():
         conn.close()
 
 
+def get_displayable_node_count():
+    """
+    Count of nodes that appear on the map: is_active = 1 and has valid coordinates.
+    Same logic as get_all_belgian_nodes() so the stats page "Current total" matches the map bar.
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            SELECT COUNT(*) FROM belgian_nodes
+            WHERE is_active = 1
+              AND adv_lat IS NOT NULL AND adv_lon IS NOT NULL
+        """)
+        return cursor.fetchone()[0]
+    finally:
+        conn.close()
+
+
+@app.route('/api/v1/belgian-nodes/count', methods=['GET'])
+def get_belgian_nodes_count():
+    """
+    GET /api/v1/belgian-nodes/count
+
+    Returns the count of nodes that are shown on the map (active with coordinates).
+    Use this for the stats page "Current total" so it matches the map top bar.
+    """
+    try:
+        count = get_displayable_node_count()
+        return jsonify({"count": count}), 200
+    except Exception as e:
+        print(f"Error in get_belgian_nodes_count: {e}")
+        return jsonify({"error": "Internal server error", "message": str(e)}), 500
+
+
 @app.route('/api/v1/belgian-nodes', methods=['GET'])
 def get_belgian_nodes():
     """
@@ -201,6 +236,228 @@ def health_check():
         'status': 'healthy',
         'service': 'RRY-Map-Bot API'
     }), 200
+
+
+# "Added" is based only on belgian_nodes.inserted_date (or created_at). Real sync_history/node_changes
+# are used only for removed, restored, updated (to avoid double-counting when sync logged existing nodes as "added").
+
+
+def get_synthetic_sync_rows():
+    """
+    One row per day with nodes_added = count of nodes whose inserted_date (or created_at) falls on that day.
+    This is the single source of truth for "added"; real sync_history nodes_added is ignored when merging.
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            SELECT date(COALESCE(NULLIF(trim(inserted_date), ''), created_at)) AS d,
+                   COUNT(*) AS cnt
+            FROM belgian_nodes
+            WHERE (inserted_date IS NOT NULL AND trim(inserted_date) != '')
+               OR (created_at IS NOT NULL AND (inserted_date IS NULL OR trim(inserted_date) = ''))
+            GROUP BY d
+            HAVING d IS NOT NULL AND d != ''
+        """)
+        rows = cursor.fetchall()
+        return [
+            {
+                "sync_date": row["d"],
+                "nodes_added": row["cnt"],
+                "nodes_removed": 0,
+                "nodes_restored": 0,
+                "nodes_updated": 0,
+            }
+            for row in rows
+        ]
+    finally:
+        conn.close()
+
+
+def get_sync_history(limit: int = 500):
+    """
+    Sync history: "added" comes only from inserted_date (synthetic rows). Real sync_history
+    is used for removed/restored/updated only (nodes_added zeroed to avoid double count).
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            SELECT id, sync_date, nodes_added, nodes_removed, nodes_restored,
+                   nodes_updated, details
+            FROM sync_history
+            ORDER BY sync_date ASC
+            LIMIT ?
+        """, (limit,))
+        real = [dict_from_row(row) for row in cursor.fetchall()]
+    finally:
+        conn.close()
+    for r in real:
+        r["nodes_added"] = 0
+        r["from_sync"] = True
+    synthetic = get_synthetic_sync_rows()
+    for r in synthetic:
+        r["from_sync"] = False
+    combined = real + synthetic
+    combined.sort(key=lambda r: (r.get("sync_date") or ""))
+    max_rows = max(limit, 2000)
+    return combined[:max_rows] if len(combined) > max_rows else combined
+
+
+def _node_change_row(public_key: str, change_type: str, sync_date: str, data: dict) -> Optional[dict]:
+    """Build one node_changes output dict from public_key, change_type, sync_date and data (with adv_lat, adv_lon, etc.)."""
+    if not data:
+        return None
+    lat = data.get('adv_lat')
+    lon = data.get('adv_lon')
+    if lat is None or lon is None:
+        return None
+    try:
+        lat, lon = float(lat), float(lon)
+    except (TypeError, ValueError):
+        return None
+    node_type = data.get('type')
+    if node_type is not None:
+        try:
+            node_type = int(node_type)
+        except (TypeError, ValueError):
+            node_type = 1
+    else:
+        node_type = 1
+    return {
+        'public_key': public_key,
+        'change_type': change_type,
+        'sync_date': sync_date,
+        'lat': lat,
+        'lon': lon,
+        'adv_name': (data.get('adv_name') or (public_key or '')[:8] + '…'),
+        'type': node_type,
+    }
+
+
+def get_synthetic_node_changes():
+    """
+    One "added" event per node with sync_date = inserted_date (or created_at). Single source
+    of truth for when a node appeared; real node_changes "added" are not used for playback.
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            SELECT public_key, type, adv_name, adv_lat, adv_lon,
+                   date(COALESCE(NULLIF(trim(inserted_date), ''), created_at)) AS d
+            FROM belgian_nodes
+            WHERE ((inserted_date IS NOT NULL AND trim(inserted_date) != '')
+                   OR (created_at IS NOT NULL AND (inserted_date IS NULL OR trim(inserted_date) = '')))
+              AND (adv_lat IS NOT NULL AND adv_lon IS NOT NULL)
+        """)
+        out = []
+        for row in cursor.fetchall():
+            d = row["d"]
+            if not d:
+                continue
+            data = {
+                "adv_lat": row["adv_lat"],
+                "adv_lon": row["adv_lon"],
+                "adv_name": row["adv_name"],
+                "type": row["type"],
+            }
+            r = _node_change_row(row["public_key"], "added", d, data)
+            if r:
+                out.append(r)
+        return out
+    finally:
+        conn.close()
+
+
+def get_node_changes_since(since_date: Optional[str] = None, limit: int = 5000):
+    """
+    Node changes playback: "added" from inserted_date only (synthetic). Real node_changes
+    used only for removed, updated, restored (so we don't double-count real "added").
+    """
+    synthetic = get_synthetic_node_changes()
+    out = []
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        if since_date:
+            cursor.execute("""
+                SELECT public_key, change_type, sync_date, old_data, new_data
+                FROM node_changes
+                WHERE sync_date >= ? AND change_type IN ('removed', 'updated', 'restored')
+                ORDER BY sync_date ASC
+                LIMIT ?
+            """, (since_date, limit))
+        else:
+            cursor.execute("""
+                SELECT public_key, change_type, sync_date, old_data, new_data
+                FROM node_changes
+                WHERE change_type IN ('removed', 'updated', 'restored')
+                ORDER BY sync_date ASC
+                LIMIT ?
+            """, (limit,))
+        rows = cursor.fetchall()
+        for row in rows:
+            d = dict_from_row(row)
+            data = d.get('new_data') or d.get('old_data')
+            r = _node_change_row(
+                d.get('public_key'),
+                d.get('change_type'),
+                d.get('sync_date'),
+                data or {},
+            )
+            if r:
+                out.append(r)
+    finally:
+        conn.close()
+
+    combined = synthetic + out
+    combined.sort(key=lambda x: (x.get("sync_date") or ""))
+    return combined
+
+
+@app.route('/api/v1/node-changes', methods=['GET'])
+def node_changes():
+    """
+    GET /api/v1/node-changes
+
+    Returns node-level change log for historical stats playback (lat, lon, name per change).
+    Query: since=YYYY-MM-DD (optional), limit (default 5000).
+    """
+    try:
+        since = request.args.get('since')
+        limit = request.args.get('limit', type=int) or 5000
+        limit = min(max(1, limit), 20000)
+        changes = get_node_changes_since(since_date=since, limit=limit)
+        return jsonify(changes), 200
+    except Exception as e:
+        print(f"Error in node_changes endpoint: {e}")
+        return jsonify({
+            'error': 'Internal server error',
+            'message': str(e)
+        }), 500
+
+
+@app.route('/api/v1/sync-history', methods=['GET'])
+def sync_history():
+    """
+    GET /api/v1/sync-history
+
+    Returns sync history for the historical stats view: each run's date and
+    counts (nodes_added, nodes_removed, nodes_restored, nodes_updated).
+    Optional query: limit (default 500).
+    """
+    try:
+        limit = request.args.get('limit', type=int) or 500
+        limit = min(max(1, limit), 2000)
+        history = get_sync_history(limit=limit)
+        return jsonify(history), 200
+    except Exception as e:
+        print(f"Error in sync_history endpoint: {e}")
+        return jsonify({
+            'error': 'Internal server error',
+            'message': str(e)
+        }), 500
 
 
 @app.route('/api/v1/stats', methods=['GET'])
@@ -647,6 +904,12 @@ def get_my_nodes():
 def index():
     """Serve the main index.html file."""
     return send_from_directory(PROJECT_ROOT, 'index.html')
+
+
+@app.route('/stats')
+def stats_page():
+    """Serve the historical node stats page (sync history, charts, playback)."""
+    return send_from_directory(PROJECT_ROOT, 'stats.html')
 
 
 if __name__ == '__main__':

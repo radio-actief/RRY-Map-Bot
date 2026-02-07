@@ -279,6 +279,34 @@ def get_statistics() -> Dict[str, Any]:
             for row in cursor.fetchall()
         ]
         
+        # Top cities by repeater count only (type=2)
+        cursor.execute("""
+            SELECT city, COUNT(*) as count
+            FROM belgian_nodes
+            WHERE is_active = 1 AND type = 2 AND city IS NOT NULL AND city != 'Unknown'
+            GROUP BY city
+            ORDER BY count DESC
+            LIMIT 10
+        """)
+        stats['top_cities_repeaters'] = [
+            {'city': row['city'], 'count': row['count']}
+            for row in cursor.fetchall()
+        ]
+        
+        # Top cities by companion count only (type=1)
+        cursor.execute("""
+            SELECT city, COUNT(*) as count
+            FROM belgian_nodes
+            WHERE is_active = 1 AND type = 1 AND city IS NOT NULL AND city != 'Unknown'
+            GROUP BY city
+            ORDER BY count DESC
+            LIMIT 10
+        """)
+        stats['top_cities_companions'] = [
+            {'city': row['city'], 'count': row['count']}
+            for row in cursor.fetchall()
+        ]
+        
         # Total unique cities
         cursor.execute("""
             SELECT COUNT(DISTINCT city) FROM belgian_nodes
@@ -431,6 +459,8 @@ def get_statistics() -> Dict[str, Any]:
             'total_nodes': 0,
             'by_type': {},
             'top_cities': [],
+            'top_cities_repeaters': [],
+            'top_cities_companions': [],
             'recently_added': 0
         }
     finally:

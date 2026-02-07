@@ -407,10 +407,8 @@ def restore_removed_node(node: Dict[str, Any], conn) -> None:
     current_lon = existing['adv_lon'] if existing else None
     current_city = existing['city'] if existing else None
     
-    # Preserve "discord" source if it exists (nodes registered via Discord)
-    # If source is "discord", it means the node was registered via Discord and shouldn't be in official map
-    # But if it appears in official map, we update everything except source
-    source_to_use = current_source if (current_source and current_source.lower() == 'discord') else node.get('source')
+    # Use source from official map when restoring (if node is back on API as app/uploader, sync that)
+    source_to_use = node.get('source')
     
     # Determine city to use: only update from Geopy if coordinates changed by >= 0.01 degrees
     # OR if current city is NULL/empty
@@ -584,14 +582,9 @@ def merge_node_update(node: Dict[str, Any],
         'inserted_date': node.get('inserted_date'),
     }
     
-    # Preserve "discord" source if it exists (nodes registered via Discord)
-    current_source = db_node.get('source')
-    if current_source and current_source.lower() == 'discord':
-        # Keep discord source, don't overwrite with official map source
-        pass  # Don't add source to immutable_updates
-    else:
-        # Update source from official map
-        immutable_updates['source'] = node.get('source')
+    # Always update source from official map (e.g. if a Discord-registered node
+    # is later detected by an uploader, API will have source=uploader and we sync that)
+    immutable_updates['source'] = node.get('source')
     
     # Editable fields: conflict resolution
     editable_updates = {}

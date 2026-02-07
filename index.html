@@ -1,155 +1,254 @@
-<!DOCTYPE html>
-<html>
-	<head>
-		<link rel="icon" type="image/x-icon" href="./favicon.ico" />
-		<link rel="stylesheet" href="./css/style.css" />
-		<link rel="stylesheet" href="./lib/css/beer.css" />
-		<link rel="stylesheet" href="./lib/css/leaflet.css" />
-		<link rel="stylesheet" href="./lib/css/MarkerCluster.css" />
-		<link rel="stylesheet" href="./lib/css/MarkerCluster.Default.css" />
-		<script src="./lib/beer.min.js" type="module"></script>
-		<script src="./lib/leaflet.js"></script>
-		<script src="./lib/leaflet.markercluster.js"></script>
-		<meta name="viewport" content="initial-scale=1.0, width=device-width" />
-		<title>MeshCore Node Map</title>
-	</head>
-	<body class="light">
-
-		<div class="container">
-			<div id="map"></div>
-			<div id="app" v-cloak>
-				<div class="loading" v-if="app.loading"></div>
-				<a class="manual-add square round light-blue extra" title="Add node to map" target="_blank" href="https://github.com/meshcore-dev/MeshCore/blob/main/docs/faq.md#512-q-how-do-i-add-a-node-to-the-meshcore-map"><i class="extra">add</i></a>
-				<div class="stats">
-					<div class="stats-rows">
-						<div class="stats-row stats-row-main">
-							<span class="stats-icon-wrap" title="Stats">
-								<svg class="stats-icon mdi-chart-line" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path :d="mdiChartLine" fill="currentColor"/></svg>
-							</span>
-							<span v-for="stat in stats" v-html="stat"></span>
-						</div>
-						<div v-if="auth.authenticated" class="stats-row stats-row-personal">
-							<span class="stats-icon-wrap" title="Personal stats">
-								<svg class="stats-icon mdi-counter" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path :d="mdiCounter" fill="currentColor"/></svg>
-							</span>
-							<span v-for="stat in personalStats" v-html="stat" style="margin-right: 8px;"></span>
-						</div>
-					</div>
-					<!-- Auth + GitHub: right column, spans both rows -->
-					<div class="stats-auth">
-						<span v-if="auth.authenticated" class="auth-display" style="display: flex; align-items: center; gap: 8px; margin-right: 8px; white-space: nowrap;">
-							<span class="auth-text" style="color: #000;">
-								<span class="auth-full">Logged in as <strong style="text-decoration: underline; color: #4CAF50;">@{{ auth.user.username }}</strong> via <span style="color: #5865F2;">Discord</span></span>
-								<span class="auth-compact"><strong style="text-decoration: underline; color: #4CAF50;">@{{ auth.user.username }}</strong></span>
-							</span>
-							<a href="/auth/logout" class="logout-link" style="display: inline-flex; align-items: center; color: #f44336; text-decoration: none; flex-shrink: 0;" title="Logout"><svg class="mdi-logout" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path :d="mdiLogout" fill="currentColor"/></svg></a>
-						</span>
-						<a v-else href="/auth/login" style="display: flex; align-items: center; gap: 6px; color: #5865F2; text-decoration: none; margin-right: 8px;" title="Login with Discord">
-							<img src="./img/discord-logo.svg" alt="Discord" style="width: 18px; height: 18px; vertical-align: middle;">
-							Login with Discord
-						</a>
-					</div>
-				</div>
-				<form class="search no-margin" action="javascript:;">
-					<menu class="left no-wrap" id="node-filter" data-ui="#node-filter">
-							<li style="margin-top: 4px; padding-top: 4px; border-top: 1px solid #ddd;">
-								<span style="font-weight: bold; font-size: 0.9em;">Type</span>
-							</li>
-							<li>
-								<label class="checkbox">
-									<input type="checkbox" value="1" v-model="app.nodeFilter"><span>Clients</span>
-								</label>
-							</li>
-							<li>
-								<label class="checkbox">
-									<input type="checkbox" value="2" v-model="app.nodeFilter"><span>Repeaters</span>
-								</label>
-							</li>
-							<li>
-								<label class="checkbox">
-									<input type="checkbox" value="3" v-model="app.nodeFilter"><span>Room Servers</span>
-								</label>
-							</li>
-							<li>
-								<label class="checkbox">
-									<input type="checkbox" value="4" v-model="app.nodeFilter"><span>Sensors</span>
-								</label>
-							</li>
-							<li style="margin-top: 4px; padding-top: 4px; border-top: 1px solid #ddd;">
-								<span style="font-weight: bold; font-size: 0.9em;">Source</span>
-							</li>
-							<li>
-								<label class="checkbox">
-									<input type="checkbox" value="discord" v-model="app.sourceFilter"><span>Discord</span>
-								</label>
-							</li>
-							<li>
-								<label class="checkbox">
-									<input type="checkbox" value="app" v-model="app.sourceFilter"><span>App</span>
-								</label>
-							</li>
-							<li>
-								<label class="checkbox">
-									<input type="checkbox" value="uploader" v-model="app.sourceFilter"><span>Uploader</span>
-								</label>
-							</li>
-							<li style="margin-top: 4px; padding-top: 4px; border-top: 1px solid #ddd;">
-								<span style="font-weight: bold; font-size: 0.9em;">Discord status</span>
-							</li>
-							<li>
-								<label class="checkbox">
-									<input type="checkbox" value="claimed" v-model="app.claimedFilter"><span>Claimed</span>
-								</label>
-							</li>
-							<li>
-								<label class="checkbox">
-									<input type="checkbox" value="unclaimed" v-model="app.claimedFilter"><span>Unclaimed</span>
-								</label>
-							</li>
-							<li class="padding">
-								<div class="field label prefix fill small">
-									<i>today</i>
-									<input type="date" v-model="app.fromDate" placeholder=" ">
-									<label>Last updated</label>
-								</div>
-							</li>
-							<li class="padding">
-								<div class="field border">
-									<input type="text" v-model="app.cityFilter" placeholder="Filter by city" id="city-filter-input">
-								</div>
-							</li>
-							<li style="flex-direction:column;gap:0">
-								<span>Clustering zoom level</span>
-								<label class="slider tiny">
-									<input min="8" max="13" type="range" v-model="app.clusteringZoom">
-									<span></span>
-								</label>
-							</li>
-							<li v-if="filtersActive">
-								<button class="small max" @click="clearFilters">Clear filters</button>
-							</li>
-						</menu>
-					<div class="field border no-margin">
-						<input type="text" class="background" list="nodes" v-model="app.search" placeholder="Search Nodes" v-if="app.nodes">
-						<button type="button" class="filter" :class="{ circle: !filtersActive, transparent: !filtersActive, 'error-container': filtersActive }" data-ui="#node-filter">
-							<i>filter_alt</i>
-							<span v-if="filtersActive">Filters active</span>
-						</button>
-					</div>
-					<article class="search-results no-margin no-padding" v-if="searchResults?.length > 0">
-						<ul class="list no-space border">
-							<li v-for="node in searchResults" tabindex="0" @click="showNode(node)" @keyup.enter="showNode(node)">
-								<img :src="`./img/node_types/${node.type}.svg`" width="32">
-								<div class="max search-text">
-									<h6 class="small" v-html="highlightString(node.adv_name, app.search)"></h6>
-									<div class="search-pkey" v-html="highlightString(node.public_key, app.search)"></div>
-								</div>
-							</li>
-						</ul>
-					</article>
-				</form>
-			</div>
-		</div>
-	</body>
-	<script type="module" src="./src/map.js"></script>
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/x-icon" href="./favicon.ico" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Figtree:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./css/style.css" />
+    <link rel="stylesheet" href="./lib/css/beer.css" />
+    <link rel="stylesheet" href="./lib/css/leaflet.css" />
+    <link rel="stylesheet" href="./lib/css/MarkerCluster.css" />
+    <link rel="stylesheet" href="./lib/css/MarkerCluster.Default.css" />
+    <script src="./lib/beer.min.js" type="module"></script>
+    <script src="./lib/leaflet.js"></script>
+    <script src="./lib/leaflet.markercluster.js"></script>
+    <meta name="viewport" content="initial-scale=1.0, width=device-width" />
+    <title>#BEmesh Map</title>
+  </head>
+  <body class="light map-page">
+    <div class="container">
+      <div id="map"></div>
+      <div id="app" v-cloak>
+        <div class="loading" v-if="app.loading"></div>
+        <a
+          href="/stats"
+          class="float-action-btn"
+          title="View sync history and node stats"
+          >Stats</a
+        >
+        <a
+          class="float-action-btn"
+          title="Add node to map"
+          target="_blank"
+          href="https://github.com/meshcore-dev/MeshCore/blob/main/docs/faq.md#512-q-how-do-i-add-a-node-to-the-meshcore-map"
+          ><i class="extra">add</i></a
+        >
+        <div class="float-action-grid">
+          <a href="https://radio-actief.be" title="Radio-Actief website" target="_blank" rel="noopener noreferrer">
+            <svg class="app-footer-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M16.36,14C16.44,13.34 16.5,12.68 16.5,12C16.5,11.32 16.44,10.66 16.36,10H19.74C19.9,10.64 20,11.31 20,12C20,12.69 19.9,13.36 19.74,14M14.59,19.56C15.19,18.45 15.65,17.25 15.97,16H18.92C17.96,17.65 16.43,18.93 14.59,19.56M14.34,14H9.66C9.56,13.34 9.5,12.68 9.5,12C9.5,11.32 9.56,10.65 9.66,10H14.34C14.43,10.65 14.5,11.32 14.5,12C14.5,12.68 14.43,13.34 14.34,14M12,19.96C11.17,18.76 10.5,17.43 10.09,16H13.91C13.5,17.43 12.83,18.76 12,19.96M8,8H5.08C6.03,6.34 7.57,5.06 9.4,4.44C8.8,5.55 8.35,6.75 8,8M5.08,16H8C8.35,17.25 8.8,18.45 9.4,19.56C7.57,18.93 6.03,17.65 5.08,16M4.26,14C4.1,13.36 4,12.69 4,12C4,11.31 4.1,10.64 4.26,10H7.64C7.56,10.66 7.5,11.32 7.5,12C7.5,12.68 7.56,13.34 7.64,14M12,4.03C12.83,5.23 13.5,6.57 13.91,8H10.09C10.5,6.57 11.17,5.23 12,4.03M18.92,8H15.97C15.65,6.75 15.19,5.55 14.59,4.44C16.43,5.07 17.96,6.34 18.92,8M12,2C6.47,2 2,6.5 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z" fill="currentColor"/></svg>
+          </a>
+          <a href="https://docs.axistem.eu" title="Documentation" target="_blank" rel="noopener noreferrer">
+            <svg class="app-footer-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M13,9H18.5L13,3.5V9M6,2H14L20,8V20A2,2 0 0,1 18,22H6C4.89,22 4,21.1 4,20V4C4,2.89 4.89,2 6,2M15,18V16H6V18H15M18,14V12H6V14H18Z" fill="currentColor"/></svg>
+          </a>
+          <a href="https://discord.gg/kvybAgqnhD" title="Join our Discord server" target="_blank" rel="noopener noreferrer">
+            <img src="./img/discord-logo.svg" alt="Discord server">
+          </a>
+          <a href="https://github.com/radio-actief/RRY-Map-Bot" title="Go to Radio-Actief GitHub repo" target="_blank" rel="noopener noreferrer">
+            <img src="./lib/images/github-mark.svg" alt="GitHub">
+          </a>
+        </div>
+        <div class="stats">
+          <div class="stats-rows">
+            <div class="stats-row stats-row-main">
+              <a href="/stats" class="stats-icon-wrap" title="View sync history and node stats" aria-label="Go to stats page">
+                <svg
+                  class="stats-icon mdi-chart-line"
+                  viewBox="0 0 24 24"
+                  xmlns="http://www.w3.org/2000/svg"
+                  aria-hidden="true"
+                >
+                  <path :d="mdiChartLine" fill="currentColor" />
+                </svg>
+              </a>
+              <span v-for="stat in stats" v-html="stat"></span>
+            </div>
+            <div v-if="auth.authenticated" class="stats-row stats-row-personal">
+              <span class="stats-icon-wrap" title="Personal stats">
+                <svg
+                  class="stats-icon mdi-counter"
+                  viewBox="0 0 24 24"
+                  xmlns="http://www.w3.org/2000/svg"
+                  aria-hidden="true"
+                >
+                  <path :d="mdiCounter" fill="currentColor" />
+                </svg>
+              </span>
+              <span
+                v-for="stat in personalStats"
+                v-html="stat"
+                style="margin-right: 8px"
+              ></span>
+            </div>
+          </div>
+          <!-- Auth: right column, spans both rows -->
+          <div class="stats-auth">
+            <span v-if="auth.authenticated" class="auth-display">
+              <span class="auth-text">
+                <span class="auth-full"
+                  >Logged in as <strong>@{{ auth.user.username }}</strong> via
+                  <span class="discord-label">Discord</span></span
+                >
+                <span class="auth-compact"
+                  ><strong>@{{ auth.user.username }}</strong></span
+                >
+              </span>
+              <a href="/auth/logout" class="logout-link" title="Logout"
+                ><svg
+                  class="mdi-logout"
+                  viewBox="0 0 24 24"
+                  xmlns="http://www.w3.org/2000/svg"
+                  aria-hidden="true"
+                >
+                  <path :d="mdiLogout" fill="currentColor" /></svg
+              ></a>
+            </span>
+            <a
+              v-else
+              href="/auth/login"
+              class="login-link"
+              title="Login with Discord"
+            >
+              <img
+                src="./img/discord-logo.svg"
+                alt="Discord"
+                class="discord-icon"
+              />
+              Login with Discord
+            </a>
+          </div>
+        </div>
+        <form class="search no-margin" action="javascript:;">
+          <div class="field border no-margin">
+            <input
+              type="text"
+              id="search-nodes-input"
+              class="background"
+              list="nodes"
+              v-model="app.search"
+              placeholder="Search Nodes"
+              v-if="app.nodes"
+            />
+            <button
+              type="button"
+              class="filter"
+              :class="{ circle: !filtersActive, transparent: !filtersActive, 'error-container': filtersActive }"
+              data-ui="#node-filter"
+            >
+              <i>filter_alt</i>
+              <span v-if="filtersActive">Filters active</span>
+            </button>
+          </div>
+          <menu id="node-filter" data-ui="#node-filter" class="filter-menu">
+            <li class="filter-section">
+              <span class="filter-section-title">Type</span>
+              <div class="filter-section-options">
+                <label class="checkbox">
+                  <input type="checkbox" value="1" v-model="app.nodeFilter" /><span>Clients</span>
+                </label>
+                <label class="checkbox">
+                  <input type="checkbox" value="2" v-model="app.nodeFilter" /><span>Repeaters</span>
+                </label>
+                <label class="checkbox">
+                  <input type="checkbox" value="3" v-model="app.nodeFilter" /><span>Room Servers</span>
+                </label>
+                <label class="checkbox">
+                  <input type="checkbox" value="4" v-model="app.nodeFilter" /><span>Sensors</span>
+                </label>
+              </div>
+            </li>
+            <li class="filter-section">
+              <span class="filter-section-title">Source</span>
+              <div class="filter-section-options">
+                <label class="checkbox">
+                  <input type="checkbox" value="discord" v-model="app.sourceFilter" /><span>Discord</span>
+                </label>
+                <label class="checkbox">
+                  <input type="checkbox" value="app" v-model="app.sourceFilter" /><span>App</span>
+                </label>
+                <label class="checkbox">
+                  <input type="checkbox" value="uploader" v-model="app.sourceFilter" /><span>Uploader</span>
+                </label>
+              </div>
+            </li>
+            <li class="filter-section">
+              <span class="filter-section-title">Discord status</span>
+              <div class="filter-section-options">
+                <label class="checkbox">
+                  <input type="checkbox" value="claimed" v-model="app.claimedFilter" /><span>Claimed</span>
+                </label>
+                <label class="checkbox">
+                  <input type="checkbox" value="unclaimed" v-model="app.claimedFilter" /><span>Unclaimed</span>
+                </label>
+              </div>
+            </li>
+            <li class="padding">
+              <div class="field label prefix fill small">
+                <i>today</i>
+                <input type="date" v-model="app.fromDate" placeholder=" " />
+                <label>Last updated</label>
+              </div>
+            </li>
+            <li class="padding">
+              <div class="field border">
+                <input
+                  type="text"
+                  v-model="app.cityFilter"
+                  placeholder="Filter by city"
+                  id="city-filter-input"
+                />
+              </div>
+            </li>
+            <li style="flex-direction: column; gap: 0">
+              <span>Clustering zoom level</span>
+              <label class="slider tiny">
+                <input
+                  min="8"
+                  max="13"
+                  type="range"
+                  v-model="app.clusteringZoom"
+                />
+                <span></span>
+              </label>
+            </li>
+            <li v-if="filtersActive">
+              <button class="small max" @click="clearFilters">
+                Clear filters
+              </button>
+            </li>
+          </menu>
+          <article
+            class="search-results no-margin no-padding"
+            v-if="searchResults?.length > 0"
+          >
+            <ul class="list no-space border">
+              <li
+                v-for="node in searchResults"
+                tabindex="0"
+                @click="showNode(node)"
+                @keyup.enter="showNode(node)"
+              >
+                <img :src="`./img/node_types/${node.type}.svg`" width="32" />
+                <div class="max search-text">
+                  <h6
+                    class="small"
+                    v-html="highlightString(node.adv_name, app.search)"
+                  ></h6>
+                  <div
+                    class="search-pkey"
+                    v-html="highlightString(node.public_key, app.search)"
+                  ></div>
+                </div>
+              </li>
+            </ul>
+          </article>
+        </form>
+      </div>
+    </div>
+  </body>
+  <script type="module" src="./src/map.js"></script>
 </html>

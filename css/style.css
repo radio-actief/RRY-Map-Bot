@@ -1,3 +1,31 @@
+/* ==========================================================================
+   Design system (frontend-aesthetics: distinctive typography, color, motion)
+   ========================================================================== */
+body.map-page {
+  /* Typography: Figtree on map */
+  --app-font-body: "Figtree", system-ui, sans-serif;
+  --app-font-display: "Figtree", system-ui, sans-serif;
+  /* Color: cohesive light theme, sharp accent (teal), high contrast text */
+  --app-bg: #f6f5f2;
+  --app-surface: rgba(255, 255, 255, 0.92);
+  --app-surface-hover: rgba(250, 250, 249, 0.98);
+  --app-text: #1a1917;
+  --app-text-muted: #57534e;
+  --app-accent: #0d9488;
+  --app-accent-hover: #0f766e;
+  --app-discord: #5865f2;
+  --app-success: #15803d;
+  --app-error: #b91c1c;
+  --app-border: #e7e5e4;
+  --app-shadow: 0 1px 3px rgba(26, 25, 23, 0.06);
+  --app-shadow-lg: 0 4px 20px rgba(26, 25, 23, 0.08);
+  --app-radius: 10px;
+  --app-radius-sm: 6px;
+  /* Motion */
+  --app-ease: 0.25s ease;
+  --app-reveal-duration: 0.4s;
+}
+
 @font-face {
   font-family: Material Symbols Outlined;
   font-style: normal;
@@ -13,6 +41,14 @@
 
 body {
   margin: 0;
+  font-family: var(--app-font-body, system-ui, sans-serif);
+}
+body.map-page {
+  background: var(--app-bg);
+  background-image:
+    radial-gradient(ellipse 100% 60% at 50% -10%, rgba(13, 148, 136, 0.04), transparent),
+    linear-gradient(180deg, var(--app-bg) 0%, #eeedea 100%);
+  min-height: 100vh;
 }
 body:has(dialog[open])::after {
   content: "";
@@ -38,6 +74,33 @@ body:has(#app .loading)::before {
   background-position: center;
   background-repeat: no-repeat;
   background-size: 64px;
+}
+
+/* Staggered reveal on load (high-impact moment) */
+body.map-page #app .stats {
+  animation: map-reveal var(--app-reveal-duration) var(--app-ease) 0.05s both;
+}
+body.map-page #app .search {
+  animation: map-reveal var(--app-reveal-duration) var(--app-ease) 0.12s both;
+}
+body.map-page #app .float-action-grid {
+  animation: map-reveal var(--app-reveal-duration) var(--app-ease) 0.12s both;
+}
+body.map-page #app .float-action-btn:first-of-type {
+  animation: map-reveal var(--app-reveal-duration) var(--app-ease) 0.15s both;
+}
+body.map-page #app .float-action-btn:last-of-type {
+  animation: map-reveal var(--app-reveal-duration) var(--app-ease) 0.18s both;
+}
+@keyframes map-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 dialog[open] {
@@ -121,11 +184,14 @@ table.node-info tr td:last-child {
   width: 100%;
   min-width: 700px;
   overflow: visible;
-  color: #000;
-  background-color: #ffffff55;
-  backdrop-filter: blur(10px);
+  color: var(--app-text, #1a1917);
+  background: var(--app-surface, rgba(255, 255, 255, 0.92));
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   padding: 4px 15px;
   box-sizing: border-box;
+  border-bottom: 1px solid var(--app-border, #e7e5e4);
+  box-shadow: var(--app-shadow, 0 1px 3px rgba(0, 0, 0, 0.04));
 }
 
 .stats-rows {
@@ -161,6 +227,13 @@ table.node-info tr td:last-child {
   align-items: center;
   line-height: 0;
 }
+.stats a.stats-icon-wrap {
+  color: inherit;
+  text-decoration: none;
+}
+.stats a.stats-icon-wrap:hover {
+  opacity: 0.85;
+}
 .stats .mdi-chart-line,
 .stats .mdi-counter {
   width: 24px;
@@ -169,9 +242,9 @@ table.node-info tr td:last-child {
   vertical-align: middle;
 }
 
-/* Logout: MDI icon in red */
+/* Logout: accent error */
 .stats-auth .logout-link {
-  color: #f44336;
+  color: var(--app-error, #b91c1c);
 }
 .stats-auth .logout-link .mdi-logout {
   width: 24px;
@@ -353,10 +426,10 @@ table.node-info tr td:last-child {
 }
 
 .stats i.node-type {
-  background-color: #667a8c;
+  background-color: var(--app-text-muted, #57534e);
   border-radius: 50%;
   font-size: 14px;
-  color: #fff;
+  color: var(--app-surface, #fff);
   margin-left: 7px;
   margin-right: 4px;
 }
@@ -366,20 +439,85 @@ table.node-info tr td:last-child {
   min-inline-size: 0px !important;
 }
 
-/* Leaflet bottom-left: layer control on top, footer below */
+/* Leaflet bottom-left: same bottom offset as float-action-grid (64px) */
 .leaflet-bottom.leaflet-left {
   display: flex;
   flex-direction: column;
-  bottom: 48px; /* raise block so footer stays above right controls on short screens */
+  gap: 6px;
+  bottom: 64px;
 }
-.leaflet-bottom.leaflet-left .leaflet-control:not(.app-footer) {
-  order: 1;
-  flex-shrink: 0; /* keep layer control square, don't shrink */
-}
-.leaflet-bottom.leaflet-left .leaflet-control-layers {
+.leaflet-bottom.leaflet-left .leaflet-control {
   flex-shrink: 0;
 }
-/* Restore layer control toggle as perfect square with visible icon (layers.png may be missing) */
+/* Layer control: compact when collapsed (toggle only), same panel style when expanded */
+.leaflet-bottom.leaflet-left .leaflet-control-layers {
+  flex-shrink: 0;
+  padding: 0;
+  background: var(--app-surface, rgba(255, 255, 255, 0.92));
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-radius: var(--app-radius-sm, 6px);
+  box-shadow: var(--app-shadow-lg, 0 4px 20px rgba(0, 0, 0, 0.08));
+  border: 1px solid var(--app-border, #e7e5e4);
+  box-sizing: border-box;
+}
+.leaflet-control-layers.leaflet-control-layers-expanded {
+  padding: 6px 10px !important;
+  color: var(--app-text, #1a1917);
+}
+.leaflet-control-layers label {
+  font-family: var(--app-font-body, "Figtree", system-ui, sans-serif);
+  color: var(--app-text, #1a1917);
+}
+.leaflet-control-layers-separator {
+  border-top-color: var(--app-border, #e7e5e4);
+}
+/* Footer links (site, docs, Discord, GitHub): one square, 2×2 grid of icons inside */
+.float-action-grid {
+  position: fixed;
+  z-index: 1000;
+  bottom: 64px; /* 8px below Add (122 - 8 - 50), same gap as Stats–Add */
+  right: 10px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 0;
+  width: 50px;
+  height: 50px;
+  padding: 0;
+  border-radius: var(--app-radius-sm, 6px);
+  background: var(--app-accent, #0d9488);
+  box-shadow: var(--app-shadow, 0 1px 3px rgba(0, 0, 0, 0.08));
+  overflow: hidden;
+}
+.float-action-grid a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 0;
+  color: #fff;
+  text-decoration: none;
+  transition: background var(--app-ease), transform var(--app-ease);
+}
+.float-action-grid a:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+.float-action-grid .app-footer-icon,
+.float-action-grid img {
+  width: 18px;
+  height: 18px;
+  display: block;
+  color: inherit;
+  flex-shrink: 0;
+}
+.float-action-grid .app-footer-icon {
+  fill: currentColor;
+}
+.float-action-grid img {
+  filter: brightness(0) invert(1);
+}
 .leaflet-control-layers-toggle {
   width: 36px !important;
   height: 36px !important;
@@ -396,43 +534,6 @@ table.node-info tr td:last-child {
   min-width: 44px !important;
   min-height: 44px !important;
   background-size: 30px 30px;
-}
-.leaflet-bottom.leaflet-left .app-footer {
-  order: 2;
-  margin-top: 3px;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 6px 10px;
-  background-color: #ffffffdd;
-  backdrop-filter: blur(10px);
-  border-radius: 4px;
-  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.15);
-  box-sizing: border-box;
-}
-.app-footer-link {
-  display: inline-flex;
-  align-items: center;
-  text-decoration: none;
-  color: #000;
-}
-.app-footer-link .app-footer-icon,
-.app-footer-link img {
-  width: 20px;
-  height: 20px;
-  display: block;
-  fill: #000;
-  color: #000;
-}
-.app-footer-link .app-footer-icon {
-  flex-shrink: 0;
-}
-.app-footer-link img {
-  filter: brightness(0);
-}
-.app-footer-link:nth-child(3) {
-  margin-right: 2px;
 }
 
 /* Default: show full auth text, hide compact */
@@ -457,6 +558,13 @@ table.node-info tr td:last-child {
   justify-content: center;
   gap: 5px;
 }
+body.map-page .search .field.border,
+body.map-page .search .filter {
+  transition: box-shadow var(--app-ease), border-color var(--app-ease);
+}
+body.map-page .search .field.border:focus-within {
+  box-shadow: 0 0 0 2px var(--app-accent);
+}
 .search .field {
   width: 100%;
   display: flex;
@@ -472,22 +580,56 @@ table.node-info tr td:last-child {
 }
 
 .search-text b {
-  background-color: #ee0;
+  background: rgba(13, 148, 136, 0.25);
+  color: var(--app-text, #1a1917);
 }
-button.manual-add {
+/* Floating action buttons: same class, same formatting */
+.float-action-btn {
   position: fixed;
   z-index: 1000;
-  display: block;
-  bottom: 55px;
-  right: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 50px;
   height: 50px;
-  border-radius: 5px;
-}
-button.manual-add::after {
-  font-size: 40px;
-  content: "+";
+  right: 10px;
+  bottom: 122px; /* Add: above footer links */
+  border-radius: var(--app-radius-sm, 6px);
   color: #fff;
+  background: var(--app-accent, #0d9488);
+  box-shadow: var(--app-shadow, 0 1px 3px rgba(0, 0, 0, 0.08));
+  text-decoration: none;
+  font-family: var(--app-font-body, "Figtree", system-ui, sans-serif);
+  font-weight: 600;
+  font-size: 0.75rem;
+  line-height: 1.2;
+  text-align: center;
+  transition: transform var(--app-ease), box-shadow var(--app-ease), background var(--app-ease);
+}
+/* Order top to bottom: Stats, Add, footer links (site/docs/Discord/GitHub) */
+.float-action-btn:first-of-type {
+  bottom: 180px; /* Stats at top */
+}
+.float-action-btn:last-of-type {
+  bottom: 122px; /* Add between Stats and footer */
+  background: #1976d2;
+}
+.float-action-btn:hover {
+  background: var(--app-accent-hover, #0f766e);
+  color: #fff;
+  transform: scale(1.05);
+  box-shadow: var(--app-shadow-lg);
+}
+.float-action-btn:last-of-type:hover {
+  background: #1565c0;
+}
+.float-action-btn .extra {
+  font-size: 28px;
+  line-height: 1;
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .leaflet-bottom {
@@ -497,31 +639,127 @@ button.manual-add::after {
   margin-block-start: 0 !important;
 }
 .leaflet-bottom .leaflet-control-layers {
-  margin-bottom: 5px !important; /* space below layer control; bottom offset is on .leaflet-bottom.leaflet-left */
+  margin-bottom: 0 !important; /* spacing via gap on .leaflet-bottom.leaflet-left */
 }
 .marker-cluster span {
-  color: #000;
+  color: var(--app-text, #1a1917);
   font-weight: 800;
+  font-family: var(--app-font-body, system-ui, sans-serif);
 }
 
-.leaflet-popup-close-button span {
-  font-size: 30px;
-  padding: 5px;
+.leaflet-popup-close-button {
+  color: var(--app-text-muted, #57534e) !important;
+  font-size: 22px !important;
+  padding: 4px 8px !important;
+  right: 4px !important;
+  top: 4px !important;
 }
-
+.leaflet-popup-close-button:hover {
+  color: var(--app-text, #1a1917) !important;
+}
 .leaflet-container a.leaflet-popup-close-button {
   width: auto !important;
   height: auto !important;
 }
 
-/* Reduce popup padding to 3/5 of default */
+/* Node popup: layout and typography */
 .leaflet-popup-content-wrapper {
-  padding: 6px !important; /* Default is ~12px */
+  padding: 0 !important;
+  border-radius: var(--app-radius, 10px);
+  box-shadow: var(--app-shadow-lg, 0 4px 20px rgba(0, 0, 0, 0.12));
+  border: 1px solid var(--app-border, #e7e5e4);
+  overflow: hidden;
 }
 
 .leaflet-popup-content {
-  margin: 2 !important; /* Remove default margin */
-  padding: 2 !important; /* Remove default padding */
+  margin: 0 !important;
+  min-width: 280px;
+  max-width: 360px;
+}
+
+.node-popup {
+  font-family: var(--app-font-body, "Figtree", system-ui, sans-serif);
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--app-text, #1a1917);
+  padding: 10px 12px;
+}
+
+.node-popup .node-info {
+  table-layout: fixed;
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.node-popup .node-info tr td {
+  padding: 2px 0;
+  vertical-align: top;
+}
+
+.node-popup .node-info tr td:first-child {
+  width: 100px;
+  max-width: 100px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--app-text-muted, #57534e);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding-right: 10px;
+}
+
+.node-popup .node-info tr td:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-break: break-all;
+}
+
+.node-popup .node-info a:not(.node-popup-action) {
+  color: var(--app-accent, #0d9488);
+  text-decoration: none;
+}
+
+.node-popup .node-info a:not(.node-popup-action):hover {
+  text-decoration: underline;
+}
+
+.node-popup .node-popup-actions {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--app-border, #e7e5e4);
+}
+
+.node-popup .node-popup-actions table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.node-popup .node-popup-actions td {
+  width: 33.33%;
+  text-align: center;
+  padding: 2px 6px;
+}
+
+.node-popup .node-popup-actions a {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.node-popup .copyable {
+  cursor: pointer;
+  color: var(--app-accent, #0d9488);
+  text-decoration: underline;
+}
+
+.node-popup .copyable:hover {
+  color: var(--app-accent-hover, #0f766e);
+}
+
+.node-popup time {
+  cursor: help;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
 }
 
 /* Styling for relative time display */
@@ -630,18 +868,6 @@ time {
   z-index: 1000 !important;
 }
 
-.manual-add {
-  position: fixed;
-  z-index: 1000;
-  display: block;
-  padding: 12px !important;
-  bottom: 55px;
-  right: 10px;
-  width: 50px;
-  height: 50px;
-  border-radius: 5px;
-}
-
 .user-actions {
   display: flex;
   justify-content: space-between;
@@ -649,20 +875,32 @@ time {
   margin-top: 15px;
 }
 
-/* Reduce spacing in filter dropdown menu */
+/* Filter menu: block layout so title always sits above options (no overlap) */
+#node-filter.filter-menu,
 #node-filter {
-  gap: 2px !important;
-  padding: 4px !important;
+  padding: 6px 8px !important;
+  font-family: var(--app-font-body, "Figtree", system-ui, sans-serif);
+  font-size: 0.875rem;
+  color: var(--app-text, #1a1917);
+  min-width: 200px;
+}
+/* When closed: hide so search row is first and doesn't get covered; only filter button opens menu */
+#node-filter:not(.active) {
+  display: none !important;
+}
+#node-filter.active {
+  display: block !important;
 }
 
 #node-filter > li {
   margin: 0 !important;
   padding: 0 !important;
   min-height: auto !important;
+  display: block !important;
 }
 
 #node-filter > li.padding {
-  padding: 2px 8px !important;
+  padding: 2px 6px !important;
   margin: 0 !important;
 }
 
@@ -673,12 +911,12 @@ time {
 
 #node-filter > li label {
   margin: 0 !important;
-  padding: 2px 0 !important;
+  padding: 1px 0 !important;
 }
 
 #node-filter > li .checkbox {
   margin: 0 !important;
-  padding: 2px 0 !important;
+  padding: 1px 0 !important;
 }
 
 /* Reduce vertical height of clustering zoom slider track and thumb */
@@ -702,4 +940,86 @@ time {
 #node-filter .slider.tiny input[type="range"]::-moz-range-thumb {
   height: 14px !important;
   width: 14px !important;
+}
+
+/* Auth and filter panel – design tokens */
+.stats-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--app-accent, #0d9488);
+  text-decoration: none;
+  margin-right: 12px;
+  font-weight: 500;
+  transition: color var(--app-ease, 0.2s ease);
+}
+.stats-link:hover { color: var(--app-accent-hover, #0f766e); }
+.stats-auth .auth-display {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: 8px;
+  white-space: nowrap;
+}
+.stats-auth .auth-text { color: var(--app-text, #1a1917); }
+.stats-auth .auth-full strong,
+.stats-auth .auth-compact strong { color: var(--app-success, #15803d); text-decoration: underline; }
+.stats-auth .discord-label { color: var(--app-discord, #5865f2); }
+.stats-auth .logout-link {
+  display: inline-flex;
+  align-items: center;
+  color: var(--app-error, #b91c1c);
+  text-decoration: none;
+  flex-shrink: 0;
+  transition: opacity var(--app-ease);
+}
+.stats-auth .logout-link:hover { opacity: 0.85; }
+.stats-auth .login-link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--app-discord, #5865f2);
+  text-decoration: none;
+  margin-right: 8px;
+  font-weight: 500;
+  transition: color var(--app-ease);
+}
+.stats-auth .login-link:hover { color: var(--app-accent, #0d9488); }
+.stats-auth .discord-icon { width: 18px; height: 18px; vertical-align: middle; }
+/* Each section: title on top, options below in normal flow (no overlap possible) */
+#node-filter .filter-section {
+  list-style: none;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--app-border, #e7e5e4);
+}
+#node-filter .filter-section:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+#node-filter .filter-section-title {
+  font-family: var(--app-font-body, "Figtree", system-ui, sans-serif);
+  font-weight: 700;
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--app-text-muted, #57534e);
+  display: block;
+  line-height: 1.3;
+  margin-bottom: 4px;
+}
+#node-filter .filter-section-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+#node-filter .filter-section-options .checkbox {
+  display: flex;
+  align-items: center;
+  padding: 1px 0;
+  line-height: 1.25;
+}
+#node-filter > li:not(.filter-section) {
+  line-height: 1.25;
 }

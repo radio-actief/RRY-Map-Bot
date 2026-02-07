@@ -8,7 +8,7 @@ import {
   onBeforeUnmount,
   nextTick,
   toRaw,
-} from "../lib/vue.esm-browser.js";
+} from "../lib/vue.esm-browser.prod.js";
 import * as ntools from "./node-utils.js";
 
 // MDI paths (same as @mdi/js – use with Vue :d="mdiChartLine" etc.)
@@ -18,10 +18,6 @@ const mdiLogout =
   "M17 7L15.59 8.41L18.17 11H8V13H18.17L15.59 15.58L17 17L22 12M4 5H12V3H4C2.9 3 2 3.9 2 5V19C2 20.1 2.9 21 4 21H12V19H4V5Z";
 const mdiCounter =
   "M4,4H20A2,2 0 0,1 22,6V18A2,2 0 0,1 20,20H4A2,2 0 0,1 2,18V6A2,2 0 0,1 4,4M4,6V18H11V6H4M20,18V6H18.76C19,6.54 18.95,7.07 18.95,7.13C18.88,7.8 18.41,8.5 18.24,8.75L15.91,11.3L19.23,11.28L19.24,12.5L14.04,12.47L14,11.47C14,11.47 17.05,8.24 17.2,7.95C17.34,7.67 17.91,6 16.5,6C15.27,6.05 15.41,7.3 15.41,7.3L13.87,7.31C13.87,7.31 13.88,6.65 14.25,6H13V18H15.58L15.57,17.14L16.54,17.13C16.54,17.13 17.45,16.97 17.46,16.08C17.5,15.08 16.65,15.08 16.5,15.08C16.37,15.08 15.43,15.13 15.43,15.95H13.91C13.91,15.95 13.95,13.89 16.5,13.89C19.1,13.89 18.96,15.91 18.96,15.91C18.96,15.91 19,17.16 17.85,17.63L18.37,18H20M8.92,16H7.42V10.2L5.62,10.76V9.53L8.76,8.41H8.92V16Z";
-const mdiWeb =
-  "M16.36,14C16.44,13.34 16.5,12.68 16.5,12C16.5,11.32 16.44,10.66 16.36,10H19.74C19.9,10.64 20,11.31 20,12C20,12.69 19.9,13.36 19.74,14M14.59,19.56C15.19,18.45 15.65,17.25 15.97,16H18.92C17.96,17.65 16.43,18.93 14.59,19.56M14.34,14H9.66C9.56,13.34 9.5,12.68 9.5,12C9.5,11.32 9.56,10.65 9.66,10H14.34C14.43,10.65 14.5,11.32 14.5,12C14.5,12.68 14.43,13.34 14.34,14M12,19.96C11.17,18.76 10.5,17.43 10.09,16H13.91C13.5,17.43 12.83,18.76 12,19.96M8,8H5.08C6.03,6.34 7.57,5.06 9.4,4.44C8.8,5.55 8.35,6.75 8,8M5.08,16H8C8.35,17.25 8.8,18.45 9.4,19.56C7.57,18.93 6.03,17.65 5.08,16M4.26,14C4.1,13.36 4,12.69 4,12C4,11.31 4.1,10.64 4.26,10H7.64C7.56,10.66 7.5,11.32 7.5,12C7.5,12.68 7.56,13.34 7.64,14M12,4.03C12.83,5.23 13.5,6.57 13.91,8H10.09C10.5,6.57 11.17,5.23 12,4.03M18.92,8H15.97C15.65,6.75 15.19,5.55 14.59,4.44C16.43,5.07 17.96,6.34 18.92,8M12,2C6.47,2 2,6.5 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z";
-const mdiFileDocument =
-  "M13,9H18.5L13,3.5V9M6,2H14L20,8V20A2,2 0 0,1 18,22H6C4.89,22 4,21.1 4,20V4C4,2.89 4.89,2 6,2M15,18V16H6V18H15M18,14V12H6V14H18Z";
 const apiUrl = "/api/v1/belgian-nodes";
 
 const types = {
@@ -91,7 +87,6 @@ async function getPresets() {
     }));
 
     presetsFetched = true;
-    console.log("Loaded presets from API:", FREQUENCY_PRESETS.length);
     return FREQUENCY_PRESETS;
   } catch (e) {
     console.warn("Failed to fetch presets from API, using fallback:", e);
@@ -246,8 +241,17 @@ function formatRelativeTime(dateString) {
   const dt = new Date(dateString);
   const titleCET = formatInCET(dt);
   return `<time datetime="${dateString}" title="${titleCET}">${timeAgo(
-    dt.getTime()
+    dt.getTime(),
   )}</time>`;
+}
+
+// Shorten long strings for display (full value still used for copy)
+function shortenForDisplay(str, maxLen = 24) {
+  if (!str || str.length <= maxLen) return str;
+  const s = String(str);
+  const head = Math.ceil((maxLen - 1) / 2);
+  const tail = maxLen - 1 - head;
+  return s.slice(0, head) + "\u2026" + s.slice(-tail);
 }
 
 // Create clickable copy element
@@ -290,7 +294,7 @@ const columns = {
     value: (val) =>
       `<a target="_blank" href="https://google.com/maps/place/${val.replace(
         " ",
-        ""
+        "",
       )}">${val}</a>`,
   },
   adv_name: {
@@ -314,17 +318,22 @@ const columns = {
   },
   public_key: {
     label: "Public key",
-    value: (val) => createCopyableElement(val, val.toUpperCase()),
+    value: (val) =>
+      createCopyableElement(val, shortenForDisplay(val.toUpperCase(), 22)),
   },
   inserted_by: {
     label: "Inserted by",
     value: (val) =>
-      val ? createCopyableElement(val, val.toUpperCase()) : "N/A",
+      val
+        ? createCopyableElement(val, shortenForDisplay(val.toUpperCase(), 18))
+        : "N/A",
   },
   updated_by: {
     label: "Updated by",
     value: (val) =>
-      val ? createCopyableElement(val, val.toUpperCase()) : "N/A",
+      val
+        ? createCopyableElement(val, shortenForDisplay(val.toUpperCase(), 18))
+        : "N/A",
   },
   type: {
     label: "Node type",
@@ -336,7 +345,7 @@ const columns = {
   },
   link: {
     label: "Meshcore link",
-    value: (val) => createCopyableElement(val, val),
+    value: (val) => createCopyableElement(val, shortenForDisplay(val, 20)),
   },
   city: {
     label: "City",
@@ -429,6 +438,7 @@ function getTable(node, authState = null) {
   const analyzerUrl = `https://analyzer.letsmesh.net/nodes/${analyzerType}?public_key=${node.public_key}`;
 
   return (
+    '<div class="node-popup">' +
     '<table class="node-info"><tbody>' +
     "<tr>" +
     columnOrder
@@ -441,7 +451,7 @@ function getTable(node, authState = null) {
 
         if (shouldShow) {
           return [
-            `<td><b>${columns[key].label}</b></td><td>${
+            `<td>${columns[key].label}</td><td>${
               columns[key].value
                 ? columns[key].value(node[key], node)
                 : node[key]
@@ -468,7 +478,7 @@ function getTable(node, authState = null) {
       footerLinks.push(
         `<a href="${analyzerUrl}" target="_blank" rel="noopener noreferrer" style="color: #4CAF50; text-decoration: none; font-size: 0.75em;">
           <strong>Analyzer</strong>
-        </a>`
+        </a>`,
       );
 
       // Add Claim/Unclaim link based on authentication and ownership
@@ -479,7 +489,7 @@ function getTable(node, authState = null) {
           footerLinks.push(
             `<a href="javascript:void(0)" onclick="window.claimNode('${publicKey}')" style="color: ${discordColor}; text-decoration: none; font-size: 0.75em; cursor: pointer;">
               <strong>Claim</strong>
-            </a>`
+            </a>`,
           );
         } else {
           // Check if current user owns this node
@@ -495,7 +505,7 @@ function getTable(node, authState = null) {
             footerLinks.push(
               `<a href="javascript:void(0)" onclick="window.unclaimNode('${publicKey}')" style="color: #f44336; text-decoration: none; font-size: 0.75em; cursor: pointer;">
                 <strong>Unclaim</strong>
-              </a>`
+              </a>`,
             );
           }
         }
@@ -504,7 +514,7 @@ function getTable(node, authState = null) {
         footerLinks.push(
           `<a href="/auth/login" style="color: ${discordColor}; text-decoration: none; font-size: 0.75em; cursor: pointer;">
             <strong>Claim</strong>
-          </a>`
+          </a>`,
         );
       }
 
@@ -516,21 +526,21 @@ function getTable(node, authState = null) {
 
       if (isNotDiscordSource) {
         const emailSubject = encodeURIComponent(
-          "MeshCore Map node deletion request"
+          "MeshCore Map node deletion request",
         );
         const emailBody = encodeURIComponent(
           `Please delete my node(s) from MeshCore Map database\n` +
             `MeshCore link(s) or Public key(s):\n\n` +
             `${publicKey}\n\n` +
             `*** IMPORTANT ***\n` +
-            `if you have multiple nodes to delete, put them into single email, delimited by newline. public key is enough, you don't need to add name or screenshot of the node.`
+            `if you have multiple nodes to delete, put them into single email, delimited by newline. public key is enough, you don't need to add name or screenshot of the node.`,
         );
         const mailtoUrl = `mailto:recrof@gmail.com?subject=${emailSubject}&body=${emailBody}`;
 
         footerLinks.push(
           `<a href="${mailtoUrl}" style="color: #f44336; text-decoration: none; font-size: 0.75em;">
             <strong>Request deletion</strong>
-          </a>`
+          </a>`,
         );
       }
 
@@ -538,7 +548,7 @@ function getTable(node, authState = null) {
       const numLinks = footerLinks.length;
       const columnWidth = numLinks > 0 ? `${100 / numLinks}%` : "100%";
 
-      return `<div style="margin-top: 5px; padding-top: 5px; padding-bottom: 5px; border-top: 1px solid #ddd;">
+      return `<div class="node-popup-actions">
         <table style="width: 100%; border-collapse: collapse;">
           <tr>
             ${footerLinks
@@ -546,13 +556,14 @@ function getTable(node, authState = null) {
                 (link) =>
                   `<td style="width: ${columnWidth}; text-align: center; padding: 0 5px;">
                 ${link}
-              </td>`
+              </td>`,
               )
               .join("")}
           </tr>
         </table>
       </div>`;
-    })()
+    })() +
+    "</div>"
   );
 }
 
@@ -617,12 +628,12 @@ const updateStatusDesc = {
 const deletionMailUrl = new URL("mailto:recrof@gmail.com");
 deletionMailUrl.searchParams.append(
   "subject",
-  "MeshCore Map node deletion request"
+  "MeshCore Map node deletion request",
 );
 deletionMailUrl.searchParams.append(
   "body",
   "Please delete my node from MeshCore Map database\n" +
-    "MeshCore link: <please insert meshcore:// link here>\n"
+    "MeshCore link: <please insert meshcore:// link here>\n",
 );
 
 const appAttribution = `
@@ -641,7 +652,7 @@ const baseMaps = {
     {
       maxZoom: 18,
       attribution: `Tiles: &copy; Esri | Sources: Esri, DigitalGlobe, GeoEye, i-cubed, USDA FSA, USGS, AEX, Getmapping, Aerogrid, IGN, IGP, swisstopo, GIS Users | ${appAttribution}`,
-    }
+    },
   ),
 };
 
@@ -672,29 +683,6 @@ map.on("baselayerchange", function (ev) {
 
 L.control.layers(baseMaps, null, { position: "bottomleft" }).addTo(map);
 
-// Footer (Website, Docs, Discord, GitHub) in Leaflet bottom-left, below the layers control
-const FooterControl = L.Control.extend({
-  onAdd: function () {
-    const div = L.DomUtil.create("div", "app-footer leaflet-control");
-    div.innerHTML = `
-      <a href="https://radio-actief.be" class="app-footer-link" title="Radio-Actief website" target="_blank" rel="noopener noreferrer">
-        <svg class="app-footer-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="${mdiWeb}" fill="currentColor"/></svg>
-      </a>
-      <a href="https://docs.axistem.eu" class="app-footer-link" title="Documentation" target="_blank" rel="noopener noreferrer">
-        <svg class="app-footer-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="${mdiFileDocument}" fill="currentColor"/></svg>
-      </a>
-      <a href="https://discord.gg/kvybAgqnhD" class="app-footer-link" title="Join our Discord server" target="_blank" rel="noopener noreferrer">
-        <img src="./img/discord-logo.svg" alt="Discord server">
-      </a>
-      <a href="https://github.com/radio-actief/RRY-Map-Bot" class="app-footer-link" title="Go to Radio-Actief GitHub repo" target="_blank" rel="noopener noreferrer">
-        <img src="./lib/images/github-mark.svg" alt="GitHub">
-      </a>
-    `;
-    return div;
-  },
-});
-new FooterControl({ position: "bottomleft" }).addTo(map);
-
 // map.zoomControl.setPosition('bottomleft');
 // Icon structure: nested by update status, then by node type (upstream implementation)
 const icons = Object.fromEntries(
@@ -710,9 +698,9 @@ const icons = Object.fromEntries(
           popupAnchor: [0, -16],
           className: `update-${color}`,
         }),
-      ])
+      ]),
     ),
-  ])
+  ]),
 );
 
 createApp({
@@ -765,7 +753,7 @@ createApp({
 
       if (
         !confirm(
-          "Claim this node?\n\nYou will become the owner and can edit its details."
+          "Claim this node?\n\nYou will become the owner and can edit its details.",
         )
       ) {
         return;
@@ -780,7 +768,7 @@ createApp({
 
         if (res.ok && data.success) {
           alert(
-            "✓ Node claimed successfully!\n\nYou are now the owner of this node."
+            "✓ Node claimed successfully!\n\nYou are now the owner of this node.",
           );
           // Reload nodes to reflect changes
           await downloadNodes();
@@ -819,7 +807,7 @@ createApp({
           } else {
             const errorMsg = data.error || "Failed to claim node";
             alert(
-              `❌ Unable to Claim Node\n\n${errorMsg}\n\nPlease check that:\n• The node exists and is active\n• The node is not already claimed by someone else`
+              `❌ Unable to Claim Node\n\n${errorMsg}\n\nPlease check that:\n• The node exists and is active\n• The node is not already claimed by someone else`,
             );
           }
         }
@@ -828,7 +816,7 @@ createApp({
         const supportLink =
           "https://discord.com/channels/1391758345622257665/1454797139959091412";
         alert(
-          `❌ Network Error\n\nUnable to claim node due to a connection error.\n\nIf this issue persists, please report it in our Discord support channel:\n${supportLink}`
+          `❌ Network Error\n\nUnable to claim node due to a connection error.\n\nIf this issue persists, please report it in our Discord support channel:\n${supportLink}`,
         );
       }
     }
@@ -841,7 +829,7 @@ createApp({
 
       if (
         !confirm(
-          "Unclaim this node?\n\nYou will lose ownership and anyone will be able to claim it."
+          "Unclaim this node?\n\nYou will lose ownership and anyone will be able to claim it.",
         )
       ) {
         return;
@@ -856,7 +844,7 @@ createApp({
 
         if (res.ok && data.success) {
           alert(
-            "✓ Node unclaimed successfully!\n\nThe node is now available for others to claim."
+            "✓ Node unclaimed successfully!\n\nThe node is now available for others to claim.",
           );
           // Reload nodes to reflect changes
           await downloadNodes();
@@ -889,15 +877,15 @@ createApp({
           const errorMsg = data.error || "Failed to unclaim node";
           if (data.error === "You do not own this node.") {
             alert(
-              `❌ Ownership Error\n\n${errorMsg}\n\nYou can only unclaim nodes that you own.`
+              `❌ Ownership Error\n\n${errorMsg}\n\nYou can only unclaim nodes that you own.`,
             );
           } else if (data.error === "Node not found.") {
             alert(
-              `❌ Node Not Found\n\n${errorMsg}\n\nThe node may have been deleted or the identifier is incorrect.`
+              `❌ Node Not Found\n\n${errorMsg}\n\nThe node may have been deleted or the identifier is incorrect.`,
             );
           } else {
             alert(
-              `❌ Unable to Unclaim Node\n\n${errorMsg}\n\nPlease try again or contact support if the issue persists.`
+              `❌ Unable to Unclaim Node\n\n${errorMsg}\n\nPlease try again or contact support if the issue persists.`,
             );
           }
         }
@@ -906,7 +894,7 @@ createApp({
         const supportLink =
           "https://discord.com/channels/1391758345622257665/1454797139959091412";
         alert(
-          `❌ Network Error\n\nUnable to unclaim node due to a connection error.\n\nIf this issue persists, please report it in our Discord support channel:\n${supportLink}`
+          `❌ Network Error\n\nUnable to unclaim node due to a connection error.\n\nIf this issue persists, please report it in our Discord support channel:\n${supportLink}`,
         );
       }
     }
@@ -979,7 +967,7 @@ createApp({
         console.warn(
           `Cannot show node ${
             node.adv_name || node.public_key
-          }: missing marker (no coordinates)`
+          }: missing marker (no coordinates)`,
         );
         return;
       }
@@ -1002,7 +990,7 @@ createApp({
           : toHighlight;
       return escapedSource.replace(
         highlightString,
-        `<b>${highlightString}</b>`
+        `<b>${highlightString}</b>`,
       );
     }
 
@@ -1034,9 +1022,8 @@ createApp({
 
         // Fetch presets from API (similar to upstream)
         getPresets()
-          .then((presets) => {
+          .then(() => {
             // Presets are now loaded and cached in FREQUENCY_PRESETS
-            console.log("Presets ready:", presets.length);
           })
           .catch((err) => {
             console.warn("Preset loading error (using fallback):", err);
@@ -1048,7 +1035,7 @@ createApp({
             console.warn(
               `Skipping node ${
                 node.adv_name || node.public_key
-              }: missing coordinates`
+              }: missing coordinates`,
             );
             continue;
           }
@@ -1111,7 +1098,7 @@ createApp({
 
           node.status = updateStatus;
           node.coords = `${node.adv_lat.toFixed(4)}, ${node.adv_lon.toFixed(
-            4
+            4,
           )}`;
           node.lastAdvertDate = new Date(node.last_advert);
           node.insertDate = new Date(node.inserted_date);
@@ -1179,19 +1166,24 @@ createApp({
         alert(
           `❌ Failed to Load Map Data\n\nUnable to load nodes from the server.\n\nError: ${
             e.message || e
-          }\n\nIf this issue persists, please report it in our Discord support channel:\n${supportLink}`
+          }\n\nIf this issue persists, please report it in our Discord support channel:\n${supportLink}`,
         );
       } finally {
         app.loading = false;
       }
     }
 
+    // Declare before clearFilters() / refreshMap() so it's in scope when they run
+    let markerClusterGroup = L.markerClusterGroup({
+      disableClusteringAtZoom: app.clusteringZoom,
+    });
+
     clearFilters();
 
     const filtersActive = computed(
       () =>
         app.filteredNodes.length &&
-        app.nodes.length !== app.filteredNodes.length
+        app.nodes.length !== app.filteredNodes.length,
     );
 
     watch(
@@ -1228,15 +1220,8 @@ createApp({
                   node.discord_owner_name.trim() !== "") ||
                 (app.claimedFilter.includes("unclaimed") &&
                   (!node.discord_owner_name ||
-                    node.discord_owner_name.trim() === "")))
+                    node.discord_owner_name.trim() === ""))),
           );
-        console.log(
-          "refresh",
-          app.nodeFilter,
-          app.sourceFilter,
-          app.claimedFilter,
-          app.filteredNodes.length
-        );
         app.urlParams.nodes = app.nodeFilter.join(",");
         app.urlParams.date = app.fromDate;
         if (app.cityFilter) {
@@ -1255,7 +1240,7 @@ createApp({
           delete app.urlParams.claimed;
         }
         refreshMap({ download: false });
-      }
+      },
     );
 
     watch(
@@ -1263,7 +1248,7 @@ createApp({
       () => {
         app.urlParams.cluster = app.clusteringZoom;
         refreshMap({ download: false, clusteringZoom: app.clusteringZoom });
-      }
+      },
     );
 
     const stats = computed(() => {
@@ -1297,7 +1282,7 @@ createApp({
         return mostRecent && isNewerThan(mostRecent, 1);
       }).length;
       result.push(
-        `<span class="pointer-help" title="Devices active in last 24 hours">24h: <b>${active24h}</b></span>`
+        `<span class="pointer-help" title="Devices active in last 24 hours">24h: <b>${active24h}</b></span>`,
       );
 
       // Count nodes active in last 7 days (based on most recent date)
@@ -1306,7 +1291,7 @@ createApp({
         return mostRecent && isNewerThan(mostRecent, 7);
       }).length;
       result.push(
-        `<span class="pointer-help" title="Devices active in last 7 days">7d: <b>${active7d}</b></span>`
+        `<span class="pointer-help" title="Devices active in last 7 days">7d: <b>${active7d}</b></span>`,
       );
 
       // Count nodes active in last 30 days (based on most recent date)
@@ -1315,7 +1300,7 @@ createApp({
         return mostRecent && isNewerThan(mostRecent, 30);
       }).length;
       result.push(
-        `<span class="pointer-help" title="Devices active in last 30 days">30d: <b>${active30d}</b></span>`
+        `<span class="pointer-help" title="Devices active in last 30 days">30d: <b>${active30d}</b></span>`,
       );
 
       return result;
@@ -1331,7 +1316,7 @@ createApp({
       const userNodes = app.nodes.filter(
         (node) =>
           node.discord_owner_id &&
-          String(node.discord_owner_id) === String(auth.user.id)
+          String(node.discord_owner_id) === String(auth.user.id),
       );
 
       if (userNodes.length === 0) {
@@ -1384,19 +1369,19 @@ createApp({
       // Show stats only if > 0 (hide if 0)
       if (active24h > 0) {
         result.push(
-          `<span class="pointer-help" title="Your nodes active in last 24 hours">24h: <b>${active24h}</b></span>`
+          `<span class="pointer-help" title="Your nodes active in last 24 hours">24h: <b>${active24h}</b></span>`,
         );
       }
 
       if (active7d > 0) {
         result.push(
-          `<span class="pointer-help" title="Your nodes active in last 7 days">7d: <b>${active7d}</b></span>`
+          `<span class="pointer-help" title="Your nodes active in last 7 days">7d: <b>${active7d}</b></span>`,
         );
       }
 
       if (active30d > 0) {
         result.push(
-          `<span class="pointer-help" title="Your nodes active in last 30 days">30d: <b>${active30d}</b></span>`
+          `<span class="pointer-help" title="Your nodes active in last 30 days">30d: <b>${active30d}</b></span>`,
         );
       }
 
@@ -1434,16 +1419,12 @@ createApp({
         .slice(0, 20);
     });
 
-    let markerClusterGroup = L.markerClusterGroup({
-      disableClusteringAtZoom: app.clusteringZoom,
-    });
-
     watch(
       () => app.urlParams,
       () => {
         history.replaceState({}, "", `/?${new URLSearchParams(app.urlParams)}`);
       },
-      { deep: true }
+      { deep: true },
     );
 
     map.on("moveend", function (e) {
@@ -1503,7 +1484,7 @@ createApp({
         () => auth.authenticated,
         () => {
           nextTick(() => requestAnimationFrame(adjustSearchPosition));
-        }
+        },
       );
 
       // Check for URL parameters indicating errors
@@ -1521,7 +1502,7 @@ createApp({
         window.history.replaceState(
           {},
           document.title,
-          window.location.pathname
+          window.location.pathname,
         );
       }
 
@@ -1555,7 +1536,7 @@ createApp({
                 }
               }
             });
-          }
+          },
         );
 
         // Also watch for user changes (in case user ID changes)
@@ -1581,7 +1562,7 @@ createApp({
                 }
               }
             });
-          }
+          },
         );
       });
 
@@ -1640,7 +1621,7 @@ createApp({
               // Immediately focus the input
               cityInput.focus();
             },
-            true
+            true,
           ); // Capture phase - runs before other handlers
 
           cityInput.addEventListener(
@@ -1653,7 +1634,7 @@ createApp({
                 cityInput.focus();
               }, 0);
             },
-            true
+            true,
           );
 
           // Also handle focus event to prevent it from being stolen
@@ -1675,6 +1656,20 @@ createApp({
           });
         }
       }
+
+      // Prevent search input from opening the filter menu (beer UI listens in capture phase)
+      const stopSearchOpenFilter = (e) => {
+        if (e.target.id === "search-nodes-input") {
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+        }
+      };
+      document.addEventListener("click", stopSearchOpenFilter, true);
+      document.addEventListener("mousedown", stopSearchOpenFilter, true);
+      onBeforeUnmount(() => {
+        document.removeEventListener("click", stopSearchOpenFilter, true);
+        document.removeEventListener("mousedown", stopSearchOpenFilter, true);
+      });
     });
 
     onBeforeUnmount(() => {

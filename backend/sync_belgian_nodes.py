@@ -38,6 +38,7 @@ except (ImportError, ModuleNotFoundError):
 
 from backend.database import (
     get_connection,
+    get_db_path,
     init_database,
     json_serialize,
     json_deserialize,
@@ -45,6 +46,36 @@ from backend.database import (
     dict_from_row
 )
 import sqlite3
+from pathlib import Path
+
+# Safety: skip applying removals if count exceeds this (avoids mass delete on API/network issues)
+REMOVAL_SAFETY_MAX_ABSOLUTE = 25
+REMOVAL_SAFETY_MAX_PERCENT_OF_ACTIVE = 0.05  # 5%
+
+
+def _geopy_failures_log_path() -> Path:
+    """Path for the Geopy verification failures log (same directory as DB)."""
+    return Path(get_db_path()).parent / "geopy_failures.log"
+
+
+def _log_geopy_failure(
+    public_key: str,
+    reason: str,
+    lat: Optional[float],
+    lon: Optional[float],
+    kept_from_db: bool,
+) -> None:
+    """Append one line to the Geopy failures log."""
+    try:
+        log_path = _geopy_failures_log_path()
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        action = "kept_from_db" if kept_from_db else "dropped"
+        line = f"{ts}\t{public_key}\t{lat}\t{lon}\t{action}\t{reason}\n"
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(line)
+    except OSError:
+        pass  # Do not fail sync if logging fails
 
 
 def download_official_nodes() -> List[Dict[str, Any]]:
@@ -149,21 +180,30 @@ def verify_with_geopy(node: Dict[str, Any], geolocator: Nominatim) -> Dict[str, 
 
 
 def verify_nodes_with_geopy(nodes: List[Dict[str, Any]], 
-                            delay: float = 1.5) -> List[Dict[str, Any]]:
+                            delay: float = 1.5,
+                            previous_nodes: Optional[Dict[str, Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
     """
-    Verify all nodes with Geopy, respecting rate limits.
+    Verify nodes with Geopy, respecting rate limits.
+    - If Geopy confirms Belgium: keep node and set city from Geopy.
+    - If Geopy fails but node is already in DB (previous_nodes): keep node and keep city from DB.
+    - If Geopy fails and node is new: drop (do not add unverified new nodes).
+    This avoids false "removed" for existing nodes when Geopy times out or rate-limits.
     
     Args:
         nodes: List of nodes to verify.
         delay: Delay between Geopy requests in seconds (default 1.5).
+        previous_nodes: Optional dict of existing nodes from DB (public_key -> node). Used to keep
+            nodes that fail Geopy but are already in the DB, preserving their city.
     
     Returns:
-        List of verified Belgian nodes with city information.
+        List of verified Belgian nodes plus existing nodes that failed verification (with DB city).
     """
     geolocator = Nominatim(user_agent=GEOPY_USER_AGENT)
+    previous_nodes = previous_nodes or {}
     verified_nodes = []
     verified_count = 0
-    failed_count = 0
+    failed_kept_from_db = 0
+    failed_dropped = 0
     
     print(f"Verifying {len(nodes)} nodes with Geopy (delay: {delay}s between requests)...")
     
@@ -174,19 +214,33 @@ def verify_nodes_with_geopy(nodes: List[Dict[str, Any]],
             node['city'] = result['city']
             verified_nodes.append(node)
             verified_count += 1
-            if i % 10 == 0:
-                print(f"  Progress: {i}/{len(nodes)} verified ({verified_count} Belgian, {failed_count} failed)")
         else:
-            failed_count += 1
-            if i % 10 == 0:
-                print(f"  Progress: {i}/{len(nodes)} verified ({verified_count} Belgian, {failed_count} failed)")
+            key = node.get('public_key')
+            kept = key and key in previous_nodes
+            if kept:
+                node['city'] = previous_nodes[key].get('city')
+                verified_nodes.append(node)
+                failed_kept_from_db += 1
+            else:
+                failed_dropped += 1
+            _log_geopy_failure(
+                key or "",
+                result.get("reason", "unknown"),
+                node.get("adv_lat"),
+                node.get("adv_lon"),
+                kept_from_db=kept,
+            )
+        
+        if i % 10 == 0:
+            print(f"  Progress: {i}/{len(nodes)} verified ({verified_count} Belgian, "
+                  f"{failed_kept_from_db} kept from DB, {failed_dropped} dropped)")
         
         # Rate limiting: delay between requests (except for last node)
         if i < len(nodes):
             time.sleep(delay)
     
     print(f"Geopy verification complete: {verified_count} Belgian nodes verified, "
-          f"{failed_count} nodes failed verification")
+          f"{failed_kept_from_db} kept from DB (Geopy failed), {failed_dropped} new nodes dropped")
     return verified_nodes
 
 
@@ -1167,27 +1221,38 @@ def sync_belgian_nodes(geopy_delay: float = 1.5, skip_geopy: bool = False) -> Di
         # 2. Filter by Belgian geographic bounds
         bounded_nodes = filter_by_bounds(all_nodes)
         
-        # 3. Verify with Geopy (if not skipped)
-        # NOTE: This step extracts city from coordinates via reverse geocoding.
-        # The nodes are NOT merged into the database yet - that happens in step 6.
-        # City is extracted here and stored in node['city'] for later use.
+        # 3. Load DB state for Geopy (when Geopy fails, we keep nodes already in DB with their city)
+        db_for_geopy = load_previous_nodes_from_db()
+        
+        # 4. Verify with Geopy (if not skipped)
         if skip_geopy:
             print("Skipping Geopy verification (testing mode)")
             belgian_nodes = bounded_nodes
-            # Set city to None for nodes without verification
             for node in belgian_nodes:
                 if 'city' not in node:
                     node['city'] = None
         else:
-            belgian_nodes = verify_nodes_with_geopy(bounded_nodes, delay=geopy_delay)
+            belgian_nodes = verify_nodes_with_geopy(
+                bounded_nodes, delay=geopy_delay, previous_nodes=db_for_geopy
+            )
         
-        # 4. Load previous state from database
+        # 5. Load current DB state for change tracking (reload so we compare against latest)
         previous_nodes = load_previous_nodes_from_db()
         
-        # 5. Track changes
+        # 6. Track changes
         changes = track_changes(belgian_nodes, previous_nodes)
         
-        # 6. Integrate changes into database
+        # 6b. Failsafe: do not apply mass removals (e.g. API returned partial/empty)
+        active_count = sum(1 for n in previous_nodes.values() if n.get('is_active', True))
+        removed_count = changes['removed_count']
+        over_absolute = removed_count > REMOVAL_SAFETY_MAX_ABSOLUTE
+        over_percent = active_count > 0 and removed_count > (active_count * REMOVAL_SAFETY_MAX_PERCENT_OF_ACTIVE)
+        if removed_count > 0 and (over_absolute or over_percent):
+            print(f"\n⚠️  SAFETY: Skipping {removed_count} removals (max {REMOVAL_SAFETY_MAX_ABSOLUTE} or {REMOVAL_SAFETY_MAX_PERCENT_OF_ACTIVE*100:.0f}% of active). Check API/network.")
+            changes['removed'] = []
+            changes['removed_count'] = 0
+        
+        # 7. Integrate changes into database
         print("\nIntegrating changes into database...")
         
         # Create a lookup for current nodes by public_key
@@ -1235,14 +1300,14 @@ def sync_belgian_nodes(geopy_delay: float = 1.5, skip_geopy: bool = False) -> Di
         # Commit all changes
         conn.commit()
         
-        # 7. Log sync summary
+        # 8. Log sync summary
         log_sync_summary(changes, conn)
         conn.commit()
         
-        # 8. Calculate elapsed time
+        # 9. Calculate elapsed time
         elapsed_time = time.time() - start_time
         
-        # 9. Send Discord notification (if configured)
+        # 10. Send Discord notification (if configured)
         try:
             send_sync_notification(
                 changes, 
@@ -1256,7 +1321,7 @@ def sync_belgian_nodes(geopy_delay: float = 1.5, skip_geopy: bool = False) -> Di
         except Exception as e:
             print(f"Warning: Failed to send sync notification: {e}")
         
-        # 10. Print results
+        # 11. Print results
         print("\n" + "=" * 60)
         print("Sync Complete")
         print("=" * 60)

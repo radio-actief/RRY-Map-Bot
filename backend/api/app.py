@@ -3,10 +3,11 @@ REST API for RRY-Map-Bot Web Map
 Provides API endpoints for the frontend web map to access Belgian node data.
 """
 
+import json
 import sys
 import os
 from typing import Optional
-from flask import Flask, jsonify, request, send_from_directory, session, redirect
+from flask import Flask, jsonify, request, send_from_directory, session, redirect, Response
 from flask_cors import CORS
 from flask_session import Session
 import secrets
@@ -544,6 +545,111 @@ def get_config():
             'error': 'Internal server error',
             'message': str(e)
         }), 500
+
+
+def _date_to_unix(date_val) -> int:
+    """Convert DB date (TEXT, ISO or similar) to Unix timestamp. Returns 0 if missing or invalid."""
+    if not date_val:
+        return 0
+    try:
+        from datetime import datetime, timezone
+        s = str(date_val).strip()
+        if not s:
+            return 0
+        s = s.replace("Z", "+00:00")
+        try:
+            dt = datetime.fromisoformat(s[:26].rstrip("Z"))
+        except ValueError:
+            return 0
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return int(dt.timestamp())
+    except Exception:
+        return 0
+
+
+def _get_contacts_by_type(node_type: int, filename: str):
+    """
+    Returns active nodes of the given type (1=companion, 2=repeater, 3=room server, 4=sensor)
+    in contacts list JSON format. Output "type" is the node's actual type; flags=0.
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            SELECT public_key, type, adv_name, adv_lat, adv_lon, last_advert, updated_date
+            FROM belgian_nodes
+            WHERE is_active = 1 AND type = ?
+            ORDER BY adv_name
+        """, (node_type,))
+        rows = cursor.fetchall()
+        contacts = []
+        for row in rows:
+            r = dict_from_row(row)
+            pk = (r.get("public_key") or "").strip()
+            if pk.startswith("0x"):
+                pk = pk[2:]
+            pk = pk.lower()
+            last_advert = _date_to_unix(r.get("last_advert"))
+            last_modified = _date_to_unix(r.get("updated_date")) or last_advert
+            # Output actual node type (1=companion, 2=repeater, 3=room server, 4=sensor) to match reference format
+            contacts.append({
+                "type": node_type,
+                "name": r.get("adv_name") or "",
+                "custom_name": None,
+                "public_key": pk,
+                "flags": 0,
+                "latitude": str(r.get("adv_lat") or "0.0"),
+                "longitude": str(r.get("adv_lon") or "0.0"),
+                "last_advert": last_advert,
+                "last_modified": last_modified,
+                "out_path": ""
+            })
+        payload = {"contacts": contacts}
+        from datetime import datetime
+        # Short date-time for filename: YYYYMMDD-HHmm (e.g. 20260214-1530)
+        stamp = datetime.now().strftime("%Y%m%d-%H%M")
+        base = filename.rsplit(".", 1)[0] if "." in filename else filename
+        ext = filename.rsplit(".", 1)[1] if "." in filename else "json"
+        download_name = f"{base}-{stamp}.{ext}"
+        resp = Response(
+            json.dumps(payload, ensure_ascii=False),
+            mimetype="application/json"
+        )
+        resp.headers["Content-Disposition"] = f'attachment; filename="{download_name}"'
+        return resp
+    except Exception as e:
+        print(f"Error in contacts by type (type={node_type}): {e}")
+        return jsonify({
+            "error": "Internal server error",
+            "message": str(e)
+        }), 500
+    finally:
+        conn.close()
+
+
+@app.route('/api/v1/repeaters/contacts', methods=['GET'])
+def get_repeaters_contacts():
+    """GET /api/v1/repeaters/contacts — active repeaters (type=2) as contacts JSON."""
+    return _get_contacts_by_type(2, "BEMesh-repeaters.json")
+
+
+@app.route('/api/v1/companions/contacts', methods=['GET'])
+def get_companions_contacts():
+    """GET /api/v1/companions/contacts — active companions (type=1) as contacts JSON."""
+    return _get_contacts_by_type(1, "BEMesh-companions.json")
+
+
+@app.route('/api/v1/room-servers/contacts', methods=['GET'])
+def get_room_servers_contacts():
+    """GET /api/v1/room-servers/contacts — active room servers (type=3) as contacts JSON."""
+    return _get_contacts_by_type(3, "BEMesh-room-servers.json")
+
+
+@app.route('/api/v1/sensors/contacts', methods=['GET'])
+def get_sensors_contacts():
+    """GET /api/v1/sensors/contacts — active sensors (type=4) as contacts JSON."""
+    return _get_contacts_by_type(4, "BEMesh-sensors.json")
 
 
 @app.errorhandler(404)

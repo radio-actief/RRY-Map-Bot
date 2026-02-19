@@ -1307,19 +1307,22 @@ def sync_belgian_nodes(geopy_delay: float = 1.5, skip_geopy: bool = False) -> Di
         # 9. Calculate elapsed time
         elapsed_time = time.time() - start_time
         
-        # 10. Send Discord notification (if configured)
-        try:
-            send_sync_notification(
-                changes, 
-                current_nodes_dict, 
-                conn,
-                len(all_nodes),
-                len(bounded_nodes),
-                len(belgian_nodes),
-                elapsed_time
-            )
-        except Exception as e:
-            print(f"Warning: Failed to send sync notification: {e}")
+        # 10. Send Discord notification only when there are added or removed nodes (not for updates-only)
+        has_added = changes.get('added_count', 0) > 0
+        has_removed = changes.get('removed_count', 0) > 0
+        if has_added or has_removed:
+            try:
+                send_sync_notification(
+                    changes,
+                    current_nodes_dict,
+                    conn,
+                    len(all_nodes),
+                    len(bounded_nodes),
+                    len(belgian_nodes),
+                    elapsed_time
+                )
+            except Exception as e:
+                print(f"Warning: Failed to send sync notification: {e}")
         
         # 11. Print results
         print("\n" + "=" * 60)

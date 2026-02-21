@@ -681,9 +681,9 @@ map.on("baselayerchange", function (ev) {
   localStorage.setItem("baseMapSelected", ev.name);
 });
 
+// Map type (layers) above zoom in/out (bottom-left)
 L.control.layers(baseMaps, null, { position: "bottomleft" }).addTo(map);
-
-// map.zoomControl.setPosition('bottomleft');
+L.control.zoom({ position: "bottomleft" }).addTo(map);
 // Icon structure: nested by update status, then by node type (upstream implementation)
 const icons = Object.fromEntries(
   ["none", "recent", "stale", "old", "extinct"].map((color) => [
@@ -1588,74 +1588,35 @@ createApp({
         refreshMap();
       });
 
-      // Fix: Prevent menu from closing when clicking on input fields
-      // This fixes the bug where clicking on city filter jumps to date field
-      const menu = document.getElementById("node-filter");
-      if (menu) {
-        // Prevent clicks inside menu from closing it, but allow buttons to work
-        const stopMenuClose = (e) => {
-          // Allow button clicks to work normally
-          if (e.target.tagName === "BUTTON" || e.target.closest("button")) {
-            return; // Don't stop propagation for buttons
-          }
-          // Stop propagation for input fields and their containers
-          if (e.target.tagName === "INPUT" || e.target.closest(".field")) {
-            e.stopPropagation();
-            e.stopImmediatePropagation();
-          }
-        };
-
-        menu.addEventListener("click", stopMenuClose, true); // Use capture phase
-        menu.addEventListener("mousedown", stopMenuClose, true);
-        menu.addEventListener("mouseup", stopMenuClose, true);
-
-        // Specifically handle city input - ensure it gets focus on click
-        const cityInput = document.getElementById("city-filter-input");
-        if (cityInput) {
-          // Handle click with higher priority
-          cityInput.addEventListener(
-            "click",
-            (e) => {
-              e.stopPropagation();
-              e.stopImmediatePropagation();
-              // Immediately focus the input
-              cityInput.focus();
-            },
-            true,
-          ); // Capture phase - runs before other handlers
-
-          cityInput.addEventListener(
-            "mousedown",
-            (e) => {
-              e.stopPropagation();
-              e.stopImmediatePropagation();
-              // Focus on mousedown (before click)
-              setTimeout(() => {
-                cityInput.focus();
-              }, 0);
-            },
-            true,
-          );
-
-          // Also handle focus event to prevent it from being stolen
-          cityInput.addEventListener("focus", (e) => {
-            e.stopPropagation();
-          });
+      // Fix: Prevent filter menu from closing when clicking/focusing inputs inside it
+      // (Beer CSS closes menu on document click; use delegation so we catch events
+      // even if the menu node is re-created by Vue.)
+      const preventFilterMenuClose = (e) => {
+        const menu = document.getElementById("node-filter");
+        if (!menu || !menu.contains(e.target)) return;
+        // Allow trigger button and menu buttons (e.g. Clear filters) to work
+        if (e.target.tagName === "BUTTON" || e.target.closest("button")) return;
+        // Keep menu open when interacting with inputs / fields (search city, date, etc.)
+        if (
+          e.target.tagName === "INPUT" ||
+          e.target.tagName === "SELECT" ||
+          e.target.tagName === "TEXTAREA" ||
+          e.target.closest(".field")
+        ) {
+          e.stopPropagation();
+          e.stopImmediatePropagation();
         }
+      };
 
-        // Also handle date input to prevent it from stealing focus
-        const dateInput = menu.querySelector('input[type="date"]');
-        if (dateInput) {
-          dateInput.addEventListener("focus", (e) => {
-            // Only allow focus if city input is not being clicked
-            const cityInput = document.getElementById("city-filter-input");
-            if (cityInput && cityInput === document.activeElement) {
-              // Don't steal focus from city input
-              return;
-            }
-          });
-        }
-      }
+      document.addEventListener("click", preventFilterMenuClose, true);
+      document.addEventListener("mousedown", preventFilterMenuClose, true);
+      document.addEventListener("mouseup", preventFilterMenuClose, true);
+
+      onBeforeUnmount(() => {
+        document.removeEventListener("click", preventFilterMenuClose, true);
+        document.removeEventListener("mousedown", preventFilterMenuClose, true);
+        document.removeEventListener("mouseup", preventFilterMenuClose, true);
+      });
 
       // Prevent search input from opening the filter menu (beer UI listens in capture phase)
       const stopSearchOpenFilter = (e) => {

@@ -123,25 +123,31 @@
           </div>
         </div>
         <form class="search no-margin" action="javascript:;">
-          <div class="field border no-margin">
-            <input
-              type="text"
-              id="search-nodes-input"
-              class="background"
-              list="nodes"
-              v-model="app.search"
-              placeholder="Search Nodes"
-              v-if="app.nodes"
-            />
-            <button
-              type="button"
-              class="filter"
-              :class="{ circle: !filtersActive, transparent: !filtersActive, 'error-container': filtersActive }"
-              data-ui="#node-filter"
-            >
-              <i>filter_alt</i>
-              <span v-if="filtersActive">Filters active</span>
-            </button>
+          <div class="search-bar">
+            <div class="search-input-wrap">
+              <div class="field border no-margin">
+                <input
+                  type="text"
+                  id="search-nodes-input"
+                  class="background"
+                  list="nodes"
+                  v-model="app.search"
+                  placeholder="Search Nodes"
+                  v-if="app.nodes"
+                />
+              </div>
+            </div>
+            <div class="search-filter-wrap">
+              <button
+                type="button"
+                class="filter"
+                :class="{ circle: !filtersActive, transparent: !filtersActive, 'error-container': filtersActive }"
+                data-ui="#node-filter"
+              >
+                <i>filter_alt</i>
+                <span v-if="filtersActive">Filters active</span>
+              </button>
+            </div>
           </div>
           <menu id="node-filter" data-ui="#node-filter" class="filter-menu">
             <li class="filter-section">

@@ -20,25 +20,26 @@
     <script src="https://cdn.jsdelivr.net/npm/apexcharts@3.45.1/dist/apexcharts.min.js"></script>
     <script src="./lib/leaflet.js"></script>
     <style>
+      /* Radio-Actief theme: yellow, dark yellow, dark, orange (from docusaurus/radio-actief) */
       :root.stats-page {
         --stats-font-body: "Sora", system-ui, sans-serif;
         --stats-font-display: "Syne", system-ui, sans-serif;
-        --stats-bg: #f6f5f2;
-        --stats-bg-subtle: #f0eeea;
+        --stats-bg: #faf8f5;
+        --stats-bg-subtle: #f0ede8;
         --stats-surface: #ffffff;
         --stats-surface-hover: #fafaf9;
-        --stats-text: #1a1917;
+        --stats-text: #1a1a1a;
         --stats-text-muted: #57534e;
-        --stats-accent: #0d9488;
-        --stats-accent-hover: #0f766e;
-        --stats-border: #e7e5e4;
+        --stats-accent: #d4a017;
+        --stats-accent-hover: #b88a14;
+        --stats-border: #e5e2dd;
         --stats-shadow: 0 1px 3px rgba(26, 25, 23, 0.06);
         --stats-shadow-lg: 0 4px 20px rgba(26, 25, 23, 0.08);
         --stats-radius: 12px;
         --stats-radius-sm: 8px;
-        --stats-chart-added: #0d9488;
+        --stats-chart-added: #16a34a;
         --stats-chart-removed: #b91c1c;
-        --stats-chart-cumulative: #0f766e;
+        --stats-chart-cumulative: #8a660f;
       }
 
       body.stats-body {
@@ -49,7 +50,7 @@
         background-image:
           radial-gradient(
             ellipse 120% 80% at 50% -20%,
-            rgba(13, 148, 136, 0.06),
+            rgba(212, 160, 23, 0.08),
             transparent
           ),
           linear-gradient(
@@ -77,7 +78,7 @@
         margin-bottom: 2rem;
         text-align: center;
       }
-      .stats-header > div {
+      .stats-header > div:first-child {
         max-width: 72ch;
       }
       .stats-header h1 {
@@ -364,25 +365,49 @@
       .stats-playback-legend {
         display: flex;
         flex-wrap: wrap;
-        gap: 0.5rem 1.25rem;
+        align-items: center;
+        gap: 0.2rem 0.4rem;
         margin-top: 0.5rem;
-        font-size: 0.8125rem;
+        padding: 0.35rem 0.5rem;
+        font-size: 0.6875rem;
         color: var(--stats-text-muted);
+        background: var(--stats-bg-subtle);
+        border: 1px solid var(--stats-border);
+        border-radius: var(--stats-radius-sm);
       }
-      .stats-playback-legend span {
+      .stats-playback-legend > span {
         display: inline-flex;
         align-items: center;
-        gap: 0.35rem;
+        gap: 0.2rem;
+        padding: 0.12rem 0.28rem;
+        background: var(--stats-surface);
+        border-radius: 4px;
+        border: 1px solid var(--stats-border);
       }
       .stats-playback-legend .dot {
-        width: 8px;
-        height: 8px;
+        width: 5px;
+        height: 5px;
         border-radius: 50%;
         flex-shrink: 0;
       }
+      .stats-playback-legend .legend-label {
+        font-size: 0.65rem;
+        letter-spacing: 0.01em;
+      }
       .stats-playback-legend .legend-count {
-        font-weight: 600;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
         color: var(--stats-text);
+        min-width: 1.25em;
+        text-align: right;
+      }
+      .stats-playback-legend .playback-legend-total {
+        margin-right: 0.05rem;
+        padding-right: 0.25rem;
+        border-right: 1px solid var(--stats-border);
+      }
+      .stats-playback-legend .playback-legend-total .legend-count {
+        color: var(--stats-accent);
       }
 
       .stats-table {
@@ -525,6 +550,62 @@
       .stats-footer-note sup {
         font-size: 0.75em;
       }
+      .stats-summary-grid {
+        margin-top: 0.75rem;
+        margin-bottom: 2rem;
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 1.25rem;
+      }
+      @media (max-width: 1200px) {
+        .stats-summary-grid {
+          grid-template-columns: repeat(3, 1fr);
+        }
+      }
+      @media (max-width: 900px) {
+        .stats-summary-grid {
+          grid-template-columns: repeat(2, 1fr);
+        }
+      }
+      @media (max-width: 480px) {
+        .stats-summary-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+      .stats-summary-grid .stats-table-card {
+        min-width: 0;
+      }
+      .stats-summary-grid .stats-table-card h3 {
+        font-size: 0.9rem;
+        display: block;
+        font-weight: 600;
+        overflow: visible;
+        word-wrap: break-word;
+      }
+      .stats-summary-grid .stats-table-card h3 .stats-title-meta {
+        font-style: italic;
+        font-weight: inherit;
+        font-family:
+          system-ui,
+          -apple-system,
+          sans-serif;
+      }
+      .stats-summary-grid .stats-table th,
+      .stats-summary-grid .stats-table td {
+        padding: 0.3rem 0.5rem;
+        font-size: 0.8125rem;
+      }
+      .stats-summary-grid .stats-table td:first-child {
+        color: var(--stats-text-muted);
+      }
+      .stats-summary-grid .stats-table td.num,
+      .stats-summary-grid .stats-table .value {
+        font-weight: 600;
+        color: var(--stats-text);
+      }
+      .stats-summary-grid sup {
+        font-size: 0.7em;
+      }
     </style>
   </head>
   <body class="light stats-body">
@@ -532,17 +613,57 @@
       <div class="stats-header">
         <div>
           <h1>#BEmesh MeshCore statistics</h1>
-          <p
-            class="stats-header-desc"
-            id="stats-summary-intro"
-            aria-live="polite"
-          >
-            —
-          </p>
         </div>
         <div class="stats-header-links">
           <a href="/" class="back-link">← Back to map</a>
-          <a href="/api/v1/repeaters/contacts" class="stats-download-link" download="BEMesh-repeaters.json">Download repeaters (JSON)</a>
+          <a
+            href="/api/v1/repeaters/contacts"
+            class="stats-download-link"
+            download="BEMesh-repeaters.json"
+            >Download repeaters (JSON)</a
+          >
+        </div>
+      </div>
+      <div class="stats-summary-grid" id="stats-summary-wrap">
+        <div class="stats-table-card">
+          <h3 id="stats-summary-network-title">Network</h3>
+          <div class="stats-table">
+            <table>
+              <tbody id="stats-summary-network"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="stats-table-card">
+          <h3>Activity<sup>*</sup>:</h3>
+          <div class="stats-table">
+            <table>
+              <tbody id="stats-summary-activity"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="stats-table-card">
+          <h3>Frequency presets:</h3>
+          <div class="stats-table">
+            <table>
+              <tbody id="stats-summary-frequency"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="stats-table-card">
+          <h3>Claimed:</h3>
+          <div class="stats-table">
+            <table>
+              <tbody id="stats-summary-claimed"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="stats-table-card">
+          <h3 id="stats-summary-cities-title">Top cities</h3>
+          <div class="stats-table">
+            <table>
+              <tbody id="stats-summary-cities"></tbody>
+            </table>
+          </div>
         </div>
       </div>
 
@@ -620,13 +741,19 @@
               </div>
             </div>
             <div class="stats-playback-legend" id="playback-legend">
+              <span class="playback-legend-total"
+                ><span class="legend-label">Total</span
+                ><span class="legend-count" id="playback-legend-count-total"
+                  >0</span
+                ></span
+              >
               <span data-type="1"
                 ><i
                   class="dot"
                   style="background: #2196f3; border: 1px solid #1565c0"
-                ></i>
-                <span class="legend-label">Client</span>
-                <span class="legend-count" id="playback-legend-count-1"
+                ></i
+                ><span class="legend-label">Client</span
+                ><span class="legend-count" id="playback-legend-count-1"
                   >0</span
                 ></span
               >
@@ -634,9 +761,9 @@
                 ><i
                   class="dot"
                   style="background: #4caf50; border: 1px solid #2e7d32"
-                ></i>
-                <span class="legend-label">Repeater</span>
-                <span class="legend-count" id="playback-legend-count-2"
+                ></i
+                ><span class="legend-label">Repeater</span
+                ><span class="legend-count" id="playback-legend-count-2"
                   >0</span
                 ></span
               >
@@ -644,19 +771,19 @@
                 ><i
                   class="dot"
                   style="background: #9c27b0; border: 1px solid #6a1b9a"
-                ></i>
-                <span class="legend-label">Room Server</span>
-                <span class="legend-count" id="playback-legend-count-3"
+                ></i
+                ><span class="legend-label">Room Server</span
+                ><span class="legend-count" id="playback-legend-count-3"
                   >0</span
                 ></span
               >
               <span data-type="4"
                 ><i
                   class="dot"
-                  style="background: #ff9800; border: 1px solid #e65100"
-                ></i>
-                <span class="legend-label">Sensor</span>
-                <span class="legend-count" id="playback-legend-count-4"
+                  style="background: #0891b2; border: 1px solid #0e7490"
+                ></i
+                ><span class="legend-label">Sensor</span
+                ><span class="legend-count" id="playback-legend-count-4"
                   >0</span
                 ></span
               >
@@ -726,10 +853,17 @@
         </div>
         <footer class="stats-footer">
           <p class="stats-footer-note">
-            <sup>*</sup> Node counts and map data are synced from the official MeshCore
-            official internet <a href="https://map.meshcore.dev/" target="_blank" rel="noopener noreferrer">map</a> — either manually uploaded by users or reported by
-            companions with uploader software. No data is read from MQTT servers
-            or other analyzers.
+            <sup>*</sup> Node counts and map data are synced from the official
+            MeshCore official internet
+            <a
+              href="https://map.meshcore.dev/"
+              target="_blank"
+              rel="noopener noreferrer"
+              >map</a
+            >
+            — either manually uploaded by users or reported by companions with
+            uploader software. No data is read from MQTT servers or other
+            analyzers.
           </p>
         </footer>
       </div>
@@ -951,14 +1085,122 @@
                     "EU/UK (Long Range)",
                     "EU/UK (Medium Range)",
                   ];
-                  var presetParts = [];
+                  var presetCustomOnly = [];
+                  if (s.custom_frequency != null && s.custom_frequency > 0)
+                    presetCustomOnly.push({
+                      label: "Custom settings",
+                      count: Number(s.custom_frequency),
+                    });
+                  var top5Repeaters = (s.top_cities_repeaters || []).slice(
+                    0,
+                    5,
+                  );
+                  function row(tbody, label, value) {
+                    var tr = document.createElement("tr");
+                    tr.innerHTML =
+                      "<td>" +
+                      label +
+                      '</td><td class="num">' +
+                      value +
+                      "</td>";
+                    tbody.appendChild(tr);
+                  }
+                  var tNetwork = document.getElementById(
+                    "stats-summary-network",
+                  );
+                  var tActivity = document.getElementById(
+                    "stats-summary-activity",
+                  );
+                  var tFrequency = document.getElementById(
+                    "stats-summary-frequency",
+                  );
+                  var tClaimed = document.getElementById(
+                    "stats-summary-claimed",
+                  );
+                  var tCities = document.getElementById("stats-summary-cities");
+                  if (!tNetwork) return;
+                  tNetwork.innerHTML = "";
+                  tActivity.innerHTML = "";
+                  tFrequency.innerHTML = "";
+                  if (tClaimed) tClaimed.innerHTML = "";
+                  tCities.innerHTML = "";
+                  var networkTitleEl = document.getElementById(
+                    "stats-summary-network-title",
+                  );
+                  if (networkTitleEl)
+                    networkTitleEl.innerHTML =
+                      'Network: <span class="stats-title-meta">' +
+                      total.toLocaleString() +
+                      " nodes</span>";
+                  if (companions > 0)
+                    row(
+                      tNetwork,
+                      "Companions",
+                      '<span class="value">' +
+                        companions.toLocaleString() +
+                        "</span>",
+                    );
+                  if (repeaters > 0)
+                    row(
+                      tNetwork,
+                      "Repeaters",
+                      '<span class="value">' +
+                        repeaters.toLocaleString() +
+                        "</span>",
+                    );
+                  if (roomServers > 0)
+                    row(
+                      tNetwork,
+                      "Room servers",
+                      '<span class="value">' +
+                        roomServers.toLocaleString() +
+                        "</span>",
+                    );
+                  if (sensors > 0)
+                    row(
+                      tNetwork,
+                      "Sensors",
+                      '<span class="value">' +
+                        sensors.toLocaleString() +
+                        "</span>",
+                    );
+                  var citiesTitleEl = document.getElementById(
+                    "stats-summary-cities-title",
+                  );
+                  if (citiesTitleEl)
+                    citiesTitleEl.innerHTML =
+                      'Top cities: <span class="stats-title-meta">' +
+                      cities.toLocaleString() +
+                      " cities</span>";
+                  row(
+                    tActivity,
+                    "24 hours",
+                    '<span class="value">' +
+                      active24h.toLocaleString() +
+                      "</span>",
+                  );
+                  row(
+                    tActivity,
+                    "7 days",
+                    '<span class="value">' +
+                      active7d.toLocaleString() +
+                      "</span>",
+                  );
+                  row(
+                    tActivity,
+                    "30 days",
+                    '<span class="value">' +
+                      active30d.toLocaleString() +
+                      "</span>",
+                  );
                   presetOrder.forEach(function (name) {
                     if (presets[name] != null && presets[name] > 0)
-                      presetParts.push(
+                      row(
+                        tFrequency,
+                        name,
                         '<span class="value">' +
                           Number(presets[name]).toLocaleString() +
-                          "</span> use " +
-                          name,
+                          "</span>",
                       );
                   });
                   Object.keys(presets).forEach(function (name) {
@@ -967,104 +1209,58 @@
                       presets[name] != null &&
                       presets[name] > 0
                     )
-                      presetParts.push(
+                      row(
+                        tFrequency,
+                        name,
                         '<span class="value">' +
                           Number(presets[name]).toLocaleString() +
-                          "</span> use " +
-                          name,
+                          "</span>",
                       );
                   });
-                  if (s.custom_frequency != null && s.custom_frequency > 0)
-                    presetParts.push(
+                  presetCustomOnly.forEach(function (p) {
+                    row(
+                      tFrequency,
+                      p.label,
                       '<span class="value">' +
-                        Number(s.custom_frequency).toLocaleString() +
-                        "</span> use custom settings",
+                        p.count.toLocaleString() +
+                        "</span>",
                     );
+                  });
                   if (s.unknown_frequency != null && s.unknown_frequency > 0)
-                    presetParts.push(
+                    row(
+                      tFrequency,
+                      "Unknown",
                       '<span class="value">' +
                         Number(s.unknown_frequency).toLocaleString() +
-                        "</span> are unknown",
+                        "</span>",
                     );
-                  var presetPhrase = presetParts.length
-                    ? presetParts.join(", ") + "."
-                    : "—";
-                  var typeParts = [];
-                  if (companions > 0)
-                    typeParts.push(
+                  if (tClaimed) {
+                    row(
+                      tClaimed,
+                      "Nodes claimed",
                       '<span class="value">' +
-                        companions.toLocaleString() +
-                        "</span> companions",
+                        claimed.toLocaleString() +
+                        "</span>",
                     );
-                  if (repeaters > 0)
-                    typeParts.push(
+                    row(
+                      tClaimed,
+                      "Discord users",
                       '<span class="value">' +
-                        repeaters.toLocaleString() +
-                        "</span> repeaters",
+                        users.toLocaleString() +
+                        "</span>",
                     );
-                  if (roomServers > 0)
-                    typeParts.push(
-                      '<span class="value">' +
-                        roomServers.toLocaleString() +
-                        "</span> room servers",
-                    );
-                  if (sensors > 0)
-                    typeParts.push(
-                      '<span class="value">' +
-                        sensors.toLocaleString() +
-                        "</span> sensors",
-                    );
-                  var typePhrase =
-                    typeParts.length > 0
-                      ? " (" + typeParts.join(", ") + ")"
-                      : "";
-                  function cityListWithCounts(arr) {
-                    return (arr || [])
-                      .slice(0, 5)
-                      .map(function (c) {
-                        return (
-                          c.city +
-                          ' (<span class="value">' +
+                  }
+                  if (top5Repeaters.length > 0)
+                    top5Repeaters.forEach(function (c) {
+                      row(
+                        tCities,
+                        c.city,
+                        '<span class="value">' +
                           Number(c.count).toLocaleString() +
-                          "</span>)"
-                        );
-                      })
-                      .join(", ");
-                  }
-                  var top5Repeaters = cityListWithCounts(
-                    s.top_cities_repeaters,
-                  );
-                  var citiesPhrase =
-                    "The five most covered cities (by repeaters) are " +
-                    (top5Repeaters || "—") +
-                    ".";
-                  var introEl = document.getElementById("stats-summary-intro");
-                  if (introEl) {
-                    introEl.innerHTML =
-                      'The Belgian MeshCore network has <span class="value">' +
-                      total.toLocaleString() +
-                      "</span> nodes in total<sup>*</sup>" +
-                      typePhrase +
-                      ' across <span class="value">' +
-                      cities.toLocaleString() +
-                      "</span> cities.<br>" +
-                      'In the last 24 hours <span class="value">' +
-                      active24h.toLocaleString() +
-                      '</span> nodes were reported as active<sup>*</sup>, <span class="value">' +
-                      active7d.toLocaleString() +
-                      '</span> in the last 7 days, and <span class="value">' +
-                      active30d.toLocaleString() +
-                      "</span> in the last 30 days.<br>" +
-                      "By frequency preset, " +
-                      presetPhrase +
-                      "<br>" +
-                      '<span class="value">' +
-                      claimed.toLocaleString() +
-                      '</span> nodes are claimed by <span class="value">' +
-                      users.toLocaleString() +
-                      "</span> unique Discord users.<br>" +
-                      citiesPhrase;
-                  }
+                          "</span>",
+                      );
+                    });
+                  else row(tCities, "—", "—");
                 })
                 .catch(function () {});
             }
@@ -1173,7 +1369,7 @@
             var style = chartEl && getComputedStyle(document.documentElement);
             var colorAdded =
               (style && style.getPropertyValue("--stats-chart-added").trim()) ||
-              "#0d9488";
+              "#16a34a";
             var colorRemoved =
               (style &&
                 style.getPropertyValue("--stats-chart-removed").trim()) ||
@@ -1181,7 +1377,7 @@
             var colorCumulative =
               (style &&
                 style.getPropertyValue("--stats-chart-cumulative").trim()) ||
-              "#0f766e";
+              "#8a660f";
 
             function rangeStartDate(rangeValue, latestDateStr) {
               if (rangeValue === "all") return chartStartDate;
@@ -1496,7 +1692,7 @@
                   1: { fill: "#2196F3", stroke: "#1565C0" },
                   2: { fill: "#4CAF50", stroke: "#2E7D32" },
                   3: { fill: "#9C27B0", stroke: "#6A1B9A" },
-                  4: { fill: "#FF9800", stroke: "#E65100" },
+                  4: { fill: "#0891b2", stroke: "#0e7490" },
                 };
                 function colorForType(t) {
                   return nodeTypeColors[t] || nodeTypeColors[1];
@@ -1531,12 +1727,22 @@
                     var t = n.type || 1;
                     countsByType[t] = (countsByType[t] || 0) + 1;
                   });
+                  var legendEl = document.getElementById("playback-legend");
                   for (var t = 1; t <= 4; t++) {
+                    var count = countsByType[t] || 0;
                     var el = document.getElementById(
                       "playback-legend-count-" + t,
                     );
-                    if (el) el.textContent = countsByType[t] || 0;
+                    if (el) el.textContent = count;
+                    var row = legendEl
+                      ? legendEl.querySelector('[data-type="' + t + '"]')
+                      : null;
+                    if (row) row.style.display = count > 0 ? "" : "none";
                   }
+                  var totalEl = document.getElementById(
+                    "playback-legend-count-total",
+                  );
+                  if (totalEl) totalEl.textContent = f.nodes.length;
                   markersLayer.clearLayers();
                   f.nodes.forEach(function (n) {
                     var c = colorForType(n.type);

@@ -449,6 +449,36 @@ table.node-info tr td:last-child {
 .leaflet-bottom.leaflet-left .leaflet-control {
   flex-shrink: 0;
 }
+/* Zoom control: same panel style as layers */
+.leaflet-bottom.leaflet-left .leaflet-control-zoom {
+  border: none !important;
+  margin: 0 0 0 10px !important;
+  box-shadow: var(--app-shadow-lg, 0 4px 20px rgba(0, 0, 0, 0.08));
+  border-radius: var(--app-radius-sm, 6px);
+  overflow: hidden;
+}
+.leaflet-bottom.leaflet-left .leaflet-control-zoom a {
+  background: var(--app-surface, rgba(255, 255, 255, 0.92)) !important;
+  color: var(--app-text, #1a1917) !important;
+  border: 1px solid var(--app-border, #e7e5e4) !important;
+  font-size: 18px !important;
+  font-weight: 600 !important;
+  transition: background var(--app-ease), color var(--app-ease);
+}
+.leaflet-bottom.leaflet-left .leaflet-control-zoom .leaflet-control-zoom-in {
+  border-radius: var(--app-radius-sm, 6px) var(--app-radius-sm, 6px) 0 0 !important;
+}
+.leaflet-bottom.leaflet-left .leaflet-control-zoom .leaflet-control-zoom-out {
+  border-radius: 0 0 var(--app-radius-sm, 6px) var(--app-radius-sm, 6px) !important;
+}
+.leaflet-bottom.leaflet-left .leaflet-control-zoom a:hover {
+  background: var(--app-surface-hover, rgba(250, 250, 249, 0.98)) !important;
+  color: var(--app-accent, #0d9488) !important;
+}
+.leaflet-bottom.leaflet-left .leaflet-control-zoom a.leaflet-disabled {
+  opacity: 0.5;
+  cursor: default;
+}
 /* Layer control: compact when collapsed (toggle only), same panel style when expanded */
 .leaflet-bottom.leaflet-left .leaflet-control-layers {
   flex-shrink: 0;
@@ -556,15 +586,56 @@ table.node-info tr td:last-child {
   width: calc(100% - 20px);
   align-self: center;
   justify-content: center;
-  gap: 5px;
+  gap: 8px;
 }
-body.map-page .search .field.border,
-body.map-page .search .filter {
-  transition: box-shadow var(--app-ease), border-color var(--app-ease);
+
+/* Search bar: input and filter as separate blocks in one row */
+.search-bar {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  width: 100%;
 }
-body.map-page .search .field.border:focus-within {
+
+.search-input-wrap {
+  flex: 1;
+  min-width: 0;
+}
+
+.search-input-wrap .field.border {
+  margin: 0;
+  height: 100%;
+}
+
+.search-input-wrap .field.border input {
+  width: 100%;
+  min-width: 0;
+}
+
+.search-filter-wrap {
+  flex-shrink: 0;
+  display: flex;
+  align-items: stretch;
+}
+
+.search-filter-wrap .filter {
+  min-height: 44px;
+  border-radius: var(--app-radius-sm, 6px);
+  font-weight: 500;
+}
+
+body.map-page .search .search-input-wrap .field.border,
+body.map-page .search .search-filter-wrap .filter {
+  transition: box-shadow var(--app-ease), border-color var(--app-ease), background var(--app-ease);
+}
+body.map-page .search .search-input-wrap .field.border:focus-within {
   box-shadow: 0 0 0 2px var(--app-accent);
 }
+body.map-page .search .search-filter-wrap .filter:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--app-accent);
+}
+
 .search .field {
   width: 100%;
   display: flex;
@@ -573,10 +644,6 @@ body.map-page .search .field.border:focus-within {
 .search .submit {
   width: 12px;
   height: 35px;
-}
-
-.search .filter {
-  margin-top: 5px;
 }
 
 .search-text b {
@@ -883,6 +950,9 @@ time {
   font-size: 0.875rem;
   color: var(--app-text, #1a1917);
   min-width: 200px;
+  max-height: min(85vh, 600px);
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 /* When closed: hide so search row is first and doesn't get covered; only filter button opens menu */
 #node-filter:not(.active) {

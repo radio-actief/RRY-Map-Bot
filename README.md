@@ -19,18 +19,13 @@ A comprehensive system for managing and visualizing Belgian MeshCore network nod
 - Direct links to MeshCore Analyzer
 
 ### 🤖 Discord Bot
-- **`/search`** - Search nodes with multiple filters (name, type, city, frequency, owner, source, claimed/inactive status)
+The bot allows searching nodes, listing your own nodes, claiming/unclaiming nodes, updating only city, and viewing statistics:
+- **`/search`** - Search by name, public key, type, city, frequency preset, owner, claim status, inactive, or source. At least one criterion required. Source filter: App or Uploader.
 - **`/mynodes`** - List all your claimed nodes (including inactive ones)
-- **`/recent`** - List recently added/updated nodes (last 24 hours)
 - **`/node claim`** - Claim ownership of an unclaimed node
-- **`/node register`** - Register a new node via Discord (or claim if already exists)
-- **`/node update`** - Update node properties (name, city, frequency, coordinates)
 - **`/node unclaim`** - Remove ownership claim from a node
-- **`/node delete`** - Permanently delete a node (Discord-registered or removed from official map)
-- **`/stats`** - View Belgian node statistics
-- **`/stats-cities`** - List all cities with node counts
-- **`/stats-frequencies`** - Show frequency preset statistics by node type
-- **`/stats-source`** - Show node statistics by source type
+- **`/node update`** - Update the **city** of an owned node
+- **`/stats`** - View Belgian MeshCore statistics: overview (nodes, types, presets, top cities, activity), all cities with counts, frequency stats by type, and source breakdown
 
 ### 🔄 Data Synchronization
 - Automatic sync from official MeshCore map (`https://map.meshcore.dev/api/v1/nodes`)

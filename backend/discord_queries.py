@@ -123,11 +123,15 @@ def query_nodes_substring(
             else:
                 conditions.append("discord_owner_id IS NULL")
         
-        # Source filter
+        # Source filter (app and web are treated the same as "app" for search)
         if source:
             source_lower = source.lower()
-            if source_lower == 'unknown':
-                # Handle NULL or empty source as "Unknown"
+            if source_lower == 'app':
+                conditions.append("(LOWER(source) = 'app' OR LOWER(source) = 'web')")
+            elif source_lower == 'uploader':
+                conditions.append("LOWER(source) = ?")
+                params.append(source_lower)
+            elif source_lower == 'unknown':
                 conditions.append("(source IS NULL OR source = '' OR LOWER(source) = 'unknown')")
             else:
                 conditions.append("LOWER(source) = ?")
@@ -650,7 +654,7 @@ def update_ownership(public_key: str, user_id: str, username: str) -> bool:
         from backend.database import get_current_timestamp
         
         # Normalize public key: remove spaces, dashes, convert to lowercase
-        # This matches the normalization in register_node and get_node_by_key
+        # This matches the normalization in get_node_by_key
         public_key_normalized = public_key.replace(' ', '').replace('-', '').lower()
         
         cursor.execute("""
@@ -695,7 +699,7 @@ def remove_ownership(public_key: str, user_id: str) -> bool:
         from backend.database import get_current_timestamp
         
         # Normalize public key: remove spaces, dashes, convert to lowercase
-        # This matches the normalization in register_node and get_node_by_key
+        # This matches the normalization in get_node_by_key
         public_key_normalized = public_key.replace(' ', '').replace('-', '').lower()
         
         # Verify ownership first
@@ -763,7 +767,7 @@ def update_node_properties(
         from backend.database import get_current_timestamp, json_serialize, json_deserialize
         
         # Normalize public key: remove spaces, dashes, convert to lowercase
-        # This matches the normalization in register_node and get_node_by_key
+        # This matches the normalization in get_node_by_key
         public_key_normalized = public_key.replace(' ', '').replace('-', '').lower()
         
         # Get current node values to track changes
@@ -874,7 +878,7 @@ def verify_ownership(public_key: str, user_id: str, include_inactive: bool = Fal
     
     try:
         # Normalize public key: remove spaces, dashes, convert to lowercase
-        # This matches the normalization in register_node and get_node_by_key
+        # This matches the normalization in get_node_by_key
         public_key_normalized = public_key.replace(' ', '').replace('-', '').lower()
         
         if include_inactive:
@@ -926,7 +930,7 @@ def claim_and_update_node(
     
     try:
         # Normalize public key: remove spaces, dashes, convert to lowercase
-        # This matches the normalization in register_node and get_node_by_key
+        # This matches the normalization in get_node_by_key
         public_key_normalized = public_key.replace(' ', '').replace('-', '').lower()
         
         # Get current node
@@ -1045,7 +1049,7 @@ def reactivate_and_claim_node(
     
     try:
         # Normalize public key: remove spaces, dashes, convert to lowercase
-        # This matches the normalization in register_node and get_node_by_key
+        # This matches the normalization in get_node_by_key
         public_key_normalized = public_key.replace(' ', '').replace('-', '').lower()
         
         # Get current node (including inactive)
@@ -1161,7 +1165,7 @@ def get_node_by_key(public_key: str, include_inactive: bool = False) -> Optional
     
     try:
         # Normalize public key: remove spaces, dashes, convert to lowercase
-        # This matches the normalization in register_node
+        # This matches the normalization in get_node_by_key
         public_key_normalized = public_key.replace(' ', '').replace('-', '').lower()
         
         if include_inactive:
@@ -1209,141 +1213,6 @@ def get_node_by_key(public_key: str, include_inactive: bool = False) -> Optional
     except Exception as e:
         print(f"Error getting node by key: {e}")
         return None
-    finally:
-        conn.close()
-
-
-def register_node(
-    public_key: str,
-    adv_name: str,
-    node_type: int,
-    city: str,
-    frequency_preset_name: str,
-    user_id: str,
-    username: str,
-    adv_lat: Optional[float] = None,
-    adv_lon: Optional[float] = None,
-    link: Optional[str] = None
-) -> Dict[str, Any]:
-    """
-    Register a new node via Discord.
-    
-    Args:
-        public_key: Public hex key (will be normalized to lowercase).
-        adv_name: Node name.
-        node_type: Node type (1-4).
-        city: City name.
-        frequency_preset_name: Name of the frequency preset.
-        user_id: Discord user ID (becomes owner).
-        username: Discord username (becomes owner).
-        adv_lat: Optional latitude.
-        adv_lon: Optional longitude.
-        link: Optional MeshCore link.
-    
-    Returns:
-        Dict with 'success' (bool) and 'message' (str) or 'node' (dict) on success.
-    """
-    conn = get_connection()
-    cursor = conn.cursor()
-    
-    try:
-        # Normalize public key: remove spaces, convert to lowercase
-        public_key = public_key.replace(' ', '').replace('-', '').lower()
-        
-        # Validate public key format (hexadecimal, exactly 64 characters = 32 bytes)
-        if not public_key:
-            return {'success': False, 'message': 'Public key cannot be empty.'}
-        
-        if not all(c in '0123456789abcdef' for c in public_key):
-            return {'success': False, 'message': 'Public key must be a valid hexadecimal string.'}
-        
-        if len(public_key) != 64:
-            return {'success': False, 'message': 'Public key must be exactly 64 hexadecimal characters (32 bytes).'}
-        
-        # Check if public key already exists
-        cursor.execute("SELECT public_key FROM belgian_nodes WHERE public_key = ?", (public_key,))
-        if cursor.fetchone():
-            return {'success': False, 'message': 'A node with this public key already exists in the database.'}
-        
-        # Get frequency preset
-        from config.config import FREQUENCY_PRESETS
-        preset = None
-        for p in FREQUENCY_PRESETS:
-            if p['name'].lower() == frequency_preset_name.lower():
-                preset = p
-                break
-        
-        if not preset:
-            return {'success': False, 'message': f'Frequency preset "{frequency_preset_name}" not found.'}
-        
-        # Validate MeshCore link format if provided
-        if link:
-            link = link.strip()
-            if not link.startswith('meshcore://'):
-                return {'success': False, 'message': 'MeshCore link must start with "meshcore://".'}
-        
-        # Prepare params from preset
-        params = {
-            'freq': preset['freq'],
-            'sf': preset['sf'],
-            'bw': preset['bw'],
-            'cr': preset['cr']
-        }
-        
-        # Get current timestamp
-        current_timestamp = get_current_timestamp()
-        
-        # Insert new node
-        cursor.execute("""
-            INSERT INTO belgian_nodes (
-                public_key, type, adv_name, adv_lat, adv_lon, city,
-                params, link,
-                source,
-                discord_owner_id, discord_owner_name,
-                inserted_date, discord_updated_date,
-                synced_from_official, is_active, last_sync_date
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            public_key,
-            node_type,
-            adv_name,
-            adv_lat,
-            adv_lon,
-            city,
-            json_serialize(params),
-            link,
-            'discord',  # Source is always 'discord' for Discord-registered nodes
-            str(user_id),
-            username,
-            current_timestamp,  # inserted_date
-            current_timestamp,  # discord_updated_date
-            0,  # synced_from_official = FALSE (not from official map)
-            1,  # is_active = TRUE
-            current_timestamp  # last_sync_date
-        ))
-        
-        conn.commit()
-        
-        # Fetch the newly created node
-        cursor.execute("""
-            SELECT * FROM belgian_nodes WHERE public_key = ?
-        """, (public_key,))
-        
-        row = cursor.fetchone()
-        if row:
-            node = dict_from_row(row)
-            return {'success': True, 'node': node}
-        else:
-            return {'success': False, 'message': 'Node created but could not be retrieved.'}
-        
-    except sqlite3.IntegrityError as e:
-        conn.rollback()
-        if 'UNIQUE constraint' in str(e):
-            return {'success': False, 'message': 'A node with this public key already exists.'}
-        return {'success': False, 'message': f'Database error: {str(e)}'}
-    except Exception as e:
-        conn.rollback()
-        return {'success': False, 'message': f'Error registering node: {str(e)}'}
     finally:
         conn.close()
 
@@ -1476,7 +1345,7 @@ def can_delete_node(public_key: str, user_id: str) -> Dict[str, Any]:
     
     try:
         # Normalize public key: remove spaces, dashes, convert to lowercase
-        # This matches the normalization in register_node and get_node_by_key
+        # This matches the normalization in get_node_by_key
         public_key_normalized = public_key.replace(' ', '').replace('-', '').lower()
         
         # Get node details
@@ -1541,7 +1410,7 @@ def delete_node(public_key: str, user_id: str) -> Dict[str, Any]:
     
     try:
         # Normalize public key: remove spaces, dashes, convert to lowercase
-        # This matches the normalization in register_node and get_node_by_key
+        # This matches the normalization in get_node_by_key
         public_key_normalized = public_key.replace(' ', '').replace('-', '').lower()
         
         # Verify deletion is allowed

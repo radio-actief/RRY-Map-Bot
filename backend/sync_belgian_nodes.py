@@ -399,7 +399,7 @@ def integrate_removed_node(public_key: str, conn) -> None:
     cursor = conn.cursor()
     
     # Normalize public key: remove spaces, dashes, convert to lowercase
-    # This matches the normalization in register_node and get_node_by_key
+    # This matches the normalization in get_node_by_key
     public_key_normalized = public_key.replace(' ', '').replace('-', '').lower()
     
     # Get current node data for logging
@@ -447,7 +447,7 @@ def restore_removed_node(node: Dict[str, Any], conn) -> None:
     cursor = conn.cursor()
     
     # Normalize public key: remove spaces, dashes, convert to lowercase
-    # This matches the normalization in register_node and get_node_by_key
+    # This matches the normalization in get_node_by_key
     public_key_normalized = node['public_key'].replace(' ', '').replace('-', '').lower()
     
     # Get current node to preserve Discord ownership, source, and city
@@ -618,7 +618,7 @@ def merge_node_update(node: Dict[str, Any],
     cursor = conn.cursor()
     
     # Normalize public key: remove spaces, dashes, convert to lowercase
-    # This matches the normalization in register_node and get_node_by_key
+    # This matches the normalization in get_node_by_key
     public_key_normalized = node['public_key'].replace(' ', '').replace('-', '').lower()
     
     # Immutable fields: always update from official map
@@ -888,7 +888,7 @@ def get_node_details_by_keys(public_keys: List[str], conn) -> List[Dict[str, Any
         return []
     
     # Normalize all public keys: remove spaces, dashes, convert to lowercase
-    # This matches the normalization in register_node and get_node_by_key
+    # This matches the normalization in get_node_by_key
     public_keys_normalized = [key.replace(' ', '').replace('-', '').lower() for key in public_keys]
     
     cursor = conn.cursor()

@@ -712,7 +712,7 @@ createApp({
       search: "",
       cityFilter: "",
       nodeFilter: [],
-      sourceFilter: ["discord", "app", "uploader"],
+      sourceFilter: ["app", "uploader"],
       claimedFilter: ["claimed", "unclaimed"],
       fromDate: "",
       clusteringZoom: 11,
@@ -996,7 +996,7 @@ createApp({
 
     function clearFilters() {
       app.nodeFilter = [1, 2, 3, 4];
-      app.sourceFilter = ["discord", "app", "uploader"];
+      app.sourceFilter = ["app", "uploader"];
       app.claimedFilter = ["claimed", "unclaimed"];
       app.fromDate = "2025-03-01";
       app.cityFilter = "";

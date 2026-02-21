@@ -5,14 +5,14 @@ body.map-page {
   /* Typography: Figtree on map */
   --app-font-body: "Figtree", system-ui, sans-serif;
   --app-font-display: "Figtree", system-ui, sans-serif;
-  /* Color: cohesive light theme, sharp accent (teal), high contrast text */
+  /* Color: cohesive light theme, accent (orange/darker yellow, matches stats page) */
   --app-bg: #f6f5f2;
   --app-surface: rgba(255, 255, 255, 0.92);
   --app-surface-hover: rgba(250, 250, 249, 0.98);
   --app-text: #1a1917;
   --app-text-muted: #57534e;
-  --app-accent: #0d9488;
-  --app-accent-hover: #0f766e;
+  --app-accent: #d4a017;
+  --app-accent-hover: #b88a14;
   --app-discord: #5865f2;
   --app-success: #15803d;
   --app-error: #b91c1c;
@@ -46,7 +46,7 @@ body {
 body.map-page {
   background: var(--app-bg);
   background-image:
-    radial-gradient(ellipse 100% 60% at 50% -10%, rgba(13, 148, 136, 0.04), transparent),
+    radial-gradient(ellipse 100% 60% at 50% -10%, rgba(212, 160, 23, 0.06), transparent),
     linear-gradient(180deg, var(--app-bg) 0%, #eeedea 100%);
   min-height: 100vh;
 }
@@ -647,7 +647,7 @@ body.map-page .search .search-filter-wrap .filter:focus-visible {
 }
 
 .search-text b {
-  background: rgba(13, 148, 136, 0.25);
+  background: rgba(212, 160, 23, 0.25);
   color: var(--app-text, #1a1917);
 }
 /* Floating action buttons: same class, same formatting */

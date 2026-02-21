@@ -1099,9 +1099,9 @@ def send_sync_notification(
                         inline=True
                     )
                 
-                # Get node details for each category
+                # Get node details for each category (added, restored, removed; updated not shown)
                 added_nodes = get_node_details_by_keys(changes.get('added', [])[:50], conn)  # Limit to 50
-                updated_nodes = get_node_details_by_keys(changes.get('updated', [])[:50], conn)  # Limit to 50
+                restored_nodes = get_node_details_by_keys(changes.get('restored', [])[:50], conn)  # Limit to 50
                 
                 # Get deactivated unclaimed Discord nodes from THIS sync cycle only
                 # (not all historical deactivated unclaimed Discord nodes)
@@ -1117,7 +1117,7 @@ def send_sync_notification(
                 ]
                 removed_nodes = get_node_details_by_keys(removed_keys_filtered[:50], conn)  # Limit to 50
                 
-                # Separate lists: New Nodes, Updated Nodes, Deleted Nodes, Deleted Unclaimed Discord Nodes
+                # Separate lists: New Nodes, Restored Nodes, Deleted Nodes, Deleted Unclaimed Discord Nodes (updated not shown)
                 # Only show if there are actual items
                 
                 if added_nodes:
@@ -1131,13 +1131,13 @@ def send_sync_notification(
                         inline=False
                     )
                 
-                if updated_nodes:
-                    formatted = "\n".join([f"- {format_node_for_sync_notification(node)}" for node in updated_nodes])
-                    total_count = len(changes.get('updated', []))
+                if restored_nodes:
+                    formatted = "\n".join([f"- {format_node_for_sync_notification(node)}" for node in restored_nodes])
+                    total_count = len(changes.get('restored', []))
                     if total_count > 50:
                         formatted += f"\n\n*... and {total_count - 50} more*"
                     embed.add_field(
-                        name=f"🔄 Updated Nodes ({total_count})",
+                        name=f"🔄 Restored Nodes ({total_count})",
                         value=formatted[:1024],
                         inline=False
                     )
@@ -1310,7 +1310,8 @@ def sync_belgian_nodes(geopy_delay: float = 1.5, skip_geopy: bool = False) -> Di
         # 10. Send Discord notification only when there are added or removed nodes (not for updates-only)
         has_added = changes.get('added_count', 0) > 0
         has_removed = changes.get('removed_count', 0) > 0
-        if has_added or has_removed:
+        has_restored = changes.get('restored_count', 0) > 0
+        if has_added or has_removed or has_restored:
             try:
                 send_sync_notification(
                     changes,

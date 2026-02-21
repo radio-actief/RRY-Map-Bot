@@ -800,7 +800,6 @@ async def update_bot_instructions_post() -> None:
 
 # Create command groups
 node_group = app_commands.Group(name="node", description="Manage node operations")
-stats_group = app_commands.Group(name="stats", description="Show Belgian MeshCore node statistics")
 
 # Create choices for node types (must be defined before use in decorators)
 node_type_choices = [
@@ -815,185 +814,6 @@ frequency_preset_choices = [
     app_commands.Choice(name=preset['name'], value=preset['name'])
     for preset in FREQUENCY_PRESETS
 ]
-
-
-# ============================================================================
-# Interactive Button Views for Register Command
-# ============================================================================
-
-def compare_node_details(new_details: Dict[str, Any], existing_node: Dict[str, Any]) -> bool:
-    """
-    Compare new details with existing node to check if they match.
-    
-    Args:
-        new_details: Dictionary with new node details from user input.
-        existing_node: Dictionary with existing node from database.
-    
-    Returns:
-        True if all relevant fields match, False otherwise.
-    """
-    # Compare name (case-insensitive)
-    new_name = (new_details.get('adv_name') or new_details.get('name', '')).strip()
-    existing_name = (existing_node.get('adv_name') or '').strip()
-    if new_name.lower() != existing_name.lower():
-        return False
-    
-    # Compare city (case-insensitive)
-    new_city = (new_details.get('city') or '').strip()
-    existing_city = (existing_node.get('city') or '').strip()
-    if new_city.lower() != existing_city.lower():
-        return False
-    
-    # Compare type
-    new_type = new_details.get('type') or new_details.get('node_type')
-    existing_type = existing_node.get('type')
-    if new_type != existing_type:
-        return False
-    
-    # Compare frequency parameters
-    new_params = new_details.get('params', {}) or {}
-    existing_params = existing_node.get('params')
-    
-    # Handle None or empty params
-    if existing_params is None:
-        existing_params = {}
-    elif isinstance(existing_params, str):
-        # Deserialize if needed
-        from backend.database import json_deserialize
-        existing_params = json_deserialize(existing_params) or {}
-    elif not isinstance(existing_params, dict):
-        existing_params = {}
-    
-    # Compare all frequency parameters
-    for key in ['freq', 'sf', 'bw', 'cr']:
-        new_val = new_params.get(key)
-        existing_val = existing_params.get(key)
-        
-        # Handle None values
-        if new_val is None and existing_val is None:
-            continue  # Both None, they match
-        if new_val is None or existing_val is None:
-            return False  # One is None, the other is not
-        
-        # Handle float comparison with tolerance
-        try:
-            # Convert both to float for comparison
-            new_float = float(new_val)
-            existing_float = float(existing_val)
-            if abs(new_float - existing_float) > 0.001:  # Small tolerance for float comparison
-                return False
-        except (ValueError, TypeError):
-            # If conversion fails, do direct comparison
-            if new_val != existing_val:
-                return False
-    
-    # Compare latitude (handle None values)
-    new_lat = new_details.get('adv_lat') or new_details.get('latitude')
-    existing_lat = existing_node.get('adv_lat')
-    if new_lat is not None and existing_lat is not None:
-        try:
-            if abs(float(new_lat) - float(existing_lat)) > 0.0001:  # Small tolerance for coordinates
-                return False
-        except (ValueError, TypeError):
-            # If conversion fails, do direct comparison
-            if new_lat != existing_lat:
-                return False
-    elif new_lat is not None or existing_lat is not None:
-        # One is None, the other is not
-        return False
-    
-    # Compare longitude (handle None values)
-    new_lon = new_details.get('adv_lon') or new_details.get('longitude')
-    existing_lon = existing_node.get('adv_lon')
-    if new_lon is not None and existing_lon is not None:
-        try:
-            if abs(float(new_lon) - float(existing_lon)) > 0.0001:  # Small tolerance for coordinates
-                return False
-        except (ValueError, TypeError):
-            # If conversion fails, do direct comparison
-            if new_lon != existing_lon:
-                return False
-    elif new_lon is not None or existing_lon is not None:
-        # One is None, the other is not
-        return False
-    
-    # Compare link (handle None values, case-insensitive)
-    new_link = (new_details.get('link') or '').strip()
-    existing_link = (existing_node.get('link') or '').strip()
-    if new_link.lower() != existing_link.lower():
-        return False
-    
-    # All fields match
-    return True
-
-
-def format_node_details_for_choice(node: Dict[str, Any], node_type_num: Optional[int] = None) -> str:
-    """
-    Format node details for display in choice prompt.
-    Shows: Type, Name, City, Location, Frequency, Link (if available).
-    
-    Args:
-        node: Node dictionary or details dictionary.
-        node_type_num: Node type number (if not in node dict).
-    
-    Returns:
-        Formatted string with node details.
-    """
-    lines = []
-    
-    # Type
-    type_num = node.get('type') or node_type_num
-    if type_num:
-        type_text = get_node_type_display(type_num)
-        type_icon = get_node_type_icon(type_num)
-        lines.append(f"**Type:** {type_icon} {type_text}")
-    
-    # Name
-    name = node.get('adv_name') or node.get('name', 'N/A')
-    lines.append(f"**Name:** `{name}`")
-    
-    # City
-    city = node.get('city', 'N/A')
-    lines.append(f"**City:** `{city}`")
-    
-    # Location (coordinates)
-    lat = node.get('adv_lat') or node.get('latitude')
-    lon = node.get('adv_lon') or node.get('longitude')
-    if lat is not None and lon is not None:
-        lines.append(f"**Location:** `{lat}, {lon}`")
-    else:
-        lines.append(f"**Location:** `N/A`")
-    
-    # Frequency
-    params = node.get('params')
-    # Ensure params is a dict - handle None, string, or invalid types
-    if params is None:
-        params = {}
-    elif isinstance(params, str):
-        # Deserialize JSON string
-        from backend.database import json_deserialize
-        try:
-            params = json_deserialize(params) or {}
-        except Exception:
-            params = {}
-    elif not isinstance(params, dict):
-        # Invalid type, default to empty dict
-        params = {}
-    
-    # Format frequency display (will show N/A if params is empty or invalid)
-    freq_display = format_frequency_display(params)
-    lines.append(f"**Frequency:** {freq_display}")
-    
-    # MeshCore Link
-    link = node.get('link')
-    if link:
-        # Truncate long links
-        link_display = link if len(link) <= 50 else link[:47] + "..."
-        lines.append(f"**Link:** `{link_display}`")
-    else:
-        lines.append(f"**Link:** `N/A`")
-    
-    return "\n".join(lines)
 
 
 class UnclaimConfirmView(discord.ui.View):
@@ -1661,7 +1481,7 @@ async def stats(interaction: discord.Interaction):
         f"7 days: **{stats_data.get('active_7d', 0)}**",
         f"30 days: **{stats_data.get('active_30d', 0)}**",
     ]
-    embed1.add_field(name="Activity \*", value="\n".join(activity_lines), inline=True)
+    embed1.add_field(name="Activity *", value="\n".join(activity_lines), inline=True)
     claimed_lines = [
         f"Nodes claimed: **{stats_data.get('claimed_nodes', 0)}**",
         f"Discord users: **{total_users}**",
@@ -1721,8 +1541,8 @@ async def stats(interaction: discord.Interaction):
     embed1.add_field(name="Source type", value=source_value, inline=True)
 
     notes_value = (
-        "_\* Most recent of: inserted\_date, updated\_date, last\_advert_\n"
-        "_** Uploader = nodes reported by companions running [uploader software](https://github.com/recrof/map.meshcore.dev-uploader); unreported nodes may be removed after 30 days inactivity._\n\n"
+        "_\\* Most recent of: inserted\\_date, updated\\_date, last\\_advert_\n"
+        "_\\*\\* Uploader = nodes reported by companions running [uploader software](https://github.com/recrof/map.meshcore.dev-uploader); unreported nodes may be removed after 30 days inactivity._\n\n"
         "Full statistics online: [map.axistem.eu/stats](https://map.axistem.eu/stats)"
     )
     embed1.add_field(name="\u200b", value=notes_value, inline=False)
@@ -1732,8 +1552,6 @@ async def stats(interaction: discord.Interaction):
 
 # Register command groups BEFORE on_ready
 bot.tree.add_command(node_group)
-# Note: stats_group is NOT registered because we use top-level /stats command
-# The stats_group is kept for code organization but subcommands are registered separately
 
 # Debug: Verify commands are registered at module load time
 def _debug_print_commands():

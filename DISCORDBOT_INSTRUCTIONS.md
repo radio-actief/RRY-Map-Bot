@@ -20,7 +20,7 @@ Gebruik je de bot liever niet? Gebruik dan [**BEMesh Map**](https://map.axistem.
 - **`/node update`** - Update alleen de **stad** van een node die je beheert
 
 ### :mag: Zoeken
-- **`/search`** - Zoek op naam, public key, type, stad, frequentiepreset, eigenaar, claimstatus, inactief of bron. Minstens één criterium invullen. Bronfilter: alleen **App** of **Uploader**.
+- **`/search`** - Zoek op naam, public key, type, stad, frequentiepreset, eigenaar, claimstatus, inactief of bron. Minstens één criterium invullen.
 
 ### :bar_chart: Statistieken
 - **`/stats`** - Eén overzicht met: algemene cijfers (nodes, types, presets, steden, activiteit), alle steden met aantallen, frequentie per type, en verdeling per bron

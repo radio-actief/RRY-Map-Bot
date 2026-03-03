@@ -453,7 +453,7 @@ def get_most_recent_date(node: Dict[str, Any]) -> Optional[str]:
     return None
 
 
-def format_node_simple(node: Dict[str, Any], show_coords: bool = False, show_owner: bool = False) -> str:
+def format_node_simple(node: Dict[str, Any], show_coords: bool = False, show_owner: bool = False, include_map_link: bool = False) -> str:
     """
     Format a single node in the simplified format.
     
@@ -461,9 +461,10 @@ def format_node_simple(node: Dict[str, Any], show_coords: bool = False, show_own
         node: Node dictionary.
         show_coords: If True, show coordinates in parentheses.
         show_owner: If True, show Discord owner in subtitle.
+        include_map_link: If True, add a "View on map" link line.
     
     Returns:
-        Formatted string with 3 lines per node.
+        Formatted string with 3 lines per node (4 if include_map_link).
     """
     # Ensure params are deserialized
     params = node.get('params', {})
@@ -515,7 +516,10 @@ def format_node_simple(node: Dict[str, Any], show_coords: bool = False, show_own
         source_capitalized = 'N/A'
     line3 = f"📻 Frequency: {freq_display} | ℹ️ Source: {source_capitalized}"
     
-    return f"{line1}\n{line2}\n{line3}"
+    result = f"{line1}\n{line2}\n{line3}"
+    if include_map_link:
+        result += f"\n[View on map]({get_map_link(node)})"
+    return result
 
 
 def format_node_list(nodes: List[Dict[str, Any]], show_full_keys: bool = False) -> str:
@@ -579,16 +583,21 @@ def update_discord_updated_date(public_key: str) -> None:
 
 def get_map_link(node: Dict[str, Any]) -> str:
     """
-    Generate map link for a node.
+    Generate map link for a node (direct link to node on map).
     
     Args:
-        node: Node dictionary.
+        node: Node dictionary with public_key.
     
     Returns:
         URL to view node on map.
     """
-    # TODO: Update with actual map URL when web map is deployed
-    return "https://map.axistem.eu"  # Placeholder
+    from urllib.parse import quote
+    from config.config import MAP_BASE_URL
+    base = MAP_BASE_URL.rstrip("/")
+    pk = (node.get("public_key") or "").strip()
+    if pk:
+        return f"{base}/?node={quote(pk, safe='')}"
+    return base
 
 
 # ============================================================================
@@ -1065,6 +1074,7 @@ async def search_nodes(
             node['params'] = {}
         embed = format_full_node_details(node, show_coordinates=False, user_id=str(interaction.user.id))
         embed.description = f"**Search result for:** {search_query_str}\n\n{embed.description}"
+        embed.add_field(name="View on Map", value=f"[Open on map]({get_map_link(node)})", inline=False)
         owner_id_val = node.get('discord_owner_id')
         if owner_id_val:
             embed.set_footer(text="If you're the owner, use `/node update` to edit city. Use `/mynodes` to see your owned nodes.")
@@ -1274,7 +1284,7 @@ async def mynodes(interaction: discord.Interaction):
         elif 'params' not in node or node.get('params') is None:
             node['params'] = {}
         
-        formatted = format_node_simple(node, show_coords=True, show_owner=False)
+        formatted = format_node_simple(node, show_coords=True, show_owner=False, include_map_link=True)
         formatted_nodes.append(formatted)
     
     # Combine all formatted nodes

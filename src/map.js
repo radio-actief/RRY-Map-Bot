@@ -18,7 +18,25 @@ const mdiLogout =
   "M17 7L15.59 8.41L18.17 11H8V13H18.17L15.59 15.58L17 17L22 12M4 5H12V3H4C2.9 3 2 3.9 2 5V19C2 20.1 2.9 21 4 21H12V19H4V5Z";
 const mdiCounter =
   "M4,4H20A2,2 0 0,1 22,6V18A2,2 0 0,1 20,20H4A2,2 0 0,1 2,18V6A2,2 0 0,1 4,4M4,6V18H11V6H4M20,18V6H18.76C19,6.54 18.95,7.07 18.95,7.13C18.88,7.8 18.41,8.5 18.24,8.75L15.91,11.3L19.23,11.28L19.24,12.5L14.04,12.47L14,11.47C14,11.47 17.05,8.24 17.2,7.95C17.34,7.67 17.91,6 16.5,6C15.27,6.05 15.41,7.3 15.41,7.3L13.87,7.31C13.87,7.31 13.88,6.65 14.25,6H13V18H15.58L15.57,17.14L16.54,17.13C16.54,17.13 17.45,16.97 17.46,16.08C17.5,15.08 16.65,15.08 16.5,15.08C16.37,15.08 15.43,15.13 15.43,15.95H13.91C13.91,15.95 13.95,13.89 16.5,13.89C19.1,13.89 18.96,15.91 18.96,15.91C18.96,15.91 19,17.16 17.85,17.63L18.37,18H20M8.92,16H7.42V10.2L5.62,10.76V9.53L8.76,8.41H8.92V16Z";
+const mdiOpenInNew =
+  "M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z";
 const apiUrl = "/api/v1/belgian-nodes";
+
+function normalizePubKeyForCompare(key) {
+  return (key || "").toLowerCase().replace(/\s/g, "");
+}
+
+function formatInserterUpdater(val, nodes = [], currentNode = null) {
+  if (!val) return "N/A";
+  const copyable = createCopyableElement(val, shortenForDisplay(val.toUpperCase(), 18));
+  const k = normalizePubKeyForCompare(val);
+  const isSameNode = currentNode && normalizePubKeyForCompare(currentNode.public_key) === k;
+  const inDb = !isSameNode && nodes.some((n) => normalizePubKeyForCompare(n.public_key) === k);
+  const gotoLink = inDb
+    ? ` <a href="?node=${encodeURIComponent(val)}" title="Go to node on map" style="color:#4CAF50;text-decoration:none;vertical-align:middle;"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:middle;display:inline-block;"><path d="${mdiOpenInNew}" fill="currentColor"/></svg></a>`
+    : "";
+  return copyable + gotoLink;
+}
 
 const types = {
   1: "Client",
@@ -323,17 +341,13 @@ const columns = {
   },
   inserted_by: {
     label: "Inserted by",
-    value: (val) =>
-      val
-        ? createCopyableElement(val, shortenForDisplay(val.toUpperCase(), 18))
-        : "N/A",
+    value: (val, node, nodes = []) =>
+      formatInserterUpdater(val, nodes, node),
   },
   updated_by: {
     label: "Updated by",
-    value: (val) =>
-      val
-        ? createCopyableElement(val, shortenForDisplay(val.toUpperCase(), 18))
-        : "N/A",
+    value: (val, node, nodes = []) =>
+      formatInserterUpdater(val, nodes, node),
   },
   type: {
     label: "Node type",
@@ -424,7 +438,7 @@ function clearLocationHash() {
   history.pushState("", document.title, location.pathname + location.search);
 }
 
-function getTable(node, authState = null) {
+function getTable(node, authState = null, nodes = []) {
   // Map node type to analyzer URL type
   // User specified: companions (type 1), repeaters (type 2), rooms (type 3), sensors (type 5)
   const typeMap = {
@@ -453,7 +467,7 @@ function getTable(node, authState = null) {
           return [
             `<td>${columns[key].label}</td><td>${
               columns[key].value
-                ? columns[key].value(node[key], node)
+                ? columns[key].value(node[key], node, nodes)
                 : node[key]
             }</td>`,
           ];
@@ -794,7 +808,7 @@ createApp({
             }
             // Update popup
             if (node.popup && node.popup.isOpen()) {
-              node.popup.setContent(getTable(node, auth));
+              node.popup.setContent(getTable(node, auth, app.nodes));
             }
           });
         } else {
@@ -870,7 +884,7 @@ createApp({
             }
             // Update popup
             if (node.popup && node.popup.isOpen()) {
-              node.popup.setContent(getTable(node, auth));
+              node.popup.setContent(getTable(node, auth, app.nodes));
             }
           });
         } else {
@@ -917,27 +931,83 @@ createApp({
       }
     }
 
-    async function refreshMap({ clusteringZoom = 0 } = {}) {
-      markerClusterGroup.clearLayers();
-      const nodes =
+    let pendingClusterPopupCleanup = null;
+
+    function normalizePubKey(key) {
+      return (key || "").toLowerCase().replace(/\s/g, "");
+    }
+    function findNodeByPubKey(nodes, key) {
+      const k = normalizePubKey(key);
+      return k ? nodes.find((n) => normalizePubKey(n.public_key) === k) ?? null : null;
+    }
+
+    async function refreshMap({ clusteringZoom = 0, targetNodeKey = null } = {}) {
+      if (pendingClusterPopupCleanup) {
+        pendingClusterPopupCleanup();
+        pendingClusterPopupCleanup = null;
+      }
+
+      let nodes =
         app.filteredNodes.length > 0 ? app.filteredNodes : app.nodes;
+      if (targetNodeKey) {
+        const target = findNodeByPubKey(app.nodes, targetNodeKey);
+        if (target && !nodes.includes(target)) {
+          nodes = [...nodes, target];
+        }
+      }
 
       map.removeLayer(markerClusterGroup);
 
-      if (clusteringZoom) {
-        markerClusterGroup = L.markerClusterGroup({
-          disableClusteringAtZoom: clusteringZoom,
-        });
-      }
+      markerClusterGroup = L.markerClusterGroup({
+        disableClusteringAtZoom: clusteringZoom || app.clusteringZoom,
+      });
 
       for (const node of nodes) {
-        // Only add markers that exist (nodes with valid coordinates have markers)
-        if (node.marker) {
-          markerClusterGroup.addLayer(toRaw(node.marker));
+        const marker = toRaw(node.marker);
+        if (marker && marker.options?.icon) {
+          markerClusterGroup.addLayer(marker);
         }
       }
 
       map.addLayer(markerClusterGroup);
+
+      const urlNodeKey = normalizePubKey(
+        app.urlParams.node || new URLSearchParams(location.search).get("node"),
+      );
+      if (urlNodeKey) {
+        markerClusterGroup.on("clusterclick", function (e) {
+          const markers = e.layer.getAllChildMarkers();
+          const targetMarker = markers.find((m) => {
+            const node = app.nodes.find((n) => n.marker === m);
+            return node && normalizePubKey(node.public_key) === urlNodeKey;
+          });
+          if (targetMarker) {
+            let done = false;
+            const cluster = markerClusterGroup;
+            const onExpand = () => {
+              if (done) return;
+              done = true;
+              pendingClusterPopupCleanup = null;
+              cluster.off("spiderfied", onExpand);
+              map.off("moveend", onExpand);
+              if (targetMarker._map && cluster.hasLayer(targetMarker)) {
+                setTimeout(() => {
+                  try {
+                    targetMarker.openPopup();
+                  } catch (_) {}
+                }, 100);
+              }
+            };
+            pendingClusterPopupCleanup = () => {
+              done = true;
+              cluster.off("spiderfied", onExpand);
+              map.off("moveend", onExpand);
+            };
+            cluster.once("spiderfied", onExpand);
+            map.once("moveend", onExpand);
+          }
+        });
+      }
 
       // Update marker glows after markers are added to map
       setTimeout(() => {
@@ -976,6 +1046,40 @@ createApp({
       app.search = "";
     }
 
+    /** Focus map on node and open popup when arriving via ?node=<public_key>. */
+    function focusNodeFromUrl(node) {
+      const lat = node.adv_lat;
+      const lon = node.adv_lon;
+      if (lat == null || lon == null) return;
+
+      const typeKey = String(node.type || 1);
+      const icon = icons.none?.[typeKey] ?? icons.none["1"];
+      const tempMarker = L.marker([lat, lon], { icon, title: node.adv_name });
+      const popup = L.popup({
+        minWidth: 350,
+        maxWidth: 350,
+        content: getTable(node, auth, app.nodes),
+      });
+      tempMarker.bindPopup(popup);
+      tempMarker.on("popupclose", () => {
+        delete app.urlParams.node;
+        map.removeLayer(tempMarker);
+      });
+
+      map.addLayer(tempMarker);
+      map.invalidateSize();
+      map.setView([lat, lon], 18);
+
+      const openPopup = () => {
+        map.off("moveend", openPopup);
+        try {
+          tempMarker.openPopup();
+        } catch {}
+      };
+      map.once("moveend", openPopup);
+      setTimeout(openPopup, 400);
+    }
+
     function highlightString(source, toHighlight) {
       const escapedSource = source
         .replaceAll("&", "&amp;")
@@ -1005,6 +1109,7 @@ createApp({
       app.filteredNodes = [];
       // Clear URL parameters
       delete app.urlParams.nodes;
+      delete app.urlParams.node;
       delete app.urlParams.source;
       delete app.urlParams.claimed;
       delete app.urlParams.date;
@@ -1041,7 +1146,9 @@ createApp({
           }
 
           const updateStatus = getNodeUpdateStatus(node);
-          let icon = icons[updateStatus][node.type.toString()];
+          const typeKey = String(node.type || 1);
+          let icon =
+            icons[updateStatus]?.[typeKey] ?? icons.none?.[typeKey] ?? icons.none["1"];
 
           (app.nodesByType[node.type] ??= []).push(node);
 
@@ -1107,7 +1214,7 @@ createApp({
           const popup = L.popup({
             minWidth: 350,
             maxWidth: 350,
-            content: getTable(node, auth),
+            content: getTable(node, auth, app.nodes),
           });
           marker.bindPopup(popup);
 
@@ -1116,6 +1223,9 @@ createApp({
 
           // Re-setup copy handlers when popup opens (for dynamically created content)
           marker.on("popupopen", function () {
+            if (node.public_key) {
+              app.urlParams.node = node.public_key;
+            }
             // Small delay to ensure popup content is in DOM
             setTimeout(() => {
               const popupContent = popup.getElement();
@@ -1129,6 +1239,9 @@ createApp({
                 });
               }
             }, 100);
+          });
+          marker.on("popupclose", function () {
+            delete app.urlParams.node;
           });
         }
 
@@ -1178,7 +1291,27 @@ createApp({
       disableClusteringAtZoom: app.clusteringZoom,
     });
 
-    clearFilters();
+    // Apply URL params to initial state (before clearFilters would overwrite)
+    const hasUrlParams =
+      urlParams.nodes ||
+      urlParams.node ||
+      urlParams.public_key ||
+      urlParams.cluster ||
+      urlParams.date ||
+      urlParams.city ||
+      urlParams.source ||
+      urlParams.claimed;
+    if (hasUrlParams) {
+      if (urlParams.nodes) app.nodeFilter = urlParams.nodes.split(",");
+      if (urlParams.date) app.fromDate = urlParams.date;
+      if (urlParams.cluster)
+        app.clusteringZoom = Number(urlParams.cluster) || 11;
+      if (urlParams.city) app.cityFilter = urlParams.city;
+      if (urlParams.source) app.sourceFilter = urlParams.source.split(",");
+      if (urlParams.claimed) app.claimedFilter = urlParams.claimed.split(",");
+    } else {
+      clearFilters();
+    }
 
     const filtersActive = computed(
       () =>
@@ -1515,7 +1648,7 @@ createApp({
             // Update all open popups when auth state changes
             app.nodes.forEach((node) => {
               if (node.popup && node.popup.isOpen()) {
-                node.popup.setContent(getTable(node, auth));
+                node.popup.setContent(getTable(node, auth, app.nodes));
               }
 
               // Update marker glow (claimed = yellow, user-owned = purple)
@@ -1574,7 +1707,7 @@ createApp({
           app.fromDate = urlParams.date;
         }
         if (urlParams.cluster) {
-          app.clusteringZoom = urlParams.cluster;
+          app.clusteringZoom = Number(urlParams.cluster) || 11;
         }
         if (urlParams.city) {
           app.cityFilter = urlParams.city;
@@ -1585,7 +1718,37 @@ createApp({
         if (urlParams.claimed) {
           app.claimedFilter = urlParams.claimed.split(",");
         }
-        refreshMap();
+
+        const searchParams = new URLSearchParams(location.search);
+        const nodeKey = (
+          searchParams.get("node") || searchParams.get("public_key") || ""
+        ).trim();
+        let targetNode = nodeKey ? findNodeByPubKey(app.nodes, nodeKey) : null;
+        if (targetNode && (targetNode.adv_lat == null || targetNode.adv_lon == null)) {
+          targetNode = null;
+        }
+        if (targetNode) {
+          const type = String(Number(targetNode.type) || 1);
+          if (
+            app.nodeFilter.length > 0 &&
+            !app.nodeFilter.includes(type)
+          ) {
+            app.nodeFilter = [...app.nodeFilter, type];
+          }
+        }
+
+        refreshMap({ targetNodeKey: nodeKey || undefined });
+
+        if (nodeKey && !targetNode) {
+          console.warn(
+            `[Map] Node not found for ?node=${nodeKey.slice(0, 16)}... (${app.nodes.length} nodes loaded)`
+          );
+        }
+        if (targetNode) {
+          nextTick(() => {
+            setTimeout(() => focusNodeFromUrl(targetNode), 150);
+          });
+        }
       });
 
       // Fix: Prevent filter menu from closing when clicking/focusing inputs inside it

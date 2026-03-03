@@ -24,6 +24,9 @@ GEOPY_TIMEOUT = int(os.getenv('GEOPY_TIMEOUT', '10'))
 OFFICIAL_API_URL = os.getenv('OFFICIAL_API_URL', 'https://map.meshcore.dev/api/v1/nodes')
 LOCAL_API_URL = os.getenv('LOCAL_API_URL', 'http://localhost:8000/api/v1')
 
+# Map Web UI (for direct node links)
+MAP_BASE_URL = os.getenv('MAP_BASE_URL', 'https://map.axistem.eu')
+
 # Sync Configuration
 SYNC_INTERVAL_HOURS = int(os.getenv('SYNC_INTERVAL_HOURS', '6'))
 

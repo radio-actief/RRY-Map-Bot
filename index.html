@@ -123,33 +123,7 @@
           </div>
         </div>
         <form class="search no-margin" action="javascript:;">
-          <div class="search-bar">
-            <div class="search-input-wrap">
-              <div class="field border no-margin">
-                <input
-                  type="text"
-                  id="search-nodes-input"
-                  class="background"
-                  list="nodes"
-                  v-model="app.search"
-                  placeholder="Search Nodes"
-                  v-if="app.nodes"
-                />
-              </div>
-            </div>
-            <div class="search-filter-wrap">
-              <button
-                type="button"
-                class="filter"
-                :class="{ circle: !filtersActive, transparent: !filtersActive, 'error-container': filtersActive }"
-                data-ui="#node-filter"
-              >
-                <i>filter_alt</i>
-                <span v-if="filtersActive">Filters active</span>
-              </button>
-            </div>
-          </div>
-          <menu id="node-filter" data-ui="#node-filter" class="filter-menu">
+          <menu class="left no-wrap" id="node-filter" data-ui="#node-filter">
             <li class="filter-section">
               <span class="filter-section-title">Type</span>
               <div class="filter-section-options">
@@ -197,6 +171,13 @@
               </div>
             </li>
             <li class="padding">
+              <div class="field label prefix fill small">
+                <i>today</i>
+                <input type="date" v-model="app.fromInsertDate" placeholder=" " />
+                <label>Inserted</label>
+              </div>
+            </li>
+            <li class="padding">
               <div class="field border">
                 <input
                   type="text"
@@ -206,10 +187,11 @@
                 />
               </div>
             </li>
-            <li style="flex-direction: column; gap: 0">
+            <li class="slider-block" style="flex-direction: column; gap: 0">
               <span>Clustering zoom level</span>
               <label class="slider tiny">
                 <input
+                  id="clustering-zoom-slider"
                   min="8"
                   max="13"
                   type="range"
@@ -218,12 +200,32 @@
                 <span></span>
               </label>
             </li>
-            <li v-if="filtersActive">
+            <li v-if="filtersActive" class="clear-filters-wrap">
               <button class="small max" @click="clearFilters">
                 Clear filters
               </button>
             </li>
           </menu>
+          <div class="field border no-margin">
+            <input
+              type="text"
+              id="search-nodes-input"
+              class="background"
+              list="nodes"
+              v-model="app.search"
+              placeholder="Search Nodes"
+              v-if="app.nodes"
+            />
+            <button
+              type="button"
+              class="filter"
+              :class="{ circle: !filtersActive, transparent: !filtersActive, 'error-container': filtersActive }"
+              data-ui="#node-filter"
+            >
+              <i>filter_alt</i>
+              <span v-if="filtersActive">Filters active</span>
+            </button>
+          </div>
           <article
             class="search-results no-margin no-padding"
             v-if="searchResults?.length > 0"

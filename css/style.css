@@ -122,8 +122,7 @@ table.node-info tr td:first-child {
   width: 150px;
 }
 table.node-info tr td:last-child {
-  overflow: hidden;
-  text-overflow: ellipsis;
+  word-break: break-all;
 }
 
 .search-results {
@@ -589,49 +588,34 @@ table.node-info tr td:last-child {
   gap: 8px;
 }
 
-/* Search bar: input and filter as separate blocks in one row */
-.search-bar {
+/* Search field: input + filter button (official map structure) */
+.search .field.border {
   display: flex;
   align-items: stretch;
-  gap: 10px;
+  gap: 8px;
   width: 100%;
 }
 
-.search-input-wrap {
+.search .field.border input {
   flex: 1;
   min-width: 0;
 }
 
-.search-input-wrap .field.border {
-  margin: 0;
-  height: 100%;
-}
-
-.search-input-wrap .field.border input {
-  width: 100%;
-  min-width: 0;
-}
-
-.search-filter-wrap {
+.search .field.border .filter {
   flex-shrink: 0;
-  display: flex;
-  align-items: stretch;
-}
-
-.search-filter-wrap .filter {
   min-height: 44px;
   border-radius: var(--app-radius-sm, 6px);
   font-weight: 500;
 }
 
-body.map-page .search .search-input-wrap .field.border,
-body.map-page .search .search-filter-wrap .filter {
+body.map-page .search .field.border,
+body.map-page .search .field.border .filter {
   transition: box-shadow var(--app-ease), border-color var(--app-ease), background var(--app-ease);
 }
-body.map-page .search .search-input-wrap .field.border:focus-within {
+body.map-page .search .field.border:focus-within {
   box-shadow: 0 0 0 2px var(--app-accent);
 }
-body.map-page .search .search-filter-wrap .filter:focus-visible {
+body.map-page .search .field.border .filter:focus-visible {
   outline: none;
   box-shadow: 0 0 0 2px var(--app-accent);
 }
@@ -775,8 +759,6 @@ body.map-page .search .search-filter-wrap .filter:focus-visible {
 }
 
 .node-popup .node-info tr td:last-child {
-  overflow: hidden;
-  text-overflow: ellipsis;
   word-break: break-all;
 }
 
@@ -943,7 +925,6 @@ time {
 }
 
 /* Filter menu: block layout so title always sits above options (no overlap) */
-#node-filter.filter-menu,
 #node-filter {
   padding: 6px 8px !important;
   font-family: var(--app-font-body, "Figtree", system-ui, sans-serif);
@@ -954,7 +935,7 @@ time {
   overflow-y: auto;
   overflow-x: hidden;
 }
-/* When closed: hide so search row is first and doesn't get covered; only filter button opens menu */
+/* Beer CSS handles open/close via .active; ensure closed state is hidden when not active */
 #node-filter:not(.active) {
   display: none !important;
 }
@@ -987,29 +968,6 @@ time {
 #node-filter > li .checkbox {
   margin: 0 !important;
   padding: 1px 0 !important;
-}
-
-/* Reduce vertical height of clustering zoom slider track and thumb */
-#node-filter .slider.tiny input[type="range"] {
-  height: 14px !important;
-}
-
-#node-filter .slider.tiny input[type="range"]::-webkit-slider-runnable-track {
-  height: 4px !important;
-}
-
-#node-filter .slider.tiny input[type="range"]::-moz-range-track {
-  height: 4px !important;
-}
-
-#node-filter .slider.tiny input[type="range"]::-webkit-slider-thumb {
-  height: 14px !important;
-  width: 14px !important;
-}
-
-#node-filter .slider.tiny input[type="range"]::-moz-range-thumb {
-  height: 14px !important;
-  width: 14px !important;
 }
 
 /* Auth and filter panel – design tokens */
@@ -1092,4 +1050,34 @@ time {
 }
 #node-filter > li:not(.filter-section) {
   line-height: 1.25;
+}
+
+#node-filter > li.slider-block {
+  margin-top: 0.75rem !important;
+  margin-bottom: 0.75rem !important;
+  gap: 0.5rem !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+#node-filter > li.slider-block > span {
+  flex-shrink: 0;
+}
+
+#node-filter > li.slider-block .slider {
+  margin: 0.5rem 0 0.75rem !important;
+  flex-shrink: 0;
+  width: 100%;
+  inline-size: 100%;
+}
+
+#node-filter > li.clear-filters-wrap {
+  display: flex !important;
+  justify-content: center !important;
+  padding: 0.75rem 0 0 !important;
+  margin-top: 0.5rem !important;
+}
+
+#node-filter > li.clear-filters-wrap button {
+  padding: 0.5rem 1.25rem !important;
 }

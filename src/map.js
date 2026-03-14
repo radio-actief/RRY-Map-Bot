@@ -319,7 +319,7 @@ const columns = {
     label: "Name",
   },
   status: {
-    label: "Update status",
+    label: "Freshness",
     value: (val) => updateStatusDesc[val] || "N/A",
   },
   inserted_date: {
@@ -630,9 +630,9 @@ function getNodeUpdateStatus(node) {
   return "recent";
 }
 
-// Update status descriptions (exact upstream - note: 'manualy' is typo in upstream)
+// Update status descriptions (matches upstream)
 const updateStatusDesc = {
-  none: "manualy added",
+  none: "manually added",
   recent: "updated recently",
   stale: "updated while ago",
   old: "not updated",
@@ -729,6 +729,7 @@ createApp({
       sourceFilter: ["app", "uploader"],
       claimedFilter: ["claimed", "unclaimed"],
       fromDate: "",
+      fromInsertDate: "",
       clusteringZoom: 11,
       urlParams,
       loading: false,
@@ -1103,6 +1104,7 @@ createApp({
       app.sourceFilter = ["app", "uploader"];
       app.claimedFilter = ["claimed", "unclaimed"];
       app.fromDate = "2025-03-01";
+      app.fromInsertDate = "2025-03-01";
       app.cityFilter = "";
       app.clusteringZoom = 11;
       // Clear filtered nodes to show all nodes
@@ -1113,6 +1115,7 @@ createApp({
       delete app.urlParams.source;
       delete app.urlParams.claimed;
       delete app.urlParams.date;
+      delete app.urlParams.dateInsert;
       delete app.urlParams.city;
       app.urlParams.cluster = 11;
       // Refresh the map
@@ -1298,12 +1301,14 @@ createApp({
       urlParams.public_key ||
       urlParams.cluster ||
       urlParams.date ||
+      urlParams.dateInsert ||
       urlParams.city ||
       urlParams.source ||
       urlParams.claimed;
     if (hasUrlParams) {
       if (urlParams.nodes) app.nodeFilter = urlParams.nodes.split(",");
       if (urlParams.date) app.fromDate = urlParams.date;
+      if (urlParams.dateInsert) app.fromInsertDate = urlParams.dateInsert;
       if (urlParams.cluster)
         app.clusteringZoom = Number(urlParams.cluster) || 11;
       if (urlParams.city) app.cityFilter = urlParams.city;
@@ -1325,11 +1330,17 @@ createApp({
         () => app.sourceFilter,
         () => app.claimedFilter,
         () => app.fromDate,
+        () => app.fromInsertDate,
         () => app.cityFilter,
       ],
       () => {
         const fromDate = new Date(app.fromDate);
+        const fromInsertDate = new Date(app.fromInsertDate);
         const cityFilterLower = app.cityFilter.toLowerCase().trim();
+        const hasInsertFilter =
+          app.fromInsertDate &&
+          app.fromInsertDate.trim() !== "" &&
+          !isNaN(fromInsertDate.getTime());
         app.filteredNodes = app.nodeFilter
           .flatMap((type) => app.nodesByType[type])
           .filter(
@@ -1338,6 +1349,7 @@ createApp({
               (node.updatedDate
                 ? node.updatedDate > fromDate
                 : node.insertDate > fromDate) &&
+              (!hasInsertFilter || node.insertDate > fromInsertDate) &&
               (!cityFilterLower ||
                 (node.city &&
                   node.city.toLowerCase().includes(cityFilterLower))) &&
@@ -1357,6 +1369,11 @@ createApp({
           );
         app.urlParams.nodes = app.nodeFilter.join(",");
         app.urlParams.date = app.fromDate;
+        if (app.fromInsertDate) {
+          app.urlParams.dateInsert = app.fromInsertDate;
+        } else {
+          delete app.urlParams.dateInsert;
+        }
         if (app.cityFilter) {
           app.urlParams.city = app.cityFilter;
         } else {
@@ -1706,6 +1723,9 @@ createApp({
         if (urlParams.date) {
           app.fromDate = urlParams.date;
         }
+        if (urlParams.dateInsert) {
+          app.fromInsertDate = urlParams.dateInsert;
+        }
         if (urlParams.cluster) {
           app.clusteringZoom = Number(urlParams.cluster) || 11;
         }
@@ -1751,15 +1771,31 @@ createApp({
         }
       });
 
-      // Fix: Prevent filter menu from closing when clicking/focusing inputs inside it
-      // (Beer CSS closes menu on document click; use delegation so we catch events
-      // even if the menu node is re-created by Vue.)
+      // Fix slider fill: Beer CSS updates ---start/---end on input; when menu opens
+      // the slider may not have been painted yet. Trigger input to refresh the fill.
+      const menu = document.getElementById("node-filter");
+      if (menu) {
+        const observer = new MutationObserver(() => {
+          if (menu.classList.contains("active")) {
+            const slider = document.getElementById("clustering-zoom-slider");
+            if (slider) {
+              // Small delay so Beer CSS can measure after menu is visible
+              setTimeout(() => {
+                slider.dispatchEvent(new Event("input", { bubbles: true }));
+              }, 10);
+            }
+          }
+        });
+        observer.observe(menu, { attributes: true, attributeFilter: ["class"] });
+        onBeforeUnmount(() => observer.disconnect());
+      }
+
+      // Prevent filter menu from closing when clicking inputs/fields inside it
+      // (Beer CSS closes menu on outside click; keep open when interacting with filters)
       const preventFilterMenuClose = (e) => {
         const menu = document.getElementById("node-filter");
         if (!menu || !menu.contains(e.target)) return;
-        // Allow trigger button and menu buttons (e.g. Clear filters) to work
         if (e.target.tagName === "BUTTON" || e.target.closest("button")) return;
-        // Keep menu open when interacting with inputs / fields (search city, date, etc.)
         if (
           e.target.tagName === "INPUT" ||
           e.target.tagName === "SELECT" ||
@@ -1779,20 +1815,6 @@ createApp({
         document.removeEventListener("click", preventFilterMenuClose, true);
         document.removeEventListener("mousedown", preventFilterMenuClose, true);
         document.removeEventListener("mouseup", preventFilterMenuClose, true);
-      });
-
-      // Prevent search input from opening the filter menu (beer UI listens in capture phase)
-      const stopSearchOpenFilter = (e) => {
-        if (e.target.id === "search-nodes-input") {
-          e.stopPropagation();
-          e.stopImmediatePropagation();
-        }
-      };
-      document.addEventListener("click", stopSearchOpenFilter, true);
-      document.addEventListener("mousedown", stopSearchOpenFilter, true);
-      onBeforeUnmount(() => {
-        document.removeEventListener("click", stopSearchOpenFilter, true);
-        document.removeEventListener("mousedown", stopSearchOpenFilter, true);
       });
     });
 

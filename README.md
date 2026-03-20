@@ -2,7 +2,7 @@
 
 A comprehensive system for managing and visualizing Belgian MeshCore network nodes, combining a Discord bot and interactive web map.
 
-**Target Domain**: `map.axistem.eu`
+**Target Domain**: `meshmap.radio-actief.be`
 
 ---
 

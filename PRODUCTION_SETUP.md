@@ -2,7 +2,7 @@
 
 ## ✅ Completed Steps
 
-1. ✅ Discord OAuth2 callback URL added to Discord Developer Portal: `https://map.axistem.eu/auth/callback`
+1. ✅ Discord OAuth2 callback URL added to Discord Developer Portal: `https://meshmap.radio-actief.be/auth/callback`
 2. ✅ OAuth2 implementation completed
 3. ✅ Frontend authentication UI added
 
@@ -15,7 +15,7 @@
 # Get these from https://discord.com/developers/applications
 DISCORD_OAUTH2_CLIENT_ID=your_discord_oauth2_client_id
 DISCORD_OAUTH2_CLIENT_SECRET=your_discord_oauth2_client_secret
-DISCORD_OAUTH2_REDIRECT_URI=https://map.axistem.eu/auth/callback
+DISCORD_OAUTH2_REDIRECT_URI=https://meshmap.radio-actief.be/auth/callback
 
 # Flask Session Configuration (CRITICAL for production)
 FLASK_SECRET_KEY=<generate-a-secure-key>  # See below
@@ -58,7 +58,7 @@ python3 backend/api/app.py
 ## 🧪 Testing
 
 1. **Test Login Flow:**
-   - Visit https://map.axistem.eu
+   - Visit https://meshmap.radio-actief.be
    - Click "Login with Discord" in the top-right corner
    - You should be redirected to Discord for authorization
    - After authorizing, you should be redirected back to the map
@@ -104,6 +104,6 @@ python3 backend/api/app.py
 
 ## 📝 Notes
 
-- The production URL `https://map.axistem.eu/auth/callback` is already configured
+- The production URL `https://meshmap.radio-actief.be/auth/callback` is already configured
 - Both development (`http://localhost:8000/auth/callback`) and production URLs can be added to Discord Developer Portal if needed
 - Session data is stored server-side in the filesystem (configured in `backend/api/app.py`)

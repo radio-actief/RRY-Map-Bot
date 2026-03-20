@@ -1470,7 +1470,7 @@ async def stats(interaction: discord.Interaction):
     stats_title = resolve_custom_emojis_in_text(stats_title, guild)
     embed1 = discord.Embed(
         title=stats_title,
-        description="Overview of the Belgian MeshCore network statistics, from [#BEMesh Map](https://map.axistem.eu).",
+        description="Overview of the Belgian MeshCore network statistics, from [#BEMesh Map](https://meshmap.radio-actief.be).",
         color=discord.Color.blue()
     )
     # Row 1: network size (nodes)
@@ -1553,7 +1553,7 @@ async def stats(interaction: discord.Interaction):
     notes_value = (
         "_\\* Most recent of: inserted\\_date, updated\\_date, last\\_advert_\n"
         "_\\*\\* Uploader = nodes reported by companions running [uploader software](https://github.com/recrof/map.meshcore.dev-uploader); unreported nodes may be removed after 30 days inactivity._\n\n"
-        "Full statistics online: [map.axistem.eu/stats](https://map.axistem.eu/stats)"
+        "Full statistics online: [meshmap.radio-actief.be/stats](https://meshmap.radio-actief.be/stats)"
     )
     embed1.add_field(name="\u200b", value=notes_value, inline=False)
     embed1.set_footer(text="Made by the Radio-Actief.be community")

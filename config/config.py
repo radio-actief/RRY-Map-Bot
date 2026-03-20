@@ -25,7 +25,7 @@ OFFICIAL_API_URL = os.getenv('OFFICIAL_API_URL', 'https://map.meshcore.dev/api/v
 LOCAL_API_URL = os.getenv('LOCAL_API_URL', 'http://localhost:8000/api/v1')
 
 # Map Web UI (for direct node links)
-MAP_BASE_URL = os.getenv('MAP_BASE_URL', 'https://map.axistem.eu')
+MAP_BASE_URL = os.getenv('MAP_BASE_URL', 'https://meshmap.radio-actief.be')
 
 # Sync Configuration
 SYNC_INTERVAL_HOURS = int(os.getenv('SYNC_INTERVAL_HOURS', '6'))

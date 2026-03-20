@@ -1030,7 +1030,7 @@ def send_sync_notification(
                 # Build notification embed
                 embed = discord.Embed(
                     title="🔄 Sync Complete",
-                    description="Sync completed and updated the [#BEMesh Map](https://map.axistem.eu)\n\u200b",
+                    description="Sync completed and updated the [#BEMesh Map](https://meshmap.radio-actief.be)\n\u200b",
                     color=discord.Color.blue()
                 )
                 

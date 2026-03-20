@@ -4,7 +4,7 @@
 
 **RRY-Map-Bot** is a new integrated project combining a **Discord bot** (discord.py) and a **Belgian web map application** for visualizing and managing MeshCore network nodes. The system focuses exclusively on Belgian nodes and provides both web-based map visualization and Discord-based interaction capabilities.
 
-**Target Domain**: `map.axistem.eu`
+**Target Domain**: `meshmap.radio-actief.be`
 
 ---
 
@@ -51,7 +51,7 @@
         │                             │
 ┌───────▼────────┐         ┌─────────▼──────────┐
 │  Web Map App   │         │   Discord Bot      │
-│ (map.axistem.eu)│         │  (discord.py)      │
+│ (meshmap.radio-actief.be)│         │  (discord.py)      │
 │                │         │                    │
 │ • Leaflet Map  │         │ • /search          │
 │ • Node Display │         │ • /mynodes         │
@@ -1301,7 +1301,7 @@ let params = { lat: 50.5039, lon: 4.4699, zoom: 8 };  // Brussels
 
 ### Web Map Workflow
 ```
-1. User loads map.axistem.eu
+1. User loads meshmap.radio-actief.be
    ↓
 2. Frontend requests Belgian nodes via REST API
    ↓

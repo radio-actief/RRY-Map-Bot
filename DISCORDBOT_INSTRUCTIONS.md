@@ -5,13 +5,13 @@ Deze gids behandelt specifiek het **MeshCore** gedeelte van de bot.
 
 De bot helpt je met het beheren van je MeshCore netwerk nodes en moedigt contact aan met andere gebruikers in de Belgische community.
 
-Nodes worden via de MeshCore app toegevoegd aan de officiële map. Wij synchroniseren die officiële map meermaals per dag naar onze eigen [🇧🇪 **BEMesh Map**](https://map.axistem.eu).
+Nodes worden via de MeshCore app toegevoegd aan de officiële map. Wij synchroniseren die officiële map meermaals per dag naar onze eigen [🇧🇪 **BEMesh Map**](https://meshmap.radio-actief.be).
 
 Als je node op de officiële map staat, kunnen aanpassingen die je via de bot doet (bv. stad) bij een volgende sync worden overschreven. We zoeken een balans voor de meest accurate info. Vragen? Zie "**_:sos: Hulp_**" onderaan.
 
 ### :rocket: Aan de slag
 Is jouw node al op de officiële map (via de app)? Dan kan je die hier aan jouw Discord account koppelen met **`/node claim`**.
-Gebruik je de bot liever niet? Gebruik dan [**BEMesh Map**](https://map.axistem.eu).
+Gebruik je de bot liever niet? Gebruik dan [**BEMesh Map**](https://meshmap.radio-actief.be).
 
 ### :clipboard: Je Nodes Beheren
 - **`/mynodes`** - Bekijk al je nodes

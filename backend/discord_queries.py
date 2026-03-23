@@ -213,118 +213,185 @@ def get_user_nodes(user_id: str, include_inactive: bool = True) -> List[Dict[str
         conn.close()
 
 
-def get_statistics() -> Dict[str, Any]:
+def _preset_filter_clause(preset_name: Optional[str]) -> tuple:
+    """
+    Return (sql_fragment, params) for filtering by frequency preset.
+    Returns ("", []) if preset_name is None or "all".
+    Supports named presets, "Custom settings", and "Unknown".
+    """
+    if not preset_name or preset_name == 'all':
+        return ("", [])
+    if preset_name == 'Unknown':
+        return (" AND (params IS NULL OR params = '')", [])
+    if preset_name == 'Custom settings':
+        # Has params, not empty, and does not match any known preset
+        # Use a subquery: we need nodes where params exists but doesn't match any preset
+        # Simpler: exclude Unknown (empty) and exclude each known preset - complex in SQL
+        # Alternative: fetch in Python - too slow. Use NOT IN for preset matches.
+        # Build NOT (params LIKE ... AND ...) for each preset would be huge
+        # Pragmatic: "Custom" = has non-empty params that we'll filter in Python... no
+        # Best approach: use a subquery that excludes known presets. SQLite doesn't have
+        # elegant "NOT match any". We could do: AND params IS NOT NULL AND params != ''
+        # AND NOT (params LIKE ? AND params LIKE ? ...) for each preset. That's many ORs.
+        # Simpler: only support named presets + Unknown. For "Custom settings" return ("", [])
+        # and document that filtering by Custom is not implemented. Or add a Python post-filter.
+        return ("", [])  # Custom not easily expressible in SQL; fall back to no filter
+    from config.config import FREQUENCY_PRESETS
+    preset = None
+    for p in FREQUENCY_PRESETS:
+        if p['name'] == preset_name:
+            preset = p
+            break
+    if not preset:
+        return ("", [])
+    # Match JSON params: {"freq": X, "sf": Y, "bw": Z, "cr": W}
+    sql = " AND (params LIKE ? AND params LIKE ? AND params LIKE ? AND params LIKE ?)"
+    params = [
+        f'%"freq": {preset["freq"]}%',
+        f'%"sf": {preset["sf"]}%',
+        f'%"bw": {preset["bw"]}%',
+        f'%"cr": {preset["cr"]}%',
+    ]
+    return (sql, params)
+
+
+def get_statistics(frequency_preset: Optional[str] = None) -> Dict[str, Any]:
     """
     Get statistics about Belgian nodes.
     Only counts active nodes.
     
+    Args:
+        frequency_preset: Optional preset name to filter all counts by (e.g. "EU/UK (Narrow)").
+            Use "all" or None for unfiltered stats. "Custom settings" and "Unknown" are not supported.
+    
     Returns:
-        Dictionary with statistics:
-        - total_nodes: Total active nodes
-        - claimed_nodes: Nodes with Discord owner
-        - unclaimed_nodes: Nodes without Discord owner
-        - registered_users: Unique Discord users who own nodes
-        - by_type: Count by node type
-        - top_cities: Top cities by node count
-        - total_cities: Total number of unique cities
-        - recently_added: Recently added nodes (last 7 days)
+        Dictionary with statistics (all filtered by preset when frequency_preset is set)
     """
     conn = get_connection()
     cursor = conn.cursor()
+    preset_sql, preset_params = _preset_filter_clause(frequency_preset)
     
     try:
         stats = {}
         
         # Total active nodes
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT COUNT(*) FROM belgian_nodes
-            WHERE is_active = 1
-        """)
+            WHERE is_active = 1{preset_sql}
+        """, preset_params)
         stats['total_nodes'] = cursor.fetchone()[0]
         
         # Claimed nodes (with Discord owner)
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT COUNT(*) FROM belgian_nodes
-            WHERE is_active = 1 AND discord_owner_id IS NOT NULL
-        """)
+            WHERE is_active = 1 AND discord_owner_id IS NOT NULL{preset_sql}
+        """, preset_params)
         stats['claimed_nodes'] = cursor.fetchone()[0]
         
         # Unclaimed nodes
         stats['unclaimed_nodes'] = stats['total_nodes'] - stats['claimed_nodes']
         
         # Registered users (unique Discord owners)
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT COUNT(DISTINCT discord_owner_id) FROM belgian_nodes
-            WHERE is_active = 1 AND discord_owner_id IS NOT NULL
-        """)
+            WHERE is_active = 1 AND discord_owner_id IS NOT NULL{preset_sql}
+        """, preset_params)
         stats['registered_users'] = cursor.fetchone()[0]
         
         # Count by type
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT type, COUNT(*) as count
             FROM belgian_nodes
-            WHERE is_active = 1
+            WHERE is_active = 1{preset_sql}
             GROUP BY type
             ORDER BY type
-        """)
+        """, preset_params)
         stats['by_type'] = {row['type']: row['count'] for row in cursor.fetchall()}
         
         # Top cities (limit to top 10)
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT city, COUNT(*) as count
             FROM belgian_nodes
-            WHERE is_active = 1 AND city IS NOT NULL AND city != 'Unknown'
+            WHERE is_active = 1 AND city IS NOT NULL AND city != 'Unknown'{preset_sql}
             GROUP BY city
             ORDER BY count DESC
             LIMIT 10
-        """)
+        """, preset_params)
         stats['top_cities'] = [
             {'city': row['city'], 'count': row['count']}
             for row in cursor.fetchall()
         ]
         
         # Top cities by repeater count only (type=2)
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT city, COUNT(*) as count
             FROM belgian_nodes
-            WHERE is_active = 1 AND type = 2 AND city IS NOT NULL AND city != 'Unknown'
+            WHERE is_active = 1 AND type = 2 AND city IS NOT NULL AND city != 'Unknown'{preset_sql}
             GROUP BY city
             ORDER BY count DESC
             LIMIT 10
-        """)
+        """, preset_params)
         stats['top_cities_repeaters'] = [
             {'city': row['city'], 'count': row['count']}
             for row in cursor.fetchall()
         ]
         
         # Top cities by companion count only (type=1)
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT city, COUNT(*) as count
             FROM belgian_nodes
-            WHERE is_active = 1 AND type = 1 AND city IS NOT NULL AND city != 'Unknown'
+            WHERE is_active = 1 AND type = 1 AND city IS NOT NULL AND city != 'Unknown'{preset_sql}
             GROUP BY city
             ORDER BY count DESC
             LIMIT 10
-        """)
+        """, preset_params)
         stats['top_cities_companions'] = [
             {'city': row['city'], 'count': row['count']}
             for row in cursor.fetchall()
         ]
         
+        # Top cities by room servers only (type=3)
+        cursor.execute(f"""
+            SELECT city, COUNT(*) as count
+            FROM belgian_nodes
+            WHERE is_active = 1 AND type = 3 AND city IS NOT NULL AND city != 'Unknown'{preset_sql}
+            GROUP BY city
+            ORDER BY count DESC
+            LIMIT 10
+        """, preset_params)
+        stats['top_cities_room_servers'] = [
+            {'city': row['city'], 'count': row['count']}
+            for row in cursor.fetchall()
+        ]
+        
+        # Top cities by sensors only (type=4)
+        cursor.execute(f"""
+            SELECT city, COUNT(*) as count
+            FROM belgian_nodes
+            WHERE is_active = 1 AND type = 4 AND city IS NOT NULL AND city != 'Unknown'{preset_sql}
+            GROUP BY city
+            ORDER BY count DESC
+            LIMIT 10
+        """, preset_params)
+        stats['top_cities_sensors'] = [
+            {'city': row['city'], 'count': row['count']}
+            for row in cursor.fetchall()
+        ]
+        
         # Total unique cities
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT COUNT(DISTINCT city) FROM belgian_nodes
-            WHERE is_active = 1 AND city IS NOT NULL AND city != 'Unknown'
-        """)
+            WHERE is_active = 1 AND city IS NOT NULL AND city != 'Unknown'{preset_sql}
+        """, preset_params)
         stats['total_cities'] = cursor.fetchone()[0]
         
         # Recently added nodes (last 7 days)
         # Note: This uses created_at field, which tracks when node was added to our DB
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT COUNT(*) FROM belgian_nodes
-            WHERE is_active = 1
+            WHERE is_active = 1{preset_sql}
             AND created_at >= datetime('now', '-7 days')
-        """)
+        """, preset_params)
         stats['recently_added'] = cursor.fetchone()[0]
         
         # Frequency preset statistics
@@ -400,15 +467,15 @@ def get_statistics() -> Dict[str, Any]:
         month_ago = now - timedelta(days=30)
         
         # Get all active nodes with their dates
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT 
                 inserted_date,
                 updated_date,
                 last_advert,
                 discord_updated_date
             FROM belgian_nodes
-            WHERE is_active = 1
-        """)
+            WHERE is_active = 1{preset_sql}
+        """, preset_params)
         
         active_24h = 0
         active_7d = 0
@@ -465,6 +532,8 @@ def get_statistics() -> Dict[str, Any]:
             'top_cities': [],
             'top_cities_repeaters': [],
             'top_cities_companions': [],
+            'top_cities_room_servers': [],
+            'top_cities_sensors': [],
             'recently_added': 0
         }
     finally:

@@ -37,7 +37,8 @@ from backend.discord_queries import (
     update_node_properties,
     verify_ownership,
     remove_ownership,
-    get_node_by_key
+    get_node_by_key,
+    _preset_filter_clause,
 )
 from backend.discord_notifications import (
     notify_node_claimed,
@@ -243,11 +244,39 @@ def health_check():
 # are used only for removed, restored, updated (to avoid double-counting when sync logged existing nodes as "added").
 
 
-def get_synthetic_sync_rows():
+def _params_match_preset(params: Optional[dict], preset_name: str) -> bool:
+    """Check if params dict matches the given preset name."""
+    if not params or not preset_name or preset_name == 'all':
+        return False
+    if preset_name in ('Custom settings', 'Unknown'):
+        return False
+    from config.config import FREQUENCY_PRESETS
+    preset = None
+    for p in FREQUENCY_PRESETS:
+        if p['name'] == preset_name:
+            preset = p
+            break
+    if not preset:
+        return False
+    freq = params.get('freq')
+    sf = params.get('sf')
+    bw = params.get('bw')
+    cr = params.get('cr')
+    if freq is None or sf is None or bw is None or cr is None:
+        return False
+    return (abs(float(freq) - preset['freq']) < 0.001 and
+            int(sf) == preset['sf'] and
+            float(bw) == preset['bw'] and
+            int(cr) == preset['cr'])
+
+
+def get_synthetic_sync_rows(frequency_preset: Optional[str] = None):
     """
     One row per day with nodes_added = count of nodes whose inserted_date (or created_at) falls on that day.
     This is the single source of truth for "added"; real sync_history nodes_added is ignored when merging.
+    When frequency_preset is set, only counts nodes matching that preset.
     """
+    preset_sql, preset_params = _preset_filter_clause(frequency_preset)
     conn = get_connection()
     cursor = conn.cursor()
     try:
@@ -255,11 +284,12 @@ def get_synthetic_sync_rows():
             SELECT date(COALESCE(NULLIF(trim(inserted_date), ''), created_at)) AS d,
                    COUNT(*) AS cnt
             FROM belgian_nodes
-            WHERE (inserted_date IS NOT NULL AND trim(inserted_date) != '')
-               OR (created_at IS NOT NULL AND (inserted_date IS NULL OR trim(inserted_date) = ''))
+            WHERE ((inserted_date IS NOT NULL AND trim(inserted_date) != '')
+               OR (created_at IS NOT NULL AND (inserted_date IS NULL OR trim(inserted_date) = '')))
+              AND (1=1""" + preset_sql + """)
             GROUP BY d
             HAVING d IS NOT NULL AND d != ''
-        """)
+        """, preset_params)
         rows = cursor.fetchall()
         return [
             {
@@ -275,34 +305,84 @@ def get_synthetic_sync_rows():
         conn.close()
 
 
-def get_sync_history(limit: int = 500):
+def get_sync_history(limit: int = 500, frequency_preset: Optional[str] = None):
     """
     Sync history: "added" comes only from inserted_date (synthetic rows). Real sync_history
     is used for removed/restored/updated only (nodes_added zeroed to avoid double count).
+    When frequency_preset is set, synthetic is filtered by preset; real sync_history
+    removed/restored/updated are also filtered by aggregating from node_changes.
     """
-    conn = get_connection()
-    cursor = conn.cursor()
-    try:
-        cursor.execute("""
-            SELECT id, sync_date, nodes_added, nodes_removed, nodes_restored,
-                   nodes_updated, details
-            FROM sync_history
-            ORDER BY sync_date ASC
-            LIMIT ?
-        """, (limit,))
-        real = [dict_from_row(row) for row in cursor.fetchall()]
-    finally:
-        conn.close()
-    for r in real:
-        r["nodes_added"] = 0
-        r["from_sync"] = True
-    synthetic = get_synthetic_sync_rows()
+    synthetic = get_synthetic_sync_rows(frequency_preset)
     for r in synthetic:
         r["from_sync"] = False
-    combined = real + synthetic
+
+    if frequency_preset:
+        real_filtered = _get_sync_history_from_node_changes(frequency_preset)
+        for r in real_filtered:
+            r["from_sync"] = True
+        combined = synthetic + real_filtered
+    else:
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute("""
+                SELECT id, sync_date, nodes_added, nodes_removed, nodes_restored,
+                       nodes_updated, details
+                FROM sync_history
+                ORDER BY sync_date ASC
+                LIMIT ?
+            """, (limit,))
+            real = [dict_from_row(row) for row in cursor.fetchall()]
+        finally:
+            conn.close()
+        for r in real:
+            r["nodes_added"] = 0
+            r["from_sync"] = True
+        combined = real + synthetic
+
     combined.sort(key=lambda r: (r.get("sync_date") or ""))
     max_rows = max(limit, 2000)
     return combined[:max_rows] if len(combined) > max_rows else combined
+
+
+def _get_sync_history_from_node_changes(frequency_preset: str):
+    """Build removed/restored/updated counts per day from node_changes, filtered by preset."""
+    from backend.database import json_deserialize
+    conn = get_connection()
+    cursor = conn.cursor()
+    by_day = {}
+    try:
+        cursor.execute("""
+            SELECT sync_date, change_type, old_data, new_data
+            FROM node_changes
+            WHERE change_type IN ('removed', 'updated', 'restored')
+            ORDER BY sync_date ASC
+            LIMIT 50000
+        """)
+        for row in cursor.fetchall():
+            d = dict_from_row(row)
+            sync_date = (d.get("sync_date") or "")[:10]
+            if not sync_date:
+                continue
+            change_type = d.get("change_type")
+            data = d.get("new_data") or d.get("old_data")
+            params = (data or {}).get("params") if isinstance(data, dict) else None
+            if isinstance(params, str):
+                params = json_deserialize(params) if params else None
+            if not _params_match_preset(params, frequency_preset):
+                continue
+            if sync_date not in by_day:
+                by_day[sync_date] = {"nodes_added": 0, "nodes_removed": 0, "nodes_restored": 0, "nodes_updated": 0}
+            if change_type == "removed":
+                by_day[sync_date]["nodes_removed"] += 1
+            elif change_type == "restored":
+                by_day[sync_date]["nodes_restored"] += 1
+            elif change_type == "updated":
+                by_day[sync_date]["nodes_updated"] += 1
+    finally:
+        conn.close()
+    return [{"sync_date": d, "nodes_added": 0, **rest, "from_sync": True}
+             for d, rest in sorted(by_day.items())]
 
 
 def _node_change_row(public_key: str, change_type: str, sync_date: str, data: dict) -> Optional[dict]:
@@ -336,22 +416,25 @@ def _node_change_row(public_key: str, change_type: str, sync_date: str, data: di
     }
 
 
-def get_synthetic_node_changes():
+def get_synthetic_node_changes(frequency_preset: Optional[str] = None):
     """
     One "added" event per node with sync_date = inserted_date (or created_at). Single source
     of truth for when a node appeared; real node_changes "added" are not used for playback.
+    When frequency_preset is set, only includes nodes matching that preset.
     """
-    conn = get_connection()
-    cursor = conn.cursor()
-    try:
-        cursor.execute("""
+    preset_sql, preset_params = _preset_filter_clause(frequency_preset)
+    base_sql = """
             SELECT public_key, type, adv_name, adv_lat, adv_lon,
                    date(COALESCE(NULLIF(trim(inserted_date), ''), created_at)) AS d
             FROM belgian_nodes
             WHERE ((inserted_date IS NOT NULL AND trim(inserted_date) != '')
                    OR (created_at IS NOT NULL AND (inserted_date IS NULL OR trim(inserted_date) = '')))
               AND (adv_lat IS NOT NULL AND adv_lon IS NOT NULL)
-        """)
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(base_sql + preset_sql, preset_params)
         out = []
         for row in cursor.fetchall():
             d = row["d"]
@@ -371,12 +454,18 @@ def get_synthetic_node_changes():
         conn.close()
 
 
-def get_node_changes_since(since_date: Optional[str] = None, limit: int = 5000):
+def get_node_changes_since(
+    since_date: Optional[str] = None,
+    limit: int = 5000,
+    frequency_preset: Optional[str] = None,
+):
     """
     Node changes playback: "added" from inserted_date only (synthetic). Real node_changes
     used only for removed, updated, restored (so we don't double-count real "added").
+    When frequency_preset is set, filters both synthetic and real changes by preset.
     """
-    synthetic = get_synthetic_node_changes()
+    from backend.database import json_deserialize
+    synthetic = get_synthetic_node_changes(frequency_preset)
     out = []
     conn = get_connection()
     cursor = conn.cursor()
@@ -400,6 +489,13 @@ def get_node_changes_since(since_date: Optional[str] = None, limit: int = 5000):
         rows = cursor.fetchall()
         for row in rows:
             d = dict_from_row(row)
+            if frequency_preset:
+                data = d.get('new_data') or d.get('old_data')
+                params = (data or {}).get("params") if isinstance(data, dict) else None
+                if isinstance(params, str):
+                    params = json_deserialize(params) if params else None
+                if not _params_match_preset(params, frequency_preset):
+                    continue
             data = d.get('new_data') or d.get('old_data')
             r = _node_change_row(
                 d.get('public_key'),
@@ -423,13 +519,18 @@ def node_changes():
     GET /api/v1/node-changes
 
     Returns node-level change log for historical stats playback (lat, lon, name per change).
-    Query: since=YYYY-MM-DD (optional), limit (default 5000).
+    Query: since=YYYY-MM-DD (optional), limit (default 5000), frequency_preset (optional).
     """
     try:
         since = request.args.get('since')
         limit = request.args.get('limit', type=int) or 5000
         limit = min(max(1, limit), 20000)
-        changes = get_node_changes_since(since_date=since, limit=limit)
+        preset = request.args.get('frequency_preset')
+        if preset == 'all':
+            preset = None
+        changes = get_node_changes_since(
+            since_date=since, limit=limit, frequency_preset=preset
+        )
         return jsonify(changes), 200
     except Exception as e:
         print(f"Error in node_changes endpoint: {e}")
@@ -446,12 +547,15 @@ def sync_history():
 
     Returns sync history for the historical stats view: each run's date and
     counts (nodes_added, nodes_removed, nodes_restored, nodes_updated).
-    Optional query: limit (default 500).
+    Optional query: limit (default 500), frequency_preset (optional).
     """
     try:
         limit = request.args.get('limit', type=int) or 500
         limit = min(max(1, limit), 2000)
-        history = get_sync_history(limit=limit)
+        preset = request.args.get('frequency_preset')
+        if preset == 'all':
+            preset = None
+        history = get_sync_history(limit=limit, frequency_preset=preset)
         return jsonify(history), 200
     except Exception as e:
         print(f"Error in sync_history endpoint: {e}")
@@ -466,15 +570,21 @@ def get_stats():
     """
     GET /api/v1/stats
     
-    Returns statistics about Belgian nodes.
+    Query params:
+        frequency_preset: Optional. Filter all stats by frequency preset name
+            (e.g. "EU/UK (Narrow)"). Use "all" or omit for unfiltered stats.
     
     Returns:
         JSON object with statistics
     """
     from backend.discord_queries import get_statistics
     
+    frequency_preset = request.args.get('frequency_preset')
+    if frequency_preset == 'all':
+        frequency_preset = None
+    
     try:
-        stats = get_statistics()
+        stats = get_statistics(frequency_preset=frequency_preset)
         return jsonify(stats), 200
     except Exception as e:
         print(f"Error in get_stats endpoint: {e}")
@@ -1018,6 +1128,18 @@ def stats_page():
     return send_from_directory(PROJECT_ROOT, 'stats.html')
 
 
+@app.route('/region-configurator')
+def region_configurator_page():
+    """Serve the BE region codes configurator page."""
+    return send_from_directory(PROJECT_ROOT, 'region-configurator.html')
+
+
+@app.route('/region-map')
+def region_map_page():
+    """Serve the region codes map page (Leaflet, like mesh-up.nl)."""
+    return send_from_directory(PROJECT_ROOT, 'region-map.html')
+
+
 @app.route('/<path:path>')
 def serve_static(path):
     """Serve static files (lib/, css/, src/, etc.) with correct MIME types."""
@@ -1030,6 +1152,8 @@ def serve_static(path):
     mimetype = None
     if path.endswith('.js') or path.endswith('.mjs'):
         mimetype = 'application/javascript'
+    elif path.endswith('.json'):
+        mimetype = 'application/json'
     elif path.endswith('.ico'):
         mimetype = 'image/x-icon'
     return send_from_directory(PROJECT_ROOT, path, mimetype=mimetype)

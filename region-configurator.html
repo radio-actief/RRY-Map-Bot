@@ -1,0 +1,873 @@
+<!doctype html>
+<html lang="en" class="config-page">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="initial-scale=1.0, width=device-width" />
+    <meta
+      name="description"
+      content="MeshCore repeater regioncodes configurator for Belgium – generate CLI commands based on your location"
+    />
+    <link rel="icon" type="image/x-icon" href="./favicon.ico" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Plus+Jakarta+Sans:ital,wght@0,500;0,600;0,700;0,800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./lib/css/beer.css" />
+    <title>Regioncodes – #BEmesh Map</title>
+    <style>
+      /* Bubble Card theme – aligned with stats page */
+      :root.config-page {
+        --cfg-font-body: "DM Sans", system-ui, sans-serif;
+        --cfg-font-display: "Plus Jakarta Sans", system-ui, sans-serif;
+        --cfg-bg: #f5f3ef;
+        --cfg-bg-subtle: #ebe8e3;
+        --cfg-surface: #ffffff;
+        --cfg-surface-hover: #fcfbf9;
+        --cfg-secondary: #f8f6f2;
+        --cfg-text: #1c1917;
+        --cfg-text-muted: #57534e;
+        --cfg-accent: #d4a017;
+        --cfg-accent-hover: #b88a14;
+        --cfg-border: #e7e5e0;
+        --cfg-shadow: 0 2px 8px rgba(26, 25, 23, 0.06);
+        --cfg-shadow-lg: 0 8px 32px rgba(26, 25, 23, 0.08);
+        --cfg-shadow-hover: 0 12px 40px rgba(26, 25, 23, 0.1);
+        --cfg-radius: 16px;
+        --cfg-radius-sm: 10px;
+        --cfg-radius-lg: 20px;
+      }
+
+      body.config-body {
+        margin: 0;
+        padding: 0;
+        font-family: var(--cfg-font-body);
+        background: var(--cfg-bg);
+        background-image:
+          radial-gradient(
+            ellipse 140% 100% at 50% -30%,
+            rgba(212, 160, 23, 0.06),
+            transparent 50%
+          ),
+          linear-gradient(
+            180deg,
+            var(--cfg-bg) 0%,
+            var(--cfg-bg-subtle) 100%
+          );
+        color: var(--cfg-text);
+        min-height: 100vh;
+      }
+
+      /* Override beer.css theme backgrounds (main, footer get tinted by beer) */
+      body.config-body main,
+      body.config-body footer,
+      body.config-body .config-footer {
+        background: transparent !important;
+      }
+
+      .config-wrap {
+        max-width: 1380px;
+        margin: 0 auto;
+        padding: 1.75rem 1rem 4rem;
+      }
+
+      /* Bubble Card–style header: clean, minimal, centered */
+      .config-header {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 1.25rem;
+        margin-bottom: 2.25rem;
+        padding-bottom: 1.5rem;
+        border-bottom: 1px solid var(--cfg-border);
+      }
+      .config-header-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+        gap: 1rem;
+      }
+      .config-header h1 {
+        margin: 0;
+        font-family: var(--cfg-font-display);
+        font-size: 1.75rem;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        color: var(--cfg-text);
+        line-height: 1.3;
+        text-align: left;
+      }
+
+      .config-badge {
+        display: inline-block;
+        font-size: 0.6rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--cfg-accent);
+        background: rgba(212, 160, 23, 0.12);
+        padding: 0.25rem 0.5rem;
+        border-radius: 6px;
+        vertical-align: middle;
+        margin-left: 0.5rem;
+        border: 1px solid rgba(212, 160, 23, 0.25);
+      }
+
+      .config-header-desc {
+        margin: 0.5rem 0 0;
+        font-size: 0.9375rem;
+        line-height: 1.55;
+        color: var(--cfg-text-muted);
+        text-align: left;
+      }
+
+      .config-header-links {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        flex-shrink: 0;
+      }
+
+      .config-header-search {
+        width: 100%;
+        margin-top: 0.5rem;
+      }
+
+      .config-header-search h2 {
+        margin: 0 0 0.75rem;
+        font-family: var(--cfg-font-display);
+        font-size: 1rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--cfg-text);
+      }
+
+      .config-results-row {
+        display: flex;
+        flex-direction: column;
+        gap: 1.25rem;
+        margin-bottom: 1.25rem;
+      }
+
+      @media (min-width: 900px) {
+        .config-results-row {
+          flex-direction: row;
+          align-items: flex-start;
+        }
+        .config-results-row > .config-card {
+          flex: 1;
+          min-width: 0;
+          margin-bottom: 0;
+        }
+      }
+
+      .back-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.55rem 1rem;
+        font-weight: 600;
+        font-size: 0.875rem;
+        color: var(--cfg-accent);
+        text-decoration: none;
+        border-radius: var(--cfg-radius-lg);
+        background: var(--cfg-surface);
+        border: 1px solid var(--cfg-border);
+        box-shadow: var(--cfg-shadow);
+        transition:
+          background 0.2s ease,
+          color 0.2s ease,
+          box-shadow 0.2s ease,
+          transform 0.2s ease;
+      }
+      .back-link:hover {
+        background: var(--cfg-surface-hover);
+        color: var(--cfg-accent-hover);
+        box-shadow: var(--cfg-shadow-lg);
+        transform: translateY(-1px);
+      }
+
+      .config-map-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 2.25rem;
+        height: 2.25rem;
+        padding: 0;
+        background: var(--cfg-surface);
+        border: 1px solid var(--cfg-border);
+        border-radius: var(--cfg-radius);
+        box-shadow: var(--cfg-shadow);
+        color: var(--cfg-accent);
+        text-decoration: none;
+        transition: box-shadow 0.2s ease, transform 0.15s ease, color 0.15s ease;
+      }
+      .config-map-btn:hover {
+        box-shadow: var(--cfg-shadow-lg);
+        transform: translateY(-1px);
+        color: var(--cfg-accent-hover);
+      }
+      .config-map-btn svg {
+        width: 1.15rem;
+        height: 1.15rem;
+      }
+
+      .config-card {
+        background: var(--cfg-surface);
+        border-radius: var(--cfg-radius);
+        border: 1px solid var(--cfg-border);
+        box-shadow: var(--cfg-shadow);
+        padding: 1.5rem;
+        margin-bottom: 1.25rem;
+        transition: box-shadow 0.25s ease;
+      }
+
+      .config-card:hover {
+        box-shadow: var(--cfg-shadow-lg);
+      }
+
+      .config-card h2 {
+        margin: 0 0 1rem;
+        font-family: var(--cfg-font-display);
+        font-size: 1rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--cfg-text);
+      }
+
+      .config-card-desc {
+        font-size: 0.9rem;
+        color: var(--cfg-text-muted);
+        margin: 0 0 1rem;
+        line-height: 1.5;
+      }
+
+      .search-wrap {
+        position: relative;
+      }
+
+      .search-input {
+        width: 100%;
+        padding: 0.75rem 1rem 0.75rem 2.5rem;
+        font-size: 1rem;
+        font-family: inherit;
+        border: 1px solid var(--cfg-border);
+        border-radius: var(--cfg-radius-sm);
+        background: var(--cfg-surface);
+        box-sizing: border-box;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      }
+
+      .search-input:focus {
+        outline: none;
+        border-color: var(--cfg-accent);
+        box-shadow: 0 0 0 2px rgba(212, 160, 23, 0.2);
+      }
+
+      .search-icon {
+        position: absolute;
+        left: 0.9rem;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--cfg-text-muted);
+        width: 1.25rem;
+        height: 1.25rem;
+        pointer-events: none;
+      }
+
+      .search-icon svg {
+        width: 100%;
+        height: 100%;
+      }
+
+      .search-dropdown {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        margin-top: 6px;
+        max-height: 260px;
+        overflow-y: auto;
+        background: var(--cfg-surface);
+        border: 1px solid var(--cfg-border);
+        border-radius: var(--cfg-radius-sm);
+        box-shadow: var(--cfg-shadow-lg);
+        z-index: 100;
+      }
+
+      .search-dropdown-item {
+        padding: 0.65rem 1rem;
+        cursor: pointer;
+        font-size: 0.95rem;
+        border-bottom: 1px solid var(--cfg-border);
+      }
+
+      .search-dropdown-item:last-child {
+        border-bottom: none;
+      }
+
+      .search-dropdown-item:hover,
+      .search-dropdown-item.active {
+        background: var(--cfg-surface-hover);
+      }
+
+      .search-dropdown-place {
+        font-weight: 500;
+      }
+      .search-dropdown-code {
+        font-family: "Consolas", "Monaco", "Courier New", monospace;
+        font-size: 0.75rem;
+        color: var(--cfg-accent);
+      }
+      .search-dropdown-item small {
+        display: block;
+        color: var(--cfg-text-muted);
+        font-size: 0.8rem;
+        margin-top: 0.2rem;
+      }
+
+      .result-section {
+        display: none;
+      }
+
+      .result-section.visible {
+        display: block;
+      }
+
+      .result-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        gap: 0.6rem;
+      }
+
+      .result-item {
+        padding: 0.6rem 0.75rem;
+        background: var(--cfg-secondary);
+        border-radius: var(--cfg-radius-sm);
+        border: 1px solid var(--cfg-border);
+        font-variant-numeric: tabular-nums;
+      }
+
+      .result-item-hero {
+        grid-column: 1 / -1;
+        background: linear-gradient(
+          135deg,
+          rgba(212, 160, 23, 0.1),
+          rgba(212, 160, 23, 0.03)
+        );
+        border-color: rgba(212, 160, 23, 0.35);
+        padding: 0.85rem 1rem;
+      }
+
+      .result-item-hero .result-item-value {
+        font-size: 1.1rem;
+      }
+
+      .result-item-label {
+        display: block;
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--cfg-text-muted);
+        margin-bottom: 0.25rem;
+      }
+
+      .result-item-value {
+        font-family: "Consolas", "Monaco", "Courier New", monospace;
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: var(--cfg-accent);
+      }
+
+      .result-item:not(.result-item-hero) .result-item-value {
+        color: var(--cfg-text);
+      }
+
+      .commands-block {
+        font-family: "Consolas", "Monaco", "Courier New", monospace;
+        font-size: 0.85rem;
+        line-height: 1.65;
+        background: #1a1a1a;
+        color: #e4e4e4;
+        padding: 1.25rem 1.5rem;
+        border-radius: var(--cfg-radius-sm);
+        overflow-x: auto;
+        white-space: pre;
+        border: 1px solid rgba(0, 0, 0, 0.2);
+      }
+
+      .commands-block .comment {
+        color: #6a9955;
+      }
+
+      .copy-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        margin-top: 0.75rem;
+        padding: 0.55rem 1.2rem;
+        font-size: 0.9rem;
+        font-family: inherit;
+        font-weight: 600;
+        color: var(--cfg-accent);
+        background: var(--cfg-surface);
+        border: 1px solid var(--cfg-border);
+        border-radius: var(--cfg-radius-sm);
+        cursor: pointer;
+        box-shadow: var(--cfg-shadow);
+        transition: all 0.2s ease;
+      }
+
+      .copy-btn:hover {
+        background: var(--cfg-accent);
+        color: #fff;
+        border-color: var(--cfg-accent);
+        transform: translateY(-1px);
+        box-shadow: var(--cfg-shadow-lg);
+      }
+
+      .copy-btn.copied {
+        border-color: #16a34a;
+        color: #16a34a;
+      }
+
+      .config-footer {
+        margin-top: 2.5rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid var(--cfg-border);
+        text-align: center;
+      }
+
+      .config-footer h3 {
+        margin: 0 0 0.5rem;
+        font-family: var(--cfg-font-display);
+        font-size: 1.1rem;
+        font-weight: 600;
+      }
+
+      .config-footer-desc {
+        margin: 0 0 0.75rem;
+        font-size: 0.9rem;
+        color: var(--cfg-text-muted);
+      }
+
+      .config-footer-desc a {
+        color: var(--cfg-accent);
+        text-decoration: none;
+      }
+
+      .config-footer-desc a:hover {
+        text-decoration: underline;
+      }
+
+      .config-footer-map-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        margin-bottom: 1rem;
+        padding: 0.55rem 1.1rem;
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: var(--cfg-accent);
+        text-decoration: none;
+        background: var(--cfg-surface);
+        border: 1px solid var(--cfg-border);
+        border-radius: var(--cfg-radius-sm);
+        box-shadow: var(--cfg-shadow);
+        transition: all 0.2s ease;
+      }
+
+      .config-footer-map-link:hover {
+        color: var(--cfg-accent-hover);
+        box-shadow: var(--cfg-shadow-lg);
+        transform: translateY(-1px);
+      }
+
+      .config-footer-embed {
+        border-radius: var(--cfg-radius);
+        border: 1px solid var(--cfg-border);
+        overflow: hidden;
+        box-shadow: var(--cfg-shadow);
+      }
+
+      .config-footer-iframe {
+        display: block;
+        width: 100%;
+        height: 400px;
+        border: none;
+      }
+
+      @media (max-width: 640px) {
+        .config-header {
+          flex-direction: column;
+          align-items: stretch;
+          text-align: center;
+        }
+        .config-header-top {
+          flex-direction: column;
+          align-items: stretch;
+          gap: 0.75rem;
+        }
+        .config-header-top .config-header-links {
+          order: -1;
+          align-self: center;
+          flex-wrap: wrap;
+          justify-content: center;
+        }
+        .config-header-top h1 {
+          text-align: center;
+        }
+      }
+    </style>
+  </head>
+  <body class="light config-body">
+    <div class="config-wrap">
+      <div class="config-header">
+        <div class="config-header-top">
+          <h1>#BEmesh Regioncodes Configurator <span class="config-badge">Under construction</span></h1>
+          <div class="config-header-links">
+            <a href="/" class="back-link">← Back to map</a>
+            <a href="/stats" class="back-link">Stats</a>
+            <a
+              href="/region-map"
+              class="config-map-btn"
+              title="Regioncodes map"
+              aria-label="Regioncodes map"
+            >
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M20.5 3l-.16.03L15 5.1 9 3 3.36 4.9c-.21.07-.36.25-.36.48V20.5c0 .28.22.5.5.5l.16-.03L9 18.9l6 2.1 5.64-1.9c.21-.07.36-.25.36-.48V3.5c0-.28-.22-.5-.5-.5zM15 19l-6-2.11V5l6 2.11V19z"/>
+              </svg>
+            </a>
+          </div>
+        </div>
+        <p class="config-header-desc">
+          Search for your location (all UN/LOCODE locations in Belgium) and
+          generate MeshCore repeater CLI commands. Similar to the
+          <a
+            href="https://meshwiki.nl/wiki/Lijst_van_regio%27s"
+            target="_blank"
+            rel="noopener noreferrer"
+            style="color: var(--cfg-accent); text-decoration: none; font-weight: 500"
+            >Dutch MeshWiki</a
+          >.
+        </p>
+        <div class="config-header-search">
+          <h2>Choose your location</h2>
+          <div class="search-wrap">
+            <span class="search-icon" aria-hidden="true">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <circle cx="11" cy="11" r="8" />
+                <path d="m21 21-4.35-4.35" />
+              </svg>
+            </span>
+            <input
+              type="text"
+              class="search-input"
+              id="city-search"
+              placeholder="Loading locations…"
+              autocomplete="off"
+            />
+            <div
+              class="search-dropdown"
+              id="city-dropdown"
+              style="display: none"
+            ></div>
+          </div>
+        </div>
+      </div>
+
+      <main id="config-app">
+        <div class="config-results-row">
+          <div class="config-card result-section" id="result-card">
+            <h2>Found codes</h2>
+            <div class="result-grid" id="result-grid"></div>
+          </div>
+
+          <div class="config-card result-section" id="commands-card">
+            <h2>MeshCore CLI commands</h2>
+            <p class="config-card-desc">
+              Copy and run in the MeshCore serial terminal or via the app.
+            </p>
+            <pre class="commands-block" id="commands-block"></pre>
+            <button type="button" class="copy-btn" id="copy-btn">
+              Copy commands
+            </button>
+          </div>
+        </div>
+
+        <footer class="config-footer">
+          <h3>Regioncodes map</h3>
+          <p class="config-footer-desc">
+            Type a regioncode to mark places on the map, as on
+            <a
+              href="https://www.mesh-up.nl/mc-rp-autoconfig/map/"
+              target="_blank"
+              rel="noopener noreferrer"
+              >Mesh-Up.NL</a
+            >.
+          </p>
+          <a
+            href="/region-map"
+            class="config-footer-map-link"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Open map →
+          </a>
+          <div class="config-footer-embed">
+            <iframe
+              src="/region-map"
+              title="Regioncodes map"
+              class="config-footer-iframe"
+            ></iframe>
+          </div>
+        </footer>
+      </main>
+    </div>
+
+    <script>
+      (function () {
+        let CITIES = [];
+        fetch("./data/be-locode.json")
+          .then(function (r) {
+            return r.ok ? r.json() : [];
+          })
+          .then(function (data) {
+            CITIES = data || [];
+            var inp = document.getElementById("city-search");
+            if (inp)
+              inp.placeholder =
+                "Type to search (e.g. Vilvoorde, Ghent, Brussels…)";
+          })
+          .catch(function () {
+            CITIES = [];
+            var inp = document.getElementById("city-search");
+            if (inp)
+              inp.placeholder =
+                "Could not load locations. Please try again later.";
+          });
+
+        const PROVINCE_NAMES = {
+          "be-van": "Antwerpen",
+          "be-vbr": "Vlaams-Brabant",
+          "be-vov": "Oost-Vlaanderen",
+          "be-vwv": "West-Vlaanderen",
+          "be-vli": "Limburg",
+          "be-bru": "Brussel",
+          "be-wal": "Wallonië",
+          "be-wbr": "Waals-Brabant",
+          "be-wht": "Henegouwen",
+          "be-wlg": "Luik",
+          "be-wna": "Namen",
+          "be-wlx": "Luxemburg",
+        };
+
+        const REGION_NAMES = {
+          "be-vlg": "Vlaanderen",
+          "be-bru": "Brussel",
+          "be-wal": "Wallonië",
+        };
+
+        const input = document.getElementById("city-search");
+        const dropdown = document.getElementById("city-dropdown");
+        const resultCard = document.getElementById("result-card");
+        const resultGrid = document.getElementById("result-grid");
+        const commandsCard = document.getElementById("commands-card");
+        const commandsBlock = document.getElementById("commands-block");
+        const copyBtn = document.getElementById("copy-btn");
+
+        let selectedCity = null;
+        let activeIndex = -1;
+        let lastMatches = [];
+
+        function normalize(s) {
+          return (s || "")
+            .toLowerCase()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "");
+        }
+
+        function filterCities(query) {
+          if (!query || query.length < 2) return [];
+          const q = normalize(query);
+          return CITIES.filter(
+            (c) =>
+              normalize(c.plaats).includes(q) ||
+              normalize(c.gemeente).includes(q) ||
+              normalize(c.city_code).includes(q),
+          ).slice(0, 16);
+        }
+
+        function renderDropdown(matches) {
+          lastMatches = matches;
+          if (!matches.length) {
+            dropdown.style.display = "none";
+            return;
+          }
+          dropdown.innerHTML = matches
+            .map(
+              (c, i) => `
+            <div class="search-dropdown-item" data-index="${i}">
+              <span class="search-dropdown-place">${escapeHtml(c.plaats)}</span>
+              <small><span class="search-dropdown-code">${escapeHtml(c.city_code)}</span> · ${escapeHtml(PROVINCE_NAMES[c.province_code] || c.province_code)}</small>
+            </div>
+          `,
+            )
+            .join("");
+          dropdown.style.display = "block";
+          activeIndex = 0;
+          dropdown
+            .querySelectorAll(".search-dropdown-item")
+            .forEach((el, i) => {
+              el.classList.toggle("active", i === 0);
+              el.addEventListener("click", () =>
+                selectCity(lastMatches[parseInt(el.dataset.index, 10)]),
+              );
+            });
+        }
+
+        function escapeHtml(s) {
+          const d = document.createElement("div");
+          d.textContent = s || "";
+          return d.innerHTML;
+        }
+
+        function selectCity(city) {
+          selectedCity = city;
+          input.value = city.plaats;
+          dropdown.style.display = "none";
+
+          const provinceName = PROVINCE_NAMES[city.province_code] || city.province_code;
+          const regionName = REGION_NAMES[city.region] || city.region;
+          resultGrid.innerHTML = `
+            <div class="result-item result-item-hero"><span class="result-item-label">UN/LOCODE</span><span class="result-item-value">${escapeHtml(city.city_code)}</span></div>
+            <div class="result-item"><span class="result-item-label">Plaats</span><span class="result-item-value">${escapeHtml(city.plaats)}</span></div>
+            <div class="result-item"><span class="result-item-label">Gewest</span><span class="result-item-value">${escapeHtml(regionName)}</span></div>
+            <div class="result-item"><span class="result-item-label">Provincie</span><span class="result-item-value">${escapeHtml(provinceName)}</span></div>
+            <div class="result-item"><span class="result-item-label">Land</span><span class="result-item-value">be</span></div>
+          `;
+
+          const putCodes = [
+            "be",
+            "nl",
+            "lu",
+            "bx",
+            "eu",
+            city.region,
+            city.province_code,
+          ];
+          if (city.province_code === "be-vbr") putCodes.push("be-bru");
+          const putUnique = [...new Set(putCodes)];
+
+          // Only user's city for region set – neighbors would need coordinates;
+          // alphabetical province picks (Aalbeke, Aarsele…) are irrelevant.
+          const setCodes = [city.city_code];
+          const setUnique = [...new Set(setCodes)];
+
+          const allowfCodes = [
+            "be",
+            city.region,
+            city.province_code,
+            ...setUnique,
+            "bx",
+            "eu",
+          ];
+          const allowfUnique = [...new Set(allowfCodes)];
+
+          const putLines = putUnique.map((r) => `region put ${r}`).join("\n");
+          const setLines = setUnique.map((c) => `region set ${c}`).join("\n");
+          const allowfLines = allowfUnique
+            .map((r) => `region allowf ${r}`)
+            .join("\n");
+
+          const cmd = `// MeshCore repeater regioncodes for ${city.plaats}
+// Source: meshmap.radio-actief.be/region-configurator
+// Data: UN/LOCODE Belgium (https://service.unece.org/trade/locode/be.htm)
+
+${putLines}
+
+${setLines}
+// Optionally add neighboring municipalities: region set <code>
+
+${allowfLines}
+
+region home ${city.city_code}
+region save`;
+
+          commandsBlock.textContent = cmd;
+          resultCard.classList.add("visible");
+          commandsCard.classList.add("visible");
+        }
+
+        input.addEventListener("input", () => {
+          const matches = filterCities(input.value);
+          renderDropdown(matches);
+        });
+
+        input.addEventListener("keydown", (e) => {
+          if (e.key === "ArrowDown") {
+            e.preventDefault();
+            activeIndex = Math.min(
+              activeIndex + 1,
+              dropdown.children.length - 1,
+            );
+            dropdown
+              .querySelectorAll(".search-dropdown-item")
+              .forEach((el, i) =>
+                el.classList.toggle("active", i === activeIndex),
+              );
+          } else if (e.key === "ArrowUp") {
+            e.preventDefault();
+            activeIndex = Math.max(activeIndex - 1, 0);
+            dropdown
+              .querySelectorAll(".search-dropdown-item")
+              .forEach((el, i) =>
+                el.classList.toggle("active", i === activeIndex),
+              );
+          } else if (
+            e.key === "Enter" &&
+            dropdown.style.display !== "none" &&
+            lastMatches[activeIndex]
+          ) {
+            e.preventDefault();
+            selectCity(lastMatches[activeIndex]);
+          } else if (e.key === "Escape") {
+            dropdown.style.display = "none";
+          }
+        });
+
+        input.addEventListener("focus", () => {
+          const matches = filterCities(input.value);
+          if (matches.length) renderDropdown(matches);
+        });
+
+        document.addEventListener("click", (e) => {
+          if (!input.contains(e.target) && !dropdown.contains(e.target)) {
+            dropdown.style.display = "none";
+          }
+        });
+
+        copyBtn.addEventListener("click", () => {
+          navigator.clipboard.writeText(commandsBlock.textContent).then(() => {
+            copyBtn.textContent = "✓ Copied!";
+            copyBtn.classList.add("copied");
+            setTimeout(() => {
+              copyBtn.textContent = "Copy commands";
+              copyBtn.classList.remove("copied");
+            }, 2000);
+          });
+        });
+      })();
+    </script>
+  </body>
+</html>

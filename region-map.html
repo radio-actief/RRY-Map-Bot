@@ -1,0 +1,1061 @@
+<!doctype html>
+<html lang="nl" class="region-map-page">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="initial-scale=1.0, width=device-width" />
+    <meta
+      name="description"
+      content="Kaart van Belgische regioncodes – typ een code om plaatsen te markeren"
+    />
+    <link rel="icon" type="image/x-icon" href="./favicon.ico" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Plus+Jakarta+Sans:ital,wght@0,500;0,600;0,700;0,800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./lib/css/leaflet.css" />
+    <title>Kaart Regioncodes – #BEmesh Map</title>
+    <style>
+      :root.region-map-page {
+        --rm-font-body: "DM Sans", system-ui, sans-serif;
+        --rm-font-display: "Plus Jakarta Sans", system-ui, sans-serif;
+        --rm-bg: #f5f3ef;
+        --rm-text: #1c1917;
+        --rm-text-muted: #57534e;
+        --rm-accent: #d4a017;
+        --rm-accent-hover: #b88a14;
+        --rm-surface: #ffffff;
+        --rm-border: #e7e5e0;
+        --rm-shadow: 0 2px 8px rgba(26, 25, 23, 0.06);
+        --rm-radius: 12px;
+      }
+
+      body.region-map-body {
+        margin: 0;
+        padding: 0;
+        font-family: var(--rm-font-body);
+        background: var(--rm-bg);
+        color: var(--rm-text);
+        min-height: 100vh;
+        overflow: hidden;
+      }
+
+      .region-map-layout {
+        display: flex;
+        height: 100vh;
+      }
+
+      #region-map-container {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .region-map-controls {
+        flex-shrink: 0;
+        display: flex;
+        background: var(--rm-surface);
+        border-right: 1px solid var(--rm-border);
+        box-shadow: var(--rm-shadow);
+        transition: width 0.25s ease;
+      }
+
+      .region-map-controls.collapsed {
+        width: 0;
+        overflow: hidden;
+        border-right: none;
+      }
+
+      .region-map-controls:not(.collapsed) {
+        width: 280px;
+      }
+
+      .region-map-controls-toggle {
+        position: fixed;
+        left: 280px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 24px;
+        height: 48px;
+        background: var(--rm-surface);
+        border: 1px solid var(--rm-border);
+        border-left: none;
+        border-radius: 0 8px 8px 0;
+        cursor: pointer;
+        font-size: 10px;
+        color: var(--rm-text-muted);
+        z-index: 1001;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 2px 0 6px rgba(0, 0, 0, 0.06);
+        transition: left 0.25s ease;
+      }
+
+      .region-map-controls-toggle:hover {
+        color: var(--rm-accent);
+      }
+
+      .region-map-controls.collapsed ~ .region-map-controls-toggle {
+        left: 0;
+        border-left: 1px solid var(--rm-border);
+      }
+
+      .region-map-controls-toggle::after {
+        content: "▶";
+      }
+
+      .region-map-controls.collapsed ~ .region-map-controls-toggle::after {
+        content: "◀";
+      }
+
+      .region-map-controls-inner {
+        padding: 1rem;
+        overflow-y: auto;
+        height: 100%;
+      }
+
+      .region-map-controls h3 {
+        margin: 0 0 0.75rem;
+        font-family: var(--rm-font-display);
+        font-size: 1rem;
+        font-weight: 600;
+      }
+
+      .region-map-search-wrap {
+        position: relative;
+      }
+
+      .region-map-search-wrap input {
+        width: 100%;
+        padding: 0.5rem 0.75rem;
+        font-size: 0.9rem;
+        font-family: inherit;
+        border: 1px solid var(--rm-border);
+        border-radius: var(--rm-radius);
+        box-sizing: border-box;
+      }
+
+      .region-map-search-wrap input:focus {
+        outline: none;
+        border-color: var(--rm-accent);
+      }
+
+      #autocomplete {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: var(--rm-surface);
+        border: 1px solid var(--rm-border);
+        border-top: none;
+        border-radius: 0 0 var(--rm-radius) var(--rm-radius);
+        max-height: 200px;
+        overflow-y: auto;
+        z-index: 100;
+        box-shadow: var(--rm-shadow);
+      }
+
+      #autocomplete:empty,
+      #autocomplete[style*="display: none"] {
+        display: none !important;
+      }
+
+      .autocomplete-item {
+        padding: 0.4rem 0.75rem;
+        cursor: pointer;
+        font-size: 0.85rem;
+        border-bottom: 1px solid var(--rm-border);
+      }
+
+      .autocomplete-item:last-child {
+        border-bottom: none;
+      }
+
+      .autocomplete-item:hover,
+      .autocomplete-item.active {
+        background: rgba(212, 160, 23, 0.12);
+      }
+
+      .autocomplete-item code {
+        font-size: 0.8rem;
+        color: var(--rm-text-muted);
+      }
+
+      #counter {
+        margin-top: 0.5rem;
+        font-size: 0.85rem;
+        color: var(--rm-text-muted);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .spinner {
+        width: 14px;
+        height: 14px;
+        border: 2px solid var(--rm-border);
+        border-top-color: var(--rm-accent);
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+      }
+
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      .region-map-overlays {
+        margin-top: 1rem;
+        padding-top: 0.75rem;
+        border-top: 1px solid var(--rm-border);
+        font-size: 0.85rem;
+      }
+
+      .region-map-overlays-title {
+        margin-bottom: 0.5rem;
+        font-weight: 500;
+      }
+
+      .region-map-overlays-radios {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+      }
+
+      .region-map-overlays-radios label {
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .region-map-places-check {
+        margin-top: 0.75rem;
+      }
+
+      .region-map-places-check label {
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.85rem;
+      }
+
+      .region-map-hierarchy {
+        margin-top: 1rem;
+        padding-top: 0.75rem;
+        border-top: 1px solid var(--rm-border);
+      }
+
+      .region-map-hierarchy h4 {
+        margin: 0 0 0.5rem;
+        font-size: 0.85rem;
+        font-weight: 600;
+      }
+
+      .hierarchy-tree {
+        font-size: 0.8rem;
+        max-height: 400px;
+        overflow-y: auto;
+      }
+
+      .hierarchy-node {
+        padding: 0.2rem 0;
+        cursor: pointer;
+        display: block;
+        color: var(--rm-text-muted);
+      }
+
+      .hierarchy-node:hover {
+        color: var(--rm-accent);
+      }
+
+      .hierarchy-node.indent-0 {
+        padding-left: 0;
+      }
+      .hierarchy-node.indent-1 {
+        padding-left: 0.5rem;
+      }
+      .hierarchy-node.indent-2 {
+        padding-left: 1rem;
+      }
+      .hierarchy-node.indent-3 {
+        padding-left: 1.5rem;
+      }
+
+      .region-map-header-bar {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        padding: 0.5rem 1rem;
+        background: rgba(255, 255, 255, 0.9);
+        backdrop-filter: blur(8px);
+        border-bottom: 1px solid var(--rm-border);
+        z-index: 500;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+      }
+
+      .region-map-header-bar h1 {
+        margin: 0;
+        font-family: var(--rm-font-display);
+        font-size: 1.1rem;
+        font-weight: 700;
+      }
+
+      .region-map-header-bar a {
+        color: var(--rm-accent);
+        text-decoration: none;
+        font-size: 0.875rem;
+      }
+
+      .region-map-header-bar a:hover {
+        color: var(--rm-accent-hover);
+      }
+    </style>
+  </head>
+  <body class="region-map-body">
+    <div class="region-map-layout">
+      <div class="region-map-controls" id="controls">
+        <div class="region-map-controls-inner">
+          <h3>Regioncode Opzoeken</h3>
+          <div class="region-map-search-wrap">
+            <input
+              id="code-input"
+              type="text"
+              placeholder="bijv. be-vwv, behar, gent"
+              spellcheck="false"
+              autocomplete="off"
+            />
+            <div id="autocomplete"></div>
+          </div>
+          <div id="counter">
+            <span id="counter-text">Typ een regioncode of plaatsnaam</span>
+            <div class="spinner" id="spinner" style="display: none"></div>
+          </div>
+          <div class="region-map-overlays">
+            <div class="region-map-overlays-title">Permanent bereik tonen</div>
+            <div class="region-map-overlays-radios">
+              <label>
+                <input type="radio" name="overlay" value="" checked /> Uit
+              </label>
+              <label>
+                <input type="radio" name="overlay" value="regions" /> Regions
+              </label>
+              <label>
+                <input type="radio" name="overlay" value="provinces" />
+                Provincies
+              </label>
+            </div>
+          </div>
+          <div class="region-map-places-check">
+            <label>
+              <input type="checkbox" id="show-places" checked /> Plaatsen tonen
+            </label>
+          </div>
+          <div class="region-map-hierarchy">
+            <h4>Regioncodes</h4>
+            <div class="hierarchy-tree" id="hierarchy"></div>
+          </div>
+        </div>
+      </div>
+      <button
+        type="button"
+        class="region-map-controls-toggle"
+        id="toggle-controls"
+        title="Paneel in-/uitklappen"
+      ></button>
+      <div id="region-map-container"></div>
+    </div>
+
+    <div class="region-map-header-bar">
+      <h1>Kaart van Regioncodes<br />⚠️ IN OPBOUW ⚠️</h1>
+      <a href="/region-configurator">← Configurator</a>
+      <a href="/">Map</a>
+      <a href="/stats">Stats</a>
+    </div>
+
+    <script src="./lib/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+    <script>
+      (function () {
+        const PROVINCE_NAMES = {
+          "be-van": "Antwerpen",
+          "be-vbr": "Vlaams-Brabant",
+          "be-vov": "Oost-Vlaanderen",
+          "be-vwv": "West-Vlaanderen",
+          "be-vli": "Limburg",
+          "be-bru": "Brussel",
+          "be-wal": "Wallonië",
+          "be-wbr": "Waals-Brabant",
+          "be-wht": "Henegouwen",
+          "be-wlg": "Luik",
+          "be-wna": "Namen",
+          "be-wlx": "Luxemburg",
+        };
+        const REGION_NAMES = {
+          "be-vlg": "Vlaanderen",
+          "be-bru": "Brussel",
+          "be-wal": "Wallonië",
+        };
+
+        const REGION_CODES = ["be-vlg", "be-bru", "be-wal"];
+        const PROVINCE_CODES = [
+          "be-van",
+          "be-vbr",
+          "be-vov",
+          "be-vwv",
+          "be-vli",
+          "be-bru",
+          "be-wbr",
+          "be-wht",
+          "be-wlg",
+          "be-wna",
+          "be-wlx",
+        ];
+        const FLANDERS_PROVINCES = [
+          "be-van",
+          "be-vbr",
+          "be-vov",
+          "be-vwv",
+          "be-vli",
+        ];
+        const WALLONIA_PROVINCES = [
+          "be-wbr",
+          "be-wht",
+          "be-wlg",
+          "be-wna",
+          "be-wlx",
+        ];
+
+        let locations = [];
+        let map = null;
+        let markerCluster = null;
+        let regionsLayer = null;
+        let provincesLayer = null;
+        let overlayMode = "";
+        let showPlaces = true;
+        let currentSearch = "";
+        let lastMatches = [];
+        let autocompleteIndex = -1;
+        const belgiumCenter = [50.5, 4.35];
+        const belgiumZoom = 8;
+
+        function normalize(s) {
+          return (s || "")
+            .toLowerCase()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "");
+        }
+
+        function getLocationsWithCoords() {
+          return locations.filter(function (loc) {
+            return loc.lat && loc.lon;
+          });
+        }
+
+        function pointsToFeatureCollection(points) {
+          return {
+            type: "FeatureCollection",
+            features: points.map(function (p) {
+              return {
+                type: "Feature",
+                geometry: { type: "Point", coordinates: [p.lon, p.lat] },
+                properties: {},
+              };
+            }),
+          };
+        }
+
+        function buildHullFromPoints(points, maxEdgeKm) {
+          if (!points.length || typeof turf === "undefined") return null;
+          if (points.length < 3) return null;
+          var fc = pointsToFeatureCollection(points);
+          var hull = null;
+          try {
+            if (turf.concave) {
+              hull = turf.concave(fc, {
+                maxEdge: maxEdgeKm || 50,
+                units: "kilometers",
+              });
+            }
+          } catch (e) {}
+          if (!hull && turf.convex) {
+            try {
+              hull = turf.convex(fc);
+            } catch (e2) {}
+          }
+          return hull;
+        }
+
+        function buildRegionAreas() {
+          var layers = {};
+          var withCoords = getLocationsWithCoords();
+          var provinceHulls = {};
+          PROVINCE_CODES.forEach(function (code) {
+            var pts = withCoords.filter(function (l) {
+              return l.province_code === code;
+            });
+            var hull = buildHullFromPoints(pts, 50);
+            if (hull) provinceHulls[code] = hull;
+          });
+          var turfLib =
+            typeof turf !== "undefined"
+              ? turf
+              : typeof window !== "undefined"
+                ? window.turf
+                : null;
+          try {
+            if (turfLib && turfLib.union) {
+              var flProvs = FLANDERS_PROVINCES.filter(function (p) {
+                return provinceHulls[p];
+              }).map(function (p) {
+                return provinceHulls[p];
+              });
+              if (flProvs.length >= 2) {
+                var unioned = flProvs.reduce(function (a, b) {
+                  return turfLib.union(a, b);
+                });
+                if (unioned) layers["be-vlg"] = unioned;
+              } else if (flProvs.length === 1) layers["be-vlg"] = flProvs[0];
+            }
+          } catch (e) {}
+          if (provinceHulls["be-bru"])
+            layers["be-bru"] = provinceHulls["be-bru"];
+          try {
+            if (turfLib && turfLib.union) {
+              var walProvs = WALLONIA_PROVINCES.filter(function (p) {
+                return provinceHulls[p];
+              }).map(function (p) {
+                return provinceHulls[p];
+              });
+              if (walProvs.length >= 2) {
+                var walUnioned = walProvs.reduce(function (a, b) {
+                  return turfLib.union(a, b);
+                });
+                if (walUnioned) layers["be-wal"] = walUnioned;
+              } else if (walProvs.length === 1) layers["be-wal"] = walProvs[0];
+            }
+          } catch (e) {}
+          if (!layers["be-vlg"]) {
+            var vlgPts = withCoords.filter(function (l) {
+              return l.region === "be-vlg";
+            });
+            var h = buildHullFromPoints(vlgPts, 100);
+            if (h) layers["be-vlg"] = h;
+          }
+          if (!layers["be-wal"]) {
+            var walPts = withCoords.filter(function (l) {
+              return l.region === "be-wal";
+            });
+            var wh = buildHullFromPoints(walPts, 100);
+            if (wh) layers["be-wal"] = wh;
+          }
+          return layers;
+        }
+
+        function buildProvinceAreas() {
+          var layers = {};
+          var withCoords = getLocationsWithCoords();
+          PROVINCE_CODES.forEach(function (code) {
+            var pts = withCoords.filter(function (l) {
+              return l.province_code === code;
+            });
+            var hull = buildHullFromPoints(pts, 50);
+            if (hull) layers[code] = hull;
+          });
+          return layers;
+        }
+
+        function getOverlayStyle(code, isRegion) {
+          var colors = {
+            "be-vlg": "rgba(0, 128, 64, 0.2)",
+            "be-bru": "rgba(0, 100, 200, 0.25)",
+            "be-wal": "rgba(200, 80, 0, 0.2)",
+            "be-van": "rgba(0, 120, 80, 0.15)",
+            "be-vbr": "rgba(0, 140, 100, 0.15)",
+            "be-vov": "rgba(0, 100, 120, 0.15)",
+            "be-vwv": "rgba(0, 110, 90, 0.15)",
+            "be-vli": "rgba(0, 130, 85, 0.15)",
+            "be-wbr": "rgba(180, 90, 0, 0.15)",
+            "be-wht": "rgba(200, 70, 0, 0.15)",
+            "be-wlg": "rgba(160, 60, 20, 0.15)",
+            "be-wna": "rgba(190, 80, 30, 0.15)",
+            "be-wlx": "rgba(170, 100, 40, 0.15)",
+          };
+          var stroke = isRegion ? 2 : 1;
+          return {
+            fillColor: colors[code] || "rgba(100,100,100,0.15)",
+            fillOpacity: 0.6,
+            color: "rgba(0,0,0,0.4)",
+            weight: stroke,
+          };
+        }
+
+        function updateOverlays() {
+          if (markerCluster) {
+            map.removeLayer(markerCluster);
+            markerCluster = null;
+          }
+          if (regionsLayer) {
+            map.removeLayer(regionsLayer);
+            regionsLayer = null;
+          }
+          if (provincesLayer) {
+            map.removeLayer(provincesLayer);
+            provincesLayer = null;
+          }
+          if (overlayMode === "regions" && typeof turf !== "undefined") {
+            var areas = buildRegionAreas();
+            var features = [];
+            for (var code in areas) {
+              if (areas[code]) {
+                var feat = areas[code];
+                var geom = feat.geometry || feat;
+                var props = feat.properties
+                  ? Object.assign({}, feat.properties, { code: code })
+                  : { code: code };
+                var f =
+                  turf && turf.feature
+                    ? turf.feature(geom, props)
+                    : { type: "Feature", geometry: geom, properties: props };
+                features.push(f);
+              }
+            }
+            if (features.length) {
+              regionsLayer = L.geoJSON(
+                { type: "FeatureCollection", features: features },
+                {
+                  style: function (f) {
+                    return getOverlayStyle(f.properties.code, true);
+                  },
+                  onEachFeature: function (f, layer) {
+                    layer.bindTooltip(
+                      REGION_NAMES[f.properties.code] || f.properties.code,
+                      { permanent: false },
+                    );
+                  },
+                },
+              );
+              map.addLayer(regionsLayer);
+            }
+          } else if (
+            overlayMode === "provinces" &&
+            typeof turf !== "undefined"
+          ) {
+            var areas = buildProvinceAreas();
+            var features = [];
+            for (var code in areas) {
+              if (areas[code]) {
+                var feat = areas[code];
+                var geom = feat.geometry || feat;
+                var props = feat.properties
+                  ? Object.assign({}, feat.properties, { code: code })
+                  : { code: code };
+                var f =
+                  turf && turf.feature
+                    ? turf.feature(geom, props)
+                    : { type: "Feature", geometry: geom, properties: props };
+                features.push(f);
+              }
+            }
+            if (features.length) {
+              provincesLayer = L.geoJSON(
+                { type: "FeatureCollection", features: features },
+                {
+                  style: function (f) {
+                    return getOverlayStyle(f.properties.code, false);
+                  },
+                  onEachFeature: function (f, layer) {
+                    layer.bindTooltip(
+                      PROVINCE_NAMES[f.properties.code] || f.properties.code,
+                      { permanent: false },
+                    );
+                  },
+                },
+              );
+              map.addLayer(provincesLayer);
+            }
+          }
+          if (showPlaces && lastMatches.length) {
+            var group = L.featureGroup();
+            lastMatches.forEach(function (loc) {
+              var circle = L.circleMarker([loc.lat, loc.lon], {
+                radius: 6,
+                fillColor: "#2563eb",
+                color: "#1d4ed8",
+                weight: 1,
+                fillOpacity: 0.9,
+              });
+              circle.bindPopup(
+                "<strong>" +
+                  (loc.plaats || "") +
+                  "</strong><br><code>" +
+                  (loc.city_code || "") +
+                  "</code> · " +
+                  (PROVINCE_NAMES[loc.province_code] || loc.province_code),
+              );
+              group.addLayer(circle);
+            });
+            map.addLayer(group);
+            markerCluster = group;
+          }
+        }
+
+        function matchLocations(query) {
+          if (!query || !query.trim()) return getLocationsWithCoords();
+          var q = normalize(query.trim());
+          return locations.filter(function (loc) {
+            if (!loc.lat || !loc.lon) return false;
+            if (loc.city_code === q || normalize(loc.city_code).includes(q))
+              return true;
+            if (
+              loc.province_code === q ||
+              normalize(loc.province_code).includes(q)
+            )
+              return true;
+            if (loc.region === q || normalize(loc.region).includes(q))
+              return true;
+            if (q === "be") return true;
+            if (
+              normalize(loc.plaats).includes(q) ||
+              normalize(loc.gemeente).includes(q)
+            )
+              return true;
+            return false;
+          });
+        }
+
+        function buildAutocompleteItems(query) {
+          if (!query || query.length < 2) return [];
+          var q = normalize(query);
+          var items = [];
+          var seen = new Set();
+          REGION_CODES.forEach(function (c) {
+            if (
+              normalize(c).includes(q) ||
+              normalize(REGION_NAMES[c] || "").includes(q)
+            ) {
+              if (!seen.has(c)) {
+                seen.add(c);
+                items.push({
+                  type: "region",
+                  code: c,
+                  label: (REGION_NAMES[c] || c) + " (" + c + ")",
+                });
+              }
+            }
+          });
+          PROVINCE_CODES.forEach(function (c) {
+            if (
+              normalize(c).includes(q) ||
+              normalize(PROVINCE_NAMES[c] || "").includes(q)
+            ) {
+              if (!seen.has(c)) {
+                seen.add(c);
+                items.push({
+                  type: "province",
+                  code: c,
+                  label: (PROVINCE_NAMES[c] || c) + " (" + c + ")",
+                });
+              }
+            }
+          });
+          locations.forEach(function (loc) {
+            if (items.length >= 15) return;
+            if (!loc.lat || !loc.lon) return;
+            if (
+              normalize(loc.city_code).includes(q) ||
+              normalize(loc.plaats).includes(q) ||
+              normalize(loc.gemeente).includes(q)
+            ) {
+              var key = loc.city_code;
+              if (!seen.has(key)) {
+                seen.add(key);
+                items.push({
+                  type: "place",
+                  code: loc.city_code,
+                  label: (loc.plaats || "") + " (" + loc.city_code + ")",
+                });
+              }
+            }
+          });
+          return items.slice(0, 12);
+        }
+
+        function showAutocomplete(items) {
+          var ac = document.getElementById("autocomplete");
+          ac.innerHTML = "";
+          ac.style.display = "none";
+          if (!items.length) return;
+          items.forEach(function (item, i) {
+            var el = document.createElement("div");
+            el.className =
+              "autocomplete-item" + (i === autocompleteIndex ? " active" : "");
+            el.textContent = item.label;
+            el.dataset.index = i;
+            el.dataset.code = item.code;
+            el.dataset.type = item.type || "place";
+            el.addEventListener("click", function () {
+              runCodeSearch(item.code, item.type);
+              ac.innerHTML = "";
+              ac.style.display = "none";
+            });
+            ac.appendChild(el);
+          });
+          ac.style.display = "block";
+          autocompleteIndex = 0;
+          ac.querySelector(".autocomplete-item")?.classList.add("active");
+        }
+
+        function runCodeSearch(code, type) {
+          var input = document.getElementById("code-input");
+          if (input) input.value = code;
+          currentSearch = code;
+          var matched = matchLocations(code);
+          lastMatches = matched;
+          updateMap(matched);
+          updateCounter(matched.length);
+        }
+
+        function updateCounter(count) {
+          var txt = document.getElementById("counter-text");
+          var sp = document.getElementById("spinner");
+          if (sp) sp.style.display = "none";
+          if (count === undefined) {
+            txt.textContent = currentSearch
+              ? lastMatches.length + " plaats(en)"
+              : "Typ een regioncode of plaatsnaam";
+          } else {
+            txt.textContent = count + " plaats(en) getoond";
+          }
+        }
+
+        function updateMap(matched) {
+          if (!map) return;
+          if (markerCluster) {
+            map.removeLayer(markerCluster);
+            markerCluster = null;
+          }
+          if (!showPlaces || !matched.length) {
+            updateCounter(matched ? matched.length : 0);
+            if (matched && matched.length === 1) {
+              map.setView([matched[0].lat, matched[0].lon], 12);
+            } else if (matched && matched.length > 1 && matched.length < 30) {
+              var b = L.latLngBounds(
+                matched.map(function (l) {
+                  return [l.lat, l.lon];
+                }),
+              );
+              map.fitBounds(b, { padding: [30, 30] });
+            }
+            return;
+          }
+          var group = L.featureGroup();
+          matched.forEach(function (loc) {
+            var circle = L.circleMarker([loc.lat, loc.lon], {
+              radius: 6,
+              fillColor: "#2563eb",
+              color: "#1d4ed8",
+              weight: 1,
+              fillOpacity: 0.9,
+            });
+            circle.bindPopup(
+              "<strong>" +
+                (loc.plaats || "") +
+                "</strong><br><code>" +
+                (loc.city_code || "") +
+                "</code> · " +
+                (PROVINCE_NAMES[loc.province_code] || loc.province_code),
+            );
+            group.addLayer(circle);
+          });
+          map.addLayer(group);
+          markerCluster = group;
+          updateCounter(matched.length);
+          if (matched.length === 1) {
+            map.setView([matched[0].lat, matched[0].lon], 12);
+          } else if (matched.length < 30) {
+            var bounds = L.latLngBounds(
+              matched.map(function (l) {
+                return [l.lat, l.lon];
+              }),
+            );
+            map.fitBounds(bounds, { padding: [30, 30] });
+          }
+        }
+
+        function buildHierarchy() {
+          var tree = {};
+          var withCoords = getLocationsWithCoords();
+          REGION_CODES.forEach(function (r) {
+            tree[r] = { name: REGION_NAMES[r] || r, code: r, children: {} };
+            PROVINCE_CODES.forEach(function (p) {
+              var locs = withCoords.filter(function (l) {
+                return l.region === r && l.province_code === p;
+              });
+              if (locs.length) {
+                tree[r].children[p] = {
+                  name: PROVINCE_NAMES[p] || p,
+                  code: p,
+                  count: locs.length,
+                };
+              }
+            });
+          });
+          var html = "";
+          REGION_CODES.forEach(function (r) {
+            var node = tree[r];
+            if (!node) return;
+            html +=
+              '<div class="hierarchy-node indent-0" data-code="' +
+              r +
+              '" data-type="region">' +
+              node.name +
+              " (" +
+              r +
+              ")</div>";
+            var childKeys = Object.keys(node.children).sort();
+            childKeys.forEach(function (p) {
+              var ch = node.children[p];
+              html +=
+                '<div class="hierarchy-node indent-1" data-code="' +
+                p +
+                '" data-type="province">' +
+                ch.name +
+                " (" +
+                p +
+                ") · " +
+                ch.count +
+                " plaatsen</div>";
+            });
+          });
+          var el = document.getElementById("hierarchy");
+          if (el) {
+            el.innerHTML = html;
+            el.querySelectorAll(".hierarchy-node").forEach(function (n) {
+              n.addEventListener("click", function () {
+                runCodeSearch(n.dataset.code, n.dataset.type);
+              });
+            });
+          }
+        }
+
+        function init() {
+          map = L.map("region-map-container").setView(
+            belgiumCenter,
+            belgiumZoom,
+          );
+          L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            attribution:
+              '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+          }).addTo(map);
+
+          document
+            .getElementById("toggle-controls")
+            .addEventListener("click", function () {
+              document.getElementById("controls").classList.toggle("collapsed");
+            });
+
+          document
+            .querySelectorAll('input[name="overlay"]')
+            .forEach(function (r) {
+              r.addEventListener("change", function () {
+                overlayMode = this.value;
+                updateOverlays();
+              });
+            });
+
+          document
+            .getElementById("show-places")
+            .addEventListener("change", function () {
+              showPlaces = this.checked;
+              updateMap(
+                lastMatches.length
+                  ? lastMatches
+                  : matchLocations(currentSearch),
+              );
+            });
+
+          var input = document.getElementById("code-input");
+          input.addEventListener("input", function () {
+            var items = buildAutocompleteItems(this.value);
+            showAutocomplete(items);
+            if (!items.length && this.value.trim()) {
+              var m = matchLocations(this.value);
+              lastMatches = m;
+              currentSearch = this.value;
+              updateMap(m);
+              updateCounter(m.length);
+            }
+          });
+
+          input.addEventListener("keydown", function (e) {
+            var ac = document.getElementById("autocomplete");
+            var items = ac.querySelectorAll(".autocomplete-item");
+            if (e.key === "ArrowDown") {
+              e.preventDefault();
+              autocompleteIndex = Math.min(
+                autocompleteIndex + 1,
+                items.length - 1,
+              );
+              items.forEach(function (el, i) {
+                el.classList.toggle("active", i === autocompleteIndex);
+              });
+            } else if (e.key === "ArrowUp") {
+              e.preventDefault();
+              autocompleteIndex = Math.max(autocompleteIndex - 1, 0);
+              items.forEach(function (el, i) {
+                el.classList.toggle("active", i === autocompleteIndex);
+              });
+            } else if (e.key === "Enter" && items[autocompleteIndex]) {
+              e.preventDefault();
+              var it = items[autocompleteIndex];
+              runCodeSearch(it.dataset.code, it.dataset.type || "place");
+              ac.innerHTML = "";
+              ac.style.display = "none";
+            } else if (e.key === "Escape") {
+              ac.innerHTML = "";
+              ac.style.display = "none";
+            }
+          });
+
+          input.addEventListener("focus", function () {
+            var items = buildAutocompleteItems(this.value);
+            if (items.length) showAutocomplete(items);
+          });
+
+          document.addEventListener("click", function (e) {
+            if (!e.target.closest(".region-map-search-wrap")) {
+              document.getElementById("autocomplete").innerHTML = "";
+              document.getElementById("autocomplete").style.display = "none";
+            }
+          });
+
+          fetch("./data/be-locode.json")
+            .then(function (r) {
+              return r.ok ? r.json() : [];
+            })
+            .then(function (data) {
+              locations = data || [];
+              lastMatches = [];
+              buildHierarchy();
+              document.getElementById("counter-text").textContent =
+                locations.length + " locaties geladen";
+            })
+            .catch(function () {
+              locations = [];
+              document.getElementById("counter-text").textContent =
+                "Kon locaties niet laden.";
+            });
+        }
+
+        init();
+      })();
+    </script>
+  </body>
+</html>

@@ -86,10 +86,13 @@ body.map-page #app .search {
 body.map-page #app .float-action-grid {
   animation: map-reveal var(--app-reveal-duration) var(--app-ease) 0.12s both;
 }
-body.map-page #app .float-action-btn:first-of-type {
+body.map-page #app .float-action-btn--region {
+  animation: map-reveal var(--app-reveal-duration) var(--app-ease) 0.12s both;
+}
+body.map-page #app .float-action-btn--stats {
   animation: map-reveal var(--app-reveal-duration) var(--app-ease) 0.15s both;
 }
-body.map-page #app .float-action-btn:last-of-type {
+body.map-page #app .float-action-btn--add {
   animation: map-reveal var(--app-reveal-duration) var(--app-ease) 0.18s both;
 }
 @keyframes map-reveal {
@@ -657,12 +660,15 @@ body.map-page .search .field.border .filter:focus-visible {
   text-align: center;
   transition: transform var(--app-ease), box-shadow var(--app-ease), background var(--app-ease);
 }
-/* Order top to bottom: Stats, Add, footer links (site/docs/Discord/GitHub) */
-.float-action-btn:first-of-type {
-  bottom: 180px; /* Stats at top */
+/* Order top to bottom: Regioncodes, Stats, Add, then footer links */
+.float-action-btn--region {
+  bottom: 238px;
 }
-.float-action-btn:last-of-type {
-  bottom: 122px; /* Add between Stats and footer */
+.float-action-btn--stats {
+  bottom: 180px;
+}
+.float-action-btn--add {
+  bottom: 122px;
   background: #1976d2;
 }
 .float-action-btn:hover {
@@ -671,7 +677,7 @@ body.map-page .search .field.border .filter:focus-visible {
   transform: scale(1.05);
   box-shadow: var(--app-shadow-lg);
 }
-.float-action-btn:last-of-type:hover {
+.float-action-btn--add:hover {
   background: #1565c0;
 }
 .float-action-btn .extra {

@@ -1136,7 +1136,7 @@ def region_configurator_page():
 
 @app.route('/region-map')
 def region_map_page():
-    """Serve the region codes map page (Leaflet, like mesh-up.nl)."""
+    """Serve the #BEmesh region codes map page (Leaflet)."""
     return send_from_directory(PROJECT_ROOT, 'region-map.html')
 
 

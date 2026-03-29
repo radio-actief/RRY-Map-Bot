@@ -2155,33 +2155,56 @@ region allowf $company</pre
           }
         }
 
-        function countryParentForRegionPuts(needed) {
-          if (needed.has("eu")) return "eu";
-          if (needed.has("bx")) return "bx";
-          return "*";
+        /**
+         * Parent for country-level region put lines (nl, lu, fr, de, be).
+         * Without eu/bx: omit parent (not under *). With eu/bx: Benelux members
+         * under bx when both exist, else under eu or bx; FR/DE under eu only.
+         */
+        function countryPutParent(co, needed) {
+          const benelux = co === "nl" || co === "be" || co === "lu";
+          const frde = co === "fr" || co === "de";
+          if (!needed.has("eu") && !needed.has("bx")) {
+            return null;
+          }
+          if (benelux) {
+            if (needed.has("eu") && needed.has("bx")) return "bx";
+            if (needed.has("bx")) return "bx";
+            if (needed.has("eu")) return "eu";
+          }
+          if (frde) {
+            if (needed.has("eu")) return "eu";
+            return null;
+          }
+          return null;
         }
 
         function buildOrderedRegionPutLines(needed, homeCity) {
           const lines = [];
           const structured = new Set();
-          const cp = countryParentForRegionPuts(needed);
 
-          ["eu", "bx"].forEach(function (w) {
-            if (needed.has(w)) {
-              lines.push("region put " + w);
-              structured.add(w);
+          if (needed.has("eu")) {
+            lines.push("region put eu");
+            structured.add("eu");
+          }
+          if (needed.has("bx")) {
+            if (needed.has("eu")) {
+              lines.push("region put bx eu");
+            } else {
+              lines.push("region put bx");
             }
-          });
+            structured.add("bx");
+          }
 
           sortCodesForCli(
             ["nl", "lu", "fr", "de", "be"].filter(function (co) {
               return needed.has(co);
             }),
           ).forEach(function (co) {
-            if (co === "be" && cp === "*") {
-              lines.push("region put be");
+            const parent = countryPutParent(co, needed);
+            if (parent === null) {
+              lines.push("region put " + co);
             } else {
-              lines.push("region put " + co + " " + cp);
+              lines.push("region put " + co + " " + parent);
             }
             structured.add(co);
           });

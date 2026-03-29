@@ -50,11 +50,7 @@
             rgba(212, 160, 23, 0.06),
             transparent 50%
           ),
-          linear-gradient(
-            180deg,
-            var(--cfg-bg) 0%,
-            var(--cfg-bg-subtle) 100%
-          );
+          linear-gradient(180deg, var(--cfg-bg) 0%, var(--cfg-bg-subtle) 100%);
         color: var(--cfg-text);
         min-height: 100vh;
       }
@@ -204,7 +200,10 @@
         box-shadow: var(--cfg-shadow);
         color: var(--cfg-accent);
         text-decoration: none;
-        transition: box-shadow 0.2s ease, transform 0.15s ease, color 0.15s ease;
+        transition:
+          box-shadow 0.2s ease,
+          transform 0.15s ease,
+          color 0.15s ease;
       }
       .config-map-btn:hover {
         box-shadow: var(--cfg-shadow-lg);
@@ -260,7 +259,9 @@
         border-radius: var(--cfg-radius-sm);
         background: var(--cfg-surface);
         box-sizing: border-box;
-        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        transition:
+          border-color 0.2s ease,
+          box-shadow 0.2s ease;
       }
 
       .search-input:focus {
@@ -529,7 +530,10 @@
     <div class="config-wrap">
       <div class="config-header">
         <div class="config-header-top">
-          <h1>#BEmesh Regioncodes Configurator <span class="config-badge">Under construction</span></h1>
+          <h1>
+            #BEmesh Regioncodes Configurator
+            <span class="config-badge">Under construction</span>
+          </h1>
           <div class="config-header-links">
             <a href="/" class="back-link">← Back to map</a>
             <a href="/stats" class="back-link">Stats</a>
@@ -540,7 +544,9 @@
               aria-label="Regioncodes map"
             >
               <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                <path d="M20.5 3l-.16.03L15 5.1 9 3 3.36 4.9c-.21.07-.36.25-.36.48V20.5c0 .28.22.5.5.5l.16-.03L9 18.9l6 2.1 5.64-1.9c.21-.07.36-.25.36-.48V3.5c0-.28-.22-.5-.5-.5zM15 19l-6-2.11V5l6 2.11V19z"/>
+                <path
+                  d="M20.5 3l-.16.03L15 5.1 9 3 3.36 4.9c-.21.07-.36.25-.36.48V20.5c0 .28.22.5.5.5l.16-.03L9 18.9l6 2.1 5.64-1.9c.21-.07.36-.25.36-.48V3.5c0-.28-.22-.5-.5-.5zM15 19l-6-2.11V5l6 2.11V19z"
+                />
               </svg>
             </a>
           </div>
@@ -552,7 +558,11 @@
             href="https://meshwiki.nl/wiki/Lijst_van_regio%27s"
             target="_blank"
             rel="noopener noreferrer"
-            style="color: var(--cfg-accent); text-decoration: none; font-weight: 500"
+            style="
+              color: var(--cfg-accent);
+              text-decoration: none;
+              font-weight: 500;
+            "
             >Dutch MeshWiki</a
           >.
         </p>
@@ -747,7 +757,8 @@
           input.value = city.plaats;
           dropdown.style.display = "none";
 
-          const provinceName = PROVINCE_NAMES[city.province_code] || city.province_code;
+          const provinceName =
+            PROVINCE_NAMES[city.province_code] || city.province_code;
           const regionName = REGION_NAMES[city.region] || city.region;
           resultGrid.innerHTML = `
             <div class="result-item result-item-hero"><span class="result-item-label">UN/LOCODE</span><span class="result-item-value">${escapeHtml(city.city_code)}</span></div>

@@ -2,7 +2,10 @@
 <html lang="nl" class="region-map-page">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="initial-scale=1.0, width=device-width" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
     <meta
       name="description"
       content="Kaart van Belgische regioncodes – typ een code om plaatsen te markeren"
@@ -30,7 +33,9 @@
         font-family: var(--rm-font-body);
         color: var(--rm-text);
         min-height: 100vh;
+        min-height: 100dvh;
         overflow: hidden;
+        -webkit-text-size-adjust: 100%;
         --rm-font-body: var(--app-font-body, "Figtree", system-ui, sans-serif);
         --rm-font-display: var(--app-font-display, "Figtree", system-ui, sans-serif);
         --rm-bg: var(--app-bg, #f6f5f2);
@@ -71,6 +76,8 @@
       .region-map-layout {
         display: flex;
         height: 100vh;
+        height: 100dvh;
+        min-height: 0;
       }
 
       #region-map-container {
@@ -447,7 +454,8 @@
         top: 0;
         left: 0;
         right: 0;
-        padding: 0.55rem 1rem;
+        padding: max(0.55rem, env(safe-area-inset-top, 0px)) max(1rem, env(safe-area-inset-right, 0px))
+          0.55rem max(1rem, env(safe-area-inset-left, 0px));
         background: linear-gradient(
           180deg,
           rgba(255, 255, 255, 0.96) 0%,
@@ -555,6 +563,74 @@
         background: rgba(255, 255, 255, 0.95);
         box-shadow: var(--rm-shadow-lg);
         transform: translateY(-1px);
+      }
+
+      /* Narrow screens: map on top, controls as bottom sheet (readable on phones) */
+      @media (max-width: 768px) {
+        .region-map-layout {
+          flex-direction: column-reverse;
+        }
+
+        .region-map-controls:not(.collapsed) {
+          width: 100%;
+          max-height: min(44dvh, 340px);
+          border-right: none;
+          border-top: 1px solid var(--rm-border);
+        }
+
+        .region-map-controls.collapsed {
+          width: 100%;
+          max-height: 0;
+          min-height: 0;
+          overflow: hidden;
+          border: none;
+          pointer-events: none;
+        }
+
+        .region-map-controls.collapsed .region-map-controls-inner {
+          opacity: 0;
+        }
+
+        #region-map-container {
+          flex: 1;
+          min-height: min(55dvh, 420px);
+        }
+
+        .region-map-controls-toggle {
+          left: auto;
+          right: max(10px, env(safe-area-inset-right, 0px));
+          top: 50%;
+          transform: translateY(-50%);
+          border-left: 1px solid var(--rm-border);
+          border-radius: var(--rm-radius-sm);
+          touch-action: manipulation;
+          box-shadow:
+            0 2px 14px rgba(26, 25, 23, 0.1),
+            0 1px 0 rgba(255, 255, 255, 0.8) inset;
+        }
+
+        .region-map-controls.collapsed ~ .region-map-controls-toggle {
+          left: auto;
+          right: max(10px, env(safe-area-inset-right, 0px));
+        }
+
+        .region-map-search-wrap input {
+          font-size: max(16px, 0.9375rem);
+        }
+
+        .hierarchy-tree {
+          max-height: min(28dvh, 220px);
+        }
+      }
+
+      @media (max-height: 460px) and (orientation: landscape) {
+        .region-map-header-bar {
+          padding-top: max(0.35rem, env(safe-area-inset-top, 0px));
+          padding-bottom: 0.35rem;
+        }
+        .region-map-header-bar h1 {
+          font-size: clamp(0.85rem, 2.2vw, 1rem);
+        }
       }
 
       @media (prefers-reduced-motion: reduce) {
@@ -1046,7 +1122,25 @@
             .getElementById("toggle-controls")
             .addEventListener("click", function () {
               document.getElementById("controls").classList.toggle("collapsed");
+              window.setTimeout(function () {
+                if (map) map.invalidateSize({ animate: false });
+              }, 280);
             });
+
+          window.addEventListener("resize", function () {
+            if (map) map.invalidateSize({ animate: false });
+          });
+          var rmVV = window.visualViewport;
+          if (rmVV) {
+            rmVV.addEventListener("resize", function () {
+              if (map) map.invalidateSize({ animate: false });
+            });
+          }
+          window.addEventListener("orientationchange", function () {
+            window.setTimeout(function () {
+              if (map) map.invalidateSize({ animate: false });
+            }, 400);
+          });
 
           document
             .querySelectorAll('input[name="overlay"]')

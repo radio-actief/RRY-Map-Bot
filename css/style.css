@@ -52,6 +52,13 @@ body.map-page {
     radial-gradient(ellipse 100% 60% at 50% -10%, rgba(212, 160, 23, 0.06), transparent),
     linear-gradient(180deg, var(--app-bg) 0%, #eeedea 100%);
   min-height: 100vh;
+  min-height: 100dvh;
+  overflow-x: clip;
+  -webkit-text-size-adjust: 100%;
+  /* Notch / home indicator: FABs and Leaflet offsets use this */
+  --map-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --map-safe-right: env(safe-area-inset-right, 0px);
+  --map-safe-left: env(safe-area-inset-left, 0px);
 }
 body:has(dialog[open])::after {
   content: "";
@@ -114,7 +121,10 @@ dialog[open] {
 }
 
 #map {
+  width: 100%;
+  box-sizing: border-box;
   height: 100vh;
+  height: 100dvh;
 }
 table.node-info {
   table-layout: fixed;
@@ -258,7 +268,8 @@ body.map-page .search-results .list li img {
   align-items: center;
   min-height: 36px;
   width: 100%;
-  min-width: 700px;
+  min-width: 0;
+  max-width: 100%;
   overflow: visible;
   color: var(--app-text, #1a1917);
   background: linear-gradient(
@@ -268,7 +279,8 @@ body.map-page .search-results .list li img {
   );
   backdrop-filter: blur(14px) saturate(1.2);
   -webkit-backdrop-filter: blur(14px) saturate(1.2);
-  padding: 8px 18px 10px;
+  padding: max(8px, env(safe-area-inset-top, 0px)) max(18px, env(safe-area-inset-right, 0px)) 10px
+    max(18px, env(safe-area-inset-left, 0px));
   box-sizing: border-box;
   border-bottom: 1px solid var(--app-border, #e7e5e4);
   box-shadow:
@@ -476,7 +488,8 @@ body.map-page .search-results .list li img {
     min-width: 100% !important;
     width: 100% !important;
     min-height: auto;
-    padding: 4px 6px;
+    padding: max(4px, env(safe-area-inset-top, 0px)) max(6px, env(safe-area-inset-right, 0px)) 4px
+      max(6px, env(safe-area-inset-left, 0px));
     gap: 6px;
     overflow: hidden;
     mask-image: none;
@@ -603,7 +616,8 @@ body.map-page .search-results .list li img {
 /* Very small screens - even more compact, still one row */
 @media (max-width: 480px) {
   .stats {
-    padding: 3px 4px;
+    padding: max(3px, env(safe-area-inset-top, 0px)) max(4px, env(safe-area-inset-right, 0px)) 3px
+      max(4px, env(safe-area-inset-left, 0px));
     gap: 4px;
   }
 
@@ -682,7 +696,8 @@ body.map-page .search-results .list li img {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  bottom: 64px;
+  bottom: calc(64px + var(--map-safe-bottom, 0px));
+  left: max(10px, env(safe-area-inset-left, 0px));
 }
 .leaflet-bottom.leaflet-left .leaflet-control {
   flex-shrink: 0;
@@ -744,8 +759,9 @@ body.map-page .search-results .list li img {
 .float-action-grid {
   position: fixed;
   z-index: 1000;
-  bottom: 64px; /* 8px below Add (122 - 8 - 50), same gap as Stats–Add */
-  right: 10px;
+  bottom: calc(64px + var(--map-safe-bottom, 0px)); /* 8px below Add (122 - 8 - 50), same gap as Stats–Add */
+  right: max(10px, var(--map-safe-right, env(safe-area-inset-right, 0px)));
+  touch-action: manipulation;
   display: grid;
   grid-template-columns: 1fr 1fr;
   grid-template-rows: 1fr 1fr;
@@ -879,13 +895,17 @@ body.map-page .search-results .list li img {
   top: calc(
     env(safe-area-inset-top, 0px) + var(--stats-bar-height) + var(--map-search-gap)
   );
-  max-width: 600px;
   flex-grow: 1;
-  width: calc(100% - 20px);
+  width: calc(100% - 20px - var(--map-safe-left) - var(--map-safe-right));
+  max-width: min(
+    600px,
+    calc(100% - 20px - var(--map-safe-left) - var(--map-safe-right))
+  );
   align-self: center;
   justify-content: center;
   gap: 8px;
   transition: top 0.2s ease;
+  box-sizing: border-box;
 }
 
 /* Search field: glass row + filter drawer trigger (matches stats / popups) */
@@ -1055,8 +1075,9 @@ body.map-page .search .field.border .filter:focus-visible {
   justify-content: center;
   width: 50px;
   height: 50px;
-  right: 10px;
-  bottom: 122px; /* Add: above footer links */
+  right: max(10px, var(--map-safe-right, env(safe-area-inset-right, 0px)));
+  bottom: calc(122px + var(--map-safe-bottom, 0px)); /* Add: above footer links */
+  touch-action: manipulation;
   border-radius: var(--app-radius-sm, 6px);
   box-sizing: border-box;
   padding: 4px 5px;
@@ -1101,7 +1122,7 @@ body.map-page .search .field.border .filter:focus-visible {
 
 /* Order top to bottom: Regioncodes, Stats, Add, then footer links */
 .float-action-btn--region {
-  bottom: 238px;
+  bottom: calc(238px + var(--map-safe-bottom, 0px));
 }
 
 .float-action-btn--region::before {
@@ -1114,7 +1135,7 @@ body.map-page .search .field.border .filter:focus-visible {
 }
 
 .float-action-btn--stats {
-  bottom: 180px;
+  bottom: calc(180px + var(--map-safe-bottom, 0px));
 }
 
 .float-action-btn--stats::before {
@@ -1127,7 +1148,7 @@ body.map-page .search .field.border .filter:focus-visible {
 }
 
 .float-action-btn--add {
-  bottom: 122px;
+  bottom: calc(122px + var(--map-safe-bottom, 0px));
 }
 
 .float-action-btn--add::before {
@@ -1201,6 +1222,12 @@ body.map-page .search .field.border .filter:focus-visible {
 
 .leaflet-bottom {
   position: fixed !important;
+}
+
+/* OSM attribution: clear home indicator / curved corners */
+body.map-page .leaflet-bottom.leaflet-right {
+  margin-right: max(0px, env(safe-area-inset-right, 0px));
+  margin-bottom: var(--map-safe-bottom, 0px);
 }
 .leaflet-control-layers-list {
   margin-block-start: 0 !important;
@@ -2840,4 +2867,118 @@ time {
   background: rgba(212, 160, 23, 0.12) !important;
   border-color: rgba(212, 160, 23, 0.6) !important;
   color: var(--app-text, #1a1917) !important;
+}
+
+/* --------------------------------------------------------------------------
+   Map page — phones / small tablets (popups, search hit list, filter drawer)
+   -------------------------------------------------------------------------- */
+@media (max-width: 640px) {
+  body.map-page .leaflet-popup-content {
+    min-width: 0 !important;
+    max-width: calc(100vw - 28px - var(--map-safe-left) - var(--map-safe-right)) !important;
+    box-sizing: border-box;
+  }
+
+  body.map-page .search-results {
+    max-height: min(52dvh, 420px);
+  }
+
+  body.map-page .search-pkey {
+    max-width: none;
+  }
+
+  #node-filter {
+    min-width: 0;
+    width: min(360px, calc(100vw - 20px - var(--map-safe-left) - var(--map-safe-right)));
+    max-width: calc(100vw - 16px - var(--map-safe-left) - var(--map-safe-right));
+    max-height: min(78dvh, 640px);
+  }
+
+  table.node-info tr td:first-child {
+    width: 7.5rem;
+  }
+}
+
+@media (max-width: 380px) {
+  body.map-page .search .field.border .filter:not(.circle) {
+    min-height: 44px;
+  }
+
+  .float-action-btn {
+    width: 48px;
+    height: 48px;
+    font-size: 0.625rem;
+  }
+
+  .float-action-grid {
+    width: 48px;
+    height: 48px;
+  }
+}
+
+/* iOS Safari: inputs below 16px trigger page zoom on focus */
+@media (max-width: 640px) {
+  body.map-page .search .field.border input.background,
+  body.map-page #node-filter input[type="text"],
+  body.map-page #node-filter input[type="date"] {
+    font-size: max(16px, 0.875rem);
+  }
+}
+
+/* Touch: visible press state without relying on :hover */
+@media (hover: none) {
+  body.map-page .search-results .list li:active {
+    background: rgba(212, 160, 23, 0.12);
+  }
+}
+
+/* Landscape phones: shorter vertical stack for FABs + Leaflet controls */
+@media (max-height: 460px) and (orientation: landscape) {
+  body.map-page {
+    --map-search-gap: 4px;
+  }
+
+  .search {
+    padding: 4px 8px;
+    gap: 4px;
+  }
+
+  .float-action-btn {
+    width: 46px;
+    height: 46px;
+    font-size: 0.6rem;
+  }
+
+  .float-action-btn--region {
+    bottom: calc(202px + var(--map-safe-bottom, 0px));
+  }
+
+  .float-action-btn--stats {
+    bottom: calc(154px + var(--map-safe-bottom, 0px));
+  }
+
+  .float-action-btn--add {
+    bottom: calc(106px + var(--map-safe-bottom, 0px));
+  }
+
+  .float-action-grid {
+    width: 46px;
+    height: 46px;
+    bottom: calc(56px + var(--map-safe-bottom, 0px));
+  }
+
+  .leaflet-bottom.leaflet-left {
+    bottom: calc(56px + var(--map-safe-bottom, 0px));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.map-page #app .stats,
+  body.map-page #app .search,
+  body.map-page #app .float-action-grid,
+  body.map-page #app .float-action-btn--region,
+  body.map-page #app .float-action-btn--stats,
+  body.map-page #app .float-action-btn--add {
+    animation: none;
+  }
 }

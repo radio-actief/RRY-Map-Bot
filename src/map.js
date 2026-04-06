@@ -26,11 +26,21 @@ function normalizePubKeyForCompare(key) {
   return (key || "").toLowerCase().replace(/\s/g, "");
 }
 
-function formatInserterUpdater(val, nodes = [], currentNode = null) {
+function formatInserterUpdater(
+  val,
+  nodes = [],
+  currentNode = null,
+  copyRole = "inserter",
+) {
   if (!val) return "N/A";
+  const copyTitle =
+    copyRole === "updater"
+      ? "Copy updater public key"
+      : "Copy inserter public key";
   const copyable = createCopyableElement(
     val,
     shortenForDisplay(val.toUpperCase(), 18),
+    { copyTitle },
   );
   const k = normalizePubKeyForCompare(val);
   const isSameNode =
@@ -39,7 +49,7 @@ function formatInserterUpdater(val, nodes = [], currentNode = null) {
     !isSameNode &&
     nodes.some((n) => normalizePubKeyForCompare(n.public_key) === k);
   const gotoLink = inDb
-    ? ` <a href="?node=${encodeURIComponent(val)}" title="Go to node on map" style="color:#4CAF50;text-decoration:none;vertical-align:middle;"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:middle;display:inline-block;"><path d="${mdiOpenInNew}" fill="currentColor"/></svg></a>`
+    ? ` <a class="node-popup__map-jump" href="?node=${encodeURIComponent(val)}" title="Go to node on map" aria-label="Go to node on map"><svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="${mdiOpenInNew}" fill="currentColor"/></svg></a>`
     : "";
   return copyable + gotoLink;
 }
@@ -50,6 +60,55 @@ const types = {
   3: "Room Server",
   4: "Sensor",
 };
+
+/** Material Symbols ligatures (Beer.css / map page font). */
+function getNodeTypeMeta(node) {
+  const raw = parseInt(String(node?.type ?? 1), 10);
+  const typeNum = Number.isFinite(raw) && raw >= 1 && raw <= 4 ? raw : 1;
+  const iconByType = {
+    1: "smartphone",
+    2: "hub",
+    3: "groups",
+    4: "sensors",
+  };
+  return {
+    typeNum,
+    icon: iconByType[typeNum] || iconByType[1],
+    label: types[typeNum] || types[1],
+  };
+}
+
+/** Material icon + tooltip for map node `source`; shown in popup header (right). */
+function getNodeSourceHeaderMeta(node) {
+  const raw = node?.source;
+  if (raw == null || String(raw).trim() === "") return null;
+  const lowerVal = String(raw).toLowerCase().trim();
+  const safeClass = /^[a-z0-9_-]+$/.test(lowerVal) ? lowerVal : "other";
+  let tooltipText = "";
+  let icon = "label";
+  /** Optional link (e.g. uploader repo), same as table column. */
+  let href = null;
+
+  if (lowerVal === "uploader") {
+    tooltipText = "Uploader: Auto-uploaded via MeshCore map uploader tool";
+    icon = "cloud_upload";
+  } else if (lowerVal === "app") {
+    tooltipText = "App: Added via a MeshCore app";
+    icon = "apps";
+  } else if (lowerVal === "web") {
+    tooltipText = "Web: Added via legacy official map";
+    icon = "language";
+  } else if (lowerVal === "discord") {
+    tooltipText = "Discord: Added via Discord";
+    icon = "forum";
+  } else {
+    const cap = lowerVal.charAt(0).toUpperCase() + lowerVal.slice(1);
+    tooltipText = `Source: ${cap}`;
+    icon = "database";
+  }
+
+  return { safeClass, icon, tooltipText, href };
+}
 
 // Frequency Presets (fallback - matching backend config)
 // Will be replaced by dynamic presets from API if available
@@ -147,6 +206,46 @@ function copyToClipboard(text, element) {
     });
 }
 
+/** Flash `<i>check</i> Copied!` inside `.node-qr-card__field-text` when present (else whole `node-popup__pk-wrap`). */
+function copyToClipboardWithQrWrapFeedback(text, wrapEl) {
+  if (text == null || text === "") return;
+  const plain = String(text);
+  const doFlash = (ok) => {
+    if (!wrapEl) return;
+    const fieldEl =
+      wrapEl.querySelector?.(".node-qr-card__field-text") || wrapEl;
+    const original = fieldEl.innerHTML;
+    const inlineCls = fieldEl.classList.contains("node-qr-card__field-text")
+      ? " node-qr-wrap-feedback--inline"
+      : "";
+    const inner = ok
+      ? `<span class="node-qr-wrap-feedback node-qr-wrap-feedback--ok${inlineCls}"><i aria-hidden="true">check</i> Copied!</span>`
+      : `<span class="node-qr-wrap-feedback node-qr-wrap-feedback--err${inlineCls}"><i aria-hidden="true">error</i> Failed</span>`;
+    let frozenH = null;
+    if (fieldEl.classList.contains("node-qr-card__field-text")) {
+      frozenH = fieldEl.getBoundingClientRect().height;
+      fieldEl.style.height = `${frozenH}px`;
+      fieldEl.style.boxSizing = "border-box";
+    }
+    fieldEl.innerHTML = inner;
+    clearTimeout(fieldEl._qrFieldFlashTimer);
+    fieldEl._qrFieldFlashTimer = setTimeout(() => {
+      fieldEl.innerHTML = original;
+      if (frozenH != null) {
+        fieldEl.style.height = "";
+        fieldEl.style.boxSizing = "";
+      }
+    }, 2500);
+  };
+  navigator.clipboard
+    .writeText(plain)
+    .then(() => doFlash(true))
+    .catch((err) => {
+      console.error("Failed to copy:", err);
+      doFlash(false);
+    });
+}
+
 // Copy via PointerEvent (Firefox deprecates reading MouseEvent.mozInputSource on
 // legacy click paths; pointerup uses PointerEvent.pointerType). Capture phase
 // so Leaflet popup stopPropagation on bubble still sees this first.
@@ -184,6 +283,133 @@ function setupCopyHandlers() {
   }
 }
 
+function nodeQrCardCopyFromEvent(card, link) {
+  const wrap = card.querySelector(".node-qr-card__footer .node-popup__pk-wrap");
+  copyToClipboardWithQrWrapFeedback(link, wrap);
+}
+
+function getMeshcoreLinkToCopyFromQrCard(card) {
+  const packed = card?.getAttribute?.("data-meshcore-copy")?.trim();
+  if (packed) return packed;
+  const slot = card?.querySelector?.(".node-qr-slot[data-meshcore-link]");
+  return slot?.getAttribute("data-meshcore-link")?.trim() || "";
+}
+
+function setupNodeQrCardHandlers() {
+  function onPointerUp(e) {
+    if (!e.isPrimary) return;
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    const card = e.target.closest?.(".node-qr-card");
+    if (!card) return;
+    if (e.target.closest?.(".node-qr-card__header")) {
+      const pk = card.getAttribute("data-public-key")?.trim();
+      if (!pk) return;
+      const wrap = card.querySelector(
+        ".node-qr-card__header .node-popup__pk-wrap",
+      );
+      if (!wrap) return;
+      e.preventDefault();
+      e.stopPropagation();
+      copyToClipboardWithQrWrapFeedback(pk, wrap);
+      return;
+    }
+    if (e.target.closest?.(".node-qr-card__footer")) {
+      const link = getMeshcoreLinkToCopyFromQrCard(card);
+      if (!link) return;
+      const wrap = card.querySelector(
+        ".node-qr-card__footer .node-popup__pk-wrap",
+      );
+      if (!wrap) return;
+      e.preventDefault();
+      e.stopPropagation();
+      copyToClipboardWithQrWrapFeedback(link, wrap);
+      return;
+    }
+    if (!e.target.closest?.(".node-qr-card__inner")) return;
+    const slotEl = e.target.closest?.(".node-qr-slot");
+    if (slotEl) {
+      const uri = slotEl.getAttribute("data-meshcore-link")?.trim();
+      if (!uri) return;
+      e.preventDefault();
+      e.stopPropagation();
+      void openQrEnlargeOverlay(slotEl, uri);
+      return;
+    }
+    const link = getMeshcoreLinkToCopyFromQrCard(card);
+    if (!link) return;
+    e.preventDefault();
+    e.stopPropagation();
+    nodeQrCardCopyFromEvent(card, link);
+  }
+
+  if (typeof PointerEvent !== "undefined") {
+    document.addEventListener("pointerup", onPointerUp, { capture: true });
+  } else {
+    document.addEventListener(
+      "click",
+      (e) => {
+        const card = e.target.closest?.(".node-qr-card");
+        if (!card) return;
+        if (e.target.closest?.(".node-qr-card__header")) {
+          const pk = card.getAttribute("data-public-key")?.trim();
+          if (!pk) return;
+          const wrap = card.querySelector(
+            ".node-qr-card__header .node-popup__pk-wrap",
+          );
+          if (!wrap) return;
+          e.preventDefault();
+          e.stopPropagation();
+          copyToClipboardWithQrWrapFeedback(pk, wrap);
+          return;
+        }
+        if (e.target.closest?.(".node-qr-card__footer")) {
+          const link = getMeshcoreLinkToCopyFromQrCard(card);
+          if (!link) return;
+          const wrap = card.querySelector(
+            ".node-qr-card__footer .node-popup__pk-wrap",
+          );
+          if (!wrap) return;
+          e.preventDefault();
+          e.stopPropagation();
+          copyToClipboardWithQrWrapFeedback(link, wrap);
+          return;
+        }
+        if (!e.target.closest?.(".node-qr-card__inner")) return;
+        const slotEl = e.target.closest?.(".node-qr-slot");
+        if (slotEl) {
+          const uri = slotEl.getAttribute("data-meshcore-link")?.trim();
+          if (!uri) return;
+          e.preventDefault();
+          e.stopPropagation();
+          void openQrEnlargeOverlay(slotEl, uri);
+          return;
+        }
+        const link = getMeshcoreLinkToCopyFromQrCard(card);
+        if (!link) return;
+        e.preventDefault();
+        e.stopPropagation();
+        nodeQrCardCopyFromEvent(card, link);
+      },
+      true,
+    );
+  }
+
+  document.addEventListener(
+    "keydown",
+    (e) => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      const el = document.activeElement;
+      if (!el?.classList?.contains?.("node-qr-card")) return;
+      const link = getMeshcoreLinkToCopyFromQrCard(el);
+      if (!link) return;
+      e.preventDefault();
+      e.stopPropagation();
+      nodeQrCardCopyFromEvent(el, link);
+    },
+    true,
+  );
+}
+
 // Match frequency preset
 function matchFrequencyPreset(params) {
   if (!params || typeof params !== "object") return null;
@@ -206,6 +432,21 @@ function matchFrequencyPreset(params) {
     }
   }
   return null;
+}
+
+/** Presets whose center frequency matches (±1 kHz tolerance). */
+function findPresetsByFrequency(mhz) {
+  if (!Number.isFinite(mhz)) return [];
+  return FREQUENCY_PRESETS.filter((p) => Math.abs(mhz - p.freq) < 0.001);
+}
+
+function presetHoverDetailsText(preset) {
+  return `${preset.name} — ${preset.freq} MHz / BW ${preset.bw} kHz / SF${preset.sf} / CR${preset.cr}`;
+}
+
+function formatFrequencyKnownTooltip(presets) {
+  if (!presets.length) return "";
+  return presets.map((p) => presetHoverDetailsText(p)).join("\n\n");
 }
 
 const radioParamDesc = {
@@ -282,6 +523,37 @@ function timeAgo(msec) {
   return "just now";
 }
 
+/** Tight relative labels for narrow UI (e.g. popup activity strip): no “ago”, short units. */
+function timeAgoCompact(msec) {
+  const seconds = Math.floor((Date.now() - msec) / 1000);
+  if (seconds < 45) return "now";
+
+  const tiers = [
+    { limit: 31536000, suf: "y" },
+    { limit: 2592000, suf: "mo" },
+    { limit: 86400, suf: "d" },
+    { limit: 3600, suf: "h" },
+    { limit: 60, suf: "min" },
+  ];
+
+  for (const { limit, suf } of tiers) {
+    const count = Math.floor(seconds / limit);
+    if (count >= 1) return `${count}${suf}`;
+  }
+  return "now";
+}
+
+function formatRelativeTimeCompact(dateString) {
+  if (!dateString) return "N/A";
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return "Invalid date";
+  const titleCET = formatInCET(date);
+  const long = timeAgo(date.getTime());
+  const short = timeAgoCompact(date.getTime());
+  const tip = `${titleCET} · ${long}`;
+  return `<time datetime="${escapeAttrHtml(dateString)}" title="${escapeAttrHtml(tip)}">${escapeAttrHtml(short)}</time>`;
+}
+
 // Format date in CET/CEST with timezone label (for tooltips and display)
 // Note: timeZoneName cannot be used with dateStyle/timeStyle, so we use explicit options.
 function formatInCET(date) {
@@ -321,10 +593,17 @@ function shortenForDisplay(str, maxLen = 24) {
 }
 
 // Create clickable copy element
-function createCopyableElement(text, displayText = null) {
+// options: { hintStyle, extraClasses, dataHint, copyTitle } — copyTitle overrides default "Click to copy" tooltip.
+function createCopyableElement(text, displayText = null, options = null) {
   if (!text) return "N/A";
   const display = displayText || text;
-  // Escape HTML and quotes for data attribute
+  const opts = options && typeof options === "object" ? options : {};
+  const hintStyle = !!opts.hintStyle;
+  const extraClasses = opts.extraClasses
+    ? String(opts.extraClasses).trim()
+    : "";
+  const dataHint = opts.dataHint != null ? String(opts.dataHint) : "";
+
   const escapedText = String(text)
     .replace(/&/g, "&amp;")
     .replace(/"/g, "&quot;")
@@ -333,10 +612,186 @@ function createCopyableElement(text, displayText = null) {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
-  return `<span class="copyable" data-copy="${escapedText}" style="cursor: pointer; color: #2196F3; text-decoration: underline;" title="Click to copy">${escapedDisplay}</span>`;
+  const dataHintAttr = dataHint
+    ? ` data-hint="${escapeAttrHtml(dataHint)}"`
+    : "";
+
+  const classes = ["copyable"];
+  if (hintStyle) classes.push("node-qr-card__hint-copy");
+  if (extraClasses) {
+    for (const c of extraClasses.split(/\s+/)) {
+      if (c) classes.push(c);
+    }
+  }
+  const styleAttr = hintStyle
+    ? ""
+    : ` style="cursor: pointer; color: #2196F3; text-decoration: underline;"`;
+
+  const titleRaw =
+    opts.copyTitle != null && String(opts.copyTitle).trim() !== ""
+      ? String(opts.copyTitle).trim()
+      : "Click to copy";
+  const titleAttr = escapeAttrHtml(titleRaw);
+
+  return `<span class="${classes.join(" ")}" data-copy="${escapedText}"${styleAttr}${dataHintAttr} title="${titleAttr}">${escapedDisplay}</span>`;
+}
+
+/**
+ * Copy-coordinates + map links menu. `toggleLabelEscaped` is visible link text (already
+ * passed through escapeAttrHtml); lat/lon drive copy + external URLs.
+ */
+function buildCoordsMenuWrapFromLatLon(latN, lonN, toggleLabelEscaped) {
+  const plain = `${latN}, ${lonN}`;
+  const osm = `https://www.openstreetmap.org/?mlat=${latN}&mlon=${lonN}&zoom=15`;
+  const gMap = `https://www.google.com/maps/place/${latN},${lonN}`;
+  const mapy = `https://mapy.com/?q=${latN},${lonN}`;
+  return (
+    `<span class="coords-menu-wrap">` +
+    `<a href="#" class="coords-menu-toggle" onclick="event.preventDefault();event.stopPropagation();this.parentElement.classList.toggle('open');return false;" title="Copy coordinates &amp; open in maps">${toggleLabelEscaped}</a>` +
+    `<span class="coords-menu">${createCopyableElement(plain, "Copy coordinates")}<a href="${osm}" target="_blank" rel="noopener noreferrer">OpenStreetMap</a><a href="${gMap}" target="_blank" rel="noopener noreferrer">Google Maps</a><a href="${mapy}" target="_blank" rel="noopener noreferrer">Mapy.com</a></span>` +
+    `</span>`
+  );
 }
 
 const QR_CODE_MODULE_URL = "https://cdn.jsdelivr.net/npm/qrcode@1.5.4/+esm";
+const NODE_QR_WIDTH_PX = 128;
+const NODE_QR_ENLARGE_FACTOR = 3;
+
+let _qrEnlargeTeardown = null;
+
+function closeQrEnlargeOverlay() {
+  if (_qrEnlargeTeardown) {
+    _qrEnlargeTeardown();
+    _qrEnlargeTeardown = null;
+  }
+}
+
+/** Read node label lines from the open Leaflet popup DOM (same source as the small QR card). */
+function collectQrEnlargeContext(slot) {
+  const popup = slot?.closest?.(".node-popup");
+  const card = slot?.closest?.(".node-qr-card");
+  const titleEl = popup?.querySelector?.(".node-popup__title");
+  const typeIcon = popup?.querySelector?.(".node-popup__type-icon");
+  const name = (titleEl?.textContent || "").trim() || "Unnamed node";
+  const typeLabel =
+    (
+      typeIcon?.getAttribute("aria-label") ||
+      typeIcon?.getAttribute("title") ||
+      ""
+    ).trim() || "Node";
+  const publicKey = (card?.getAttribute("data-public-key") || "").trim();
+  return { name, typeLabel, publicKey };
+}
+
+/**
+ * Full-screen style overlay with the same QR at NODE_QR_ENLARGE_FACTOR × popup size (384px).
+ */
+async function openQrEnlargeOverlay(slot, link) {
+  const trimmed = link?.trim();
+  if (!trimmed) return;
+  closeQrEnlargeOverlay();
+
+  const ctx = collectQrEnlargeContext(slot);
+
+  const backdrop = document.createElement("div");
+  backdrop.className = "node-qr-enlarge-backdrop";
+  backdrop.setAttribute("role", "dialog");
+  backdrop.setAttribute("aria-modal", "true");
+  backdrop.setAttribute("aria-label", `Enlarged QR code — ${ctx.name}`);
+
+  const panel = document.createElement("div");
+  panel.className = "node-qr-enlarge-panel";
+  panel.addEventListener("click", (e) => e.stopPropagation());
+
+  const closeBtn = document.createElement("button");
+  closeBtn.type = "button";
+  closeBtn.className = "node-qr-enlarge-close";
+  closeBtn.setAttribute("aria-label", "Close");
+  closeBtn.textContent = "\u00d7";
+
+  const titleEl = document.createElement("h2");
+  titleEl.className = "node-qr-enlarge-title";
+  titleEl.textContent = ctx.name;
+
+  const typeEl = document.createElement("p");
+  typeEl.className = "node-qr-enlarge-subtitle";
+  typeEl.textContent = ctx.typeLabel;
+
+  const pkEl = document.createElement("p");
+  pkEl.className = "node-qr-enlarge-pk";
+  pkEl.textContent = ctx.publicKey || "\u2014";
+
+  const wrap = document.createElement("div");
+  wrap.className = "node-qr-enlarge-qr";
+
+  panel.appendChild(closeBtn);
+  panel.appendChild(titleEl);
+  panel.appendChild(typeEl);
+  panel.appendChild(pkEl);
+  panel.appendChild(wrap);
+  backdrop.appendChild(panel);
+  document.body.appendChild(backdrop);
+
+  const onKeyDoc = (e) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      closeQrEnlargeOverlay();
+    }
+  };
+
+  const teardown = () => {
+    document.removeEventListener("keydown", onKeyDoc);
+    backdrop.remove();
+    _qrEnlargeTeardown = null;
+  };
+
+  closeBtn.addEventListener("click", () => closeQrEnlargeOverlay());
+  backdrop.addEventListener("click", () => closeQrEnlargeOverlay());
+  document.addEventListener("keydown", onKeyDoc);
+  _qrEnlargeTeardown = teardown;
+
+  const targetW = NODE_QR_WIDTH_PX * NODE_QR_ENLARGE_FACTOR;
+  const existingSvg = slot?.querySelector?.("svg.node-qr");
+  if (existingSvg) {
+    const clone = existingSvg.cloneNode(true);
+    clone.removeAttribute("style");
+    clone.setAttribute("width", String(targetW));
+    clone.setAttribute("height", String(targetW));
+    clone.style.shapeRendering = "crispEdges";
+    clone.style.display = "block";
+    clone.style.margin = "0 auto";
+    clone.classList.add("node-qr--enlarged");
+    wrap.appendChild(clone);
+    closeBtn.focus();
+    return;
+  }
+
+  try {
+    const mod = await import(QR_CODE_MODULE_URL);
+    const QRCode = mod.default;
+    const svg = await QRCode.toString(trimmed, {
+      type: "svg",
+      width: targetW,
+      margin: 1,
+      errorCorrectionLevel: "H",
+      color: { dark: "#000000", light: "#ffffff" },
+    });
+    if (!backdrop.isConnected) return;
+    wrap.innerHTML = svg;
+    const svgEl = wrap.querySelector("svg");
+    if (svgEl) {
+      svgEl.classList.add("node-qr", "node-qr--enlarged");
+      svgEl.setAttribute(
+        "style",
+        "shape-rendering:crispEdges;max-width:100%;height:auto;display:block;margin:0 auto",
+      );
+    }
+    closeBtn.focus();
+  } catch (e) {
+    console.warn("QR enlarge failed:", e);
+    teardown();
+  }
+}
 
 function meshcoreContactLink(node) {
   if (!node?.link || typeof node.link !== "string") return null;
@@ -354,6 +809,28 @@ function normalizeMeshcorePublicKeyHex(node) {
   if (pk.startsWith("0x")) pk = pk.slice(2);
   if (/^[0-9a-f]{64}$/.test(pk)) return pk;
   return null;
+}
+
+/** Footer “Analyzer” dropdown: Let's Mesh (typed URL) + ON8AR (pubkey-only). */
+function buildAnalyzerFooterMenu(node, letsMeshUrl) {
+  const pkHex = normalizeMeshcorePublicKeyHex(node);
+  const on8arPk =
+    pkHex ||
+    String(node?.public_key ?? "")
+      .trim()
+      .replace(/^0x/i, "")
+      .replace(/\s/g, "");
+  const on8arUrl = `https://analyzer.on8ar.eu/#/nodes/${encodeURIComponent(on8arPk)}`;
+  const lm = escapeAttrHtml(letsMeshUrl);
+  const o8 = escapeAttrHtml(on8arUrl);
+  return (
+    `<span class="coords-menu-wrap node-popup-analyzer-menu">` +
+    `<a href="#" class="node-popup-action node-popup-action--external node-popup-analyzer-menu__toggle" onclick="event.preventDefault();event.stopPropagation();this.parentElement.classList.toggle('open');return false;" title="Choose network analyzer">Analyzer</a>` +
+    `<span class="coords-menu" role="menu">` +
+    `<a role="menuitem" href="${lm}" target="_blank" rel="noopener noreferrer">Let\u2019s Mesh Analyzer</a>` +
+    `<a role="menuitem" href="${o8}" target="_blank" rel="noopener noreferrer">ON8AR Analyzer</a>` +
+    `</span></span>`
+  );
 }
 
 /**
@@ -389,7 +866,7 @@ async function fillNodeQrSlotFromPopup(popupContentRoot) {
     const QRCode = mod.default;
     const svg = await QRCode.toString(link, {
       type: "svg",
-      width: 128,
+      width: NODE_QR_WIDTH_PX,
       margin: 1,
       errorCorrectionLevel: "H",
       color: { dark: "#000000", light: "#ffffff" },
@@ -412,7 +889,7 @@ async function fillNodeQrSlotFromPopup(popupContentRoot) {
       svgEl.classList.add("node-qr");
       svgEl.setAttribute(
         "style",
-        "shape-rendering:crispEdges;max-width:100%;height:auto;display:block;margin:0 auto 12px",
+        "shape-rendering:crispEdges;max-width:100%;height:auto;display:block;margin:0 auto",
       );
     }
   } catch (e) {
@@ -437,29 +914,23 @@ function bindPopupQrRefill(popup, getContentRoot) {
   });
 }
 
-const columnOrder = [
-  "adv_name",
-  "type",
-  "status",
-  "public_key",
-  "city",
-  "coords",
-  "discord_owner_name",
-  "params",
-  "link",
-  "inserted_date",
-  "updated_date",
-  "last_advert",
-  "discord_updated_date",
-  "inserted_by",
-  "updated_by",
-  "source",
-];
+const columnOrder = ["link"];
 const columns = {
   coords: {
     label: "Coordinates",
-    value: (val) => {
-      const compact = String(val).replace(/\s/g, "");
+    value: (val, node) => {
+      if (node?.adv_lat != null && node?.adv_lon != null) {
+        const latN = Number(node.adv_lat);
+        const lonN = Number(node.adv_lon);
+        if (Number.isFinite(latN) && Number.isFinite(lonN)) {
+          return buildCoordsMenuWrapFromLatLon(
+            latN,
+            lonN,
+            escapeAttrHtml(`${latN}, ${lonN}`),
+          );
+        }
+      }
+      const compact = String(val || "").replace(/\s/g, "");
       const parts = compact.split(",");
       const lat = parts[0]?.trim();
       const lon = parts[1]?.trim();
@@ -473,13 +944,11 @@ const columns = {
       if (Number.isNaN(latN) || Number.isNaN(lonN)) {
         return escapeAttrHtml(val);
       }
-      const plain = `${latN}, ${lonN}`;
-      const osm = `https://www.openstreetmap.org/?mlat=${latN}&mlon=${lonN}&zoom=15`;
-      const gMap = `https://www.google.com/maps/place/${latN},${lonN}`;
-      const mapy = `https://mapy.com/?q=${latN},${lonN}`;
-      return `<span class="coords-menu-wrap"><a href="javascript:;" class="coords-menu-toggle" onclick="event.stopPropagation();this.parentElement.classList.toggle('open')">${escapeAttrHtml(
-        plain,
-      )}</a><span class="coords-menu">${createCopyableElement(plain, "Copy coordinates")}<a href="${osm}" target="_blank" rel="noopener noreferrer">OpenStreetMap</a><a href="${gMap}" target="_blank" rel="noopener noreferrer">Google Maps</a><a href="${mapy}" target="_blank" rel="noopener noreferrer">Mapy.com</a></span></span>`;
+      return buildCoordsMenuWrapFromLatLon(
+        latN,
+        lonN,
+        escapeAttrHtml(`${latN}, ${lonN}`),
+      );
     },
   },
   adv_name: {
@@ -493,7 +962,7 @@ const columns = {
         val && Object.prototype.hasOwnProperty.call(updateStatusDesc, val)
           ? `update-${val}`
           : "update-none";
-      return `<span class="status-dot ${statusClass}"></span>${escapeAttrHtml(desc)}`;
+      return `<span class="status-dot ${statusClass}" title="${escapeAttrHtml(desc)}"></span>`;
     },
   },
   inserted_date: {
@@ -515,11 +984,13 @@ const columns = {
   },
   inserted_by: {
     label: "Inserted by",
-    value: (val, node, nodes = []) => formatInserterUpdater(val, nodes, node),
+    value: (val, node, nodes = []) =>
+      formatInserterUpdater(val, nodes, node, "inserter"),
   },
   updated_by: {
     label: "Updated by",
-    value: (val, node, nodes = []) => formatInserterUpdater(val, nodes, node),
+    value: (val, node, nodes = []) =>
+      formatInserterUpdater(val, nodes, node, "updater"),
   },
   type: {
     label: "Type",
@@ -632,6 +1103,196 @@ function clearLocationHash() {
   history.pushState("", document.title, location.pathname + location.search);
 }
 
+/** City under the node title; click opens the same coords/menu as the former coords row. */
+function buildHeaderCityLineHtml(node) {
+  const cityRaw = node?.city;
+  const city = cityRaw != null ? String(cityRaw).trim() : "";
+  const displayCity = city || "Unknown";
+  const latN = node?.adv_lat != null ? Number(node.adv_lat) : NaN;
+  const lonN = node?.adv_lon != null ? Number(node.adv_lon) : NaN;
+  if (Number.isFinite(latN) && Number.isFinite(lonN)) {
+    return (
+      `<div class="node-popup__cityline">` +
+      buildCoordsMenuWrapFromLatLon(latN, lonN, escapeAttrHtml(displayCity)) +
+      `</div>`
+    );
+  }
+  return `<div class="node-popup__cityline node-popup__cityline--plain">${escapeAttrHtml(displayCity)}</div>`;
+}
+
+/** Inserted / updated / last advert in one strip under the header. */
+function buildNodeActivityStripHtml(node) {
+  const items = [
+    {
+      key: "inserted_date",
+      label: "Inserted",
+      icon: "rocket_launch",
+    },
+    {
+      key: "updated_date",
+      label: "Updated",
+      icon: "autorenew",
+    },
+    {
+      key: "last_advert",
+      label: "Last advert",
+      icon: "rss_feed",
+    },
+  ];
+
+  const cells = items
+    .map(({ key, label, icon }) => {
+      const val = node[key];
+      const valueHtml =
+        key === "inserted_date" ||
+        key === "updated_date" ||
+        key === "last_advert"
+          ? formatRelativeTimeCompact(val)
+          : columns[key]?.value
+            ? columns[key].value(val, node)
+            : escapeAttrHtml(String(val ?? ""));
+      return (
+        `<div class="node-popup__activity-item" role="listitem">` +
+        `<span class="node-popup__activity-icon" aria-hidden="true"><i>${icon}</i></span>` +
+        `<span class="node-popup__activity-copy">` +
+        `<span class="node-popup__activity-label">${escapeAttrHtml(label)}</span>` +
+        `<span class="node-popup__activity-value">${valueHtml}</span>` +
+        `</span></div>`
+      );
+    })
+    .join("");
+
+  return `<div class="node-popup__activity" role="list" aria-label="Node dates: inserted, updated, last advert">${cells}</div>`;
+}
+
+function buildRadioParamsPanelHtml(node) {
+  const params = node.params;
+  if (
+    !params ||
+    typeof params !== "object" ||
+    Object.keys(params).length === 0
+  ) {
+    return (
+      `<div class="node-popup__panel-block">` +
+      `<div class="node-popup__panel-kicker"><span class="node-popup__panel-icon" aria-hidden="true"><i>tune</i></span><span>Radio</span></div>` +
+      `<div class="node-popup__panel-body"><span class="node-popup__muted">Not specified</span></div></div>`
+    );
+  }
+  const preset = matchFrequencyPreset(params);
+  if (preset) {
+    const presetTitle = escapeAttrHtml(presetHoverDetailsText(preset));
+    return (
+      `<div class="node-popup__panel-block">` +
+      `<div class="node-popup__panel-kicker"><span class="node-popup__panel-icon" aria-hidden="true"><i>tune</i></span><span>Radio</span></div>` +
+      `<div class="node-popup__panel-body"><span class="node-popup__radio-preset" title="${presetTitle}">${escapeAttrHtml(preset.name)}</span></div></div>`
+    );
+  }
+  const freq = parseFloat(params.freq);
+  const sf = parseInt(params.sf, 10);
+  const bw = parseFloat(params.bw);
+  const cr = parseInt(params.cr, 10);
+  const chips = [];
+  if (Number.isFinite(freq)) {
+    const freqPresetTooltip = formatFrequencyKnownTooltip(
+      findPresetsByFrequency(freq),
+    );
+    const freqTitle = freqPresetTooltip
+      ? ` title="${escapeAttrHtml(freqPresetTooltip)}"`
+      : "";
+    chips.push(
+      `<span class="node-popup__chip"${freqTitle}>${escapeAttrHtml(String(freq))}\u00a0MHz</span>`,
+    );
+  }
+  if (Number.isFinite(sf)) {
+    chips.push(
+      `<span class="node-popup__chip">SF\u00a0${escapeAttrHtml(String(sf))}</span>`,
+    );
+  }
+  if (Number.isFinite(bw)) {
+    chips.push(
+      `<span class="node-popup__chip">${escapeAttrHtml(String(bw))}\u00a0kHz BW</span>`,
+    );
+  }
+  if (Number.isFinite(cr)) {
+    chips.push(
+      `<span class="node-popup__chip">CR\u00a0${escapeAttrHtml(String(cr))}</span>`,
+    );
+  }
+  const inner = chips.length
+    ? `<div class="node-popup__radio-custom"><span class="node-popup__chip-hint node-popup__chip-hint--lead">Custom</span><div class="node-popup__chip-row">${chips.join("")}</div></div>`
+    : `<span class="node-popup__muted">Not specified</span>`;
+  return (
+    `<div class="node-popup__panel-block">` +
+    `<div class="node-popup__panel-kicker"><span class="node-popup__panel-icon" aria-hidden="true"><i>tune</i></span><span>Radio</span></div>` +
+    `<div class="node-popup__panel-body">${inner}</div></div>`
+  );
+}
+
+function buildNodeIdentityPanelHtml(
+  node,
+  nodes = [],
+  skipPublicKeyBlock = false,
+) {
+  const blocks = [];
+
+  if (node.public_key && !skipPublicKeyBlock) {
+    const pk = String(node.public_key);
+    const display = shortenForDisplay(pk.toUpperCase(), 26);
+    const copyHtml = createCopyableElement(pk, display);
+    blocks.push(
+      `<div class="node-popup__panel-block">` +
+        `<div class="node-popup__panel-kicker"><span class="node-popup__panel-icon" aria-hidden="true"><i>key</i></span><span>Public key</span></div>` +
+        `<div class="node-popup__panel-body"><div class="node-popup__pk-wrap" title="${escapeAttrHtml("Copy public key")}">${copyHtml}</div></div></div>`,
+    );
+  }
+
+  blocks.push(buildRadioParamsPanelHtml(node));
+
+  const ins = node.inserted_by;
+  const upd = node.updated_by;
+  const insPresent = ins && String(ins).trim();
+  const updPresent = upd && String(upd).trim();
+  if (insPresent || updPresent) {
+    const same =
+      insPresent &&
+      updPresent &&
+      normalizePubKeyForCompare(ins) === normalizePubKeyForCompare(upd);
+    let inner = "";
+    if (same) {
+      inner = `<div class="node-popup__prov-row"><span class="node-popup__prov-label">Added &amp; updated by</span><span class="node-popup__prov-value">${formatInserterUpdater(ins, nodes, node, "inserter")}</span></div>`;
+    } else {
+      if (insPresent) {
+        inner += `<div class="node-popup__prov-row"><span class="node-popup__prov-label">Added by</span><span class="node-popup__prov-value">${formatInserterUpdater(ins, nodes, node, "inserter")}</span></div>`;
+      }
+      if (updPresent) {
+        inner += `<div class="node-popup__prov-row"><span class="node-popup__prov-label">Updated by</span><span class="node-popup__prov-value">${formatInserterUpdater(upd, nodes, node, "updater")}</span></div>`;
+      }
+    }
+    blocks.push(
+      `<div class="node-popup__panel-block">` +
+        `<div class="node-popup__panel-kicker"><span class="node-popup__panel-icon" aria-hidden="true"><i>history</i></span><span>Uploader identity</span></div>` +
+        `<div class="node-popup__panel-body node-popup__panel-body--prov">${inner}</div></div>`,
+    );
+  }
+
+  const owner = node.discord_owner_name?.trim();
+  if (owner) {
+    const oid = node.discord_owner_id;
+    const at = escapeAttrHtml(owner);
+    const linkBody =
+      oid != null && String(oid).trim() !== ""
+        ? `<a class="node-popup__discord-user" href="https://discord.com/users/${encodeURIComponent(String(oid))}" target="_blank" rel="noopener noreferrer" title="Send private message to owner via Discord" aria-label="Send private message to owner via Discord">@${at}</a>`
+        : `<span class="node-popup__discord-user node-popup__discord-user--bare">@${at}</span>`;
+    blocks.push(
+      `<div class="node-popup__panel-block node-popup__panel-block--owner">` +
+        `<div class="node-popup__panel-kicker"><span class="node-popup__panel-icon node-popup__panel-icon--discord" aria-hidden="true"><i>verified_user</i></span><span>Claimed by</span></div>` +
+        `<div class="node-popup__panel-body">${linkBody}</div></div>`,
+    );
+  }
+
+  return `<section class="node-popup__panel" aria-label="Keys, ownership, and radio">${blocks.join("")}</section>`;
+}
+
 function getTable(node, authState = null, nodes = []) {
   // Map node type to analyzer URL type
   // User specified: companions (type 1), repeaters (type 2), rooms (type 3), sensors (type 5)
@@ -646,26 +1307,80 @@ function getTable(node, authState = null, nodes = []) {
   const analyzerUrl = `https://analyzer.letsmesh.net/nodes/${analyzerType}?public_key=${node.public_key}`;
 
   const qrUri = meshcoreQrUri(node);
+  /** Packed `meshcore://…` blob for clipboard; QR still uses add-contact URI when possible. */
+  const meshcoreCopyLink = meshcoreContactLink(node) || qrUri;
+  const pkRaw =
+    node.public_key != null && String(node.public_key).trim() !== ""
+      ? String(node.public_key)
+      : "";
+  const dataPublicKeyAttr = pkRaw
+    ? ` data-public-key="${escapeAttrHtml(pkRaw)}"`
+    : "";
+  const qrHeaderPk = pkRaw
+    ? (() => {
+        const display = shortenForDisplay(pkRaw.toUpperCase(), 26);
+        return (
+          `<div class="node-qr-card__bar-start">` +
+          `<div class="node-popup__pk-wrap" title="${escapeAttrHtml("Copy public key")}">` +
+          `<span class="node-qr-card__field-text">` +
+          `<span class="node-qr-card__field-slice">${escapeAttrHtml(display)}</span>` +
+          `</span></div></div>` +
+          `<span class="node-qr-card__hint">Public key</span>`
+        );
+      })()
+    : `<div class="node-qr-card__bar-start" aria-hidden="true"></div>`;
+  const escapedMc = escapeAttrHtml(meshcoreCopyLink);
+  const linkSnippet = shortenForDisplay(meshcoreCopyLink, 26);
   const qrBlock = qrUri
-    ? `<div class="node-qr-slot" data-meshcore-link="${escapeAttrHtml(qrUri)}"></div>`
+    ? `<div class="node-qr-card"${dataPublicKeyAttr} role="button" tabindex="0" aria-label="Copy MeshCore link" data-meshcore-copy="${escapedMc}"><div class="node-qr-card__header">${qrHeaderPk}</div><div class="node-qr-card__inner"><div class="node-qr-slot" data-meshcore-link="${escapeAttrHtml(qrUri)}"></div></div><div class="node-qr-card__footer"><div class="node-qr-card__bar-start"><div class="node-popup__pk-wrap" title="${escapeAttrHtml("Copy MeshCore link")}"><span class="node-qr-card__field-text"><span class="node-qr-card__field-slice">${escapeAttrHtml(linkSnippet)}</span></span></div></div><span class="node-qr-card__hint">MeshCore link</span></div></div>`
     : "";
 
-  return (
-    '<div class="node-popup">' +
-    qrBlock +
-    '<table class="node-info"><tbody>' +
-    "<tr>" +
-    columnOrder
-      .flatMap((key) => {
-        // Special handling for discord_owner_name - only show if there's an actual owner
-        const shouldShow =
-          key === "discord_owner_name"
-            ? node.discord_owner_name && node.discord_owner_name.trim() !== ""
-            : key === "params"
-              ? true
-              : node[key];
+  const statusKey = node.status || "none";
+  const statusDesc = updateStatusDesc[statusKey] || "N/A";
+  const statusDotClass =
+    statusKey &&
+    Object.prototype.hasOwnProperty.call(updateStatusDesc, statusKey)
+      ? `update-${statusKey}`
+      : "update-none";
+  const typeMeta = getNodeTypeMeta(node);
+  const displayName = node.adv_name?.trim() ? node.adv_name : "Unnamed node";
 
-        if (shouldShow) {
+  const sourceMeta = getNodeSourceHeaderMeta(node);
+  const sourceHeaderEl = sourceMeta
+    ? (() => {
+        const inner = `<i aria-hidden="true">${sourceMeta.icon}</i>`;
+        const cls = `node-popup__source-icon node-popup__source-icon--${sourceMeta.safeClass}`;
+        const t = escapeAttrHtml(`Source type: ${sourceMeta.tooltipText}`);
+        return sourceMeta.href
+          ? `<a class="${cls}" href="${escapeAttrHtml(sourceMeta.href)}" target="_blank" rel="noopener noreferrer" title="${t}" aria-label="${t}">${inner}</a>`
+          : `<span class="${cls}" title="${t}" aria-label="${t}">${inner}</span>`;
+      })()
+    : "";
+
+  const headerHtml =
+    `<header class="node-popup__header">` +
+    `<span class="node-popup__type-icon" title="${escapeAttrHtml(typeMeta.label)}" aria-label="${escapeAttrHtml(typeMeta.label)}"><i aria-hidden="true">${typeMeta.icon}</i></span>` +
+    `<span class="node-popup__freshness" title="${escapeAttrHtml(`Freshness: ${statusDesc}`)}" aria-label="${escapeAttrHtml(`Freshness: ${statusDesc}`)}"><span class="status-dot ${statusDotClass}"></span></span>` +
+    `<div class="node-popup__head-text">` +
+    `<h3 class="node-popup__title" title="${escapeAttrHtml(`Name: ${displayName}`)}" aria-label="${escapeAttrHtml(`Name: ${displayName}`)}">${escapeAttrHtml(displayName)}</h3>` +
+    buildHeaderCityLineHtml(node) +
+    `</div>` +
+    sourceHeaderEl +
+    `</header>`;
+
+  return (
+    `<div class="node-popup" data-status="${escapeAttrHtml(statusKey)}">` +
+    headerHtml +
+    buildNodeActivityStripHtml(node) +
+    qrBlock +
+    '<div class="node-popup__body">' +
+    buildNodeIdentityPanelHtml(node, nodes, !!qrUri) +
+    (() => {
+      const linkCells = columnOrder
+        .flatMap((key) => {
+          if (key === "link" && qrUri) return [];
+          const shouldShow = node[key];
+          if (!shouldShow) return [];
           return [
             `<td><b>${escapeAttrHtml(columns[key].label)}</b></td><td>${
               columns[key].value
@@ -673,99 +1388,50 @@ function getTable(node, authState = null, nodes = []) {
                 : escapeAttrHtml(String(node[key] ?? ""))
             }</td>`,
           ];
-        }
-        return [];
-      })
-      .join("</tr><tr>") +
-    "</tr>" +
-    "</tbody></table>" +
+        })
+        .join("</tr><tr>");
+      return linkCells
+        ? `<table class="node-info node-info--extras"><tbody><tr>${linkCells}</tr></tbody></table>`
+        : "";
+    })() +
+    "</div>" +
     (() => {
-      // Check if node is unclaimed
       const isUnclaimed =
         !node.discord_owner_name || node.discord_owner_name.trim() === "";
-      const discordServerUrl = "https://discord.gg/kvybAgqnhD";
-      const discordColor = "#5865F2"; // Discord purple/burple color
       const publicKey = node.public_key || "";
 
-      // Build footer with links
-      let footerLinks = [];
+      const footerStart = buildAnalyzerFooterMenu(node, analyzerUrl);
 
-      // Always show Analyzer link
-      footerLinks.push(
-        `<a href="${analyzerUrl}" target="_blank" rel="noopener noreferrer" style="color: #4CAF50; text-decoration: none; font-size: 0.75em;">
-          <strong>Analyzer</strong>
-        </a>`,
-      );
-
-      // Add Claim/Unclaim link based on authentication and ownership
+      let footerCenter = "";
       if (authState && authState.authenticated) {
-        // User is authenticated - show claim/unclaim based on ownership
         if (isUnclaimed) {
-          // Unclaimed node - show claim button
-          footerLinks.push(
-            `<a href="javascript:void(0)" onclick="window.claimNode('${publicKey}')" style="color: ${discordColor}; text-decoration: none; font-size: 0.75em; cursor: pointer;">
-              <strong>Claim</strong>
-            </a>`,
-          );
+          footerCenter = `<a href="javascript:void(0)" class="node-popup-action node-popup-action--claim" onclick="window.claimNode('${publicKey}')">Claim</a>`;
         } else {
-          // Check if current user owns this node
           const nodeOwnerId = node.discord_owner_id;
           const currentUserId = authState.user?.id;
 
-          // Only show unclaim button if the current user is the owner
           if (
             nodeOwnerId &&
             currentUserId &&
             String(nodeOwnerId) === String(currentUserId)
           ) {
-            footerLinks.push(
-              `<a href="javascript:void(0)" onclick="window.unclaimNode('${publicKey}')" style="color: #f44336; text-decoration: none; font-size: 0.75em; cursor: pointer;">
-                <strong>Unclaim</strong>
-              </a>`,
-            );
+            footerCenter = `<a href="javascript:void(0)" class="node-popup-action node-popup-action--danger" onclick="window.unclaimNode('${publicKey}')">Unclaim</a>`;
           }
         }
       } else if (isUnclaimed) {
-        // Not authenticated and unclaimed - redirect to login
-        footerLinks.push(
-          `<a href="/auth/login" style="color: ${discordColor}; text-decoration: none; font-size: 0.75em; cursor: pointer;">
-            <strong>Claim</strong>
-          </a>`,
-        );
+        footerCenter = `<a href="/auth/login" class="node-popup-action node-popup-action--claim">Claim</a>`;
       }
 
-      // Add Request deletion link if source is app, uploader, or web (not discord)
       const source = (node.source || "").toLowerCase();
       const isNotDiscordSource =
         source !== "discord" &&
         (source === "app" || source === "uploader" || source === "web");
 
-      if (isNotDiscordSource) {
-        footerLinks.push(
-          `<a href="${getDeletionMailUrl(node)}" style="color: #f44336; text-decoration: none; font-size: 0.75em;">
-            <strong>Request deletion</strong>
-          </a>`,
-        );
-      }
+      const footerEnd = isNotDiscordSource
+        ? `<a href="${getDeletionMailUrl(node)}" class="node-popup-action node-popup-action--danger">Request deletion</a>`
+        : "";
 
-      // Create equal-width columns for buttons
-      const numLinks = footerLinks.length;
-      const columnWidth = numLinks > 0 ? `${100 / numLinks}%` : "100%";
-
-      return `<div class="node-popup-actions">
-        <table style="width: 100%; border-collapse: collapse;">
-          <tr>
-            ${footerLinks
-              .map(
-                (link) =>
-                  `<td style="width: ${columnWidth}; text-align: center; padding: 0 5px;">
-                ${link}
-              </td>`,
-              )
-              .join("")}
-          </tr>
-        </table>
-      </div>`;
+      return `<nav class="node-popup-actions" aria-label="Node actions"><div class="node-popup-actions__row"><div class="node-popup-actions__slot node-popup-actions__slot--start">${footerStart}</div><div class="node-popup-actions__slot node-popup-actions__slot--center">${footerCenter}</div><div class="node-popup-actions__slot node-popup-actions__slot--end">${footerEnd}</div></div></nav>`;
     })() +
     "</div>"
   );
@@ -773,9 +1439,13 @@ function getTable(node, authState = null, nodes = []) {
 
 // Initialize copy handlers when DOM is ready
 if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", setupCopyHandlers);
+  document.addEventListener("DOMContentLoaded", () => {
+    setupCopyHandlers();
+    setupNodeQrCardHandlers();
+  });
 } else {
   setupCopyHandlers();
+  setupNodeQrCardHandlers();
 }
 
 window.isNewerThan = (date, days) => {
@@ -856,7 +1526,7 @@ function getDeletionMailUrl(node) {
 }
 
 const appAttribution = `
-	Original map by <a target="_blank" href="https://github.com/sponsors/recrof?frequency=one-time&sponsor=recrof"><strong>recrof</strong></a> | Modified by the <a target="_blank" href="https://github.com/radio-actief"><strong>Radio-Actief.be</strong></a> community
+	Original map by <a target="_blank" href="https://github.com/sponsors/recrof?frequency=one-time&sponsor=recrof"><strong>recrof</strong></a> | Modified by the <a target="_blank" href="https://github.com/radio-actief"><strong>Radio-Actief</strong></a> community
 `;
 
 const baseMapSelected =
@@ -878,6 +1548,10 @@ const baseMaps = {
 let params = { lat: 50.75, lon: 4.471, zoom: 9 }; // Brussels, Belgium
 
 const urlParams = Object.fromEntries(new URLSearchParams(location.search));
+/* Shareable links may use public_key; map focus + URL sync use node */
+if (urlParams.public_key && !urlParams.node) {
+  urlParams.node = String(urlParams.public_key);
+}
 if (Number(urlParams.lat) && Number(urlParams.lon) && Number(urlParams.zoom)) {
   params = urlParams;
 }
@@ -961,6 +1635,26 @@ createApp({
         filteredNodesRef.value = v;
       },
     });
+
+    /** URL sync: only non-default filter values (see clearFilters). */
+    const DEFAULT_MAP_DATE_STR = "2025-03-01";
+    const DEFAULT_CLUSTERING_ZOOM = 11;
+    const DEFAULT_SOURCE_FILTER = ["app", "uploader"];
+    const DEFAULT_CLAIMED_FILTER = ["claimed", "unclaimed"];
+
+    function filterArraysEqualAsSets(a, b) {
+      if (a.length !== b.length) return false;
+      const sa = new Set(a.map((x) => String(x)));
+      return b.every((x) => sa.has(String(x)));
+    }
+
+    function isDefaultSourceFilter(sel) {
+      return filterArraysEqualAsSets(sel, DEFAULT_SOURCE_FILTER);
+    }
+
+    function isDefaultClaimedFilter(sel) {
+      return filterArraysEqualAsSets(sel, DEFAULT_CLAIMED_FILTER);
+    }
 
     // Authentication state
     const auth = reactive({
@@ -1371,7 +2065,21 @@ createApp({
 
       map.addLayer(tempMarker);
       map.invalidateSize();
-      map.setView([lat, lon], 18);
+
+      const zoom = 18;
+      const target = L.latLng(lat, lon);
+      map.setView(target, zoom, { animate: false });
+      // Centering the node leaves the tall popup crowding the top; bias view so the
+      // marker sits ~3/4 down the map pane (room above for popup).
+      const size = map.getSize();
+      if (size.x > 0 && size.y > 0) {
+        const verticalFraction = 3 / 4;
+        const biasPx = size.y * 0.5 - size.y * verticalFraction;
+        const newCenter = map.containerPointToLatLng(
+          L.point(size.x / 2, size.y / 2 + biasPx),
+        );
+        map.setView(newCenter, zoom, { animate: false });
+      }
 
       const openPopup = () => {
         map.off("moveend", openPopup);
@@ -1403,13 +2111,14 @@ createApp({
 
     function clearFilters() {
       app.nodeFilter = [1, 2, 3, 4];
-      app.sourceFilter = ["app", "uploader"];
-      app.claimedFilter = ["claimed", "unclaimed"];
-      app.fromDate = "2025-03-01";
-      app.fromInsertDate = "2025-03-01";
+      app.sourceFilter = [...DEFAULT_SOURCE_FILTER];
+      app.claimedFilter = [...DEFAULT_CLAIMED_FILTER];
+      app.fromDate = DEFAULT_MAP_DATE_STR;
+      app.fromInsertDate = DEFAULT_MAP_DATE_STR;
       app.cityFilter = "";
-      app.freqFilter = [];
-      app.clusteringZoom = 11;
+      app.freqFilter =
+        app.availableFreqs.length > 0 ? [...app.availableFreqs] : [];
+      app.clusteringZoom = DEFAULT_CLUSTERING_ZOOM;
       // Clear filtered nodes to show all nodes
       app.filteredNodes = [];
       // Clear URL parameters
@@ -1421,9 +2130,9 @@ createApp({
       delete app.urlParams.dateInsert;
       delete app.urlParams.city;
       delete app.urlParams.freq;
-      app.urlParams.cluster = 11;
+      delete app.urlParams.cluster;
       // Refresh the map
-      refreshMap({ clusteringZoom: 11 });
+      refreshMap({ clusteringZoom: DEFAULT_CLUSTERING_ZOOM });
     }
 
     async function downloadNodes() {
@@ -1542,6 +2251,15 @@ createApp({
         nodesByTypeRef.value = byType;
         app.availableFreqs = [...freqSet].sort((a, b) => a - b);
 
+        const freqFromUrl = String(urlParams.freq ?? "").trim();
+        if (
+          !freqFromUrl &&
+          app.freqFilter.length === 0 &&
+          app.availableFreqs.length > 0
+        ) {
+          app.freqFilter = [...app.availableFreqs];
+        }
+
         // Update marker glows for claimed (yellow) and user-owned (purple) after all markers are created
         setTimeout(() => {
           app.nodes.forEach((node) => {
@@ -1612,10 +2330,23 @@ createApp({
       if (urlParams.source) app.sourceFilter = urlParams.source.split(",");
       if (urlParams.claimed) app.claimedFilter = urlParams.claimed.split(",");
       if (urlParams.freq) {
-        app.freqFilter = urlParams.freq.split(",").map((x) => Number(x));
+        app.freqFilter = urlParams.freq
+          .split(",")
+          .map((x) => Number(x))
+          .filter((n) => !Number.isNaN(n));
       }
     } else {
       clearFilters();
+    }
+
+    if (!String(app.fromDate ?? "").trim()) {
+      app.fromDate = DEFAULT_MAP_DATE_STR;
+    }
+    if (!String(app.fromInsertDate ?? "").trim()) {
+      app.fromInsertDate = DEFAULT_MAP_DATE_STR;
+    }
+    if (!String(urlParams.nodes ?? "").trim()) {
+      app.nodeFilter = [1, 2, 3, 4];
     }
 
     const filtersActive = computed(
@@ -1623,6 +2354,26 @@ createApp({
         app.filteredNodes.length &&
         app.nodes.length !== app.filteredNodes.length,
     );
+
+    /** True when at least one band is unchecked (empty selection = no restriction, same as “all”). */
+    function freqFilterIsRestrictive() {
+      const avail = app.availableFreqs;
+      if (!avail.length) return false;
+      if (!app.freqFilter.length) return false;
+      if (app.freqFilter.length !== avail.length) return true;
+      const selected = new Set(app.freqFilter.map((x) => Number(x)));
+      return !avail.every((f) => selected.has(Number(f)));
+    }
+
+    const ALL_NODE_TYPE_KEYS = ["1", "2", "3", "4"];
+
+    /** Empty or all four node types → same as “no nodes= restriction” in the URL. */
+    function nodeFilterIsAllTypes() {
+      if (!app.nodeFilter.length) return true;
+      if (app.nodeFilter.length !== 4) return false;
+      const set = new Set(app.nodeFilter.map((t) => String(Number(t))));
+      return ALL_NODE_TYPE_KEYS.every((k) => set.has(k));
+    }
 
     watch(
       [
@@ -1635,6 +2386,9 @@ createApp({
         () => app.freqFilter,
       ],
       () => {
+        if (!app.nodeFilter.length) {
+          app.nodeFilter.push(1, 2, 3, 4);
+        }
         const fromDate = new Date(app.fromDate);
         const fromInsertDate = new Date(app.fromInsertDate);
         const cityFilterLower = app.cityFilter.toLowerCase().trim();
@@ -1642,10 +2396,19 @@ createApp({
           app.fromInsertDate &&
           app.fromInsertDate.trim() !== "" &&
           !isNaN(fromInsertDate.getTime());
-        const hasFreqFilter = app.freqFilter.length > 0;
-        const freqSet = hasFreqFilter ? new Set(app.freqFilter) : null;
-        filteredNodesRef.value = app.nodeFilter
-          .flatMap((type) => app.nodesByType[type])
+        const hasFreqFilter = freqFilterIsRestrictive();
+        const freqSet = hasFreqFilter
+          ? new Set(app.freqFilter.map((x) => Number(x)))
+          : null;
+        // One entry per type (avoids duplicates when nodeFilter has 2 and "2", or repeated URL values)
+        const uniqueTypeKeys = [
+          ...new Set(app.nodeFilter.map((t) => String(Number(t)))),
+        ];
+        const merged = uniqueTypeKeys
+          .flatMap((type) => {
+            const arr = app.nodesByType[type] ?? app.nodesByType[Number(type)];
+            return Array.isArray(arr) ? arr : [];
+          })
           .filter(
             (node) =>
               node &&
@@ -1673,9 +2436,28 @@ createApp({
                   (!node.discord_owner_name ||
                     node.discord_owner_name.trim() === ""))),
           );
-        app.urlParams.nodes = app.nodeFilter.join(",");
-        app.urlParams.date = app.fromDate;
-        if (app.fromInsertDate) {
+        const seenPk = new Set();
+        filteredNodesRef.value = merged.filter((node) => {
+          const k = node?.public_key;
+          if (k == null || seenPk.has(k)) return false;
+          seenPk.add(k);
+          return true;
+        });
+        if (nodeFilterIsAllTypes()) {
+          delete app.urlParams.nodes;
+        } else {
+          app.urlParams.nodes = app.nodeFilter.map((t) => String(t)).join(",");
+        }
+        if (
+          String(app.fromDate ?? "").trim() &&
+          app.fromDate !== DEFAULT_MAP_DATE_STR
+        ) {
+          app.urlParams.date = app.fromDate;
+        } else {
+          delete app.urlParams.date;
+        }
+        const ins = String(app.fromInsertDate ?? "").trim();
+        if (ins && ins !== DEFAULT_MAP_DATE_STR) {
           app.urlParams.dateInsert = app.fromInsertDate;
         } else {
           delete app.urlParams.dateInsert;
@@ -1685,20 +2467,31 @@ createApp({
         } else {
           delete app.urlParams.city;
         }
-        if (app.sourceFilter.length > 0) {
+        if (
+          app.sourceFilter.length > 0 &&
+          !isDefaultSourceFilter(app.sourceFilter)
+        ) {
           app.urlParams.source = app.sourceFilter.join(",");
         } else {
           delete app.urlParams.source;
         }
-        if (app.claimedFilter.length > 0) {
+        if (
+          app.claimedFilter.length > 0 &&
+          !isDefaultClaimedFilter(app.claimedFilter)
+        ) {
           app.urlParams.claimed = app.claimedFilter.join(",");
         } else {
           delete app.urlParams.claimed;
         }
-        if (app.freqFilter.length > 0) {
+        if (freqFilterIsRestrictive()) {
           app.urlParams.freq = app.freqFilter.join(",");
         } else {
           delete app.urlParams.freq;
+        }
+        if (app.clusteringZoom === DEFAULT_CLUSTERING_ZOOM) {
+          delete app.urlParams.cluster;
+        } else {
+          app.urlParams.cluster = app.clusteringZoom;
         }
         refreshMap({ download: false });
       },
@@ -1707,7 +2500,11 @@ createApp({
     watch(
       () => app.clusteringZoom,
       () => {
-        app.urlParams.cluster = app.clusteringZoom;
+        if (app.clusteringZoom === DEFAULT_CLUSTERING_ZOOM) {
+          delete app.urlParams.cluster;
+        } else {
+          app.urlParams.cluster = app.clusteringZoom;
+        }
         refreshMap({ download: false, clusteringZoom: app.clusteringZoom });
       },
     );
@@ -1898,26 +2695,19 @@ createApp({
     window.claimNode = claimNode;
     window.unclaimNode = unclaimNode;
 
-    // Function to adjust search field position based on stats bar height (mobile only)
+    // Keep search below .stats: bar height changes with viewport, auth row, and wrapped chips
     function adjustSearchPosition() {
-      const searchField = document.querySelector(".search");
-      if (!searchField) return;
-      if (window.innerWidth > 768) {
-        searchField.style.removeProperty("top");
-        return;
-      }
       const statsBar = document.querySelector(".stats");
-      if (!statsBar) return;
+      const body = document.body;
+      if (!statsBar || !body.classList.contains("map-page")) return;
       const statsHeight = statsBar.offsetHeight;
-      // Only set top when we have a real height; otherwise keep CSS fallback to avoid search above bar on init
       if (statsHeight > 0) {
-        searchField.style.top = `${statsHeight + 4}px`;
-      } else {
-        searchField.style.removeProperty("top");
+        body.style.setProperty("--stats-bar-height", `${statsHeight}px`);
       }
     }
 
     let resizeObserver = null;
+    let removeFilterMenuInteractionGuards = null;
 
     onMounted(() => {
       window.addEventListener("resize", adjustSearchPosition);
@@ -2045,7 +2835,10 @@ createApp({
           app.claimedFilter = qp.claimed.split(",");
         }
         if (qp.freq) {
-          app.freqFilter = qp.freq.split(",").map((x) => Number(x));
+          app.freqFilter = qp.freq
+            .split(",")
+            .map((x) => Number(x))
+            .filter((n) => !Number.isNaN(n));
         }
 
         const searchParams = new URLSearchParams(location.search);
@@ -2104,44 +2897,35 @@ createApp({
         onBeforeUnmount(() => observer.disconnect());
       }
 
-      // Prevent filter menu from closing when clicking inputs/fields inside it
-      // (Beer CSS closes menu on outside click; keep open when interacting with filters)
-      const preventFilterMenuClose = (e) => {
+      // Beer adds document.body "click" in CAPTURE phase (beer.min.js addEventListener(..., true)).
+      // Its handler runs before the event reaches checkboxes inside #node-filter and schedules
+      // closing the menu ~90ms later — so the drawer vanished on every in-menu click/release.
+      // Register our listener at mount (before Beer attaches when the menu opens) with
+      // capture: true so we run first on body; stopImmediatePropagation skips only Beer's
+      // body listener — propagation continues to descendants so inputs still work.
+      function filterMenuBodyClickGuard(e) {
         const menu = document.getElementById("node-filter");
-        if (!menu || !menu.contains(e.target)) return;
-        if (e.target.tagName === "BUTTON" || e.target.closest("button")) return;
-        if (
-          e.target.tagName === "INPUT" ||
-          e.target.tagName === "SELECT" ||
-          e.target.tagName === "TEXTAREA" ||
-          e.target.closest(".field")
-        ) {
-          e.stopPropagation();
+        if (!menu?.classList.contains("active")) return;
+        if (menu.contains(e.target)) {
           e.stopImmediatePropagation();
         }
+      }
+      document.body.addEventListener("click", filterMenuBodyClickGuard, true);
+
+      removeFilterMenuInteractionGuards = () => {
+        document.body.removeEventListener(
+          "click",
+          filterMenuBodyClickGuard,
+          true,
+        );
       };
-
-      document.addEventListener("click", preventFilterMenuClose, true);
-      document.addEventListener("pointerdown", preventFilterMenuClose, {
-        capture: true,
-      });
-      document.addEventListener("pointerup", preventFilterMenuClose, {
-        capture: true,
-      });
-
-      onBeforeUnmount(() => {
-        document.removeEventListener("click", preventFilterMenuClose, true);
-        document.removeEventListener("pointerdown", preventFilterMenuClose, {
-          capture: true,
-        });
-        document.removeEventListener("pointerup", preventFilterMenuClose, {
-          capture: true,
-        });
-      });
     });
 
     onBeforeUnmount(() => {
       window.removeEventListener("resize", adjustSearchPosition);
+      document.body.style.removeProperty("--stats-bar-height");
+      removeFilterMenuInteractionGuards?.();
+      removeFilterMenuInteractionGuards = null;
       if (resizeObserver) {
         resizeObserver.disconnect();
         resizeObserver = null;

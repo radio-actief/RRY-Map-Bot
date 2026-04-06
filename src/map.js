@@ -28,10 +28,16 @@ function normalizePubKeyForCompare(key) {
 
 function formatInserterUpdater(val, nodes = [], currentNode = null) {
   if (!val) return "N/A";
-  const copyable = createCopyableElement(val, shortenForDisplay(val.toUpperCase(), 18));
+  const copyable = createCopyableElement(
+    val,
+    shortenForDisplay(val.toUpperCase(), 18),
+  );
   const k = normalizePubKeyForCompare(val);
-  const isSameNode = currentNode && normalizePubKeyForCompare(currentNode.public_key) === k;
-  const inDb = !isSameNode && nodes.some((n) => normalizePubKeyForCompare(n.public_key) === k);
+  const isSameNode =
+    currentNode && normalizePubKeyForCompare(currentNode.public_key) === k;
+  const inDb =
+    !isSameNode &&
+    nodes.some((n) => normalizePubKeyForCompare(n.public_key) === k);
   const gotoLink = inDb
     ? ` <a href="?node=${encodeURIComponent(val)}" title="Go to node on map" style="color:#4CAF50;text-decoration:none;vertical-align:middle;"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:middle;display:inline-block;"><path d="${mdiOpenInNew}" fill="currentColor"/></svg></a>`
     : "";
@@ -158,7 +164,9 @@ function setupCopyHandlers() {
   }
 
   if (typeof PointerEvent !== "undefined") {
-    document.addEventListener("pointerup", handleCopyPointer, { capture: true });
+    document.addEventListener("pointerup", handleCopyPointer, {
+      capture: true,
+    });
   } else {
     document.addEventListener(
       "click",
@@ -355,8 +363,9 @@ function normalizeMeshcorePublicKeyHex(node) {
 function meshcoreQrUri(node) {
   const pk = normalizeMeshcorePublicKeyHex(node);
   const typeRaw = parseInt(String(node?.type ?? 1), 10);
-  const typeNum =
-    Number.isFinite(typeRaw) ? Math.min(4, Math.max(1, typeRaw)) : 1;
+  const typeNum = Number.isFinite(typeRaw)
+    ? Math.min(4, Math.max(1, typeRaw))
+    : 1;
   if (pk) {
     const name = ((node?.adv_name || "Contact").trim() || "Contact").slice(
       0,
@@ -369,7 +378,9 @@ function meshcoreQrUri(node) {
 
 async function fillNodeQrSlotFromPopup(popupContentRoot) {
   if (!popupContentRoot) return;
-  const slot = popupContentRoot.querySelector(".node-qr-slot[data-meshcore-link]");
+  const slot = popupContentRoot.querySelector(
+    ".node-qr-slot[data-meshcore-link]",
+  );
   if (!slot) return;
   const link = slot.getAttribute("data-meshcore-link");
   if (!link) return;
@@ -378,14 +389,16 @@ async function fillNodeQrSlotFromPopup(popupContentRoot) {
     const QRCode = mod.default;
     const svg = await QRCode.toString(link, {
       type: "svg",
-      width: 196,
+      width: 128,
       margin: 1,
       errorCorrectionLevel: "H",
       color: { dark: "#000000", light: "#ffffff" },
     });
     // Leaflet may call the popup content function again (pan/zoom/setView), replacing
     // the DOM while we awaited the QR module — only paint if this link's slot still exists.
-    const live = popupContentRoot.querySelector(".node-qr-slot[data-meshcore-link]");
+    const live = popupContentRoot.querySelector(
+      ".node-qr-slot[data-meshcore-link]",
+    );
     if (
       !live ||
       live.getAttribute("data-meshcore-link") !== link ||
@@ -404,7 +417,9 @@ async function fillNodeQrSlotFromPopup(popupContentRoot) {
     }
   } catch (e) {
     console.warn("QR code failed:", e);
-    const live = popupContentRoot.querySelector(".node-qr-slot[data-meshcore-link]");
+    const live = popupContentRoot.querySelector(
+      ".node-qr-slot[data-meshcore-link]",
+    );
     if (live && live.getAttribute("data-meshcore-link") === link) {
       live.innerHTML = "";
       live.style.display = "none";
@@ -500,13 +515,11 @@ const columns = {
   },
   inserted_by: {
     label: "Inserted by",
-    value: (val, node, nodes = []) =>
-      formatInserterUpdater(val, nodes, node),
+    value: (val, node, nodes = []) => formatInserterUpdater(val, nodes, node),
   },
   updated_by: {
     label: "Updated by",
-    value: (val, node, nodes = []) =>
-      formatInserterUpdater(val, nodes, node),
+    value: (val, node, nodes = []) => formatInserterUpdater(val, nodes, node),
   },
   type: {
     label: "Type",
@@ -589,8 +602,9 @@ const columns = {
 const svgIconHtmlCache = new Map();
 
 function escapeXmlText(s) {
-  return String(s).replace(/[<>&]/g, (c) =>
-    ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" })[c],
+  return String(s).replace(
+    /[<>&]/g,
+    (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" })[c],
   );
 }
 
@@ -835,7 +849,10 @@ function getDeletionMailUrl(node) {
       "if you have multiple nodes to delete, put them into single email, delimited by newline. public key is enough, you don't need to add name or screenshot of the node.",
     ].join("\n"),
   );
-  return deletionMailUrl.toString().replaceAll("+", "%20").replaceAll("\n", "%0A");
+  return deletionMailUrl
+    .toString()
+    .replaceAll("+", "%20")
+    .replaceAll("\n", "%0A");
 }
 
 const appAttribution = `
@@ -968,7 +985,10 @@ createApp({
       marker.bindPopup(nodePopup);
       marker._popupBound = true;
       bindPopupQrRefill(nodePopup, () =>
-        marker.getPopup()?.getElement()?.querySelector(".leaflet-popup-content"),
+        marker
+          .getPopup()
+          ?.getElement()
+          ?.querySelector(".leaflet-popup-content"),
       );
       marker.on("popupopen", function () {
         if (node.public_key) {
@@ -1201,17 +1221,21 @@ createApp({
     }
     function findNodeByPubKey(nodes, key) {
       const k = normalizePubKey(key);
-      return k ? nodes.find((n) => normalizePubKey(n.public_key) === k) ?? null : null;
+      return k
+        ? (nodes.find((n) => normalizePubKey(n.public_key) === k) ?? null)
+        : null;
     }
 
-    async function refreshMap({ clusteringZoom = 0, targetNodeKey = null } = {}) {
+    async function refreshMap({
+      clusteringZoom = 0,
+      targetNodeKey = null,
+    } = {}) {
       if (pendingClusterPopupCleanup) {
         pendingClusterPopupCleanup();
         pendingClusterPopupCleanup = null;
       }
 
-      let nodes =
-        app.filteredNodes.length > 0 ? app.filteredNodes : app.nodes;
+      let nodes = app.filteredNodes.length > 0 ? app.filteredNodes : app.nodes;
       if (targetNodeKey) {
         const target = findNodeByPubKey(app.nodes, targetNodeKey);
         if (target && !nodes.includes(target)) {
@@ -2026,18 +2050,20 @@ createApp({
 
         const searchParams = new URLSearchParams(location.search);
         const nodeKey = (
-          searchParams.get("node") || searchParams.get("public_key") || ""
+          searchParams.get("node") ||
+          searchParams.get("public_key") ||
+          ""
         ).trim();
         let targetNode = nodeKey ? findNodeByPubKey(app.nodes, nodeKey) : null;
-        if (targetNode && (targetNode.adv_lat == null || targetNode.adv_lon == null)) {
+        if (
+          targetNode &&
+          (targetNode.adv_lat == null || targetNode.adv_lon == null)
+        ) {
           targetNode = null;
         }
         if (targetNode) {
           const type = String(Number(targetNode.type) || 1);
-          if (
-            app.nodeFilter.length > 0 &&
-            !app.nodeFilter.includes(type)
-          ) {
+          if (app.nodeFilter.length > 0 && !app.nodeFilter.includes(type)) {
             app.nodeFilter = [...app.nodeFilter, type];
           }
         }
@@ -2046,7 +2072,7 @@ createApp({
 
         if (nodeKey && !targetNode) {
           console.warn(
-            `[Map] Node not found for ?node=${nodeKey.slice(0, 16)}... (${app.nodes.length} nodes loaded)`
+            `[Map] Node not found for ?node=${nodeKey.slice(0, 16)}... (${app.nodes.length} nodes loaded)`,
           );
         }
         if (targetNode) {
@@ -2071,7 +2097,10 @@ createApp({
             }
           }
         });
-        observer.observe(menu, { attributes: true, attributeFilter: ["class"] });
+        observer.observe(menu, {
+          attributes: true,
+          attributeFilter: ["class"],
+        });
         onBeforeUnmount(() => observer.disconnect());
       }
 

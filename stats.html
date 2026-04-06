@@ -11,66 +11,77 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Plus+Jakarta+Sans:ital,wght@0,500;0,600;0,700;0,800&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Figtree:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap"
       rel="stylesheet"
     />
+    <link rel="stylesheet" href="./css/style.css" />
     <link rel="stylesheet" href="./lib/css/beer.css" />
     <link rel="stylesheet" href="./lib/css/leaflet.css" />
     <title>Stats - #BEmesh Map</title>
     <script src="https://cdn.jsdelivr.net/npm/apexcharts@3.45.1/dist/apexcharts.min.js"></script>
     <script src="./lib/leaflet.js"></script>
     <style>
-      /* Bubble Card–inspired theme: soft rounded cards, diffused shadows, tactile surfaces */
+      /* Chart palette (Apex); UI tokens bridge main map (style.css body.map-page) */
       :root.stats-page {
-        --stats-font-body: "DM Sans", system-ui, sans-serif;
-        --stats-font-display: "Plus Jakarta Sans", system-ui, sans-serif;
-        --stats-bg: #f5f3ef;
-        --stats-bg-subtle: #ebe8e3;
-        --stats-surface: #ffffff;
-        --stats-surface-hover: #fcfbf9;
-        --stats-secondary: #f8f6f2;
-        --stats-text: #1c1917;
-        --stats-text-muted: #57534e;
-        --stats-accent: #d4a017;
-        --stats-accent-hover: #b88a14;
-        --stats-border: #e7e5e0;
-        /* Bubble Card–style shadows: softer, more diffused */
-        --stats-shadow: 0 2px 8px rgba(26, 25, 23, 0.06);
-        --stats-shadow-lg: 0 8px 32px rgba(26, 25, 23, 0.08);
-        --stats-shadow-hover: 0 12px 40px rgba(26, 25, 23, 0.1);
-        /* Bubble Card radii: tactile, rounded */
-        --stats-radius: 16px;
-        --stats-radius-sm: 10px;
-        --stats-radius-lg: 20px;
-        --stats-icon-radius: 12px;
-        /* mini-graph-card inspired palette */
+        color-scheme: light;
         --stats-chart-added: #2ecc71;
         --stats-chart-removed: #e74c3c;
-        --stats-chart-total: var(--stats-accent);
         --stats-chart-type-1: #2196f3;
         --stats-chart-type-2: #4caf50;
         --stats-chart-type-3: #9c27b0;
         --stats-chart-type-4: #0891b2;
       }
 
-      body.stats-body {
+      body.stats-body.map-page {
         margin: 0;
         padding: 0;
         font-family: var(--stats-font-body);
+        color: var(--stats-text);
+        min-height: 100vh;
+        --stats-font-body: var(--app-font-body, "Figtree", system-ui, sans-serif);
+        --stats-font-display: var(--app-font-display, "Figtree", system-ui, sans-serif);
+        --stats-bg: var(--app-bg, #f6f5f2);
+        --stats-bg-subtle: #eeedea;
+        --stats-surface: rgba(255, 255, 255, 0.92);
+        --stats-surface-hover: rgba(250, 250, 249, 0.98);
+        --stats-secondary: rgba(252, 251, 248, 0.88);
+        --stats-text: var(--app-text, #1a1917);
+        --stats-text-muted: var(--app-text-muted, #57534e);
+        --stats-accent: var(--app-accent, #d4a017);
+        --stats-accent-hover: var(--app-accent-hover, #b88a14);
+        --stats-border: var(--app-border, #e7e5e4);
+        --stats-shadow: var(--app-shadow, 0 1px 3px rgba(26, 25, 23, 0.06));
+        --stats-shadow-lg: var(--app-shadow-lg, 0 4px 20px rgba(26, 25, 23, 0.08));
+        --stats-shadow-hover: 0 12px 36px rgba(26, 25, 23, 0.1);
+        --stats-radius: var(--app-radius, 10px);
+        --stats-radius-sm: var(--app-radius-sm, 6px);
+        --stats-radius-lg: 12px;
+        --stats-icon-radius: 8px;
+        --stats-chart-total: var(--stats-accent);
+        --stats-ease: var(--app-ease, 0.25s ease);
         background: var(--stats-bg);
         background-image:
           radial-gradient(
-            ellipse 140% 100% at 50% -30%,
+            ellipse 100% 60% at 50% -10%,
             rgba(212, 160, 23, 0.06),
-            transparent 50%
+            transparent
           ),
           linear-gradient(
             180deg,
             var(--stats-bg) 0%,
             var(--stats-bg-subtle) 100%
           );
-        color: var(--stats-text);
-        min-height: 100vh;
+      }
+
+      @keyframes stats-header-reveal {
+        from {
+          opacity: 0;
+          transform: translateY(10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
       }
 
       .stats-wrap {
@@ -79,7 +90,7 @@
         padding: 1.75rem 1rem 4rem;
       }
 
-      /* Bubble Card–style header: clean, minimal, centered */
+      /* Hero header — glass + accent bar (main map language) */
       .stats-header {
         position: relative;
         display: flex;
@@ -87,8 +98,40 @@
         align-items: center;
         gap: 1.25rem;
         margin-bottom: 2.25rem;
-        padding-bottom: 1.5rem;
-        border-bottom: 1px solid var(--stats-border);
+        padding: 1.25rem 1.25rem 1.5rem;
+        border-radius: calc(var(--stats-radius) + 2px);
+        border: 1px solid var(--stats-border);
+        background: linear-gradient(
+          165deg,
+          rgba(255, 255, 255, 0.96) 0%,
+          rgba(252, 251, 248, 0.9) 55%,
+          rgba(255, 253, 248, 0.88) 100%
+        );
+        backdrop-filter: blur(14px) saturate(1.12);
+        -webkit-backdrop-filter: blur(14px) saturate(1.12);
+        box-shadow:
+          0 1px 0 rgba(255, 255, 255, 0.78) inset,
+          var(--stats-shadow-lg);
+        z-index: 30;
+        animation: stats-header-reveal var(--app-reveal-duration, 0.4s)
+          var(--stats-ease) 0.04s both;
+      }
+      .stats-header::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        border-radius: calc(var(--stats-radius) + 2px)
+          calc(var(--stats-radius) + 2px) 0 0;
+        background: linear-gradient(
+          90deg,
+          rgba(212, 160, 23, 0.65) 0%,
+          rgba(212, 160, 23, 0.14) 42%,
+          rgba(88, 101, 242, 0.22) 100%
+        );
+        pointer-events: none;
       }
       .stats-header-top {
         display: flex;
@@ -141,21 +184,31 @@
         width: 2.25rem;
         height: 2.25rem;
         padding: 0;
-        background: var(--stats-surface);
+        background: linear-gradient(
+          180deg,
+          rgba(255, 255, 255, 0.95) 0%,
+          rgba(252, 251, 248, 0.9) 100%
+        );
         border: 1px solid var(--stats-border);
         border-radius: var(--stats-radius);
-        box-shadow: var(--stats-shadow);
+        box-shadow:
+          0 1px 0 rgba(255, 255, 255, 0.7) inset,
+          var(--stats-shadow);
         cursor: pointer;
         color: var(--stats-accent);
         transition:
-          box-shadow 0.2s ease,
+          box-shadow var(--stats-ease),
           transform 0.15s ease,
-          color 0.15s ease;
+          color 0.15s ease,
+          border-color var(--stats-ease);
       }
       .stats-download-btn:hover {
-        box-shadow: var(--stats-shadow-lg);
+        box-shadow:
+          0 1px 0 rgba(255, 255, 255, 0.78) inset,
+          var(--stats-shadow-lg);
         transform: translateY(-1px);
         color: var(--stats-accent-hover);
+        border-color: rgba(212, 160, 23, 0.25);
       }
       .stats-download-btn svg {
         width: 1.15rem;
@@ -243,15 +296,44 @@
         flex-direction: column;
         min-width: 0;
         max-width: 200px;
-        background: var(--stats-surface);
+        position: relative;
+        overflow: hidden;
+        background: linear-gradient(
+          180deg,
+          rgba(255, 255, 255, 0.97) 0%,
+          rgba(252, 251, 248, 0.94) 100%
+        );
+        backdrop-filter: blur(10px) saturate(1.06);
+        -webkit-backdrop-filter: blur(10px) saturate(1.06);
         border-radius: var(--stats-radius);
         border: 1px solid var(--stats-border);
-        box-shadow: var(--stats-shadow);
-        overflow: hidden;
-        transition: box-shadow 0.2s ease;
+        box-shadow:
+          0 1px 0 rgba(255, 255, 255, 0.72) inset,
+          var(--stats-shadow);
+        transition:
+          box-shadow var(--stats-ease),
+          border-color var(--stats-ease);
+      }
+      .stats-top-cities-inline::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 2px;
+        background: linear-gradient(
+          90deg,
+          rgba(212, 160, 23, 0.5) 0%,
+          rgba(88, 101, 242, 0.15) 100%
+        );
+        pointer-events: none;
+        opacity: 0.85;
       }
       .stats-top-cities-inline:hover {
-        box-shadow: var(--stats-shadow-lg);
+        box-shadow:
+          0 1px 0 rgba(255, 255, 255, 0.78) inset,
+          var(--stats-shadow-lg);
+        border-color: rgba(212, 160, 23, 0.22);
       }
       .stats-top-cities-inline.is-filtered {
         border-color: rgba(212, 160, 23, 0.4);
@@ -335,16 +417,28 @@
         justify-content: center;
         text-align: center;
         padding: 0.4rem 0.875rem;
-        background: var(--stats-surface);
+        background: linear-gradient(
+          180deg,
+          rgba(255, 255, 255, 0.96) 0%,
+          rgba(252, 251, 248, 0.92) 100%
+        );
+        backdrop-filter: blur(8px) saturate(1.06);
+        -webkit-backdrop-filter: blur(8px) saturate(1.06);
         border-radius: var(--stats-radius-lg);
         border: 1px solid var(--stats-border);
-        box-shadow: var(--stats-shadow);
+        box-shadow:
+          0 1px 0 rgba(255, 255, 255, 0.65) inset,
+          var(--stats-shadow);
         transition:
-          box-shadow 0.2s ease,
-          transform 0.15s ease;
+          box-shadow var(--stats-ease),
+          transform 0.15s ease,
+          border-color var(--stats-ease);
       }
       .stats-header-chip:hover {
-        box-shadow: var(--stats-shadow-lg);
+        box-shadow:
+          0 1px 0 rgba(255, 255, 255, 0.75) inset,
+          var(--stats-shadow-lg);
+        border-color: rgba(212, 160, 23, 0.2);
       }
       .stats-header-chip.chip-filterable:hover,
       .stats-header-chip.chip-preset:hover {
@@ -353,10 +447,10 @@
       .stats-header-chip.is-hero {
         background: linear-gradient(
           135deg,
-          rgba(212, 160, 23, 0.12),
-          rgba(212, 160, 23, 0.04)
+          rgba(212, 160, 23, 0.16),
+          rgba(212, 160, 23, 0.05)
         );
-        border-color: rgba(212, 160, 23, 0.3);
+        border-color: rgba(212, 160, 23, 0.32);
       }
       .stats-header-chip .chip-label {
         font-family: var(--stats-font-body);
@@ -448,13 +542,34 @@
         max-height: 280px;
         overflow-y: auto;
         overflow-x: hidden;
-        background: var(--stats-surface);
+        background: linear-gradient(
+          180deg,
+          rgba(255, 255, 255, 0.98) 0%,
+          rgba(252, 251, 248, 0.96) 100%
+        );
+        backdrop-filter: blur(12px) saturate(1.08);
+        -webkit-backdrop-filter: blur(12px) saturate(1.08);
         border: 1px solid var(--stats-border);
         border-radius: var(--stats-radius);
-        box-shadow: var(--stats-shadow-lg);
+        box-shadow:
+          0 1px 0 rgba(255, 255, 255, 0.75) inset,
+          var(--stats-shadow-lg);
         padding: 0.35rem 0.4rem;
         z-index: 1100;
         display: none;
+      }
+      .stats-preset-dropdown::before {
+        content: "";
+        display: block;
+        height: 2px;
+        margin: -0.35rem -0.4rem 0.35rem;
+        border-radius: var(--stats-radius) var(--stats-radius) 0 0;
+        background: linear-gradient(
+          90deg,
+          rgba(212, 160, 23, 0.55) 0%,
+          rgba(212, 160, 23, 0.12) 40%,
+          rgba(88, 101, 242, 0.2) 100%
+        );
       }
       .stats-header-chip.chip-preset.is-open {
         z-index: 1000;
@@ -507,13 +622,34 @@
         max-height: 280px;
         overflow-y: auto;
         overflow-x: hidden;
-        background: var(--stats-surface);
+        background: linear-gradient(
+          180deg,
+          rgba(255, 255, 255, 0.98) 0%,
+          rgba(252, 251, 248, 0.96) 100%
+        );
+        backdrop-filter: blur(12px) saturate(1.08);
+        -webkit-backdrop-filter: blur(12px) saturate(1.08);
         border: 1px solid var(--stats-border);
         border-radius: var(--stats-radius);
-        box-shadow: var(--stats-shadow-lg);
+        box-shadow:
+          0 1px 0 rgba(255, 255, 255, 0.75) inset,
+          var(--stats-shadow-lg);
         padding: 0.35rem 0.4rem;
         z-index: 1100;
         display: none;
+      }
+      .stats-header-download-dropdown::before {
+        content: "";
+        display: block;
+        height: 2px;
+        margin: -0.35rem -0.4rem 0.35rem;
+        border-radius: var(--stats-radius) var(--stats-radius) 0 0;
+        background: linear-gradient(
+          90deg,
+          rgba(212, 160, 23, 0.55) 0%,
+          rgba(212, 160, 23, 0.12) 40%,
+          rgba(88, 101, 242, 0.2) 100%
+        );
       }
       .stats-download-btn.is-open {
         z-index: 1000;
@@ -584,7 +720,7 @@
         padding: 2rem;
       }
       .stats-error {
-        color: #b91c1c;
+        color: var(--app-error, #b91c1c);
         padding: 1rem;
         font-weight: 500;
       }
@@ -619,24 +755,55 @@
         margin-bottom: 2rem;
         align-items: flex-start;
       }
-      /* mini-graph-card inspired chart container */
+      /* Chart card — glass surface + accent stripe */
       .stats-chart {
+        position: relative;
+        overflow: hidden;
         flex: 1 1 500px;
         min-width: 0;
         height: auto;
         min-height: 400px;
         display: flex;
         flex-direction: column;
-        background: var(--stats-surface);
+        background: linear-gradient(
+          180deg,
+          rgba(255, 255, 255, 0.97) 0%,
+          rgba(252, 251, 248, 0.94) 100%
+        );
+        backdrop-filter: blur(12px) saturate(1.08);
+        -webkit-backdrop-filter: blur(12px) saturate(1.08);
         border-radius: var(--stats-radius-lg);
-        box-shadow: var(--stats-shadow);
+        box-shadow:
+          0 1px 0 rgba(255, 255, 255, 0.72) inset,
+          var(--stats-shadow);
         padding: 1rem 1.25rem 1.25rem;
         border: 1px solid var(--stats-border);
         box-sizing: border-box;
-        transition: box-shadow 0.25s ease;
+        transition:
+          box-shadow var(--stats-ease),
+          border-color var(--stats-ease);
+      }
+      .stats-chart::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 2px;
+        background: linear-gradient(
+          90deg,
+          rgba(212, 160, 23, 0.5) 0%,
+          rgba(212, 160, 23, 0.1) 45%,
+          rgba(88, 101, 242, 0.15) 100%
+        );
+        pointer-events: none;
+        opacity: 0.9;
       }
       .stats-chart:hover {
-        box-shadow: var(--stats-shadow-lg);
+        box-shadow:
+          0 1px 0 rgba(255, 255, 255, 0.78) inset,
+          var(--stats-shadow-lg);
+        border-color: rgba(212, 160, 23, 0.2);
       }
       .stats-chart #stats-chart {
         display: block;
@@ -702,19 +869,50 @@
       .stats-chart-range:hover {
         border-color: var(--stats-accent);
       }
-      /* Bubble Card–style playback panel */
+      /* Playback / map card — glass + accent stripe */
       .stats-playback {
+        position: relative;
+        overflow: hidden;
         flex: 0 1 560px;
         min-width: 320px;
-        background: var(--stats-surface);
+        background: linear-gradient(
+          180deg,
+          rgba(255, 255, 255, 0.97) 0%,
+          rgba(252, 251, 248, 0.94) 100%
+        );
+        backdrop-filter: blur(12px) saturate(1.08);
+        -webkit-backdrop-filter: blur(12px) saturate(1.08);
         border-radius: var(--stats-radius-lg);
-        box-shadow: var(--stats-shadow);
+        box-shadow:
+          0 1px 0 rgba(255, 255, 255, 0.72) inset,
+          var(--stats-shadow);
         padding: 1.25rem;
         border: 1px solid var(--stats-border);
-        transition: box-shadow 0.25s ease;
+        transition:
+          box-shadow var(--stats-ease),
+          border-color var(--stats-ease);
+      }
+      .stats-playback::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 2px;
+        background: linear-gradient(
+          90deg,
+          rgba(212, 160, 23, 0.5) 0%,
+          rgba(212, 160, 23, 0.1) 45%,
+          rgba(88, 101, 242, 0.15) 100%
+        );
+        pointer-events: none;
+        opacity: 0.9;
       }
       .stats-playback:hover {
-        box-shadow: var(--stats-shadow-lg);
+        box-shadow:
+          0 1px 0 rgba(255, 255, 255, 0.78) inset,
+          var(--stats-shadow-lg);
+        border-color: rgba(212, 160, 23, 0.2);
       }
       /* Timeline playback on its own line (mobile/stacked): center it */
       @media (max-width: 1080px) {
@@ -894,10 +1092,20 @@
       }
 
       .stats-table {
+        position: relative;
         overflow-x: auto;
-        background: var(--stats-surface);
+        overflow-y: hidden;
+        background: linear-gradient(
+          180deg,
+          rgba(255, 255, 255, 0.96) 0%,
+          rgba(252, 251, 248, 0.93) 100%
+        );
+        backdrop-filter: blur(8px) saturate(1.05);
+        -webkit-backdrop-filter: blur(8px) saturate(1.05);
         border-radius: var(--stats-radius);
-        box-shadow: var(--stats-shadow);
+        box-shadow:
+          0 1px 0 rgba(255, 255, 255, 0.65) inset,
+          var(--stats-shadow);
         border: 1px solid var(--stats-border);
       }
       .stats-table:first-of-type {
@@ -985,17 +1193,45 @@
           grid-template-columns: 1fr;
         }
       }
-      /* Top-day metric cards: data-viz style, compact */
+      /* Top-day metric cards */
       .stats-topday-card {
-        background: var(--stats-surface);
+        position: relative;
+        overflow: hidden;
+        background: linear-gradient(
+          180deg,
+          rgba(255, 255, 255, 0.96) 0%,
+          rgba(252, 251, 248, 0.92) 100%
+        );
+        backdrop-filter: blur(8px) saturate(1.05);
+        -webkit-backdrop-filter: blur(8px) saturate(1.05);
         border-radius: var(--stats-radius-sm);
         border: 1px solid var(--stats-border);
-        box-shadow: var(--stats-shadow);
-        overflow: hidden;
-        transition: box-shadow 0.2s ease;
+        box-shadow:
+          0 1px 0 rgba(255, 255, 255, 0.65) inset,
+          var(--stats-shadow);
+        transition:
+          box-shadow var(--stats-ease),
+          border-color var(--stats-ease);
+      }
+      .stats-topday-card::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 2px;
+        background: linear-gradient(
+          90deg,
+          rgba(212, 160, 23, 0.4) 0%,
+          rgba(88, 101, 242, 0.1) 100%
+        );
+        pointer-events: none;
       }
       .stats-topday-card:hover {
-        box-shadow: var(--stats-shadow-lg);
+        box-shadow:
+          0 1px 0 rgba(255, 255, 255, 0.75) inset,
+          var(--stats-shadow-lg);
+        border-color: rgba(212, 160, 23, 0.18);
       }
       .stats-topday-card-header {
         display: flex;
@@ -1153,19 +1389,47 @@
           min-width: 0;
         }
       }
-      /* Bubble Card–style summary & table cards */
+      /* Summary cards — glass shell */
       .stats-table-card {
-        background: var(--stats-surface);
-        border-radius: var(--stats-radius);
-        box-shadow: var(--stats-shadow);
-        border: 1px solid var(--stats-border);
+        position: relative;
         overflow: hidden;
+        background: linear-gradient(
+          180deg,
+          rgba(255, 255, 255, 0.97) 0%,
+          rgba(252, 251, 248, 0.94) 100%
+        );
+        backdrop-filter: blur(10px) saturate(1.06);
+        -webkit-backdrop-filter: blur(10px) saturate(1.06);
+        border-radius: var(--stats-radius);
+        box-shadow:
+          0 1px 0 rgba(255, 255, 255, 0.72) inset,
+          var(--stats-shadow);
+        border: 1px solid var(--stats-border);
         transition:
-          box-shadow 0.25s ease,
-          transform 0.2s ease;
+          box-shadow var(--stats-ease),
+          transform 0.2s ease,
+          border-color var(--stats-ease);
+      }
+      .stats-table-card::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 2px;
+        background: linear-gradient(
+          90deg,
+          rgba(212, 160, 23, 0.45) 0%,
+          rgba(88, 101, 242, 0.12) 100%
+        );
+        pointer-events: none;
+        opacity: 0.85;
       }
       .stats-table-card:hover {
-        box-shadow: var(--stats-shadow-lg);
+        box-shadow:
+          0 1px 0 rgba(255, 255, 255, 0.78) inset,
+          var(--stats-shadow-lg);
+        border-color: rgba(212, 160, 23, 0.18);
       }
       .stats-summary-grid .stats-table-card:hover {
         transform: translateY(-2px);
@@ -1309,6 +1573,13 @@
         font-size: 0.8em;
         color: var(--stats-text-muted);
       }
+
+      @media (prefers-reduced-motion: reduce) {
+        .stats-header {
+          animation: none;
+        }
+      }
+
       .stats-summary-grid {
         margin-bottom: 2.25rem;
         display: grid;
@@ -1361,7 +1632,7 @@
       }
     </style>
   </head>
-  <body class="light stats-body">
+  <body class="light map-page stats-body">
     <div class="stats-wrap">
       <div class="stats-header">
         <div class="stats-header-top">
@@ -1735,7 +2006,7 @@
                   </li>
                   <li>
                     <a
-                      href="https://docs.axistem.eu"
+                      href="https://docs.radio-actief.be"
                       target="_blank"
                       rel="noopener noreferrer"
                       >Radio-Actief Documentation</a

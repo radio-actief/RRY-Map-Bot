@@ -578,7 +578,7 @@ const columns = {
 
       // If source is "uploader", add a clickable icon next to it
       if (lowerVal === "uploader") {
-        valueHtml += ` <a href="https://github.com/recrof/map.meshcore.dev-uploader" target="_blank" rel="noopener noreferrer" title="View MeshCore map uploader on GitHub" style="color: #4CAF50; text-decoration: none; margin-left: 4px;">🔗</a>`;
+        valueHtml += ` <a href="https://github.com/recrof/map.meshcore.io-uploader" target="_blank" rel="noopener noreferrer" title="View MeshCore map uploader on GitHub" style="color: #4CAF50; text-decoration: none; margin-left: 4px;">🔗</a>`;
       }
 
       return valueHtml;

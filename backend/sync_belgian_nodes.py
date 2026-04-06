@@ -26,7 +26,7 @@ try:
     )
 except (ImportError, ModuleNotFoundError):
     # Fallback if config not available
-    OFFICIAL_API_URL = 'https://map.meshcore.dev/api/v1/nodes'
+    OFFICIAL_API_URL = 'https://map.meshcore.io/api/v1/nodes'
     BELGIUM_BOUNDS = {
         'min_lat': 49.5,
         'max_lat': 51.5,

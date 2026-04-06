@@ -28,7 +28,7 @@ The bot allows searching nodes, listing your own nodes, claiming/unclaiming node
 - **`/stats`** - View Belgian MeshCore statistics: overview (nodes, types, presets, top cities, activity), all cities with counts, frequency stats by type, and source breakdown
 
 ### 🔄 Data Synchronization
-- Automatic sync from official MeshCore map (`https://map.meshcore.dev/api/v1/nodes`)
+- Automatic sync from official MeshCore map (`https://map.meshcore.io/api/v1/nodes`)
 - Filters nodes by Belgian geographic bounds
 - Verifies with Geopy (country code = BE)
 - Extracts native city names
@@ -43,7 +43,7 @@ The bot allows searching nodes, listing your own nodes, claiming/unclaiming node
 ```
 ┌─────────────────────────────────────┐
 │   Official MeshCore Map API          │
-│   (map.meshcore.dev/api/v1/nodes)    │
+│   (map.meshcore.io/api/v1/nodes)    │
 └──────────────┬──────────────────────┘
                │
                │ Periodic Sync

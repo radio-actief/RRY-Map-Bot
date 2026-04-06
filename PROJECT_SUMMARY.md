@@ -28,7 +28,7 @@
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │              Official MeshCore Map API                       │
-│         https://map.meshcore.dev/api/v1/nodes                │
+│         https://map.meshcore.io/api/v1/nodes                │
 └──────────────────────┬──────────────────────────────────────┘
                        │
                        │ Periodic Sync (few times/day)
@@ -80,7 +80,7 @@ The project currently contains a **frontend web map application** based on the o
 - **Material Icons**
 
 #### Current Features
-- Fetches nodes from `https://map.meshcore.dev/api/v1/nodes`
+- Fetches nodes from `https://map.meshcore.io/api/v1/nodes`
 - Displays all nodes on interactive map
 - Node filtering by type (Client, Repeater, Room Server, Sensor)
 - Search by node name or public key
@@ -147,7 +147,7 @@ BELGIUM_BOUNDS = {
 ```
 
 #### Workflow
-1. **Download**: Fetch all nodes from `https://map.meshcore.dev/api/v1/nodes`
+1. **Download**: Fetch all nodes from `https://map.meshcore.io/api/v1/nodes`
 2. **Initial Filter**: Remove nodes outside Belgian bounds (or without coordinates)
 3. **Geopy Verification**: 
    - Use Geopy reverse geocoding for each remaining node
@@ -503,7 +503,7 @@ BELGIUM_BOUNDS = {
 
 def download_official_nodes():
     """Download all nodes from official API"""
-    response = requests.get('https://map.meshcore.dev/api/v1/nodes')
+    response = requests.get('https://map.meshcore.io/api/v1/nodes')
     return response.json()
 
 def filter_by_bounds(nodes):
@@ -1198,7 +1198,7 @@ bot.run(os.getenv('DISCORD_BOT_TOKEN'))
 1. **Change API endpoint**:
 ```javascript
 // Current
-const apiUrl = "https://map.meshcore.dev/api/v1/nodes";
+const apiUrl = "https://map.meshcore.io/api/v1/nodes";
 
 // New (REST API endpoint - recommended architecture)
 const apiUrl = "/api/v1/belgian-nodes";  // Local REST API endpoint
@@ -1411,7 +1411,7 @@ GEOPY_USER_AGENT=belgian_meshcore_map
 GEOPY_TIMEOUT=10
 
 # API
-OFFICIAL_API_URL=https://map.meshcore.dev/api/v1/nodes
+OFFICIAL_API_URL=https://map.meshcore.io/api/v1/nodes
 LOCAL_API_URL=http://localhost:8000/api/v1
 
 # Sync Schedule

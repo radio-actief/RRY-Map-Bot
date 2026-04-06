@@ -21,7 +21,7 @@ GEOPY_USER_AGENT = os.getenv('GEOPY_USER_AGENT', 'belgian_meshcore_map')
 GEOPY_TIMEOUT = int(os.getenv('GEOPY_TIMEOUT', '10'))
 
 # API Configuration
-OFFICIAL_API_URL = os.getenv('OFFICIAL_API_URL', 'https://map.meshcore.dev/api/v1/nodes')
+OFFICIAL_API_URL = os.getenv('OFFICIAL_API_URL', 'https://map.meshcore.io/api/v1/nodes')
 LOCAL_API_URL = os.getenv('LOCAL_API_URL', 'http://localhost:8000/api/v1')
 
 # Map Web UI (for direct node links)

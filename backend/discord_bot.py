@@ -1552,7 +1552,7 @@ async def stats(interaction: discord.Interaction):
 
     notes_value = (
         "_\\* Most recent of: inserted\\_date, updated\\_date, last\\_advert_\n"
-        "_\\*\\* Uploader = nodes reported by companions running [uploader software](https://github.com/recrof/map.meshcore.dev-uploader); unreported nodes may be removed after 30 days inactivity._\n\n"
+        "_\\*\\* Uploader = nodes reported by companions running [uploader software](https://github.com/recrof/map.meshcore.io-uploader); unreported nodes may be removed after 30 days inactivity._\n\n"
         "Full statistics online: [meshmap.radio-actief.be/stats](https://meshmap.radio-actief.be/stats)"
     )
     embed1.add_field(name="\u200b", value=notes_value, inline=False)

@@ -310,7 +310,7 @@ if __name__ == '__main__':
 ```javascript
 // src/map.js
 // Change from:
-const apiUrl = "https://map.meshcore.dev/api/v1/nodes";
+const apiUrl = "https://map.meshcore.io/api/v1/nodes";
 
 // To:
 const apiUrl = "/api/v1/belgian-nodes";  // Local API endpoint

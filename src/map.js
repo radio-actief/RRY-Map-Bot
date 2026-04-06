@@ -655,7 +655,8 @@ function buildCoordsMenuWrapFromLatLon(latN, lonN, toggleLabelEscaped) {
 
 const QR_CODE_MODULE_URL = "https://cdn.jsdelivr.net/npm/qrcode@1.5.4/+esm";
 const NODE_QR_WIDTH_PX = 128;
-const NODE_QR_ENLARGE_FACTOR = 3;
+/** Pixel width for the enlarged QR modal (independent of popup QR size). */
+const NODE_QR_ENLARGE_PX = 400;
 
 let _qrEnlargeTeardown = null;
 
@@ -684,7 +685,7 @@ function collectQrEnlargeContext(slot) {
 }
 
 /**
- * Full-screen style overlay with the same QR at NODE_QR_ENLARGE_FACTOR × popup size (384px).
+ * Full-screen style overlay with the same QR at NODE_QR_ENLARGE_PX (400px).
  */
 async function openQrEnlargeOverlay(slot, link) {
   const trimmed = link?.trim();
@@ -717,9 +718,12 @@ async function openQrEnlargeOverlay(slot, link) {
   typeEl.className = "node-qr-enlarge-subtitle";
   typeEl.textContent = ctx.typeLabel;
 
+  const pkWrap = document.createElement("div");
+  pkWrap.className = "node-qr-enlarge-pk-wrap";
   const pkEl = document.createElement("p");
   pkEl.className = "node-qr-enlarge-pk";
   pkEl.textContent = ctx.publicKey || "\u2014";
+  pkWrap.appendChild(pkEl);
 
   const wrap = document.createElement("div");
   wrap.className = "node-qr-enlarge-qr";
@@ -727,7 +731,7 @@ async function openQrEnlargeOverlay(slot, link) {
   panel.appendChild(closeBtn);
   panel.appendChild(titleEl);
   panel.appendChild(typeEl);
-  panel.appendChild(pkEl);
+  panel.appendChild(pkWrap);
   panel.appendChild(wrap);
   backdrop.appendChild(panel);
   document.body.appendChild(backdrop);
@@ -750,7 +754,7 @@ async function openQrEnlargeOverlay(slot, link) {
   document.addEventListener("keydown", onKeyDoc);
   _qrEnlargeTeardown = teardown;
 
-  const targetW = NODE_QR_WIDTH_PX * NODE_QR_ENLARGE_FACTOR;
+  const targetW = NODE_QR_ENLARGE_PX;
   const existingSvg = slot?.querySelector?.("svg.node-qr");
   if (existingSvg) {
     const clone = existingSvg.cloneNode(true);
@@ -825,7 +829,7 @@ function buildAnalyzerFooterMenu(node, letsMeshUrl) {
   const o8 = escapeAttrHtml(on8arUrl);
   return (
     `<span class="coords-menu-wrap node-popup-analyzer-menu">` +
-    `<a href="#" class="node-popup-action node-popup-action--external node-popup-analyzer-menu__toggle" onclick="event.preventDefault();event.stopPropagation();this.parentElement.classList.toggle('open');return false;" title="Choose network analyzer">Analyzer</a>` +
+    `<a href="#" class="node-popup-action node-popup-action--external node-popup-action--icon-only node-popup-analyzer-menu__toggle" onclick="event.preventDefault();event.stopPropagation();this.parentElement.classList.toggle('open');return false;" title="Choose network analyzer" aria-label="Choose network analyzer"><i aria-hidden="true">search</i></a>` +
     `<span class="coords-menu" role="menu">` +
     `<a role="menuitem" href="${lm}" target="_blank" rel="noopener noreferrer">Let\u2019s Mesh Analyzer</a>` +
     `<a role="menuitem" href="${o8}" target="_blank" rel="noopener noreferrer">ON8AR Analyzer</a>` +
@@ -1427,8 +1431,9 @@ function getTable(node, authState = null, nodes = []) {
         source !== "discord" &&
         (source === "app" || source === "uploader" || source === "web");
 
+      const delUrl = escapeAttrHtml(getDeletionMailUrl(node));
       const footerEnd = isNotDiscordSource
-        ? `<a href="${getDeletionMailUrl(node)}" class="node-popup-action node-popup-action--danger">Request deletion</a>`
+        ? `<a href="${delUrl}" class="node-popup-action node-popup-action--danger node-popup-action--icon-only" title="Request deletion" aria-label="Request deletion"><i aria-hidden="true">delete</i></a>`
         : "";
 
       return `<nav class="node-popup-actions" aria-label="Node actions"><div class="node-popup-actions__row"><div class="node-popup-actions__slot node-popup-actions__slot--start">${footerStart}</div><div class="node-popup-actions__slot node-popup-actions__slot--center">${footerCenter}</div><div class="node-popup-actions__slot node-popup-actions__slot--end">${footerEnd}</div></div></nav>`;

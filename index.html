@@ -158,19 +158,27 @@
                   <path :d="mdiLogout" fill="currentColor" /></svg
               ></a>
             </span>
-            <a
+            <div
               v-else
-              href="/auth/login"
-              class="login-link"
-              title="Login with Discord"
+              class="stats-auth-login"
+              title="Having trouble claiming or using the map? Reach Radio-Actief on Discord (server icon, top right) or open an issue on GitHub."
             >
-              <img
-                src="./img/discord-logo.svg"
-                alt="Discord"
-                class="discord-icon"
-              />
-              Login with Discord
-            </a>
+              <span class="stats-auth-claim-hint"
+                >Sign in to claim your node</span
+              >
+              <a
+                href="/auth/login"
+                class="login-link"
+                title="Login with Discord"
+              >
+                <img
+                  src="./img/discord-logo.svg"
+                  alt="Discord"
+                  class="discord-icon"
+                />
+                Login with Discord
+              </a>
+            </div>
           </div>
         </div>
         <form class="search no-margin" data-ui action="javascript:;">

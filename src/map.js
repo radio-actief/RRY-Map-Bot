@@ -1661,6 +1661,54 @@ createApp({
       return filterArraysEqualAsSets(sel, DEFAULT_CLAIMED_FILTER);
     }
 
+    const ALL_NODE_TYPE_KEYS = ["1", "2", "3", "4"];
+
+    /** True when at least one band is unchecked (empty selection = no restriction, same as “all”). */
+    function freqFilterIsRestrictive() {
+      const avail = app.availableFreqs;
+      if (!avail.length) return false;
+      if (!app.freqFilter.length) return false;
+      if (app.freqFilter.length !== avail.length) return true;
+      const selected = new Set(app.freqFilter.map((x) => Number(x)));
+      return !avail.every((f) => selected.has(Number(f)));
+    }
+
+    /** Empty or all four node types → same as “no nodes= restriction” in the URL. */
+    function nodeFilterIsAllTypes() {
+      if (!app.nodeFilter.length) return true;
+      if (app.nodeFilter.length !== 4) return false;
+      const set = new Set(app.nodeFilter.map((t) => String(Number(t))));
+      return ALL_NODE_TYPE_KEYS.every((k) => set.has(k));
+    }
+
+    /** When true, map must use filteredNodes only (even if empty); never fall back to all nodes. */
+    function filtersRestrictMapView() {
+      if (!nodeFilterIsAllTypes()) return true;
+      if (
+        app.sourceFilter.length > 0 &&
+        !isDefaultSourceFilter(app.sourceFilter)
+      ) {
+        return true;
+      }
+      if (
+        app.claimedFilter.length > 0 &&
+        !isDefaultClaimedFilter(app.claimedFilter)
+      ) {
+        return true;
+      }
+      if ((app.cityFilter || "").trim()) return true;
+      if (freqFilterIsRestrictive()) return true;
+      if (
+        String(app.fromDate ?? "").trim() &&
+        app.fromDate !== DEFAULT_MAP_DATE_STR
+      ) {
+        return true;
+      }
+      const ins = String(app.fromInsertDate ?? "").trim();
+      if (ins && ins !== DEFAULT_MAP_DATE_STR) return true;
+      return false;
+    }
+
     // Authentication state
     const auth = reactive({
       authenticated: false,
@@ -1774,6 +1822,7 @@ createApp({
           );
           // Reload nodes to reflect changes
           await downloadNodes();
+          await nextTick();
           refreshMap();
           // Update marker glows and any open popups
           app.nodes.forEach((node) => {
@@ -1847,6 +1896,7 @@ createApp({
           );
           // Reload nodes to reflect changes
           await downloadNodes();
+          await nextTick();
           refreshMap();
           // Update marker glows and any open popups
           app.nodes.forEach((node) => {
@@ -1934,7 +1984,13 @@ createApp({
         pendingClusterPopupCleanup = null;
       }
 
-      let nodes = app.filteredNodes.length > 0 ? app.filteredNodes : app.nodes;
+      let nodes;
+      if (filtersRestrictMapView()) {
+        nodes = app.filteredNodes;
+      } else {
+        nodes =
+          app.filteredNodes.length > 0 ? app.filteredNodes : app.nodes;
+      }
       if (targetNodeKey) {
         const target = findNodeByPubKey(app.nodes, targetNodeKey);
         if (target && !nodes.includes(target)) {
@@ -2136,8 +2192,7 @@ createApp({
       delete app.urlParams.city;
       delete app.urlParams.freq;
       delete app.urlParams.cluster;
-      // Refresh the map
-      refreshMap({ clusteringZoom: DEFAULT_CLUSTERING_ZOOM });
+      // Filter watch refreshes the map when nodeFilter / source / … change.
     }
 
     async function downloadNodes() {
@@ -2360,26 +2415,6 @@ createApp({
         app.nodes.length !== app.filteredNodes.length,
     );
 
-    /** True when at least one band is unchecked (empty selection = no restriction, same as “all”). */
-    function freqFilterIsRestrictive() {
-      const avail = app.availableFreqs;
-      if (!avail.length) return false;
-      if (!app.freqFilter.length) return false;
-      if (app.freqFilter.length !== avail.length) return true;
-      const selected = new Set(app.freqFilter.map((x) => Number(x)));
-      return !avail.every((f) => selected.has(Number(f)));
-    }
-
-    const ALL_NODE_TYPE_KEYS = ["1", "2", "3", "4"];
-
-    /** Empty or all four node types → same as “no nodes= restriction” in the URL. */
-    function nodeFilterIsAllTypes() {
-      if (!app.nodeFilter.length) return true;
-      if (app.nodeFilter.length !== 4) return false;
-      const set = new Set(app.nodeFilter.map((t) => String(Number(t))));
-      return ALL_NODE_TYPE_KEYS.every((k) => set.has(k));
-    }
-
     watch(
       [
         () => app.nodeFilter,
@@ -2389,6 +2424,7 @@ createApp({
         () => app.fromInsertDate,
         () => app.cityFilter,
         () => app.freqFilter,
+        () => app.nodes.length,
       ],
       () => {
         if (!app.nodeFilter.length) {
@@ -2500,6 +2536,7 @@ createApp({
         }
         refreshMap({ download: false });
       },
+      { immediate: true },
     );
 
     watch(
@@ -2866,7 +2903,9 @@ createApp({
           }
         }
 
-        refreshMap({ targetNodeKey: nodeKey || undefined });
+        nextTick(() => {
+          refreshMap({ targetNodeKey: nodeKey || undefined });
+        });
 
         if (nodeKey && !targetNode) {
           console.warn(

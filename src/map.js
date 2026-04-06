@@ -1,13 +1,13 @@
 import {
   createApp,
   reactive,
-  ref,
   computed,
   watch,
   onMounted,
   onBeforeUnmount,
   nextTick,
-  toRaw,
+  markRaw,
+  shallowRef,
 } from "../lib/vue.esm-browser.prod.js";
 import * as ntools from "./node-utils.js";
 
@@ -141,17 +141,39 @@ function copyToClipboard(text, element) {
     });
 }
 
-// Event delegation for copy clicks
+// Copy via PointerEvent (Firefox deprecates reading MouseEvent.mozInputSource on
+// legacy click paths; pointerup uses PointerEvent.pointerType). Capture phase
+// so Leaflet popup stopPropagation on bubble still sees this first.
 function setupCopyHandlers() {
-  // Use event delegation on document to handle dynamically created elements
-  document.addEventListener("click", function (e) {
-    if (e.target && e.target.classList.contains("copyable")) {
-      const text = e.target.getAttribute("data-copy");
-      if (text) {
-        copyToClipboard(text, e.target);
-      }
-    }
-  });
+  function handleCopyPointer(e) {
+    if (!e.isPrimary) return;
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    const copyEl = e.target?.closest?.(".copyable");
+    if (!copyEl) return;
+    const text = copyEl.getAttribute("data-copy");
+    if (!text) return;
+    e.preventDefault();
+    e.stopPropagation();
+    copyToClipboard(text, copyEl);
+  }
+
+  if (typeof PointerEvent !== "undefined") {
+    document.addEventListener("pointerup", handleCopyPointer, { capture: true });
+  } else {
+    document.addEventListener(
+      "click",
+      function (e) {
+        const copyEl = e.target?.closest?.(".copyable");
+        if (!copyEl) return;
+        const text = copyEl.getAttribute("data-copy");
+        if (!text) return;
+        e.preventDefault();
+        e.stopPropagation();
+        copyToClipboard(text, copyEl);
+      },
+      true,
+    );
+  }
 }
 
 // Match frequency preset
@@ -178,7 +200,19 @@ function matchFrequencyPreset(params) {
   return null;
 }
 
-// Format radio params display
+const radioParamDesc = {
+  bw: { label: "Bandwidth", unit: " kHz" },
+  freq: { label: "Frequency", unit: "MHz" },
+  sf: { label: "Spreading factor", unit: "" },
+  cr: { label: "Coding rate", unit: "" },
+};
+
+function escapeAttrHtml(text) {
+  return String(text).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+}
+
+// Radio params: named preset only when params exactly match a known preset;
+// otherwise list freq/cr/sf/bw only (no "Custom" label). Missing params → N/A.
 function formatRadioParams(params) {
   if (
     !params ||
@@ -189,25 +223,31 @@ function formatRadioParams(params) {
   }
 
   const preset = matchFrequencyPreset(params);
-  const freq = parseFloat(params.freq);
-  const sf = parseInt(params.sf);
-  const bw = parseFloat(params.bw);
-  const cr = parseInt(params.cr);
-
-  let html = "";
-
   if (preset) {
-    html += `<div><b>${preset.name}</b></div>`;
-  } else {
-    html += `<div><b>Custom params</b></div>`;
+    return escapeAttrHtml(preset.name);
   }
 
-  html += `<div>Frequency: ${isNaN(freq) ? "N/A" : freq + "MHz"}</div>`;
-  html += `<div>Bandwidth: ${isNaN(bw) ? "N/A" : bw + "kHz"}</div>`;
-  html += `<div>Coding rate: ${isNaN(cr) ? "N/A" : cr}</div>`;
-  html += `<div>Spreading factor: ${isNaN(sf) ? "N/A" : sf}</div>`;
+  const freq = parseFloat(params.freq);
+  const sf = parseInt(params.sf, 10);
+  const bw = parseFloat(params.bw);
+  const cr = parseInt(params.cr, 10);
 
-  return html;
+  const lines = [
+    ["freq", freq],
+    ["cr", cr],
+    ["sf", sf],
+    ["bw", bw],
+  ];
+  let html = "";
+  for (const [k, val] of lines) {
+    const meta = radioParamDesc[k];
+    if (!meta || (typeof val === "number" && Number.isNaN(val))) continue;
+    const numStr = escapeAttrHtml(String(val));
+    const suffix = meta.unit ? escapeAttrHtml(meta.unit) : "";
+    html += `<div>${escapeAttrHtml(meta.label)}: ${numStr}${suffix}</div>`;
+  }
+
+  return html || "N/A";
 }
 
 // Format date as relative time (exact upstream implementation)
@@ -288,6 +328,100 @@ function createCopyableElement(text, displayText = null) {
   return `<span class="copyable" data-copy="${escapedText}" style="cursor: pointer; color: #2196F3; text-decoration: underline;" title="Click to copy">${escapedDisplay}</span>`;
 }
 
+const QR_CODE_MODULE_URL = "https://cdn.jsdelivr.net/npm/qrcode@1.5.4/+esm";
+
+function meshcoreContactLink(node) {
+  if (!node?.link || typeof node.link !== "string") return null;
+  const s = node.link.trim();
+  if (!s) return null;
+  return s.startsWith("meshcore://") ? s : `meshcore://${s}`;
+}
+
+/** 32-byte Ed25519 public key as 64 hex chars (see MeshCore/docs/qr_codes.md). */
+function normalizeMeshcorePublicKeyHex(node) {
+  let pk = (node?.public_key || "")
+    .replace(/\s/g, "")
+    .replace(/-/g, "")
+    .toLowerCase();
+  if (pk.startsWith("0x")) pk = pk.slice(2);
+  if (/^[0-9a-f]{64}$/.test(pk)) return pk;
+  return null;
+}
+
+/**
+ * Payload for QR: MeshCore mobile expects meshcore://contact/add?... (not the packed node.link blob).
+ * https://github.com/meshcore-dev/MeshCore/blob/main/docs/qr_codes.md#add-contact
+ */
+function meshcoreQrUri(node) {
+  const pk = normalizeMeshcorePublicKeyHex(node);
+  const typeRaw = parseInt(String(node?.type ?? 1), 10);
+  const typeNum =
+    Number.isFinite(typeRaw) ? Math.min(4, Math.max(1, typeRaw)) : 1;
+  if (pk) {
+    const name = ((node?.adv_name || "Contact").trim() || "Contact").slice(
+      0,
+      200,
+    );
+    return `meshcore://contact/add?name=${encodeURIComponent(name)}&public_key=${pk}&type=${typeNum}`;
+  }
+  return meshcoreContactLink(node);
+}
+
+async function fillNodeQrSlotFromPopup(popupContentRoot) {
+  if (!popupContentRoot) return;
+  const slot = popupContentRoot.querySelector(".node-qr-slot[data-meshcore-link]");
+  if (!slot) return;
+  const link = slot.getAttribute("data-meshcore-link");
+  if (!link) return;
+  try {
+    const mod = await import(QR_CODE_MODULE_URL);
+    const QRCode = mod.default;
+    const svg = await QRCode.toString(link, {
+      type: "svg",
+      width: 196,
+      margin: 1,
+      errorCorrectionLevel: "H",
+      color: { dark: "#000000", light: "#ffffff" },
+    });
+    // Leaflet may call the popup content function again (pan/zoom/setView), replacing
+    // the DOM while we awaited the QR module — only paint if this link's slot still exists.
+    const live = popupContentRoot.querySelector(".node-qr-slot[data-meshcore-link]");
+    if (
+      !live ||
+      live.getAttribute("data-meshcore-link") !== link ||
+      !live.isConnected
+    ) {
+      return;
+    }
+    live.innerHTML = svg;
+    const svgEl = live.querySelector("svg");
+    if (svgEl) {
+      svgEl.classList.add("node-qr");
+      svgEl.setAttribute(
+        "style",
+        "shape-rendering:crispEdges;max-width:100%;height:auto;display:block;margin:0 auto 12px",
+      );
+    }
+  } catch (e) {
+    console.warn("QR code failed:", e);
+    const live = popupContentRoot.querySelector(".node-qr-slot[data-meshcore-link]");
+    if (live && live.getAttribute("data-meshcore-link") === link) {
+      live.innerHTML = "";
+      live.style.display = "none";
+    }
+  }
+}
+
+function bindPopupQrRefill(popup, getContentRoot) {
+  if (!popup || popup._qrRefillBound) return;
+  popup._qrRefillBound = true;
+  popup.on("contentupdate", () => {
+    requestAnimationFrame(() => {
+      fillNodeQrSlotFromPopup(getContentRoot());
+    });
+  });
+}
+
 const columnOrder = [
   "adv_name",
   "type",
@@ -309,25 +443,50 @@ const columnOrder = [
 const columns = {
   coords: {
     label: "Coordinates",
-    value: (val) =>
-      `<a target="_blank" href="https://google.com/maps/place/${val.replace(
-        " ",
-        "",
-      )}">${val}</a>`,
+    value: (val) => {
+      const compact = String(val).replace(/\s/g, "");
+      const parts = compact.split(",");
+      const lat = parts[0]?.trim();
+      const lon = parts[1]?.trim();
+      if (!lat || !lon) {
+        return `<a target="_blank" rel="noopener noreferrer" href="https://www.google.com/maps/place/${compact}">${escapeAttrHtml(
+          val,
+        )}</a>`;
+      }
+      const latN = Number(lat);
+      const lonN = Number(lon);
+      if (Number.isNaN(latN) || Number.isNaN(lonN)) {
+        return escapeAttrHtml(val);
+      }
+      const plain = `${latN}, ${lonN}`;
+      const osm = `https://www.openstreetmap.org/?mlat=${latN}&mlon=${lonN}&zoom=15`;
+      const gMap = `https://www.google.com/maps/place/${latN},${lonN}`;
+      const mapy = `https://mapy.com/?q=${latN},${lonN}`;
+      return `<span class="coords-menu-wrap"><a href="javascript:;" class="coords-menu-toggle" onclick="event.stopPropagation();this.parentElement.classList.toggle('open')">${escapeAttrHtml(
+        plain,
+      )}</a><span class="coords-menu">${createCopyableElement(plain, "Copy coordinates")}<a href="${osm}" target="_blank" rel="noopener noreferrer">OpenStreetMap</a><a href="${gMap}" target="_blank" rel="noopener noreferrer">Google Maps</a><a href="${mapy}" target="_blank" rel="noopener noreferrer">Mapy.com</a></span></span>`;
+    },
   },
   adv_name: {
     label: "Name",
   },
   status: {
     label: "Freshness",
-    value: (val) => updateStatusDesc[val] || "N/A",
+    value: (val) => {
+      const desc = updateStatusDesc[val] || "N/A";
+      const statusClass =
+        val && Object.prototype.hasOwnProperty.call(updateStatusDesc, val)
+          ? `update-${val}`
+          : "update-none";
+      return `<span class="status-dot ${statusClass}"></span>${escapeAttrHtml(desc)}`;
+    },
   },
   inserted_date: {
-    label: "Inserted date",
+    label: "Inserted",
     value: (val) => formatRelativeTime(val),
   },
   updated_date: {
-    label: "Updated date",
+    label: "Updated",
     value: (val) => formatRelativeTime(val),
   },
   last_advert: {
@@ -350,7 +509,7 @@ const columns = {
       formatInserterUpdater(val, nodes, node),
   },
   type: {
-    label: "Node type",
+    label: "Type",
     value: (val) => types[val],
   },
   params: {
@@ -359,7 +518,18 @@ const columns = {
   },
   link: {
     label: "Meshcore link",
-    value: (val) => createCopyableElement(val, shortenForDisplay(val, 20)),
+    value: (val) => {
+      const link =
+        typeof val === "string"
+          ? val.startsWith("meshcore://")
+            ? val
+            : val
+              ? `meshcore://${val}`
+              : ""
+          : "";
+      if (!link) return "N/A";
+      return createCopyableElement(link, shortenForDisplay(link, 24));
+    },
   },
   city: {
     label: "City",
@@ -416,22 +586,32 @@ const columns = {
   },
 };
 
-function getSvgIconUrl(text, color) {
-  const svg = `
-	<svg width="512" height="512" xmlns="http://www.w3.org/2000/svg" >
-		<style>
-		text { font: bold 150pt sans-serif; fill: #fff; }
-		</style>
-		<ellipse cx="50%" cy="50%" rx="50%" ry="50%" fill="${color}"/>
-		<text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle">${text}</text>
-	</svg>`;
+const svgIconHtmlCache = new Map();
 
-  return L.icon({
-    iconUrl: URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" })),
-    iconSize: [32, 32],
-    iconAnchor: [17, 17],
-    popupAnchor: [0, -16],
-  });
+function escapeXmlText(s) {
+  return String(s).replace(/[<>&]/g, (c) =>
+    ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" })[c],
+  );
+}
+
+function getSvgIcon(text, color, updateStatus) {
+  const status = updateStatus || "none";
+  const cacheKey = `${text}|${color}|${status}`;
+  let icon = svgIconHtmlCache.get(cacheKey);
+  if (!icon) {
+    const html = `<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg"><ellipse cx="256" cy="256" rx="256" ry="256" fill="${color}"/><text x="256" y="256" dominant-baseline="central" text-anchor="middle" fill="#fff" font-size="150" font-weight="bold" font-family="sans-serif">${escapeXmlText(
+      text,
+    )}</text></svg>`;
+    icon = L.divIcon({
+      html,
+      className: `svg-node-icon update-${status}`,
+      iconSize: [32, 32],
+      iconAnchor: [17, 17],
+      popupAnchor: [0, -16],
+    });
+    svgIconHtmlCache.set(cacheKey, icon);
+  }
+  return icon;
 }
 
 function clearLocationHash() {
@@ -451,8 +631,14 @@ function getTable(node, authState = null, nodes = []) {
   const analyzerType = typeMap[node.type] || "companions";
   const analyzerUrl = `https://analyzer.letsmesh.net/nodes/${analyzerType}?public_key=${node.public_key}`;
 
+  const qrUri = meshcoreQrUri(node);
+  const qrBlock = qrUri
+    ? `<div class="node-qr-slot" data-meshcore-link="${escapeAttrHtml(qrUri)}"></div>`
+    : "";
+
   return (
     '<div class="node-popup">' +
+    qrBlock +
     '<table class="node-info"><tbody>' +
     "<tr>" +
     columnOrder
@@ -461,14 +647,16 @@ function getTable(node, authState = null, nodes = []) {
         const shouldShow =
           key === "discord_owner_name"
             ? node.discord_owner_name && node.discord_owner_name.trim() !== ""
-            : node[key];
+            : key === "params"
+              ? true
+              : node[key];
 
         if (shouldShow) {
           return [
-            `<td>${columns[key].label}</td><td>${
+            `<td><b>${escapeAttrHtml(columns[key].label)}</b></td><td>${
               columns[key].value
                 ? columns[key].value(node[key], node, nodes)
-                : node[key]
+                : escapeAttrHtml(String(node[key] ?? ""))
             }</td>`,
           ];
         }
@@ -539,20 +727,8 @@ function getTable(node, authState = null, nodes = []) {
         (source === "app" || source === "uploader" || source === "web");
 
       if (isNotDiscordSource) {
-        const emailSubject = encodeURIComponent(
-          "MeshCore Map node deletion request",
-        );
-        const emailBody = encodeURIComponent(
-          `Please delete my node(s) from MeshCore Map database\n` +
-            `MeshCore link(s) or Public key(s):\n\n` +
-            `${publicKey}\n\n` +
-            `*** IMPORTANT ***\n` +
-            `if you have multiple nodes to delete, put them into single email, delimited by newline. public key is enough, you don't need to add name or screenshot of the node.`,
-        );
-        const mailtoUrl = `mailto:recrof@gmail.com?subject=${emailSubject}&body=${emailBody}`;
-
         footerLinks.push(
-          `<a href="${mailtoUrl}" style="color: #f44336; text-decoration: none; font-size: 0.75em;">
+          `<a href="${getDeletionMailUrl(node)}" style="color: #f44336; text-decoration: none; font-size: 0.75em;">
             <strong>Request deletion</strong>
           </a>`,
         );
@@ -621,12 +797,14 @@ function getDaysEpochMsec(days) {
 }
 
 function getNodeUpdateStatus(node) {
-  if (node.source !== "uploader") return "none";
+  const src = node.source != null ? String(node.source) : "";
+  if (!src || src[0] !== "u") return "none";
   const updateEpoch = new Date(node.updated_date).getTime();
-  if (updateEpoch < Date.now() - getDaysEpochMsec(20)) return "extinct";
-  else if (updateEpoch < Date.now() - getDaysEpochMsec(10)) return "old";
-  else if (updateEpoch < Date.now() - getDaysEpochMsec(5)) return "stale";
-
+  if (Number.isNaN(updateEpoch)) return "none";
+  const now = Date.now();
+  if (updateEpoch < now - getDaysEpochMsec(20)) return "extinct";
+  if (updateEpoch < now - getDaysEpochMsec(10)) return "old";
+  if (updateEpoch < now - getDaysEpochMsec(5)) return "stale";
   return "recent";
 }
 
@@ -639,16 +817,26 @@ const updateStatusDesc = {
   extinct: "will be deleted soon",
 };
 
-const deletionMailUrl = new URL("mailto:recrof@gmail.com");
-deletionMailUrl.searchParams.append(
-  "subject",
-  "MeshCore Map node deletion request",
-);
-deletionMailUrl.searchParams.append(
-  "body",
-  "Please delete my node from MeshCore Map database\n" +
-    "MeshCore link: <please insert meshcore:// link here>\n",
-);
+function getDeletionMailUrl(node) {
+  const deletionMailUrl = new URL("mailto:recrof@gmail.com");
+  deletionMailUrl.searchParams.append(
+    "subject",
+    "MeshCore Map node deletion request",
+  );
+  deletionMailUrl.searchParams.append(
+    "body",
+    [
+      "Please delete my node(s) from MeshCore Map database",
+      "MeshCore link(s) or Public key(s):",
+      "",
+      node ? node.public_key || "" : "",
+      "",
+      "*** IMPORTANT ***",
+      "if you have multiple nodes to delete, put them into single email, delimited by newline. public key is enough, you don't need to add name or screenshot of the node.",
+    ].join("\n"),
+  );
+  return deletionMailUrl.toString().replaceAll("+", "%20").replaceAll("\n", "%0A");
+}
 
 const appAttribution = `
 	Original map by <a target="_blank" href="https://github.com/sponsors/recrof?frequency=one-time&sponsor=recrof"><strong>recrof</strong></a> | Modified by the <a target="_blank" href="https://github.com/radio-actief"><strong>Radio-Actief.be</strong></a> community
@@ -719,10 +907,11 @@ const icons = Object.fromEntries(
 
 createApp({
   setup() {
+    const nodesRef = shallowRef([]);
+    const nodesByTypeRef = shallowRef({});
+    const filteredNodesRef = shallowRef([]);
+
     const app = (window.app = reactive({
-      nodes: [],
-      nodesByType: {},
-      filteredNodes: [],
       search: "",
       cityFilter: "",
       nodeFilter: [],
@@ -733,7 +922,28 @@ createApp({
       clusteringZoom: 11,
       urlParams,
       loading: false,
+      freqFilter: [],
+      availableFreqs: [],
     }));
+
+    Object.defineProperty(app, "nodes", {
+      get: () => nodesRef.value,
+      set: (v) => {
+        nodesRef.value = v;
+      },
+    });
+    Object.defineProperty(app, "nodesByType", {
+      get: () => nodesByTypeRef.value,
+      set: (v) => {
+        nodesByTypeRef.value = v;
+      },
+    });
+    Object.defineProperty(app, "filteredNodes", {
+      get: () => filteredNodesRef.value,
+      set: (v) => {
+        filteredNodesRef.value = v;
+      },
+    });
 
     // Authentication state
     const auth = reactive({
@@ -741,6 +951,64 @@ createApp({
       user: null,
       loading: true,
     });
+
+    const markerToNode = new WeakMap();
+
+    function ensurePopup(marker) {
+      if (!marker || marker._popupBound) return;
+      const node = markerToNode.get(marker);
+      if (!node) return;
+      const nodePopup = markRaw(
+        L.popup({
+          minWidth: 350,
+          maxWidth: 350,
+          content: () => getTable(node, auth, app.nodes),
+        }),
+      );
+      marker.bindPopup(nodePopup);
+      marker._popupBound = true;
+      bindPopupQrRefill(nodePopup, () =>
+        marker.getPopup()?.getElement()?.querySelector(".leaflet-popup-content"),
+      );
+      marker.on("popupopen", function () {
+        if (node.public_key) {
+          app.urlParams.node = node.public_key;
+        }
+        setTimeout(() => {
+          const root = marker.getPopup()?.getElement();
+          if (!root) return;
+          const content = root.querySelector(".leaflet-popup-content");
+          fillNodeQrSlotFromPopup(content);
+        }, 100);
+      });
+      marker.on("popupclose", function () {
+        delete app.urlParams.node;
+      });
+    }
+
+    function attachClusterClickHandler(group) {
+      group.on("click", function (e) {
+        const m = e.layer;
+        if (
+          m &&
+          m instanceof L.Marker &&
+          typeof m.getAllChildMarkers !== "function"
+        ) {
+          ensurePopup(m);
+          m.openPopup();
+        }
+      });
+    }
+
+    function refreshOpenPopups() {
+      for (const node of app.nodes) {
+        const p = node.marker?.getPopup?.();
+        if (p && p.isOpen()) {
+          p.setContent(() => getTable(node, auth, app.nodes));
+          p.update();
+        }
+      }
+    }
 
     // Check authentication status
     async function checkAuth() {
@@ -807,11 +1075,8 @@ createApp({
                 else iconElement.classList.remove("user-owned");
               }
             }
-            // Update popup
-            if (node.popup && node.popup.isOpen()) {
-              node.popup.setContent(getTable(node, auth, app.nodes));
-            }
           });
+          refreshOpenPopups();
         } else {
           // Handle specific error cases
           if (res.status === 403 && data.discord_invite_url) {
@@ -883,11 +1148,8 @@ createApp({
                 else iconElement.classList.remove("user-owned");
               }
             }
-            // Update popup
-            if (node.popup && node.popup.isOpen()) {
-              node.popup.setContent(getTable(node, auth, app.nodes));
-            }
           });
+          refreshOpenPopups();
         } else {
           const errorMsg = data.error || "Failed to unclaim node";
           if (data.error === "You do not own this node.") {
@@ -961,14 +1223,12 @@ createApp({
 
       markerClusterGroup = L.markerClusterGroup({
         disableClusteringAtZoom: clusteringZoom || app.clusteringZoom,
+        chunkedLoading: true,
       });
+      attachClusterClickHandler(markerClusterGroup);
 
-      for (const node of nodes) {
-        const marker = toRaw(node.marker);
-        if (marker && marker.options?.icon) {
-          markerClusterGroup.addLayer(marker);
-        }
-      }
+      const markers = nodes.map((n) => n.marker).filter(Boolean);
+      markerClusterGroup.addLayers(markers);
 
       map.addLayer(markerClusterGroup);
 
@@ -994,6 +1254,7 @@ createApp({
               if (targetMarker._map && cluster.hasLayer(targetMarker)) {
                 setTimeout(() => {
                   try {
+                    ensurePopup(targetMarker);
                     targetMarker.openPopup();
                   } catch (_) {}
                 }, 100);
@@ -1042,6 +1303,7 @@ createApp({
         );
         return;
       }
+      ensurePopup(node.marker);
       node.marker.openPopup();
       map.flyTo(node.marker.getLatLng(), 19);
       app.search = "";
@@ -1056,12 +1318,28 @@ createApp({
       const typeKey = String(node.type || 1);
       const icon = icons.none?.[typeKey] ?? icons.none["1"];
       const tempMarker = L.marker([lat, lon], { icon, title: node.adv_name });
-      const popup = L.popup({
+      const deepLinkPopup = L.popup({
         minWidth: 350,
         maxWidth: 350,
-        content: getTable(node, auth, app.nodes),
+        content: () => getTable(node, auth, app.nodes),
       });
-      tempMarker.bindPopup(popup);
+      tempMarker.bindPopup(deepLinkPopup);
+      bindPopupQrRefill(deepLinkPopup, () =>
+        tempMarker
+          .getPopup()
+          ?.getElement()
+          ?.querySelector(".leaflet-popup-content"),
+      );
+      tempMarker.on("popupopen", () => {
+        setTimeout(() => {
+          fillNodeQrSlotFromPopup(
+            tempMarker
+              .getPopup()
+              ?.getElement()
+              ?.querySelector(".leaflet-popup-content"),
+          );
+        }, 0);
+      });
       tempMarker.on("popupclose", () => {
         delete app.urlParams.node;
         map.removeLayer(tempMarker);
@@ -1106,6 +1384,7 @@ createApp({
       app.fromDate = "2025-03-01";
       app.fromInsertDate = "2025-03-01";
       app.cityFilter = "";
+      app.freqFilter = [];
       app.clusteringZoom = 11;
       // Clear filtered nodes to show all nodes
       app.filteredNodes = [];
@@ -1117,6 +1396,7 @@ createApp({
       delete app.urlParams.date;
       delete app.urlParams.dateInsert;
       delete app.urlParams.city;
+      delete app.urlParams.freq;
       app.urlParams.cluster = 11;
       // Refresh the map
       refreshMap({ clusteringZoom: 11 });
@@ -1137,116 +1417,106 @@ createApp({
             console.warn("Preset loading error (using fallback):", err);
           });
 
-        for (const node of app.nodes) {
-          // Skip nodes without valid coordinates
-          if (node.adv_lat == null || node.adv_lon == null) {
-            console.warn(
-              `Skipping node ${
-                node.adv_name || node.public_key
-              }: missing coordinates`,
-            );
-            continue;
-          }
+        const byType = {};
+        const freqSet = new Set();
+        const CHUNK_SIZE = 2000;
+        const list = app.nodes;
 
-          const updateStatus = getNodeUpdateStatus(node);
-          const typeKey = String(node.type || 1);
-          let icon =
-            icons[updateStatus]?.[typeKey] ?? icons.none?.[typeKey] ?? icons.none["1"];
+        for (let offset = 0; offset < list.length; offset += CHUNK_SIZE) {
+          const end = Math.min(offset + CHUNK_SIZE, list.length);
+          if (offset > 0) await new Promise((r) => setTimeout(r, 0));
 
-          (app.nodesByType[node.type] ??= []).push(node);
-
-          if (node.type === 1) {
-            const label = ntools.getNameIconLabel(node.adv_name);
-            const color = ntools.getColourForName(node.adv_name);
-            icon = getSvgIconUrl(label, color);
-          }
-
-          // Check if node is owned by current user (purple glow) or claimed by anyone (yellow glow)
-          const isOwned =
-            auth.authenticated &&
-            auth.user &&
-            node.discord_owner_id &&
-            String(node.discord_owner_id) === String(auth.user.id);
-          const isClaimed = Boolean(node.discord_owner_id);
-
-          // Store ownership status on node for later updates
-          node.isOwned = isOwned;
-
-          // Add className to icon for claimed (yellow) and/or user-owned (purple) glow
-          if (isClaimed || isOwned) {
-            const iconUrl = icon.options?.iconUrl || icon._iconUrl || "";
-            const iconSize = icon.options?.iconSize ||
-              icon._iconSize || [32, 32];
-            const iconAnchor = icon.options?.iconAnchor ||
-              icon._iconAnchor || [17, 17];
-            const popupAnchor = icon.options?.popupAnchor ||
-              icon._popupAnchor || [0, -16];
-            const existingClassName = icon.options?.className || "";
-            const extraClasses = [
-              isClaimed ? "claimed" : "",
-              isOwned ? "user-owned" : "",
-            ]
-              .filter(Boolean)
-              .join(" ");
-            const newClassName = existingClassName
-              ? `${existingClassName} ${extraClasses}`.trim()
-              : extraClasses;
-
-            icon = L.icon({
-              iconUrl: iconUrl,
-              iconSize: iconSize,
-              iconAnchor: iconAnchor,
-              popupAnchor: popupAnchor,
-              className: newClassName,
-            });
-          }
-
-          const marker = (node.marker = L.marker([node.adv_lat, node.adv_lon], {
-            icon,
-            title: node.adv_name,
-          }));
-
-          node.status = updateStatus;
-          node.coords = `${node.adv_lat.toFixed(4)}, ${node.adv_lon.toFixed(
-            4,
-          )}`;
-          node.lastAdvertDate = new Date(node.last_advert);
-          node.insertDate = new Date(node.inserted_date);
-          node.updatedDate = node.updated_date && new Date(node.updated_date);
-          // Create popup - will be updated when auth state changes
-          const popup = L.popup({
-            minWidth: 350,
-            maxWidth: 350,
-            content: getTable(node, auth, app.nodes),
-          });
-          marker.bindPopup(popup);
-
-          // Store reference to node for popup updates
-          node.popup = popup;
-
-          // Re-setup copy handlers when popup opens (for dynamically created content)
-          marker.on("popupopen", function () {
-            if (node.public_key) {
-              app.urlParams.node = node.public_key;
+          for (let i = offset; i < end; i++) {
+            const node = list[i];
+            if (node.adv_lat == null || node.adv_lon == null) {
+              console.warn(
+                `Skipping node ${
+                  node.adv_name || node.public_key
+                }: missing coordinates`,
+              );
+              continue;
             }
-            // Small delay to ensure popup content is in DOM
-            setTimeout(() => {
-              const popupContent = popup.getElement();
-              if (popupContent) {
-                const copyableElements =
-                  popupContent.querySelectorAll(".copyable");
-                copyableElements.forEach((el) => {
-                  if (!el.hasAttribute("data-handler-setup")) {
-                    el.setAttribute("data-handler-setup", "true");
-                  }
-                });
-              }
-            }, 100);
-          });
-          marker.on("popupclose", function () {
-            delete app.urlParams.node;
-          });
+
+            const updateStatus = getNodeUpdateStatus(node);
+            const typeKey = String(node.type || 1);
+            let icon =
+              icons[updateStatus]?.[typeKey] ??
+              icons.none?.[typeKey] ??
+              icons.none["1"];
+
+            (byType[node.type] ??= []).push(node);
+
+            if (node.type === 1) {
+              const label = ntools.getNameIconLabel(node.adv_name);
+              const color = ntools.getColourForName(node.adv_name);
+              icon = getSvgIcon(label, color, updateStatus);
+            }
+
+            const isOwned =
+              auth.authenticated &&
+              auth.user &&
+              node.discord_owner_id &&
+              String(node.discord_owner_id) === String(auth.user.id);
+            const isClaimed = Boolean(node.discord_owner_id);
+
+            node.isOwned = isOwned;
+
+            if (
+              (isClaimed || isOwned) &&
+              icon.options &&
+              Object.prototype.hasOwnProperty.call(icon.options, "iconUrl") &&
+              icon.options.iconUrl
+            ) {
+              const iconUrl = icon.options.iconUrl;
+              const iconSize = icon.options.iconSize || [32, 32];
+              const iconAnchor = icon.options.iconAnchor || [17, 17];
+              const popupAnchor = icon.options.popupAnchor || [0, -16];
+              const existingClassName = icon.options.className || "";
+              const extraClasses = [
+                isClaimed ? "claimed" : "",
+                isOwned ? "user-owned" : "",
+              ]
+                .filter(Boolean)
+                .join(" ");
+              const newClassName = existingClassName
+                ? `${existingClassName} ${extraClasses}`.trim()
+                : extraClasses;
+
+              icon = L.icon({
+                iconUrl,
+                iconSize,
+                iconAnchor,
+                popupAnchor,
+                className: newClassName,
+              });
+            }
+
+            const marker = (node.marker = markRaw(
+              L.marker([node.adv_lat, node.adv_lon], {
+                icon,
+                title: node.adv_name,
+              }),
+            ));
+
+            markerToNode.set(marker, node);
+
+            node.status = updateStatus;
+            node.coords = `${node.adv_lat.toFixed(4)}, ${node.adv_lon.toFixed(
+              4,
+            )}`;
+            node.lastAdvertDate = new Date(node.last_advert);
+            node.insertDate = new Date(node.inserted_date);
+            node.updatedDate = node.updated_date && new Date(node.updated_date);
+
+            const f = node.params?.freq;
+            if (f != null && !Number.isNaN(Number(f))) {
+              freqSet.add(Math.floor(Number(f)));
+            }
+          }
         }
+
+        nodesByTypeRef.value = byType;
+        app.availableFreqs = [...freqSet].sort((a, b) => a - b);
 
         // Update marker glows for claimed (yellow) and user-owned (purple) after all markers are created
         setTimeout(() => {
@@ -1292,7 +1562,9 @@ createApp({
     // Declare before clearFilters() / refreshMap() so it's in scope when they run
     let markerClusterGroup = L.markerClusterGroup({
       disableClusteringAtZoom: app.clusteringZoom,
+      chunkedLoading: true,
     });
+    attachClusterClickHandler(markerClusterGroup);
 
     // Apply URL params to initial state (before clearFilters would overwrite)
     const hasUrlParams =
@@ -1304,7 +1576,8 @@ createApp({
       urlParams.dateInsert ||
       urlParams.city ||
       urlParams.source ||
-      urlParams.claimed;
+      urlParams.claimed ||
+      urlParams.freq;
     if (hasUrlParams) {
       if (urlParams.nodes) app.nodeFilter = urlParams.nodes.split(",");
       if (urlParams.date) app.fromDate = urlParams.date;
@@ -1314,6 +1587,9 @@ createApp({
       if (urlParams.city) app.cityFilter = urlParams.city;
       if (urlParams.source) app.sourceFilter = urlParams.source.split(",");
       if (urlParams.claimed) app.claimedFilter = urlParams.claimed.split(",");
+      if (urlParams.freq) {
+        app.freqFilter = urlParams.freq.split(",").map((x) => Number(x));
+      }
     } else {
       clearFilters();
     }
@@ -1332,6 +1608,7 @@ createApp({
         () => app.fromDate,
         () => app.fromInsertDate,
         () => app.cityFilter,
+        () => app.freqFilter,
       ],
       () => {
         const fromDate = new Date(app.fromDate);
@@ -1341,7 +1618,9 @@ createApp({
           app.fromInsertDate &&
           app.fromInsertDate.trim() !== "" &&
           !isNaN(fromInsertDate.getTime());
-        app.filteredNodes = app.nodeFilter
+        const hasFreqFilter = app.freqFilter.length > 0;
+        const freqSet = hasFreqFilter ? new Set(app.freqFilter) : null;
+        filteredNodesRef.value = app.nodeFilter
           .flatMap((type) => app.nodesByType[type])
           .filter(
             (node) =>
@@ -1350,6 +1629,9 @@ createApp({
                 ? node.updatedDate > fromDate
                 : node.insertDate > fromDate) &&
               (!hasInsertFilter || node.insertDate > fromInsertDate) &&
+              (!hasFreqFilter ||
+                (node.params?.freq != null &&
+                  freqSet.has(Math.floor(Number(node.params.freq))))) &&
               (!cityFilterLower ||
                 (node.city &&
                   node.city.toLowerCase().includes(cityFilterLower))) &&
@@ -1389,6 +1671,11 @@ createApp({
         } else {
           delete app.urlParams.claimed;
         }
+        if (app.freqFilter.length > 0) {
+          app.urlParams.freq = app.freqFilter.join(",");
+        } else {
+          delete app.urlParams.freq;
+        }
         refreshMap({ download: false });
       },
     );
@@ -1404,53 +1691,50 @@ createApp({
     const stats = computed(() => {
       const nodes = app.nodes;
 
-      if (!nodes) return [];
+      if (!nodes || !nodes.length) return [];
+
+      const now = Date.now();
+      const msPerDay = 86400000;
+      const t1 = now - msPerDay;
+      const t7 = now - 7 * msPerDay;
+      const t30 = now - 30 * msPerDay;
+      let c1 = 0;
+      let c7 = 0;
+      let c30 = 0;
+
+      for (let i = 0; i < nodes.length; i++) {
+        const ins = nodes[i].insertDate || new Date(nodes[i].inserted_date);
+        const insertMs = ins.getTime();
+        if (Number.isNaN(insertMs)) continue;
+        if (insertMs > t1) c1++;
+        if (insertMs > t7) c7++;
+        if (insertMs > t30) c30++;
+      }
 
       const result = [];
-
-      // Count nodes by type
       const companionsCount = nodes.filter((n) => n.type === 1).length;
       const repeatersCount = nodes.filter((n) => n.type === 2).length;
       const roomServersCount = nodes.filter((n) => n.type === 3).length;
       const sensorsCount = nodes.filter((n) => n.type === 4).length;
 
-      // Build stats string
       let statsString = `<span>all nodes: <b>${nodes.length}</b></span>&nbsp;|`;
       statsString += ` <i class="node-type pointer-help" title="Total client nodes">person</i><b>${companionsCount}</b>&nbsp;|`;
       statsString += ` <i class="node-type pointer-help" title="Total repeater nodes">cell_tower</i><b>${repeatersCount}</b>&nbsp;|`;
       statsString += ` <i class="node-type pointer-help" title="Total room server nodes">forum</i><b>${roomServersCount}</b>`;
 
-      // Add sensors only if count > 0
       if (sensorsCount > 0) {
         statsString += `&nbsp;| <img src="img/node_types/4.svg" class="node-type pointer-help" style="width: 24px; height: 24px; vertical-align: middle; margin-left: 7px; margin-right: 4px;" title="Total sensor nodes" alt="Sensor"><b>${sensorsCount}</b>`;
       }
 
       result.push(statsString);
-      // Count nodes active in last 24 hours (based on most recent date)
-      const active24h = app.nodes.filter((n) => {
-        const mostRecent = getMostRecentDate(n);
-        return mostRecent && isNewerThan(mostRecent, 1);
-      }).length;
       result.push(
-        `<span class="pointer-help" title="Devices active in last 24 hours">24h: <b>${active24h}</b></span>`,
+        `<span class="pointer-help" title="Nodes added in last 24 hours">24h: <b>${c1}</b></span>`,
       );
-
-      // Count nodes active in last 7 days (based on most recent date)
-      const active7d = app.nodes.filter((n) => {
-        const mostRecent = getMostRecentDate(n);
-        return mostRecent && isNewerThan(mostRecent, 7);
-      }).length;
       result.push(
-        `<span class="pointer-help" title="Devices active in last 7 days">7d: <b>${active7d}</b></span>`,
+        `<span class="pointer-help" title="Nodes added in last 7 days">7d: <b>${c7}</b></span>`,
       );
-
-      // Count nodes active in last 30 days (based on most recent date)
-      const active30d = app.nodes.filter((n) => {
-        const mostRecent = getMostRecentDate(n);
-        return mostRecent && isNewerThan(mostRecent, 30);
-      }).length;
       result.push(
-        `<span class="pointer-help" title="Devices active in last 30 days">30d: <b>${active30d}</b></span>`,
+        `<span class="pointer-help" title="Nodes added in last 30 days">30d: <b>${c30}</b></span>`,
       );
 
       return result;
@@ -1543,9 +1827,10 @@ createApp({
         return [];
       }
 
-      // Search through all nodes, not just filtered ones
+      const searchIn =
+        app.filteredNodes.length > 0 ? app.filteredNodes : app.nodes;
       const searchTerm = app.search.toLowerCase();
-      return app.nodes
+      return searchIn
         .filter((node) => {
           // Search by node name
           if (node.adv_name?.toLowerCase().includes(searchTerm)) {
@@ -1638,9 +1923,9 @@ createApp({
       );
 
       // Check for URL parameters indicating errors
-      const urlParams = new URLSearchParams(window.location.search);
-      const error = urlParams.get("error");
-      const inviteUrl = urlParams.get("invite_url");
+      const loginReturnParams = new URLSearchParams(window.location.search);
+      const error = loginReturnParams.get("error");
+      const inviteUrl = loginReturnParams.get("invite_url");
 
       if (error === "not_guild_member" && inviteUrl) {
         const message =
@@ -1662,13 +1947,9 @@ createApp({
         watch(
           () => auth.authenticated,
           () => {
-            // Update all open popups when auth state changes
-            app.nodes.forEach((node) => {
-              if (node.popup && node.popup.isOpen()) {
-                node.popup.setContent(getTable(node, auth, app.nodes));
-              }
+            refreshOpenPopups();
 
-              // Update marker glow (claimed = yellow, user-owned = purple)
+            app.nodes.forEach((node) => {
               if (node.marker) {
                 const isOwned =
                   auth.authenticated &&
@@ -1717,26 +1998,30 @@ createApp({
       });
 
       downloadNodes().then(() => {
-        if (urlParams.nodes) {
-          app.nodeFilter = urlParams.nodes.split(",");
+        const qp = app.urlParams;
+        if (qp.nodes) {
+          app.nodeFilter = qp.nodes.split(",");
         }
-        if (urlParams.date) {
-          app.fromDate = urlParams.date;
+        if (qp.date) {
+          app.fromDate = qp.date;
         }
-        if (urlParams.dateInsert) {
-          app.fromInsertDate = urlParams.dateInsert;
+        if (qp.dateInsert) {
+          app.fromInsertDate = qp.dateInsert;
         }
-        if (urlParams.cluster) {
-          app.clusteringZoom = Number(urlParams.cluster) || 11;
+        if (qp.cluster) {
+          app.clusteringZoom = Number(qp.cluster) || 11;
         }
-        if (urlParams.city) {
-          app.cityFilter = urlParams.city;
+        if (qp.city) {
+          app.cityFilter = qp.city;
         }
-        if (urlParams.source) {
-          app.sourceFilter = urlParams.source.split(",");
+        if (qp.source) {
+          app.sourceFilter = qp.source.split(",");
         }
-        if (urlParams.claimed) {
-          app.claimedFilter = urlParams.claimed.split(",");
+        if (qp.claimed) {
+          app.claimedFilter = qp.claimed.split(",");
+        }
+        if (qp.freq) {
+          app.freqFilter = qp.freq.split(",").map((x) => Number(x));
         }
 
         const searchParams = new URLSearchParams(location.search);
@@ -1808,13 +2093,21 @@ createApp({
       };
 
       document.addEventListener("click", preventFilterMenuClose, true);
-      document.addEventListener("mousedown", preventFilterMenuClose, true);
-      document.addEventListener("mouseup", preventFilterMenuClose, true);
+      document.addEventListener("pointerdown", preventFilterMenuClose, {
+        capture: true,
+      });
+      document.addEventListener("pointerup", preventFilterMenuClose, {
+        capture: true,
+      });
 
       onBeforeUnmount(() => {
         document.removeEventListener("click", preventFilterMenuClose, true);
-        document.removeEventListener("mousedown", preventFilterMenuClose, true);
-        document.removeEventListener("mouseup", preventFilterMenuClose, true);
+        document.removeEventListener("pointerdown", preventFilterMenuClose, {
+          capture: true,
+        });
+        document.removeEventListener("pointerup", preventFilterMenuClose, {
+          capture: true,
+        });
       });
     });
 

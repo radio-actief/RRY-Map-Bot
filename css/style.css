@@ -742,6 +742,92 @@ body.map-page .search .field.border .filter:focus-visible {
   padding: 10px 12px;
 }
 
+.node-popup .node-qr-slot {
+  text-align: center;
+}
+
+.node-popup svg.node-qr {
+  display: block;
+  margin: 0 auto 12px;
+}
+
+.node-popup .status-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: middle;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.06);
+}
+
+.node-popup .status-dot.update-recent {
+  background-color: #2e7d32;
+}
+
+.node-popup .status-dot.update-stale {
+  background-color: #f9a825;
+}
+
+.node-popup .status-dot.update-old {
+  background-color: #ef6c00;
+}
+
+.node-popup .status-dot.update-extinct {
+  background-color: #757575;
+}
+
+.node-popup .status-dot.update-none {
+  background-color: #9e9e9e;
+}
+
+.coords-menu-wrap {
+  position: relative;
+  display: inline-block;
+}
+
+.coords-menu-wrap .coords-menu-toggle {
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  color: var(--app-accent, #d4a017);
+}
+
+.coords-menu-wrap .coords-menu {
+  display: none;
+  position: absolute;
+  left: 0;
+  top: 100%;
+  z-index: 2000;
+  min-width: 11rem;
+  margin-top: 4px;
+  padding: 6px 0;
+  background: var(--app-surface, #fff);
+  border: 1px solid var(--app-border, #e7e5e4);
+  border-radius: var(--app-radius-sm, 6px);
+  box-shadow: var(--app-shadow-lg, 0 4px 20px rgba(0, 0, 0, 0.12));
+  flex-direction: column;
+}
+
+.coords-menu-wrap.open .coords-menu {
+  display: flex;
+  flex-direction: column;
+}
+
+.coords-menu-wrap .coords-menu a,
+.coords-menu-wrap .coords-menu .copyable {
+  display: block;
+  padding: 6px 12px;
+  font-size: 0.8125rem;
+  color: var(--app-text, #1a1917) !important;
+  text-decoration: none !important;
+}
+
+.coords-menu-wrap .coords-menu a:hover,
+.coords-menu-wrap .coords-menu .copyable:hover {
+  background: var(--app-surface-hover, rgba(250, 250, 249, 0.98));
+}
+
 .node-popup .node-info {
   table-layout: fixed;
   width: 100%;
@@ -840,6 +926,11 @@ time {
 .leaflet-marker-icon.update-extinct {
   filter: grayscale(100) contrast(16);
   opacity: 0.6;
+}
+
+.svg-node-icon {
+  background: none !important;
+  border: none !important;
 }
 
 /* Yellow glow for claimed nodes (any owner) – medium (between subtle and original) */

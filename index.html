@@ -173,8 +173,8 @@
             </a>
           </div>
         </div>
-        <form class="search no-margin" action="javascript:;">
-          <menu class="left no-wrap" id="node-filter" data-ui="#node-filter">
+        <form class="search no-margin" data-ui action="javascript:;">
+          <menu class="left no-wrap" id="node-filter">
             <li class="filter-section">
               <span class="filter-section-title">Type</span>
               <div class="filter-section-options">
@@ -286,6 +286,23 @@
                 />
                 <span></span>
               </label>
+            </li>
+            <li
+              v-if="app.availableFreqs.length > 0"
+              class="filter-section filter-section--freq"
+              style="flex-direction: column; gap: 4px"
+            >
+              <span class="filter-section-title">Frequency</span>
+              <div class="filter-section-options filter-section-options--freq">
+                <label
+                  class="checkbox"
+                  v-for="freq in app.availableFreqs"
+                  :key="freq"
+                >
+                  <input type="checkbox" :value="freq" v-model="app.freqFilter" />
+                  <span>{{ freq }} MHz</span>
+                </label>
+              </div>
             </li>
             <li v-if="filtersActive" class="clear-filters-wrap">
               <button class="small max" @click="clearFilters">

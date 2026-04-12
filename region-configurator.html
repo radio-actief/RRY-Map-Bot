@@ -33,6 +33,9 @@
         font-family: var(--cfg-font-body);
         color: var(--cfg-text);
         min-height: 100vh;
+        min-height: 100dvh;
+        overflow-x: clip;
+        -webkit-text-size-adjust: 100%;
         --cfg-font-body: var(--app-font-body, "Figtree", system-ui, sans-serif);
         --cfg-font-display: var(--app-font-display, "Figtree", system-ui, sans-serif);
         --cfg-bg: var(--app-bg, #f6f5f2);
@@ -1400,9 +1403,23 @@
         }
         .config-header-top h1 {
           text-align: center;
+          font-size: clamp(1.15rem, 4.5vw, 1.65rem);
+          overflow-wrap: anywhere;
+          word-break: break-word;
         }
         .config-header-desc {
           text-align: left;
+        }
+        .config-wrap {
+          padding-top: max(1.25rem, env(safe-area-inset-top, 0px));
+          padding-bottom: max(3rem, env(safe-area-inset-bottom, 0px));
+        }
+        .policy-grids-container {
+          min-width: 0;
+        }
+        .config-footer-iframe {
+          height: min(42dvh, 320px);
+          min-height: 200px;
         }
         #result-card .result-grid {
           grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
@@ -1439,6 +1456,49 @@
         }
         .policy-cell {
           min-height: 2rem;
+        }
+      }
+
+      @media (max-width: 480px) {
+        .config-wrap {
+          padding-left: max(0.65rem, env(safe-area-inset-left, 0px));
+          padding-right: max(0.65rem, env(safe-area-inset-right, 0px));
+        }
+        .config-header {
+          padding: 1rem 0.85rem 1.15rem;
+        }
+        .back-link {
+          padding: 0.5rem 0.75rem;
+          font-size: 0.8125rem;
+          min-height: 2.75rem;
+          touch-action: manipulation;
+        }
+        .config-card {
+          padding: var(--cfg-space-sm) var(--cfg-space-md);
+        }
+        .config-footer-iframe {
+          height: min(38dvh, 280px);
+          min-height: 180px;
+        }
+      }
+
+      @media (max-height: 460px) and (orientation: landscape) {
+        .config-wrap {
+          padding-top: max(0.5rem, env(safe-area-inset-top, 0px));
+        }
+        .config-header {
+          margin-bottom: 1rem;
+          padding: 0.65rem 0.85rem;
+        }
+      }
+
+      @media (max-width: 640px) {
+        body.config-body input[type="text"],
+        body.config-body input[type="search"],
+        body.config-body input[type="number"],
+        body.config-body select:not([size]),
+        body.config-body textarea {
+          font-size: max(16px, 0.875rem);
         }
       }
     </style>

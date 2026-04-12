@@ -1575,6 +1575,23 @@ const map = (window.leafletMap = leaflet
   })
   .setView([params.lat, params.lon], params.zoom));
 
+/** Leaflet popup width: desktop keeps 350px; narrow / touch viewports avoid horizontal overflow. */
+function getLeafletNodePopupSize() {
+  if (typeof window === "undefined") return { minWidth: 350, maxWidth: 350 };
+  const w = window.innerWidth;
+  let coarse = false;
+  try {
+    coarse = window.matchMedia("(pointer: coarse)").matches;
+  } catch {
+    coarse = false;
+  }
+  const compact = w <= 640 || (coarse && w <= 900);
+  if (!compact) return { minWidth: 350, maxWidth: 350 };
+  const maxW = Math.max(220, Math.min(350, w - 28));
+  const minW = Math.min(300, maxW);
+  return { minWidth: minW, maxWidth: maxW };
+}
+
 map.on("baselayerchange", function (ev) {
   localStorage.setItem("baseMapSelected", ev.name);
 });
@@ -1724,8 +1741,7 @@ createApp({
       if (!node) return;
       const nodePopup = markRaw(
         L.popup({
-          minWidth: 350,
-          maxWidth: 350,
+          ...getLeafletNodePopupSize(),
           content: () => getTable(node, auth, app.nodes),
         }),
       );
@@ -2098,8 +2114,7 @@ createApp({
       const icon = icons.none?.[typeKey] ?? icons.none["1"];
       const tempMarker = L.marker([lat, lon], { icon, title: node.adv_name });
       const deepLinkPopup = L.popup({
-        minWidth: 350,
-        maxWidth: 350,
+        ...getLeafletNodePopupSize(),
         content: () => getTable(node, auth, app.nodes),
       });
       tempMarker.bindPopup(deepLinkPopup);
@@ -2750,9 +2765,39 @@ createApp({
 
     let resizeObserver = null;
     let removeFilterMenuInteractionGuards = null;
+    let removeViewportListeners = null;
 
     onMounted(() => {
-      window.addEventListener("resize", adjustSearchPosition);
+      function onMapLayoutRefresh() {
+        adjustSearchPosition();
+        try {
+          map.invalidateSize({ animate: false });
+        } catch {
+          /* ignore */
+        }
+      }
+
+      window.addEventListener("resize", onMapLayoutRefresh);
+
+      const vv = window.visualViewport;
+      if (vv) {
+        vv.addEventListener("resize", onMapLayoutRefresh);
+        vv.addEventListener("scroll", onMapLayoutRefresh);
+      }
+
+      function onOrientationChange() {
+        window.setTimeout(onMapLayoutRefresh, 350);
+      }
+      window.addEventListener("orientationchange", onOrientationChange);
+
+      removeViewportListeners = () => {
+        window.removeEventListener("resize", onMapLayoutRefresh);
+        if (vv) {
+          vv.removeEventListener("resize", onMapLayoutRefresh);
+          vv.removeEventListener("scroll", onMapLayoutRefresh);
+        }
+        window.removeEventListener("orientationchange", onOrientationChange);
+      };
 
       // Run after layout so stats bar has its height (fixes mobile init: search was above top bar)
       nextTick(() => {
@@ -2766,7 +2811,7 @@ createApp({
       // When stats bar height changes (e.g. auth loads, second row appears), update search position
       const statsBar = document.querySelector(".stats");
       if (statsBar && typeof ResizeObserver !== "undefined") {
-        resizeObserver = new ResizeObserver(() => adjustSearchPosition());
+        resizeObserver = new ResizeObserver(() => onMapLayoutRefresh());
         resizeObserver.observe(statsBar);
       }
 
@@ -2966,7 +3011,8 @@ createApp({
     });
 
     onBeforeUnmount(() => {
-      window.removeEventListener("resize", adjustSearchPosition);
+      removeViewportListeners?.();
+      removeViewportListeners = null;
       document.body.style.removeProperty("--stats-bar-height");
       removeFilterMenuInteractionGuards?.();
       removeFilterMenuInteractionGuards = null;

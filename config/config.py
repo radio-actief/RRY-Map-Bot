@@ -16,9 +16,23 @@ STARTUP_MESSAGE_ID = os.getenv('STARTUP_MESSAGE_ID')
 # Database Configuration
 DATABASE_PATH = os.getenv('DATABASE_PATH', 'data/belgian_nodes.db')
 
-# Geopy Configuration
+# Local Belgian Geocoder Configuration (default path; see backend/belgian_geocoder.py)
+# Produced by: scripts/generate-be-municipalities-geojson.py
+BE_MUNICIPALITIES_GEOJSON = os.getenv(
+    'BE_MUNICIPALITIES_GEOJSON',
+    'data/be-municipalities.geojson',
+)
+# Metres (in EPSG:3812) for optional nearest-gemeente fallback when a point is
+# not strictly inside any polygon. Default 0 = strict PIP only (avoids snapping
+# NL/DE/LU nodes just across the border into Belgium). Set e.g. 500 only if you
+# accept that trade-off for GPS jitter / coastal gaps.
+GEOCODE_BUFFER_METERS = float(os.getenv('GEOCODE_BUFFER_METERS', '0'))
+
+# Geopy Configuration (FALLBACK ONLY — used when --use-geopy / USE_GEOPY_FALLBACK=1
+# or when the be-municipalities GeoJSON is missing at runtime)
 GEOPY_USER_AGENT = os.getenv('GEOPY_USER_AGENT', 'belgian_meshcore_map')
 GEOPY_TIMEOUT = int(os.getenv('GEOPY_TIMEOUT', '10'))
+USE_GEOPY_FALLBACK = os.getenv('USE_GEOPY_FALLBACK', '').strip() in ('1', 'true', 'True', 'yes', 'YES')
 
 # API Configuration
 OFFICIAL_API_URL = os.getenv('OFFICIAL_API_URL', 'https://map.meshcore.io/api/v1/nodes')

@@ -1,7 +1,12 @@
 """
 Sync Service for RRY-Map-Bot
 Downloads nodes from official MeshCore map, filters for Belgian nodes,
-verifies with Geopy, and integrates changes into the database.
+verifies each node with the local Belgian geocoder (``backend.belgian_geocoder``)
+and integrates changes into the database.
+
+Geopy/Nominatim is kept as an optional fallback, enabled via ``--use-geopy``
+or ``USE_GEOPY_FALLBACK=1`` (and auto-used when the municipalities GeoJSON
+is missing).
 """
 
 import requests
@@ -11,8 +16,21 @@ import os
 from typing import Dict, List, Any, Optional, Set
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
-from geopy.geocoders import Nominatim
-from geopy.exc import GeocoderTimedOut, GeocoderServiceError, GeocoderUnavailable
+
+# Geopy is now optional (fallback only); gate the import so a missing geopy
+# install doesn't break the default local-geocoder path.
+try:
+    from geopy.geocoders import Nominatim  # type: ignore
+    from geopy.exc import (  # type: ignore
+        GeocoderTimedOut,
+        GeocoderServiceError,
+        GeocoderUnavailable,
+    )
+    _GEOPY_AVAILABLE = True
+except ImportError:  # pragma: no cover - optional
+    Nominatim = None  # type: ignore
+    GeocoderTimedOut = GeocoderServiceError = GeocoderUnavailable = Exception  # type: ignore
+    _GEOPY_AVAILABLE = False
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
@@ -53,29 +71,46 @@ REMOVAL_SAFETY_MAX_ABSOLUTE = 25
 REMOVAL_SAFETY_MAX_PERCENT_OF_ACTIVE = 0.05  # 5%
 
 
-def _geopy_failures_log_path() -> Path:
-    """Path for the Geopy verification failures log (same directory as DB)."""
-    return Path(get_db_path()).parent / "geopy_failures.log"
+def _geocode_failures_log_path() -> Path:
+    """Path for the verification-failures log (same directory as DB).
+
+    Used by both the local geocoder and the Geopy fallback. File name kept
+    neutral so operators don't have to chase two separate logs.
+    """
+    return Path(get_db_path()).parent / "geocode_failures.log"
 
 
-def _log_geopy_failure(
+# Backwards-compatible alias; older callers may still import this name.
+_geopy_failures_log_path = _geocode_failures_log_path
+
+
+def _log_geocode_failure(
     public_key: str,
     reason: str,
     lat: Optional[float],
     lon: Optional[float],
     kept_from_db: bool,
+    source: str = "local",
 ) -> None:
-    """Append one line to the Geopy failures log."""
+    """Append one line to the geocode-failures log.
+
+    Columns: ``ts\tpublic_key\tlat\tlon\taction\tsource\treason``.
+    ``source`` is either ``local`` (BelgianGeocoder miss) or ``geopy`` (Nominatim failure).
+    """
     try:
-        log_path = _geopy_failures_log_path()
+        log_path = _geocode_failures_log_path()
         log_path.parent.mkdir(parents=True, exist_ok=True)
         ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         action = "kept_from_db" if kept_from_db else "dropped"
-        line = f"{ts}\t{public_key}\t{lat}\t{lon}\t{action}\t{reason}\n"
+        line = f"{ts}\t{public_key}\t{lat}\t{lon}\t{action}\t{source}\t{reason}\n"
         with open(log_path, "a", encoding="utf-8") as f:
             f.write(line)
     except OSError:
         pass  # Do not fail sync if logging fails
+
+
+# Back-compat alias for the legacy name used in older code paths.
+_log_geopy_failure = _log_geocode_failure
 
 
 def download_official_nodes() -> List[Dict[str, Any]]:
@@ -127,6 +162,101 @@ def filter_by_bounds(nodes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     print(f"Filtered by bounds: {len(filtered)} nodes within Belgian bounds "
           f"(skipped {skipped_no_coords} nodes without coordinates)")
     return filtered
+
+
+def verify_with_local_geocoder(
+    node: Dict[str, Any], geocoder: "Any"
+) -> Dict[str, Any]:
+    """Verify a node is in Belgium and extract the gemeente using the local geocoder.
+
+    Returns a dict with ``verified`` (bool), plus either ``city`` / ``nis5`` /
+    ``province_code`` on a hit or ``reason`` on a miss. Mirrors the shape of
+    :func:`verify_with_geopy` so the rest of the pipeline is unchanged.
+    """
+    lat = node.get('adv_lat')
+    lon = node.get('adv_lon')
+
+    if lat is None or lon is None:
+        return {'verified': False, 'reason': 'No coordinates'}
+
+    try:
+        result = geocoder.geocode(lat, lon)
+    except Exception as e:  # pragma: no cover - defensive
+        return {'verified': False, 'reason': f'Local geocoder error: {e}'}
+
+    if result is None:
+        return {'verified': False, 'reason': 'Outside Belgium (local geocoder)'}
+
+    return {
+        'verified': True,
+        'city': result.get('plaats') or 'Unknown',
+        'nis5': result.get('nis5'),
+        'province_code': result.get('province_code'),
+    }
+
+
+def verify_nodes_locally(
+    nodes: List[Dict[str, Any]],
+    previous_nodes: Optional[Dict[str, Dict[str, Any]]] = None,
+    geocoder: Optional["Any"] = None,
+) -> List[Dict[str, Any]]:
+    """Verify nodes with the local Belgian geocoder (no network, no rate limit).
+
+    Semantics match :func:`verify_nodes_with_geopy`:
+    - Local hit → keep node, set ``city`` from the canonical ``plaats`` label.
+    - Local miss but node is already in DB → keep node with its DB city.
+    - Local miss and node is new → drop.
+    Failures are logged to ``<db_dir>/geocode_failures.log`` with ``source=local``.
+    """
+    if geocoder is None:
+        from backend.belgian_geocoder import get_geocoder as _gg
+        geocoder = _gg()
+
+    previous_nodes = previous_nodes or {}
+    verified_nodes: List[Dict[str, Any]] = []
+    verified_count = 0
+    failed_kept_from_db = 0
+    failed_dropped = 0
+
+    print(f"Verifying {len(nodes)} nodes with local Belgian geocoder "
+          f"({len(geocoder)} gemeenten, buffer {geocoder.buffer_m:.0f} m)...")
+
+    t0 = time.time()
+    for node in nodes:
+        result = verify_with_local_geocoder(node, geocoder)
+
+        if result['verified']:
+            node['city'] = result['city']
+            if result.get('nis5'):
+                node['nis5'] = result['nis5']
+            if result.get('province_code'):
+                node['province_code'] = result['province_code']
+            verified_nodes.append(node)
+            verified_count += 1
+        else:
+            key = node.get('public_key')
+            kept = bool(key and key in previous_nodes)
+            if kept:
+                node['city'] = previous_nodes[key].get('city')
+                verified_nodes.append(node)
+                failed_kept_from_db += 1
+            else:
+                failed_dropped += 1
+            _log_geocode_failure(
+                key or "",
+                result.get("reason", "unknown"),
+                node.get("adv_lat"),
+                node.get("adv_lon"),
+                kept_from_db=kept,
+                source="local",
+            )
+
+    elapsed = time.time() - t0
+    rate = (len(nodes) / elapsed) if elapsed > 0 else float('inf')
+    print(f"Local geocoding complete: {verified_count} Belgian verified, "
+          f"{failed_kept_from_db} kept from DB, {failed_dropped} dropped "
+          f"({elapsed:.2f}s, {rate:.0f} nodes/s)")
+    return verified_nodes
 
 
 def verify_with_geopy(node: Dict[str, Any], geolocator: Nominatim) -> Dict[str, Any]:
@@ -223,12 +353,13 @@ def verify_nodes_with_geopy(nodes: List[Dict[str, Any]],
                 failed_kept_from_db += 1
             else:
                 failed_dropped += 1
-            _log_geopy_failure(
+            _log_geocode_failure(
                 key or "",
                 result.get("reason", "unknown"),
                 node.get("adv_lat"),
                 node.get("adv_lon"),
                 kept_from_db=kept,
+                source="geopy",
             )
         
         if i % 10 == 0:
@@ -464,31 +595,15 @@ def restore_removed_node(node: Dict[str, Any], conn) -> None:
     # Use source from official map when restoring (if node is back on API as app/uploader, sync that)
     source_to_use = node.get('source')
     
-    # Determine city to use: only update from Geopy if coordinates changed by >= 0.01 degrees
-    # OR if current city is NULL/empty
+    # Local geocoding is effectively free, so always re-geocode on restore when
+    # the node has coordinates. Falls back to the current DB city only when the
+    # incoming sync couldn't resolve a city (e.g. "kept from DB" path).
     new_lat = node.get('adv_lat')
-    new_lon = node.get('adv_lon')
-    city_to_use = current_city  # Default: keep existing city
-    
-    if new_lat is not None and new_lon is not None and current_lat is not None and current_lon is not None:
-        # Both old and new coordinates exist - check if they changed significantly
-        lat_diff = abs(float(new_lat) - float(current_lat))
-        lon_diff = abs(float(new_lon) - float(current_lon))
-        
-        if lat_diff >= 0.01 or lon_diff >= 0.01:
-            # Coordinates changed by >= 0.01 degrees - update city from Geopy
-            city_to_use = node.get('city')
-        elif not current_city or (isinstance(current_city, str) and current_city.strip() == ''):
-            # Coordinates didn't change much, but city is missing - update from Geopy
-            city_to_use = node.get('city')
-        # Otherwise: coordinates didn't change enough and city exists - keep existing city
-    elif not current_city or (isinstance(current_city, str) and current_city.strip() == ''):
-        # No existing coordinates or city is missing - use city from Geopy
-        city_to_use = node.get('city')
-    elif current_lat is None or current_lon is None:
-        # Had no coordinates before, now we have them - use city from Geopy
-        city_to_use = node.get('city')
-    # Otherwise: keep existing city (we have coordinates and city, and coordinates didn't change enough)
+    new_city = node.get('city')
+    if new_lat is not None and new_city:
+        city_to_use = new_city
+    else:
+        city_to_use = current_city
     
     # Update ALL fields from official map, reactivate, preserve Discord ownership and discord source
     cursor.execute("""
@@ -650,35 +765,18 @@ def merge_node_update(node: Dict[str, Any],
         editable_updates['adv_name'] = node.get('adv_name')
     
     # city
-    # Only update city from Geopy if coordinates changed by >= 0.01 degrees
-    # OR if Discord edit should not be preserved AND city is missing
-    current_lat = db_node.get('adv_lat')
-    current_lon = db_node.get('adv_lon')
+    # Local geocoding is effectively free, so we always prefer the freshly
+    # resolved `new_city` unless the user edited the city via Discord after the
+    # last sync (preserve user edits). If `new_city` is empty/None (e.g. node
+    # was "kept from DB" after a geocode miss) fall back to the current value.
     current_city = db_node.get('city')
-    new_lat = node.get('adv_lat')
-    new_lon = node.get('adv_lon')
     new_city = node.get('city')
-    
-    # Check if coordinates changed significantly
-    coordinates_changed = False
-    if (current_lat is not None and current_lon is not None and 
-        new_lat is not None and new_lon is not None):
-        lat_diff = abs(float(new_lat) - float(current_lat))
-        lon_diff = abs(float(new_lon) - float(current_lon))
-        coordinates_changed = (lat_diff >= 0.01 or lon_diff >= 0.01)
-    
-    # Determine city to use
+
     if should_preserve_discord_edit(db_node, node, 'city'):
-        # Discord edit is more recent - preserve it
-        editable_updates['city'] = db_node.get('city')
-    elif coordinates_changed:
-        # Coordinates changed by >= 0.01 - update city from Geopy
-        editable_updates['city'] = new_city
-    elif not current_city or (isinstance(current_city, str) and current_city.strip() == ''):
-        # City is missing - update from Geopy even if coordinates didn't change
+        editable_updates['city'] = current_city
+    elif new_city:
         editable_updates['city'] = new_city
     else:
-        # Coordinates didn't change enough and city exists - keep existing city
         editable_updates['city'] = current_city
     
     # params (frequency parameters)
@@ -1190,17 +1288,28 @@ def send_sync_notification(
         traceback.print_exc()
 
 
-def sync_belgian_nodes(geopy_delay: float = 1.5, skip_geopy: bool = False) -> Dict[str, Any]:
+def sync_belgian_nodes(
+    geopy_delay: float = 1.5,
+    skip_geopy: bool = False,
+    use_geopy: Optional[bool] = None,
+) -> Dict[str, Any]:
     """
     Main sync function: download, filter, verify, and integrate Belgian nodes.
-    
+
     Args:
-        geopy_delay: Delay between Geopy requests in seconds.
-        skip_geopy: If True, skip Geopy verification (for testing).
-    
+        geopy_delay: Delay between Geopy requests in seconds (only used when
+            falling back to Geopy).
+        skip_geopy: If True, skip all verification (for tests). Name kept for
+            backwards compatibility — effectively "skip verification".
+        use_geopy: Force the Geopy/Nominatim path instead of the local geocoder.
+            ``None`` (default) means: local geocoder if available, else Geopy,
+            honouring the ``USE_GEOPY_FALLBACK`` env var.
+
     Returns:
         Dictionary with sync results and statistics.
     """
+    if use_geopy is None:
+        use_geopy = os.getenv("USE_GEOPY_FALLBACK", "").strip() in ("1", "true", "True", "yes", "YES")
     print("=" * 60)
     print("Starting Belgian Nodes Sync")
     print("=" * 60)
@@ -1224,17 +1333,52 @@ def sync_belgian_nodes(geopy_delay: float = 1.5, skip_geopy: bool = False) -> Di
         # 3. Load DB state for Geopy (when Geopy fails, we keep nodes already in DB with their city)
         db_for_geopy = load_previous_nodes_from_db()
         
-        # 4. Verify with Geopy (if not skipped)
+        # 4. Verify nodes (local geocoder by default; Geopy as optional fallback)
         if skip_geopy:
-            print("Skipping Geopy verification (testing mode)")
+            print("Skipping verification (testing mode)")
             belgian_nodes = bounded_nodes
             for node in belgian_nodes:
                 if 'city' not in node:
                     node['city'] = None
         else:
-            belgian_nodes = verify_nodes_with_geopy(
-                bounded_nodes, delay=geopy_delay, previous_nodes=db_for_geopy
-            )
+            geocoder = None
+            geocoder_err: Optional[Exception] = None
+            if not use_geopy:
+                try:
+                    from backend.belgian_geocoder import get_geocoder
+                    geocoder = get_geocoder()
+                except FileNotFoundError as e:
+                    geocoder_err = e
+                except Exception as e:  # pragma: no cover - defensive
+                    geocoder_err = e
+
+            if geocoder is not None:
+                belgian_nodes = verify_nodes_locally(
+                    bounded_nodes,
+                    previous_nodes=db_for_geopy,
+                    geocoder=geocoder,
+                )
+            elif _GEOPY_AVAILABLE:
+                if geocoder_err is not None:
+                    print(
+                        f"WARN: local geocoder unavailable ({geocoder_err}). "
+                        "Falling back to Geopy/Nominatim. "
+                        "Build the local polygons with: "
+                        "python3 scripts/generate-be-municipalities-geojson.py"
+                    )
+                else:
+                    print("Using Geopy/Nominatim (forced via --use-geopy / USE_GEOPY_FALLBACK)")
+                belgian_nodes = verify_nodes_with_geopy(
+                    bounded_nodes, delay=geopy_delay, previous_nodes=db_for_geopy
+                )
+            else:
+                raise RuntimeError(
+                    "Node verification is not configured: the local Belgian "
+                    "geocoder GeoJSON is missing and the optional geopy "
+                    "dependency is not installed. Fix either of:\n"
+                    "  (a) python3 scripts/generate-be-municipalities-geojson.py\n"
+                    "  (b) pip install geopy  (then run with --use-geopy)"
+                )
         
         # 5. Load current DB state for change tracking (reload so we compare against latest)
         previous_nodes = load_previous_nodes_from_db()
@@ -1374,15 +1518,19 @@ if __name__ == '__main__':
     
     parser = argparse.ArgumentParser(description='Sync Belgian nodes from official MeshCore map')
     parser.add_argument('--skip-geopy', action='store_true',
-                       help='Skip Geopy verification (for testing)')
+                       help='Skip verification entirely (for testing)')
+    parser.add_argument('--use-geopy', action='store_true',
+                       help='Force the Geopy/Nominatim fallback instead of the local geocoder '
+                            '(also via USE_GEOPY_FALLBACK=1)')
     parser.add_argument('--geopy-delay', type=float, default=1.5,
-                       help='Delay between Geopy requests in seconds (default: 1.5)')
+                       help='Delay between Geopy requests in seconds (only used with --use-geopy, default: 1.5)')
     
     args = parser.parse_args()
     
     result = sync_belgian_nodes(
         geopy_delay=args.geopy_delay,
-        skip_geopy=args.skip_geopy
+        skip_geopy=args.skip_geopy,
+        use_geopy=args.use_geopy or None,
     )
     
     if result['success']:

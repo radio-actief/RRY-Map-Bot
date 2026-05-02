@@ -57,3 +57,38 @@ Optional paths:
 Consumers: [Regioncodes Configurator](../region-configurator.html), [region map](../region-map.html).
 
 **StatBel geometry (reference only):** how to obtain municipality / sector GeoJSON for your own checks is documented in [`data/statbel/STATBEL_MUNICIPALITIES.md`](../data/statbel/STATBEL_MUNICIPALITIES.md). The in-repo Python audit scripts were removed; regenerate `be-locode.json` with `generate-be-locode.py` when source data or overrides change.
+
+## Phase 2 — `generate-be-municipalities-geojson.py`
+
+Builds [`data/be-municipalities.geojson`](../data/be-municipalities.geojson): **565** Belgian gemeente polygons in WGS84 (EPSG:4326), dissolved from the StatBel statistical-sectors GeoJSON and joined with the canonical labels from [`be-locode.json`](../data/be-locode.json).
+
+Consumed at runtime by [`backend/belgian_geocoder.py`](../backend/belgian_geocoder.py) to do fast point-in-polygon checks during [`backend/sync_belgian_nodes.py`](../backend/sync_belgian_nodes.py), replacing the per-node Nominatim call.
+
+**Source-of-truth order**
+
+1. **Polygons:** StatBel statistical sectors GeoJSON (EPSG:3812), grouped and merged by property `cd_munty_refnis` (= NIS5). Expected under [`data/inputs/`](../data/inputs/), then [`data/statbel/`](../data/statbel/).
+2. **Labels (`plaats`, `gemeente`, `province_code`, `city_code`):** joined from [`data/be-locode.json`](../data/be-locode.json) on NIS5.
+
+The script simplifies geometries in EPSG:3812 (metric) at `5 m` tolerance by default, reprojects to EPSG:4326, and rounds output coordinates to 6 decimals.
+
+**Dependencies:** `shapely`, `pyproj` (already in [`requirements.txt`](../requirements.txt)).
+
+```bash
+cd RRY-Map-Bot
+.venv/bin/python3 scripts/generate-be-municipalities-geojson.py
+```
+
+Run it again only when StatBel releases new boundaries (typically yearly) or when `be-locode.json` changes. The generated GeoJSON is small (~5 MB) and is committed to the repo so deploys don't need the full 226 MB sectors file.
+
+Optional flags:
+
+```bash
+.venv/bin/python3 scripts/generate-be-municipalities-geojson.py \
+  --sectors path/to/sh_statbel_statistical_sectors_3812_20250101.geojson \
+  --locode  path/to/be-locode.json \
+  --simplify-meters 5 \
+  --coord-precision 6 \
+  -o data/be-municipalities.geojson
+```
+
+**Output schema (per feature):** `properties.nis5`, `properties.plaats`, `properties.gemeente`, `properties.province_code`, `properties.city_code`; `geometry` is a `Polygon` or `MultiPolygon` in EPSG:4326.

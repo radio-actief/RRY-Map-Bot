@@ -18,1777 +18,22 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="./css/style.css" />
+    <link rel="stylesheet" href="./css/rry-tool-pages.css" />
     <link rel="stylesheet" href="./lib/css/beer.css" />
+    <link rel="stylesheet" href="./css/stats-page.css" />
     <link rel="stylesheet" href="./lib/css/leaflet.css" />
     <title>Stats - #BEmesh Map</title>
     <script src="https://cdn.jsdelivr.net/npm/apexcharts@3.45.1/dist/apexcharts.min.js"></script>
     <script src="./lib/leaflet.js"></script>
-    <style>
-      /* Chart palette (Apex); UI tokens bridge main map (style.css body.map-page) */
-      :root.stats-page {
-        color-scheme: light;
-        --stats-chart-added: #2ecc71;
-        --stats-chart-removed: #e74c3c;
-        --stats-chart-type-1: #2196f3;
-        --stats-chart-type-2: #4caf50;
-        --stats-chart-type-3: #9c27b0;
-        --stats-chart-type-4: #0891b2;
-      }
-
-      body.stats-body.map-page {
-        margin: 0;
-        padding: 0;
-        padding-bottom: env(safe-area-inset-bottom, 0);
-        font-family: var(--stats-font-body);
-        color: var(--stats-text);
-        min-height: 100vh;
-        min-height: 100dvh;
-        overflow-x: clip;
-        -webkit-text-size-adjust: 100%;
-        --stats-font-body: var(--app-font-body, "Figtree", system-ui, sans-serif);
-        --stats-font-display: var(--app-font-display, "Figtree", system-ui, sans-serif);
-        --stats-bg: var(--app-bg, #f6f5f2);
-        --stats-bg-subtle: #eeedea;
-        --stats-surface: rgba(255, 255, 255, 0.92);
-        --stats-surface-hover: rgba(250, 250, 249, 0.98);
-        --stats-secondary: rgba(252, 251, 248, 0.88);
-        --stats-text: var(--app-text, #1a1917);
-        --stats-text-muted: var(--app-text-muted, #57534e);
-        --stats-accent: var(--app-accent, #d4a017);
-        --stats-accent-hover: var(--app-accent-hover, #b88a14);
-        --stats-border: var(--app-border, #e7e5e4);
-        --stats-shadow: var(--app-shadow, 0 1px 3px rgba(26, 25, 23, 0.06));
-        --stats-shadow-lg: var(--app-shadow-lg, 0 4px 20px rgba(26, 25, 23, 0.08));
-        --stats-shadow-hover: 0 12px 36px rgba(26, 25, 23, 0.1);
-        --stats-radius: var(--app-radius, 10px);
-        --stats-radius-sm: var(--app-radius-sm, 6px);
-        --stats-radius-lg: 12px;
-        --stats-icon-radius: 8px;
-        --stats-chart-total: var(--stats-accent);
-        --stats-ease: var(--app-ease, 0.25s ease);
-        background: var(--stats-bg);
-        background-image:
-          radial-gradient(
-            ellipse 100% 60% at 50% -10%,
-            rgba(212, 160, 23, 0.06),
-            transparent
-          ),
-          linear-gradient(
-            180deg,
-            var(--stats-bg) 0%,
-            var(--stats-bg-subtle) 100%
-          );
-      }
-
-      @keyframes stats-header-reveal {
-        from {
-          opacity: 0;
-          transform: translateY(10px);
-        }
-        to {
-          opacity: 1;
-          transform: translateY(0);
-        }
-      }
-
-      .stats-wrap {
-        max-width: 1380px;
-        margin: 0 auto;
-        padding: max(1.75rem, env(safe-area-inset-top, 0px)) max(1rem, env(safe-area-inset-right, 0px))
-          max(4rem, env(safe-area-inset-bottom, 0px)) max(1rem, env(safe-area-inset-left, 0px));
-        box-sizing: border-box;
-      }
-
-      /* Hero header — glass + accent bar (main map language) */
-      .stats-header {
-        position: relative;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 1.25rem;
-        margin-bottom: 2.25rem;
-        padding: 1.25rem 1.25rem 1.5rem;
-        border-radius: calc(var(--stats-radius) + 2px);
-        border: 1px solid var(--stats-border);
-        background: linear-gradient(
-          165deg,
-          rgba(255, 255, 255, 0.96) 0%,
-          rgba(252, 251, 248, 0.9) 55%,
-          rgba(255, 253, 248, 0.88) 100%
-        );
-        backdrop-filter: blur(14px) saturate(1.12);
-        -webkit-backdrop-filter: blur(14px) saturate(1.12);
-        box-shadow:
-          0 1px 0 rgba(255, 255, 255, 0.78) inset,
-          var(--stats-shadow-lg);
-        z-index: 30;
-        animation: stats-header-reveal var(--app-reveal-duration, 0.4s)
-          var(--stats-ease) 0.04s both;
-      }
-      .stats-header::before {
-        content: "";
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        height: 3px;
-        border-radius: calc(var(--stats-radius) + 2px)
-          calc(var(--stats-radius) + 2px) 0 0;
-        background: linear-gradient(
-          90deg,
-          rgba(212, 160, 23, 0.65) 0%,
-          rgba(212, 160, 23, 0.14) 42%,
-          rgba(88, 101, 242, 0.22) 100%
-        );
-        pointer-events: none;
-      }
-      .stats-header-top {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        width: 100%;
-        gap: 1rem;
-      }
-      .stats-header-main {
-        display: flex;
-        flex-direction: row;
-        flex-wrap: wrap;
-        align-items: stretch;
-        justify-content: center;
-        gap: 1rem;
-        width: 100%;
-      }
-      .stats-header h1 {
-        margin: 0;
-        font-family: var(--stats-font-display);
-        font-size: 1.75rem;
-        font-weight: 700;
-        letter-spacing: -0.02em;
-        color: var(--stats-text);
-        line-height: 1.3;
-        text-align: left;
-      }
-      .stats-header-desc {
-        margin: 0.5rem 0 0;
-        font-size: 0.9375rem;
-        line-height: 1.55;
-        color: var(--stats-text-muted);
-        text-align: left;
-      }
-      .stats-header-desc .value {
-        font-weight: 600;
-        color: var(--stats-accent);
-      }
-      .stats-header-links {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        flex-shrink: 0;
-      }
-      .stats-download-btn {
-        position: relative;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 2.25rem;
-        height: 2.25rem;
-        padding: 0;
-        background: linear-gradient(
-          180deg,
-          rgba(255, 255, 255, 0.95) 0%,
-          rgba(252, 251, 248, 0.9) 100%
-        );
-        border: 1px solid var(--stats-border);
-        border-radius: var(--stats-radius);
-        box-shadow:
-          0 1px 0 rgba(255, 255, 255, 0.7) inset,
-          var(--stats-shadow);
-        cursor: pointer;
-        color: var(--stats-accent);
-        transition:
-          box-shadow var(--stats-ease),
-          transform 0.15s ease,
-          color 0.15s ease,
-          border-color var(--stats-ease);
-      }
-      .stats-download-btn:hover {
-        box-shadow:
-          0 1px 0 rgba(255, 255, 255, 0.78) inset,
-          var(--stats-shadow-lg);
-        transform: translateY(-1px);
-        color: var(--stats-accent-hover);
-        border-color: rgba(212, 160, 23, 0.25);
-      }
-      .stats-download-btn svg {
-        width: 1.15rem;
-        height: 1.15rem;
-      }
-      /* Header: pop-up–style chips – flex layout, all content-sized */
-      .stats-header-chips {
-        display: flex;
-        flex-wrap: wrap;
-        justify-content: center;
-        align-items: stretch;
-        gap: 0.75rem;
-        flex: 0 0 auto;
-      }
-      .stats-header-chip-cell {
-        display: flex;
-        align-items: stretch;
-        justify-content: center;
-        flex: 0 0 auto;
-      }
-      .stats-header-chip-cell > .stats-header-chip {
-        flex: 0 0 auto;
-        width: min-content;
-      }
-      .stats-header-chip-cell.span-2-rows {
-        align-self: stretch;
-      }
-      .stats-header-chip-cell.span-2-rows > .stats-header-chip {
-        padding: 0.35rem 0.75rem;
-      }
-      .stats-header-chip-cell.col1 > .stats-header-chip.is-hero {
-        padding: 0.75rem 1.25rem;
-        min-width: 180px;
-        width: auto;
-      }
-      .stats-header-chips-middle {
-        display: flex;
-        flex-direction: column;
-        gap: 0.5rem;
-        margin-left: 0.75rem;
-        padding-left: 0.75rem;
-        border-left: 1px solid var(--stats-border);
-      }
-      .stats-header-chips-middle-row1 {
-        display: flex;
-        flex-wrap: wrap;
-        justify-content: center;
-        gap: 0.5rem;
-      }
-      .stats-header-chips-middle-row1 .stats-header-chip {
-        flex: 0 0 auto;
-        width: min-content;
-      }
-      .stats-header-chips-middle-row2 {
-        display: flex;
-        flex-wrap: wrap;
-        justify-content: center;
-        gap: 0.35rem;
-      }
-      .stats-header-chips-middle-row2 .stats-header-chip {
-        flex: 0 0 auto;
-        width: min-content;
-      }
-      .stats-header-chips-claimed-discord {
-        display: flex;
-        flex-direction: column;
-        gap: 0.5rem;
-        align-items: center;
-        align-self: stretch;
-        min-height: 0;
-        margin-left: 0.75rem;
-        padding-left: 0.75rem;
-        border-left: 1px solid var(--stats-border);
-      }
-      .stats-header-chips-claimed-discord .stats-header-chip {
-        flex: 1 1 0;
-        min-width: 0;
-        width: min-content;
-      }
-      /* Top cities: compact block to the right of header chips */
-      .stats-top-cities-inline {
-        flex: 0 0 auto;
-        align-self: stretch;
-        display: flex;
-        flex-direction: column;
-        min-width: 0;
-        max-width: 200px;
-        position: relative;
-        overflow: hidden;
-        background: linear-gradient(
-          180deg,
-          rgba(255, 255, 255, 0.97) 0%,
-          rgba(252, 251, 248, 0.94) 100%
-        );
-        backdrop-filter: blur(10px) saturate(1.06);
-        -webkit-backdrop-filter: blur(10px) saturate(1.06);
-        border-radius: var(--stats-radius);
-        border: 1px solid var(--stats-border);
-        box-shadow:
-          0 1px 0 rgba(255, 255, 255, 0.72) inset,
-          var(--stats-shadow);
-        transition:
-          box-shadow var(--stats-ease),
-          border-color var(--stats-ease);
-      }
-      .stats-top-cities-inline::before {
-        content: "";
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        height: 2px;
-        background: linear-gradient(
-          90deg,
-          rgba(212, 160, 23, 0.5) 0%,
-          rgba(88, 101, 242, 0.15) 100%
-        );
-        pointer-events: none;
-        opacity: 0.85;
-      }
-      .stats-top-cities-inline:hover {
-        box-shadow:
-          0 1px 0 rgba(255, 255, 255, 0.78) inset,
-          var(--stats-shadow-lg);
-        border-color: rgba(212, 160, 23, 0.22);
-      }
-      .stats-top-cities-inline.is-filtered {
-        border-color: rgba(212, 160, 23, 0.4);
-        box-shadow: 0 2px 12px rgba(212, 160, 23, 0.08);
-      }
-      .stats-top-cities-header {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        padding: 0.4rem 0.6rem;
-        border-bottom: 1px solid var(--stats-border);
-        background: var(--stats-secondary);
-        flex-wrap: wrap;
-      }
-      .stats-top-cities-title {
-        font-size: 0.75rem;
-        font-weight: 700;
-        color: var(--stats-text);
-        white-space: nowrap;
-      }
-      .stats-top-cities-select {
-        flex: 1 1 auto;
-        min-width: 0;
-        padding: 0.2rem 0.4rem;
-        font-size: 0.7rem;
-        font-family: var(--stats-font-body);
-        color: var(--stats-text);
-        background: var(--stats-surface);
-        border: 1px solid var(--stats-border);
-        border-radius: var(--stats-radius);
-        cursor: pointer;
-      }
-      .stats-top-cities-select:hover {
-        border-color: var(--stats-accent);
-      }
-      .stats-top-cities-table {
-        padding: 0.25rem 0.5rem 0.4rem;
-        overflow: hidden;
-      }
-      .stats-top-cities-table table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 0.75rem;
-      }
-      .stats-top-cities-table td {
-        padding: 0.15rem 0.35rem;
-        color: var(--stats-text-muted);
-      }
-      .stats-top-cities-table td:first-child {
-        max-width: 120px;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-      .stats-top-cities-table td.num,
-      .stats-top-cities-table .value {
-        font-weight: 600;
-        color: var(--stats-text);
-        text-align: right;
-      }
-      @media (max-width: 768px) {
-        .stats-header-main {
-          flex-direction: column;
-          align-items: center;
-        }
-        .stats-header-chips-middle,
-        .stats-header-chips-claimed-discord {
-          margin-left: 0;
-          padding-left: 0;
-          border-left: none;
-        }
-        .stats-top-cities-inline {
-          max-width: 100%;
-          width: 100%;
-        }
-      }
-      .stats-header-chip {
-        display: inline-flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        text-align: center;
-        padding: 0.4rem 0.875rem;
-        background: linear-gradient(
-          180deg,
-          rgba(255, 255, 255, 0.96) 0%,
-          rgba(252, 251, 248, 0.92) 100%
-        );
-        backdrop-filter: blur(8px) saturate(1.06);
-        -webkit-backdrop-filter: blur(8px) saturate(1.06);
-        border-radius: var(--stats-radius-lg);
-        border: 1px solid var(--stats-border);
-        box-shadow:
-          0 1px 0 rgba(255, 255, 255, 0.65) inset,
-          var(--stats-shadow);
-        transition:
-          box-shadow var(--stats-ease),
-          transform 0.15s ease,
-          border-color var(--stats-ease);
-      }
-      .stats-header-chip:hover {
-        box-shadow:
-          0 1px 0 rgba(255, 255, 255, 0.75) inset,
-          var(--stats-shadow-lg);
-        border-color: rgba(212, 160, 23, 0.2);
-      }
-      .stats-header-chip.chip-filterable:hover,
-      .stats-header-chip.chip-preset:hover {
-        transform: translateY(-1px);
-      }
-      .stats-header-chip.is-hero {
-        background: linear-gradient(
-          135deg,
-          rgba(212, 160, 23, 0.16),
-          rgba(212, 160, 23, 0.05)
-        );
-        border-color: rgba(212, 160, 23, 0.32);
-      }
-      .stats-header-chip .chip-label {
-        font-family: var(--stats-font-body);
-        font-size: 0.6875rem;
-        font-weight: 600;
-        color: var(--stats-text-muted);
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        margin-bottom: 0.15rem;
-        text-align: center;
-      }
-      .stats-header-chip .chip-value {
-        font-family: var(--stats-font-display);
-        font-size: 1rem;
-        font-weight: 700;
-        font-variant-numeric: tabular-nums;
-        color: var(--stats-text);
-        line-height: 1.2;
-        text-align: center;
-      }
-      .stats-header-main.is-loading .chip-value {
-        color: transparent;
-        background: linear-gradient(
-          90deg,
-          var(--stats-border) 25%,
-          var(--stats-secondary) 50%,
-          var(--stats-border) 75%
-        );
-        background-size: 200% 100%;
-        animation: stats-chip-pulse 1.2s ease-in-out infinite;
-        border-radius: 2px;
-      }
-      @keyframes stats-chip-pulse {
-        0%,
-        100% {
-          background-position: 200% 0;
-        }
-        50% {
-          background-position: -200% 0;
-        }
-      }
-      .stats-header-chip.is-hero .chip-value {
-        color: var(--stats-accent);
-        font-size: 1.5rem;
-      }
-      .stats-header-chip.is-hero .chip-icon {
-        color: var(--stats-accent);
-      }
-      .stats-header-chip .chip-badge {
-        display: inline-block;
-        font-size: 0.625rem;
-        font-weight: 700;
-        font-variant-numeric: tabular-nums;
-        color: var(--stats-text-muted);
-        background: var(--stats-secondary);
-        padding: 0.15rem 0.4rem;
-        border-radius: var(--stats-radius-sm);
-        margin-bottom: 0.15rem;
-      }
-      .stats-header-chip .chip-icon {
-        width: 22px;
-        height: 22px;
-        flex-shrink: 0;
-        margin-bottom: 0.2rem;
-        color: var(--stats-text-muted);
-      }
-      .stats-header-chip .chip-icon img,
-      .stats-header-chip .chip-icon svg {
-        width: 100%;
-        height: 100%;
-        display: block;
-      }
-      .stats-header-chip .chip-icon svg {
-        color: inherit;
-      }
-      .stats-header-chip.chip-preset {
-        position: relative;
-        cursor: pointer;
-      }
-      .stats-preset-dropdown {
-        position: absolute;
-        top: 100%;
-        left: 50%;
-        transform: translateX(-50%);
-        margin-top: 0.35rem;
-        width: max-content;
-        max-width: min(260px, calc(100vw - 2rem));
-        min-width: 0;
-        max-height: min(420px, 70vh);
-        overflow-y: auto;
-        overflow-x: hidden;
-        background: linear-gradient(
-          180deg,
-          rgba(255, 255, 255, 0.98) 0%,
-          rgba(252, 251, 248, 0.96) 100%
-        );
-        backdrop-filter: blur(12px) saturate(1.08);
-        -webkit-backdrop-filter: blur(12px) saturate(1.08);
-        border: 1px solid var(--stats-border);
-        border-radius: var(--stats-radius);
-        box-shadow:
-          0 1px 0 rgba(255, 255, 255, 0.75) inset,
-          var(--stats-shadow-lg);
-        padding: 0.35rem 0.4rem;
-        z-index: 1100;
-        display: none;
-      }
-      .stats-preset-dropdown::before {
-        content: "";
-        display: block;
-        height: 2px;
-        margin: -0.35rem -0.4rem 0.35rem;
-        border-radius: var(--stats-radius) var(--stats-radius) 0 0;
-        background: linear-gradient(
-          90deg,
-          rgba(212, 160, 23, 0.55) 0%,
-          rgba(212, 160, 23, 0.12) 40%,
-          rgba(88, 101, 242, 0.2) 100%
-        );
-      }
-      .stats-header-chip.chip-preset.is-open {
-        z-index: 1000;
-      }
-      .stats-header-chip.chip-preset.is-open .stats-preset-dropdown {
-        display: block;
-      }
-      .stats-preset-dropdown button,
-      .stats-preset-dropdown a {
-        display: block;
-        width: 100%;
-        min-width: 0;
-        max-width: 100%;
-        box-sizing: border-box;
-        padding: 0.45rem 0.75rem;
-        font-size: 0.8125rem;
-        font-family: var(--stats-font-body);
-        color: var(--stats-text);
-        text-decoration: none;
-        text-align: left;
-        background: none;
-        border: none;
-        border-radius: var(--stats-radius);
-        cursor: pointer;
-        transition: background 0.15s ease;
-        white-space: normal;
-        overflow-wrap: break-word;
-      }
-      .stats-preset-dropdown button:hover,
-      .stats-preset-dropdown a:hover {
-        background: var(--stats-surface-hover);
-      }
-
-      .stats-preset-dropdown .stats-preset-custom {
-        margin-top: 0.35rem;
-        padding-top: 0.4rem;
-        border-top: 1px solid var(--stats-border);
-      }
-      .stats-preset-dropdown .stats-preset-custom-title {
-        font-size: 0.65rem;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        color: var(--stats-text-muted);
-        margin-bottom: 0.4rem;
-      }
-      .stats-preset-dropdown .stats-preset-custom-grid {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 0.35rem 0.5rem;
-        margin-bottom: 0.45rem;
-      }
-      .stats-preset-dropdown .stats-preset-custom-grid label {
-        display: flex;
-        flex-direction: column;
-        gap: 0.12rem;
-        font-size: 0.65rem;
-        font-weight: 600;
-        color: var(--stats-text-muted);
-      }
-      .stats-preset-dropdown .stats-preset-custom-grid input {
-        width: 100%;
-        box-sizing: border-box;
-        padding: 0.35rem 0.45rem;
-        font-size: 0.8125rem;
-        font-family: var(--stats-font-body);
-        border: 1px solid var(--stats-border);
-        border-radius: var(--stats-radius-sm);
-        background: var(--stats-surface);
-        color: var(--stats-text);
-      }
-      .stats-preset-dropdown .stats-preset-custom-hint {
-        font-size: 0.65rem;
-        color: var(--stats-text-muted);
-        line-height: 1.35;
-        margin-bottom: 0.35rem;
-      }
-      .stats-preset-dropdown #stats-preset-custom-apply {
-        margin-top: 0.1rem;
-      }
-
-      /* Download dropdown chip */
-      .stats-header-chip.chip-download {
-        position: relative;
-        cursor: pointer;
-      }
-      .stats-header-chip.chip-download .chip-icon {
-        margin-bottom: 0.1rem;
-      }
-      .stats-header-download-dropdown {
-        position: absolute;
-        top: 100%;
-        right: 0;
-        margin-top: 0.35rem;
-        width: max-content;
-        max-width: min(260px, calc(100vw - 2rem));
-        min-width: 0;
-        max-height: 280px;
-        overflow-y: auto;
-        overflow-x: hidden;
-        background: linear-gradient(
-          180deg,
-          rgba(255, 255, 255, 0.98) 0%,
-          rgba(252, 251, 248, 0.96) 100%
-        );
-        backdrop-filter: blur(12px) saturate(1.08);
-        -webkit-backdrop-filter: blur(12px) saturate(1.08);
-        border: 1px solid var(--stats-border);
-        border-radius: var(--stats-radius);
-        box-shadow:
-          0 1px 0 rgba(255, 255, 255, 0.75) inset,
-          var(--stats-shadow-lg);
-        padding: 0.35rem 0.4rem;
-        z-index: 1100;
-        display: none;
-      }
-      .stats-header-download-dropdown::before {
-        content: "";
-        display: block;
-        height: 2px;
-        margin: -0.35rem -0.4rem 0.35rem;
-        border-radius: var(--stats-radius) var(--stats-radius) 0 0;
-        background: linear-gradient(
-          90deg,
-          rgba(212, 160, 23, 0.55) 0%,
-          rgba(212, 160, 23, 0.12) 40%,
-          rgba(88, 101, 242, 0.2) 100%
-        );
-      }
-      .stats-download-btn.is-open {
-        z-index: 1000;
-      }
-      .stats-download-btn.is-open .stats-header-download-dropdown {
-        display: block;
-      }
-      .stats-header-download-dropdown a {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        width: 100%;
-        min-width: 0;
-        max-width: 100%;
-        box-sizing: border-box;
-        padding: 0.45rem 0.75rem;
-        font-size: 0.8125rem;
-        font-family: var(--stats-font-body);
-        color: var(--stats-text);
-        text-decoration: none;
-        text-align: left;
-        border-radius: var(--stats-radius);
-        transition: background 0.15s ease;
-        white-space: normal;
-        overflow-wrap: break-word;
-      }
-      .stats-header-download-dropdown a:hover {
-        background: var(--stats-surface-hover);
-      }
-      .stats-header-download-dropdown a img {
-        width: 18px;
-        height: 18px;
-        flex-shrink: 0;
-      }
-
-      /* Bubble Card–style link buttons: pill shape, soft shadow */
-      .back-link,
-      .stats-download-link {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.5rem;
-        padding: 0.55rem 1rem;
-        font-weight: 600;
-        font-size: 0.875rem;
-        color: var(--stats-accent);
-        text-decoration: none;
-        border-radius: var(--stats-radius-lg);
-        background: var(--stats-surface);
-        border: 1px solid var(--stats-border);
-        box-shadow: var(--stats-shadow);
-        transition:
-          background 0.2s ease,
-          color 0.2s ease,
-          box-shadow 0.2s ease,
-          transform 0.2s ease;
-      }
-      .back-link:hover,
-      .stats-download-link:hover {
-        background: var(--stats-surface-hover);
-        color: var(--stats-accent-hover);
-        box-shadow: var(--stats-shadow-hover);
-        transform: translateY(-2px);
-      }
-
-      .stats-loading {
-        font-size: 0.95rem;
-        color: var(--stats-text-muted);
-        padding: 2rem;
-      }
-      .stats-error {
-        color: var(--app-error, #b91c1c);
-        padding: 1rem;
-        font-weight: 500;
-      }
-
-      #stats-content {
-        animation: stats-reveal 0.45s ease-out forwards;
-      }
-      #stats-content .stats-chart {
-        animation: stats-reveal 0.5s ease-out 0.14s both;
-      }
-      #stats-content .stats-playback {
-        animation: stats-reveal 0.5s ease-out 0.18s both;
-      }
-      #stats-content .stats-topdays {
-        animation: stats-reveal 0.5s ease-out 0.24s both;
-      }
-      @keyframes stats-reveal {
-        from {
-          opacity: 0;
-          transform: translateY(12px);
-        }
-        to {
-          opacity: 1;
-          transform: translateY(0);
-        }
-      }
-
-      .stats-chart-and-map {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 1.25rem;
-        margin-bottom: 2rem;
-        align-items: flex-start;
-      }
-      /* Chart card — glass surface + accent stripe */
-      .stats-chart {
-        position: relative;
-        overflow: hidden;
-        flex: 1 1 500px;
-        min-width: 0;
-        height: auto;
-        min-height: 400px;
-        display: flex;
-        flex-direction: column;
-        background: linear-gradient(
-          180deg,
-          rgba(255, 255, 255, 0.97) 0%,
-          rgba(252, 251, 248, 0.94) 100%
-        );
-        backdrop-filter: blur(12px) saturate(1.08);
-        -webkit-backdrop-filter: blur(12px) saturate(1.08);
-        border-radius: var(--stats-radius-lg);
-        box-shadow:
-          0 1px 0 rgba(255, 255, 255, 0.72) inset,
-          var(--stats-shadow);
-        padding: 1rem 1.25rem 1.25rem;
-        border: 1px solid var(--stats-border);
-        box-sizing: border-box;
-        transition:
-          box-shadow var(--stats-ease),
-          border-color var(--stats-ease);
-      }
-      .stats-chart::before {
-        content: "";
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        height: 2px;
-        background: linear-gradient(
-          90deg,
-          rgba(212, 160, 23, 0.5) 0%,
-          rgba(212, 160, 23, 0.1) 45%,
-          rgba(88, 101, 242, 0.15) 100%
-        );
-        pointer-events: none;
-        opacity: 0.9;
-      }
-      .stats-chart:hover {
-        box-shadow:
-          0 1px 0 rgba(255, 255, 255, 0.78) inset,
-          var(--stats-shadow-lg);
-        border-color: rgba(212, 160, 23, 0.2);
-      }
-      .stats-chart #stats-chart {
-        display: block;
-        width: 100%;
-        height: 360px;
-        min-height: 360px;
-        max-height: 360px;
-        overflow: hidden;
-        margin-top: 0.5rem;
-      }
-      .stats-block-title {
-        margin: 0 0 0.5rem;
-        font-family: var(--stats-font-display);
-        font-size: 1.125rem;
-        font-weight: 700;
-        color: var(--stats-text);
-        letter-spacing: -0.02em;
-      }
-      .stats-block-desc {
-        margin: 0 0 0.75rem;
-        font-size: 0.8125rem;
-        color: var(--stats-text-muted);
-        line-height: 1.4;
-      }
-      .stats-chart .stats-block-desc {
-        margin-bottom: 0.5rem;
-      }
-      .stats-playback .stats-block-desc {
-        margin-bottom: 0.5rem;
-      }
-      .stats-topdays-title {
-        margin-bottom: 1rem;
-        font-size: 1.125rem;
-      }
-      .stats-chart-range-wrap {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        margin-bottom: 0.5rem;
-      }
-      .stats-chart-range-label {
-        font-size: 0.8125rem;
-        font-weight: 600;
-        color: var(--stats-text-muted);
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
-      }
-      .stats-chart-range {
-        padding: 0.4rem 0.75rem;
-        font-size: 0.875rem;
-        font-family: var(--stats-font-body);
-        font-weight: 500;
-        border: 1px solid var(--stats-border);
-        border-radius: var(--stats-radius);
-        background: var(--stats-surface);
-        color: var(--stats-text);
-        cursor: pointer;
-        box-shadow: var(--stats-shadow);
-        transition:
-          box-shadow 0.2s ease,
-          border-color 0.2s ease;
-      }
-      .stats-chart-range:hover {
-        border-color: var(--stats-accent);
-      }
-      /* Playback / map card — glass + accent stripe */
-      .stats-playback {
-        position: relative;
-        overflow: hidden;
-        flex: 0 1 560px;
-        min-width: 320px;
-        background: linear-gradient(
-          180deg,
-          rgba(255, 255, 255, 0.97) 0%,
-          rgba(252, 251, 248, 0.94) 100%
-        );
-        backdrop-filter: blur(12px) saturate(1.08);
-        -webkit-backdrop-filter: blur(12px) saturate(1.08);
-        border-radius: var(--stats-radius-lg);
-        box-shadow:
-          0 1px 0 rgba(255, 255, 255, 0.72) inset,
-          var(--stats-shadow);
-        padding: 1.25rem;
-        border: 1px solid var(--stats-border);
-        transition:
-          box-shadow var(--stats-ease),
-          border-color var(--stats-ease);
-      }
-      .stats-playback::before {
-        content: "";
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        height: 2px;
-        background: linear-gradient(
-          90deg,
-          rgba(212, 160, 23, 0.5) 0%,
-          rgba(212, 160, 23, 0.1) 45%,
-          rgba(88, 101, 242, 0.15) 100%
-        );
-        pointer-events: none;
-        opacity: 0.9;
-      }
-      .stats-playback:hover {
-        box-shadow:
-          0 1px 0 rgba(255, 255, 255, 0.78) inset,
-          var(--stats-shadow-lg);
-        border-color: rgba(212, 160, 23, 0.2);
-      }
-      /* Timeline playback on its own line (mobile/stacked): center it */
-      @media (max-width: 1080px) {
-        .stats-chart-and-map .stats-playback {
-          margin-left: auto;
-          margin-right: auto;
-        }
-      }
-      .stats-playback .stats-map-label {
-        font-size: 0.8125rem;
-        font-weight: 600;
-        color: var(--stats-text-muted);
-        margin-bottom: 0.5rem;
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
-      }
-      .stats-playback .stats-map-container {
-        height: 360px;
-        border-radius: var(--stats-radius);
-        overflow: hidden;
-        border: 1px solid var(--stats-border);
-        background: var(--stats-bg-subtle);
-      }
-      .stats-playback .stats-map-container #stats-map {
-        height: 100%;
-        width: 100%;
-      }
-      .stats-playback-controls {
-        margin-top: 0.75rem;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-      }
-      .stats-playback-controls .playback-row {
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-        flex-wrap: wrap;
-      }
-      /* Bubble Card–style transport: pill-shaped group */
-      .stats-playback-controls .playback-transport {
-        display: flex;
-        align-items: center;
-        gap: 0.15rem;
-        padding: 0.25rem 0.35rem;
-        background: var(--stats-secondary);
-        border-radius: var(--stats-radius-lg);
-        border: 1px solid var(--stats-border);
-      }
-      .stats-playback-controls .playback-transport button {
-        width: 34px;
-        height: 34px;
-        padding: 0;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 1rem;
-        line-height: 1;
-        cursor: pointer;
-        border: none;
-        border-radius: var(--stats-radius-sm);
-        background: transparent;
-        color: var(--stats-text);
-        transition:
-          background 0.2s ease,
-          color 0.2s ease,
-          transform 0.2s ease;
-      }
-      .stats-playback-controls .playback-transport button:hover {
-        background: var(--stats-surface);
-        color: var(--stats-accent);
-        transform: scale(1.05);
-      }
-      .stats-playback-controls .playback-transport button#playback-play {
-        width: 38px;
-        height: 38px;
-        font-size: 1.15rem;
-        background: var(--stats-accent);
-        color: #fff;
-        border-radius: var(--stats-radius);
-      }
-      .stats-playback-controls .playback-transport button#playback-play:hover {
-        background: var(--stats-accent-hover);
-        transform: scale(1.06);
-      }
-      .stats-playback-controls .playback-meta {
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-        flex: 1;
-        min-width: 0;
-      }
-      .stats-playback-controls .playback-date {
-        font-size: 0.9rem;
-        font-weight: 600;
-        color: var(--stats-text);
-        min-width: 120px;
-      }
-      .stats-playback-controls .playback-speed-wrap {
-        display: flex;
-        align-items: center;
-        gap: 0.4rem;
-      }
-      .stats-playback-controls .playback-speed-wrap label {
-        font-size: 0.8rem;
-        color: var(--stats-text-muted);
-        white-space: nowrap;
-      }
-      .stats-playback-controls select#playback-speed {
-        padding: 0.4rem 0.6rem;
-        font-size: 0.85rem;
-        font-weight: 500;
-        border: 1px solid var(--stats-border);
-        border-radius: var(--stats-radius-sm);
-        background: var(--stats-surface);
-        color: var(--stats-text);
-        cursor: pointer;
-        box-shadow: var(--stats-shadow);
-      }
-      .stats-playback-controls .playback-slider-wrap {
-        margin-top: 0.5rem;
-        width: 100%;
-        align-self: stretch;
-      }
-      .stats-playback-controls .playback-slider-wrap input[type="range"] {
-        width: 100%;
-        height: 8px;
-        accent-color: var(--stats-accent);
-      }
-      /* Bubble Card–style playback legend chips */
-      .stats-playback-legend {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: center;
-        gap: 0.25rem 0.5rem;
-        margin-top: 0.75rem;
-        padding: 0.5rem 0.75rem;
-        font-size: 0.6875rem;
-        color: var(--stats-text-muted);
-        background: var(--stats-secondary);
-        border: 1px solid var(--stats-border);
-        border-radius: var(--stats-radius);
-      }
-      .stats-playback-legend > span {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.25rem;
-        padding: 0.2rem 0.4rem;
-        background: var(--stats-surface);
-        border-radius: var(--stats-radius-sm);
-        border: 1px solid var(--stats-border);
-      }
-      .stats-playback-legend .dot {
-        width: 5px;
-        height: 5px;
-        border-radius: 50%;
-        flex-shrink: 0;
-      }
-      .stats-playback-legend .legend-label {
-        font-size: 0.65rem;
-        letter-spacing: 0.01em;
-      }
-      .stats-playback-legend .legend-count {
-        font-weight: 700;
-        font-variant-numeric: tabular-nums;
-        color: var(--stats-text);
-        min-width: 1.25em;
-        text-align: right;
-      }
-      .stats-playback-legend .playback-legend-total {
-        margin-right: 0.05rem;
-        padding-right: 0.25rem;
-        border-right: 1px solid var(--stats-border);
-      }
-      .stats-playback-legend .playback-legend-total .legend-count {
-        color: var(--stats-text);
-      }
-
-      .stats-table {
-        position: relative;
-        overflow-x: auto;
-        overflow-y: hidden;
-        background: linear-gradient(
-          180deg,
-          rgba(255, 255, 255, 0.96) 0%,
-          rgba(252, 251, 248, 0.93) 100%
-        );
-        backdrop-filter: blur(8px) saturate(1.05);
-        -webkit-backdrop-filter: blur(8px) saturate(1.05);
-        border-radius: var(--stats-radius);
-        box-shadow:
-          0 1px 0 rgba(255, 255, 255, 0.65) inset,
-          var(--stats-shadow);
-        border: 1px solid var(--stats-border);
-      }
-      .stats-table:first-of-type {
-        border-radius: 0 0 var(--stats-radius) var(--stats-radius);
-      }
-      .stats-table table {
-        width: 100%;
-        border-collapse: collapse;
-      }
-      .stats-table th,
-      .stats-table td {
-        padding: 0.65rem 1rem;
-        text-align: left;
-        border-bottom: 1px solid var(--stats-border);
-      }
-      .stats-table tbody tr {
-        transition: background 0.12s ease;
-      }
-      .stats-table tbody tr:hover {
-        background: var(--stats-surface-hover);
-      }
-      .stats-table th {
-        font-family: var(--stats-font-display);
-        font-weight: 600;
-        font-size: 0.8125rem;
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
-        color: var(--stats-text-muted);
-        cursor: pointer;
-        user-select: none;
-      }
-      .stats-table th:hover {
-        color: var(--stats-text);
-      }
-      .stats-table th .sort-icon {
-        margin-left: 0.35rem;
-        font-size: 0.85em;
-        opacity: 0.6;
-      }
-      .stats-table th.sort-asc .sort-icon,
-      .stats-table th.sort-desc .sort-icon {
-        opacity: 1;
-      }
-      .stats-table th .sort-icon::before {
-        content: "\21C5";
-      }
-      .stats-table th.sort-asc .sort-icon::before {
-        content: "\2191";
-      }
-      .stats-table th.sort-desc .sort-icon::before {
-        content: "\2193";
-      }
-      .stats-table .num {
-        text-align: right;
-        font-variant-numeric: tabular-nums;
-      }
-      .stats-table .date {
-        white-space: nowrap;
-      }
-      .stats-topdays {
-        max-width: 880px;
-        margin-left: auto;
-        margin-right: auto;
-      }
-      .stats-topdays-grid {
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        gap: 0.75rem;
-      }
-      @media (max-width: 900px) {
-        .stats-topdays {
-          max-width: 560px;
-        }
-        .stats-topdays-grid {
-          grid-template-columns: 1fr;
-        }
-      }
-      @media (max-width: 600px) {
-        .stats-topdays {
-          max-width: 100%;
-        }
-      }
-      @media (max-width: 480px) {
-        .stats-topdays-grid {
-          grid-template-columns: 1fr;
-        }
-      }
-      /* Top-day metric cards */
-      .stats-topday-card {
-        position: relative;
-        overflow: hidden;
-        background: linear-gradient(
-          180deg,
-          rgba(255, 255, 255, 0.96) 0%,
-          rgba(252, 251, 248, 0.92) 100%
-        );
-        backdrop-filter: blur(8px) saturate(1.05);
-        -webkit-backdrop-filter: blur(8px) saturate(1.05);
-        border-radius: var(--stats-radius-sm);
-        border: 1px solid var(--stats-border);
-        box-shadow:
-          0 1px 0 rgba(255, 255, 255, 0.65) inset,
-          var(--stats-shadow);
-        transition:
-          box-shadow var(--stats-ease),
-          border-color var(--stats-ease);
-      }
-      .stats-topday-card::before {
-        content: "";
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        height: 2px;
-        background: linear-gradient(
-          90deg,
-          rgba(212, 160, 23, 0.4) 0%,
-          rgba(88, 101, 242, 0.1) 100%
-        );
-        pointer-events: none;
-      }
-      .stats-topday-card:hover {
-        box-shadow:
-          0 1px 0 rgba(255, 255, 255, 0.75) inset,
-          var(--stats-shadow-lg);
-        border-color: rgba(212, 160, 23, 0.18);
-      }
-      .stats-topday-card-header {
-        display: flex;
-        align-items: center;
-        gap: 0.4rem;
-        padding: 0.4rem 0.75rem;
-        border-bottom: 1px solid var(--stats-border);
-        background: var(--stats-secondary);
-      }
-      .stats-topday-card-header h3 {
-        margin: 0;
-        font-family: var(--stats-font-display);
-        font-size: 0.75rem;
-        font-weight: 700;
-        color: var(--stats-text);
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        line-height: 1.2;
-      }
-      .stats-topday-icon {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 1.25rem;
-        height: 1.25rem;
-        border-radius: var(--stats-radius-sm);
-        font-size: 0.75rem;
-        font-weight: 700;
-        flex-shrink: 0;
-      }
-      .stats-topday-upside .stats-topday-icon {
-        background: rgba(46, 204, 113, 0.2);
-        color: #16a34a;
-      }
-      .stats-topday-downside .stats-topday-icon {
-        background: rgba(231, 76, 60, 0.2);
-        color: #dc2626;
-      }
-      .stats-topday-list {
-        padding: 0.35rem 0.6rem 0.5rem;
-        min-height: 2.5rem;
-      }
-      .stats-topday-item {
-        display: flex;
-        align-items: baseline;
-        gap: 0.4rem;
-        padding: 0.25rem 0;
-        border-bottom: 1px solid var(--stats-border);
-        font-variant-numeric: tabular-nums;
-      }
-      .stats-topday-item:last-child {
-        border-bottom: none;
-      }
-      .stats-topday-item.is-lead {
-        padding: 0.4rem 0.4rem;
-        margin: 0 -0.4rem 0.25rem -0.4rem;
-        background: var(--stats-secondary);
-        border-radius: var(--stats-radius-sm);
-        border-bottom: none;
-      }
-      .stats-topday-rank {
-        flex-shrink: 0;
-        width: 1.1rem;
-        font-size: 0.625rem;
-        font-weight: 700;
-        color: var(--stats-text-muted);
-        text-align: right;
-      }
-      .stats-topday-item.is-lead .stats-topday-rank {
-        font-size: 0.6875rem;
-      }
-      .stats-topday-date {
-        flex: 1;
-        min-width: 0;
-        font-size: 0.75rem;
-        color: var(--stats-text-muted);
-      }
-      .stats-topday-item.is-lead .stats-topday-date {
-        font-size: 0.8125rem;
-        font-weight: 500;
-        color: var(--stats-text);
-      }
-      .stats-topday-value {
-        flex-shrink: 0;
-        margin-left: auto;
-        font-size: 0.75rem;
-        font-weight: 600;
-        color: var(--stats-text);
-      }
-      .stats-topday-item.is-lead .stats-topday-value {
-        font-size: 0.875rem;
-        font-weight: 700;
-      }
-      .stats-topday-upside .stats-topday-value {
-        color: #16a34a;
-      }
-      .stats-topday-upside .stats-topday-item.is-lead .stats-topday-value {
-        color: #15803d;
-      }
-      .stats-topday-downside .stats-topday-value {
-        color: #dc2626;
-      }
-      .stats-topday-downside .stats-topday-item.is-lead .stats-topday-value {
-        color: #b91c1c;
-      }
-      .stats-topday-empty {
-        padding: 0.5rem 0.5rem;
-        font-size: 0.75rem;
-        color: var(--stats-text-muted);
-        text-align: center;
-      }
-      /* Mobile: back link above title so it’s visible */
-      @media (max-width: 640px) {
-        .stats-header {
-          flex-direction: column;
-          align-items: stretch;
-          text-align: center;
-        }
-        .stats-header-top {
-          flex-direction: column;
-          align-items: stretch;
-          gap: 0.75rem;
-        }
-        .stats-header-top .stats-header-links {
-          order: -1;
-          align-self: center;
-          flex-wrap: wrap;
-          justify-content: center;
-        }
-        .stats-header-top h1 {
-          text-align: center;
-        }
-        .stats-header-chip {
-          padding: 0.35rem 0.7rem;
-        }
-        .stats-header-chip .chip-value {
-          font-size: 0.9rem;
-        }
-        .stats-header-chip.is-hero .chip-value {
-          font-size: 1.125rem;
-        }
-      }
-      /* Mobile: timeline playback controls stack so speed stays on screen */
-      @media (max-width: 640px) {
-        .stats-playback-controls .playback-row {
-          flex-direction: column;
-          align-items: stretch;
-          gap: 0.5rem;
-        }
-        .stats-playback-controls .playback-meta {
-          flex-wrap: wrap;
-          min-width: 0;
-        }
-        .stats-playback-controls .playback-date {
-          min-width: 0;
-        }
-        .stats-chart-and-map {
-          flex-direction: column;
-          gap: 1rem;
-          margin-bottom: 1.5rem;
-        }
-        .stats-chart,
-        .stats-playback {
-          flex: 1 1 100%;
-          min-width: 0 !important;
-          width: 100%;
-          box-sizing: border-box;
-        }
-        .stats-chart {
-          min-height: 0;
-          padding: 0.85rem 1rem 1rem;
-        }
-        .stats-chart #stats-chart {
-          height: min(300px, 62vw);
-          min-height: 220px;
-          max-height: 320px;
-        }
-        .stats-playback {
-          padding: 1rem;
-        }
-        .stats-playback .stats-map-container {
-          height: min(280px, 48dvh);
-          min-height: 200px;
-        }
-        .stats-wrap {
-          padding-left: max(0.75rem, env(safe-area-inset-left, 0px));
-          padding-right: max(0.75rem, env(safe-area-inset-right, 0px));
-        }
-      }
-      @media (max-width: 480px) {
-        .stats-header {
-          padding: 1rem 0.85rem 1.15rem;
-        }
-        .stats-header h1 {
-          font-size: 1.35rem;
-        }
-        .stats-chart #stats-chart {
-          height: 260px;
-          min-height: 260px;
-          max-height: 260px;
-        }
-        .stats-table th,
-        .stats-table td {
-          padding: 0.5rem 0.65rem;
-          font-size: 0.8125rem;
-        }
-        .stats-playback-controls .playback-transport button {
-          width: 40px;
-          height: 40px;
-        }
-        .stats-playback-controls .playback-transport button#playback-play {
-          width: 44px;
-          height: 44px;
-        }
-      }
-      /* Summary cards — glass shell */
-      .stats-table-card {
-        position: relative;
-        overflow: hidden;
-        background: linear-gradient(
-          180deg,
-          rgba(255, 255, 255, 0.97) 0%,
-          rgba(252, 251, 248, 0.94) 100%
-        );
-        backdrop-filter: blur(10px) saturate(1.06);
-        -webkit-backdrop-filter: blur(10px) saturate(1.06);
-        border-radius: var(--stats-radius);
-        box-shadow:
-          0 1px 0 rgba(255, 255, 255, 0.72) inset,
-          var(--stats-shadow);
-        border: 1px solid var(--stats-border);
-        transition:
-          box-shadow var(--stats-ease),
-          transform 0.2s ease,
-          border-color var(--stats-ease);
-      }
-      .stats-table-card::before {
-        content: "";
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        height: 2px;
-        background: linear-gradient(
-          90deg,
-          rgba(212, 160, 23, 0.45) 0%,
-          rgba(88, 101, 242, 0.12) 100%
-        );
-        pointer-events: none;
-        opacity: 0.85;
-      }
-      .stats-table-card:hover {
-        box-shadow:
-          0 1px 0 rgba(255, 255, 255, 0.78) inset,
-          var(--stats-shadow-lg);
-        border-color: rgba(212, 160, 23, 0.18);
-      }
-      .stats-summary-grid .stats-table-card:hover {
-        transform: translateY(-2px);
-      }
-      .stats-table-card h3 {
-        margin: 0;
-        padding: 0.875rem 1.125rem;
-        font-family: var(--stats-font-display);
-        font-size: 0.9375rem;
-        font-weight: 700;
-        color: var(--stats-text);
-        border-bottom: 1px solid var(--stats-border);
-        background: var(--stats-secondary);
-        letter-spacing: -0.01em;
-      }
-      .stats-table-card .stats-table {
-        box-shadow: none;
-        border: none;
-        border-radius: 0;
-      }
-      .stats-cities-header {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: center;
-        gap: 0.75rem;
-        padding: 0.875rem 1.125rem;
-        border-bottom: 1px solid var(--stats-border);
-        background: var(--stats-secondary);
-      }
-      .stats-cities-header h3 {
-        flex: 0 0 auto;
-        margin: 0;
-        padding: 0;
-        border: none;
-        background: transparent;
-      }
-      .stats-cities-select {
-        padding: 0.4rem 0.75rem;
-        font-size: 0.8125rem;
-        font-family: var(--stats-font-body);
-        color: var(--stats-text);
-        background: var(--stats-surface);
-        border: 1px solid var(--stats-border);
-        border-radius: var(--stats-radius);
-        cursor: pointer;
-      }
-      .stats-cities-select:hover {
-        border-color: var(--stats-accent);
-      }
-      .stats-header-chip.chip-filterable {
-        cursor: pointer;
-      }
-      .stats-header-chip.chip-filterable:hover {
-        box-shadow:
-          0 4px 16px rgba(26, 25, 23, 0.1),
-          0 0 0 2px rgba(212, 160, 23, 0.2);
-      }
-      .stats-header-chip.chip-filterable.is-chart-filtered {
-        box-shadow: 0 0 0 2px var(--stats-accent);
-        background: linear-gradient(
-          135deg,
-          rgba(212, 160, 23, 0.08),
-          rgba(212, 160, 23, 0.02)
-        );
-      }
-      .stats-footer {
-        margin-top: 2.5rem;
-        padding: 1.75rem 1.25rem 2rem;
-        border-top: 1px solid var(--stats-border);
-        background: transparent;
-      }
-      .stats-footer-note {
-        margin: 0;
-        font-size: 0.8125rem;
-        color: var(--stats-text-muted);
-        line-height: 1.55;
-        max-width: 52rem;
-      }
-      .stats-footer-note a {
-        color: var(--stats-accent);
-        text-decoration: none;
-        font-weight: 500;
-      }
-      .stats-footer-note a:hover {
-        text-decoration: underline;
-      }
-      .stats-footer-note sup {
-        font-size: 0.75em;
-      }
-      .stats-footer-links {
-        margin-top: 1.5rem;
-        padding-top: 1.25rem;
-        border-top: 1px solid var(--stats-border);
-      }
-      .stats-footer-links h4 {
-        margin: 0 0 0.75rem;
-        font-family: var(--stats-font-display);
-        font-size: 0.75rem;
-        font-weight: 700;
-        color: var(--stats-text-muted);
-        text-transform: uppercase;
-        letter-spacing: 0.06em;
-      }
-      .stats-footer-links strong {
-        display: block;
-        font-size: 0.8125rem;
-        font-weight: 600;
-        color: var(--stats-text);
-        margin-bottom: 0.25rem;
-      }
-      .stats-footer-links-grid {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 1.5rem 2.5rem;
-      }
-      .stats-footer-links-grid > div {
-        min-width: 0;
-      }
-      .stats-footer-links a {
-        color: var(--stats-accent);
-        text-decoration: none;
-        font-weight: 500;
-        font-size: 0.9rem;
-        transition: color 0.2s ease;
-      }
-      .stats-footer-links a:hover {
-        color: var(--stats-accent-hover);
-      }
-      .stats-footer-links ul {
-        margin: 0;
-        padding-left: 0;
-        list-style: none;
-      }
-      .stats-footer-links li {
-        margin-bottom: 0.35rem;
-      }
-      .stats-footer-links li:last-child {
-        margin-bottom: 0;
-      }
-      .stats-link-desc {
-        font-size: 0.8em;
-        color: var(--stats-text-muted);
-      }
-
-      @media (max-width: 640px) {
-        body.stats-body select,
-        body.stats-body input[type="text"],
-        body.stats-body input[type="number"] {
-          font-size: max(16px, 0.875rem);
-        }
-      }
-
-      @media (max-height: 460px) and (orientation: landscape) {
-        .stats-wrap {
-          padding-top: max(0.65rem, env(safe-area-inset-top, 0px));
-          padding-bottom: max(1.5rem, env(safe-area-inset-bottom, 0px));
-        }
-        .stats-header {
-          margin-bottom: 0.85rem;
-          padding: 0.65rem 0.85rem 0.85rem;
-        }
-        .stats-header h1 {
-          font-size: 1.2rem;
-        }
-        .stats-chart-and-map {
-          margin-bottom: 1rem;
-        }
-        .stats-chart #stats-chart {
-          height: 200px;
-          min-height: 200px;
-          max-height: 200px;
-        }
-        .stats-playback .stats-map-container {
-          height: min(180px, 36dvh);
-          min-height: 140px;
-        }
-      }
-
-      @media (prefers-reduced-motion: reduce) {
-        .stats-header {
-          animation: none;
-        }
-      }
-
-      .stats-summary-grid {
-        margin-bottom: 2.25rem;
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        gap: 1.25rem;
-      }
-      @media (max-width: 640px) {
-        .stats-summary-grid {
-          grid-template-columns: 1fr;
-        }
-      }
-      @media (max-width: 480px) {
-        .stats-summary-grid {
-          grid-template-columns: 1fr;
-        }
-      }
-      .stats-summary-grid .stats-table-card {
-        min-width: 0;
-      }
-      .stats-summary-grid .stats-table-card h3 {
-        font-size: 0.9rem;
-        display: block;
-        font-weight: 600;
-        overflow: visible;
-        word-wrap: break-word;
-      }
-      .stats-summary-grid .stats-table-card h3 .stats-title-meta {
-        font-style: italic;
-        font-weight: inherit;
-        font-family:
-          system-ui,
-          -apple-system,
-          sans-serif;
-      }
-      .stats-summary-grid .stats-table th,
-      .stats-summary-grid .stats-table td {
-        padding: 0.3rem 0.5rem;
-        font-size: 0.8125rem;
-      }
-      .stats-summary-grid .stats-table td:first-child {
-        color: var(--stats-text-muted);
-      }
-      .stats-summary-grid .stats-table td.num,
-      .stats-summary-grid .stats-table .value {
-        font-weight: 600;
-        color: var(--stats-text);
-      }
-      .stats-summary-grid sup {
-        font-size: 0.7em;
-      }
-    </style>
   </head>
-  <body class="light map-page stats-body">
-    <div class="stats-wrap">
-      <div class="stats-header">
+  <body class="light map-page stats-body rty-doc-page">
+    <div class="rty-page-wrap">
+      <div class="stats-header rty-glass-surface rty-chrome-accent-bar">
         <div class="stats-header-top">
           <h1>#BEmesh MeshCore statistics</h1>
           <div class="stats-header-links">
-            <a href="/" class="back-link">← Back to map</a>
-            <a href="/region-configurator" class="back-link">Regioncodes</a>
+            <a href="/" class="rty-back-link">← Back to map</a>
+            <a href="/region-configurator" class="rty-back-link">Regioncodes</a>
             <div
               class="stats-download-btn"
               id="stats-download-chip"
@@ -1827,11 +72,63 @@
         </div>
         <div class="stats-header-main is-loading">
           <div class="stats-header-chips" id="stats-header-chips">
-            <div class="stats-header-chip-cell span-2-rows col1">
+            <div
+              class="stats-header-chip-cell span-2-rows col1 stats-header-network-filter-cell"
+            >
+              <div class="stats-filter-menu" id="stats-filter-menu">
+                <button
+                  type="button"
+                  class="stats-filter-menu-trigger"
+                  id="stats-filter-menu-trigger"
+                  aria-expanded="false"
+                  aria-haspopup="dialog"
+                  aria-controls="stats-filter-menu-dropdown"
+                  title="Filter chart and stats by frequency or custom radio fields"
+                >
+                  <svg
+                    class="stats-filter-menu-icon"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    aria-hidden="true"
+                  >
+                    <path
+                      d="M10 18h4v-2h-4v2zM3 6v2h18V6H3zm3 7h12v-2H6v2z"
+                    />
+                  </svg>
+                  <span>Filter</span>
+                </button>
+                <div
+                  class="stats-filter-menu-dropdown"
+                  id="stats-filter-menu-dropdown"
+                  role="dialog"
+                  aria-label="Stats filters"
+                >
+                  <div class="stats-filter-menu-inner">
+                    <section class="stats-filter-menu-section">
+                      <div class="stats-filter-menu-section-title">
+                        Frequency preset
+                      </div>
+                      <div
+                        class="stats-preset-dropdown stats-preset-list"
+                        id="stats-preset-dropdown"
+                      ></div>
+                    </section>
+                    <section class="stats-filter-menu-section stats-filter-menu-section--custom">
+                      <details class="stats-filter-custom-details">
+                        <summary>Custom radio</summary>
+                        <div
+                          class="stats-preset-custom-body"
+                          id="stats-preset-custom-root"
+                        ></div>
+                      </details>
+                    </section>
+                  </div>
+                </div>
+              </div>
               <div
-                class="stats-header-chip is-hero chip-preset"
+                class="stats-header-chip is-hero"
                 id="stats-chip-network-wrap"
-                title="Filter by frequency preset"
+                title="Total nodes for the selected preset"
               >
                 <span class="chip-icon"
                   ><svg viewBox="0 0 24 24" fill="currentColor">
@@ -1841,10 +138,6 @@
                 ></span>
                 <span class="chip-label">Network</span>
                 <span class="chip-value" id="stats-chip-total">—</span>
-                <div
-                  class="stats-preset-dropdown"
-                  id="stats-preset-dropdown"
-                ></div>
               </div>
             </div>
             <div class="stats-header-chip-cell col2 stats-header-chips-middle">
@@ -2143,14 +436,14 @@
             <h4>External links</h4>
             <div class="stats-footer-links-grid">
               <div>
-                <strong>Map &amp; community</strong>
+                <strong>Radio-Actief community</strong>
                 <ul>
                   <li>
                     <a
                       href="https://radio-actief.be"
                       target="_blank"
                       rel="noopener noreferrer"
-                      >Radio-Actief Website</a
+                      >Website</a
                     >
                   </li>
                   <li>
@@ -2158,7 +451,7 @@
                       href="https://docs.radio-actief.be"
                       target="_blank"
                       rel="noopener noreferrer"
-                      >Radio-Actief Documentation</a
+                      >Documentation</a
                     >
                   </li>
                   <li>
@@ -2166,21 +459,21 @@
                       href="https://discord.gg/kvybAgqnhD"
                       target="_blank"
                       rel="noopener noreferrer"
-                      >Radiocommunicatie.be Discord</a
+                      >Discord</a
                     >
                   </li>
                   <li>
                     <a
-                      href="https://github.com/radio-actief/RRY-Map-Bot"
+                      href="https://github.com/radio-actief"
                       target="_blank"
                       rel="noopener noreferrer"
-                      >Radio-Actief GitHub</a
+                      >GitHub</a
                     >
                   </li>
                 </ul>
               </div>
               <div>
-                <strong>Other maps &amp; resources</strong>
+                <strong>by Radio-Actief members</strong>
                 <ul>
                   <li>
                     <a
@@ -2189,7 +482,16 @@
                       rel="noopener noreferrer"
                       >ON8AR MeshMap</a
                     >
-                    <span class="stats-link-desc">(via MQTT)</span>
+                    <span class="stats-link-desc">(by ON8AR Erwin)</span>
+                  </li>
+                  <li>
+                    <a
+                      href="https://analyzer.on8ar.eu/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      >ON8AR Analyzer</a
+                    >
+                    <span class="stats-link-desc">(by ON8AR Erwin)</span>
                   </li>
                   <li>
                     <a
@@ -2199,6 +501,20 @@
                       >MapMe.SH Android App</a
                     >
                     <span class="stats-link-desc">(by Nikotine [RRY67])</span>
+                  </li>
+                </ul>
+              </div>
+              <div>
+                <strong>by the MeshCore community</strong>
+                <ul>
+                  <li>
+                    <a
+                      href="https://analyzer.letsmesh.net/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      >Let's Mesh Analyzer</a
+                    >
+                    <span class="stats-link-desc">(by Tree🌲)</span>
                   </li>
                 </ul>
               </div>
@@ -2277,20 +593,49 @@
             if (main) main.classList.remove("is-loading");
           });
 
-        // Download dropdown: toggle on chip click, close on outside click
+        // Download + filter flyouts: close on outside click; mutual close when opening the other
         const downloadChip = document.getElementById("stats-download-chip");
         const downloadDropdown = document.getElementById(
           "stats-download-dropdown",
         );
+        const filterMenu = document.getElementById("stats-filter-menu");
+        const filterTrigger = document.getElementById("stats-filter-menu-trigger");
+        const filterDropdown = document.getElementById(
+          "stats-filter-menu-dropdown",
+        );
+        var statsHeaderPopoverResizeTimer;
+        function scheduleStatsHeaderChartResize() {
+          clearTimeout(statsHeaderPopoverResizeTimer);
+          statsHeaderPopoverResizeTimer = setTimeout(function () {
+            try {
+              if (window.__statsChartInstance) {
+                window.__statsChartInstance.resize();
+              }
+            } catch (err) {}
+          }, 120);
+        }
+        function closeStatsHeaderPopovers() {
+          if (downloadChip) downloadChip.classList.remove("is-open");
+          if (filterMenu) filterMenu.classList.remove("is-open");
+          if (filterTrigger)
+            filterTrigger.setAttribute("aria-expanded", "false");
+        }
+        document.addEventListener("click", function () {
+          var filterWasOpen =
+            filterMenu && filterMenu.classList.contains("is-open");
+          var downloadWasOpen =
+            downloadChip && downloadChip.classList.contains("is-open");
+          closeStatsHeaderPopovers();
+          if (filterWasOpen || downloadWasOpen) scheduleStatsHeaderChartResize();
+        });
         if (downloadChip) {
           downloadChip.addEventListener("click", function (e) {
             e.stopPropagation();
+            if (filterMenu) filterMenu.classList.remove("is-open");
+            if (filterTrigger)
+              filterTrigger.setAttribute("aria-expanded", "false");
             downloadChip.classList.toggle("is-open");
-          });
-          document.addEventListener("click", function () {
-            downloadChip.classList.remove("is-open");
-            var nc = document.getElementById("stats-chip-network-wrap");
-            if (nc) nc.classList.remove("is-open");
+            scheduleStatsHeaderChartResize();
           });
           if (downloadDropdown) {
             downloadDropdown.addEventListener("click", function (e) {
@@ -2298,25 +643,20 @@
             });
           }
         }
-        // Network preset dropdown: same behavior
-        const networkChip = document.getElementById("stats-chip-network-wrap");
-        const presetDropdown = document.getElementById("stats-preset-dropdown");
-        if (networkChip) {
-          networkChip.addEventListener("click", function (e) {
+        if (filterMenu && filterTrigger && filterDropdown) {
+          filterTrigger.addEventListener("click", function (e) {
             e.stopPropagation();
-            networkChip.classList.toggle("is-open");
-            if (networkChip.classList.contains("is-open")) {
-              var sel = document.getElementById("stats-cities-type");
-              if (sel) sel.value = "all";
-              if (typeof window.__statsResetNodeFilter === "function")
-                window.__statsResetNodeFilter();
-            }
+            if (downloadChip) downloadChip.classList.remove("is-open");
+            filterMenu.classList.toggle("is-open");
+            filterTrigger.setAttribute(
+              "aria-expanded",
+              filterMenu.classList.contains("is-open") ? "true" : "false",
+            );
+            scheduleStatsHeaderChartResize();
           });
-          if (presetDropdown) {
-            presetDropdown.addEventListener("click", function (e) {
-              e.stopPropagation();
-            });
-          }
+          filterDropdown.addEventListener("click", function (e) {
+            e.stopPropagation();
+          });
         }
 
         const topdayGrowth = document.getElementById("stats-topday-growth");
@@ -2327,6 +667,10 @@
           contentEl.style.display = "none";
           errorEl.textContent = msg;
           errorEl.style.display = "block";
+        }
+        function hideStatsError() {
+          errorEl.style.display = "none";
+          errorEl.textContent = "";
         }
 
         function formatDate(iso) {
@@ -2339,6 +683,9 @@
         }
 
         var chartPresetValue = "all";
+        /** Shared across chart re-inits; must not live inside initStatsContent (that runs per refetch). */
+        var statsDataCache = null;
+        var currentPresetValue = "all";
         window.__statsRadioCustom = null;
         function statsFrequencyQuerySuffix() {
           if (
@@ -2381,6 +728,21 @@
             ),
           ]);
         }
+        /** Calendar YYYY-MM-DD from API sync_date (avoids UTC midnight shifting date-only strings). */
+        function statsApiSyncDateKey(syncDate) {
+          var s = String(syncDate == null ? "" : syncDate).trim();
+          var m = /^(\d{4}-\d{2}-\d{2})/.exec(s);
+          if (m) return m[1];
+          var d = new Date(s);
+          if (isNaN(d.getTime())) return null;
+          return (
+            d.getFullYear() +
+            "-" +
+            String(d.getMonth() + 1).padStart(2, "0") +
+            "-" +
+            String(d.getDate()).padStart(2, "0")
+          );
+        }
         function initStatsContent(history, nodeChanges) {
           if (window.__statsChartInstance) {
             window.__statsChartInstance.destroy();
@@ -2405,16 +767,11 @@
             return;
           }
 
-          // Aggregate by day (date only, local timezone for grouping)
+          // Aggregate by day (use literal YYYY-MM-DD from API when present)
           const byDay = {};
           history.forEach(function (row) {
-            const d = new Date(row.sync_date);
-            const key =
-              d.getFullYear() +
-              "-" +
-              String(d.getMonth() + 1).padStart(2, "0") +
-              "-" +
-              String(d.getDate()).padStart(2, "0");
+            const key = statsApiSyncDateKey(row.sync_date);
+            if (!key) return;
             if (!byDay[key]) {
               byDay[key] = {
                 date: key,
@@ -2517,6 +874,7 @@
           distributeMetric("nodes_removed", true);
           distributeMetric("nodes_restored", true);
 
+          // Removals/restored before this date are ignored; API adds unattributed active nodes on 2026-01-11 (STATS_PRE_TRACKING_BASELINE_DATE in app.py).
           var syncStatsStartDate = "2026-01-12";
           dailyRowsChart.forEach(function (r) {
             if (r.date < syncStatsStartDate) {
@@ -2543,6 +901,7 @@
             })
             .filter(Boolean);
 
+          hideStatsError();
           contentEl.style.display = "block";
 
           function setEl(id, value) {
@@ -2551,7 +910,6 @@
               el.textContent =
                 value != null ? Number(value).toLocaleString() : "—";
           }
-          var statsDataCache = null;
           function getNetworkCountForPreset(presetKey) {
             if (!statsDataCache) return null;
             if (presetKey === "all")
@@ -2575,10 +933,36 @@
               ? Number(presets[presetKey])
               : null;
           }
-          var currentPresetValue = "all";
+          function syncStatsPresetPanelActive() {
+            var listEl = document.getElementById("stats-preset-dropdown");
+            if (listEl) {
+              listEl
+                .querySelectorAll("button[data-value]")
+                .forEach(function (b) {
+                  b.classList.toggle(
+                    "is-active",
+                    b.getAttribute("data-value") === currentPresetValue,
+                  );
+                });
+            }
+            var customRoot = document.getElementById(
+              "stats-preset-custom-root",
+            );
+            var customWrap =
+              customRoot && customRoot.querySelector(".stats-preset-custom");
+            if (customWrap) {
+              customWrap.classList.toggle(
+                "is-active",
+                currentPresetValue === "__custom__",
+              );
+            }
+          }
           function populatePresetDropdown(s) {
             var container = document.getElementById("stats-preset-dropdown");
-            if (!container) return;
+            var customRoot = document.getElementById(
+              "stats-preset-custom-root",
+            );
+            if (!container || !customRoot) return;
             var presets = s.frequency_presets || {};
             var presetOrder = [
               "EU/UK (Narrow)",
@@ -2587,6 +971,7 @@
               "EU/UK (Medium Range)",
             ];
             container.innerHTML = "";
+            customRoot.innerHTML = "";
             function addOption(value, label) {
               var btn = document.createElement("button");
               btn.type = "button";
@@ -2605,10 +990,7 @@
                 });
                 chartPresetValue = value;
                 currentPresetValue = value;
-                var networkChip = document.getElementById(
-                  "stats-chip-network-wrap",
-                );
-                if (networkChip) networkChip.classList.remove("is-open");
+                syncStatsPresetPanelActive();
                 var url =
                   value === "all"
                     ? "/api/v1/stats"
@@ -2626,6 +1008,8 @@
                     );
                     if (typeof window.__statsRefetchChart === "function")
                       window.__statsRefetchChart(value);
+                    closeStatsHeaderPopovers();
+                    scheduleStatsHeaderChartResize();
                   })
                   .catch(function () {});
               });
@@ -2647,16 +1031,14 @@
             var customWrap = document.createElement("div");
             customWrap.className = "stats-preset-custom";
             customWrap.innerHTML =
-              '<div class="stats-preset-custom-title">Custom radio</div>' +
-              '<p class="stats-preset-custom-hint">Optional fields — leave blank to ignore. All filled fields must match stored params (AND). Example: CR only, or Freq + CR together. Overrides named presets.</p>' +
               '<div class="stats-preset-custom-grid">' +
               '<label>Freq (MHz)<input type="number" step="0.001" id="stats-custom-freq" placeholder="869.618" /></label>' +
               '<label>SF<input type="number" step="1" min="5" max="13" id="stats-custom-sf" placeholder="8" /></label>' +
               '<label>BW (kHz)<input type="number" step="0.1" id="stats-custom-bw" placeholder="62.5" /></label>' +
               '<label>CR<input type="number" step="1" min="4" max="9" id="stats-custom-cr" placeholder="8" /></label>' +
               "</div>" +
-              '<button type="button" id="stats-preset-custom-apply">Apply custom filter</button>';
-            container.appendChild(customWrap);
+              '<button type="button" id="stats-preset-custom-apply">Apply</button>';
+            customRoot.appendChild(customWrap);
             var applyBtn = document.getElementById("stats-preset-custom-apply");
             if (applyBtn) {
               applyBtn.addEventListener("click", function (e) {
@@ -2680,7 +1062,12 @@
                 var cr = numOrEmpty(crEl, function (s) {
                   return parseInt(s, 10);
                 });
-                if (freq === false || sf === false || bw === false || cr === false) {
+                if (
+                  freq === false ||
+                  sf === false ||
+                  bw === false ||
+                  cr === false
+                ) {
                   window.alert(
                     "Use numbers only. Freq 100–1000 MHz, SF 5–13, BW 30–1000 kHz, CR 4–9.",
                   );
@@ -2724,10 +1111,7 @@
                 window.__statsRadioCustom = custom;
                 chartPresetValue = "all";
                 currentPresetValue = "__custom__";
-                var networkChip = document.getElementById(
-                  "stats-chip-network-wrap",
-                );
-                if (networkChip) networkChip.classList.remove("is-open");
+                syncStatsPresetPanelActive();
                 var qsParts = [];
                 if (custom.freq != null)
                   qsParts.push("freq=" + encodeURIComponent(custom.freq));
@@ -2751,10 +1135,14 @@
                     if (typeof window.__statsRefetchChart === "function")
                       window.__statsRefetchChart(null);
                     updateNetworkChipFromPreset();
+                    syncStatsPresetPanelActive();
+                    closeStatsHeaderPopovers();
+                    scheduleStatsHeaderChartResize();
                   })
                   .catch(function () {});
               });
             }
+            syncStatsPresetPanelActive();
           }
           function updateNetworkChipFromPreset() {
             var valEl = document.getElementById("stats-chip-total");
@@ -2779,13 +1167,6 @@
             var arr = (statsDataCache && statsDataCache[key]) || [];
             return arr.slice(0, 5);
           }
-          var typeKeyToLabel = {
-            all: "Top cities",
-            1: "Companions",
-            2: "Repeaters",
-            3: "Room servers",
-            4: "Sensors",
-          };
           function renderTopCities(typeKey) {
             var tCities = document.getElementById("stats-summary-cities");
             var citiesSelect = document.getElementById("stats-cities-type");
@@ -2794,11 +1175,7 @@
             if (!tCities) return;
             tCities.innerHTML = "";
             if (citiesSelect) citiesSelect.value = typeKey;
-            if (titleEl) {
-              var label = typeKeyToLabel[typeKey] || "Top cities";
-              titleEl.textContent =
-                typeKey === "all" ? "Top cities" : "Top cities (" + label + ")";
-            }
+            if (titleEl) titleEl.textContent = "Top cities";
             if (inlineWrap) {
               inlineWrap.classList.toggle("is-filtered", typeKey !== "all");
             }
@@ -2842,15 +1219,46 @@
                 var users =
                   s.registered_users != null ? Number(s.registered_users) : 0;
                 var tCities = document.getElementById("stats-summary-cities");
-                if (!tCities) return;
-                var citiesSelect = document.getElementById("stats-cities-type");
-                var citiesTypeKey =
-                  (citiesSelect && citiesSelect.value) || "all";
-                populatePresetDropdown(s);
-                updateNetworkChipFromPreset();
-                renderTopCities(citiesTypeKey);
+                if (tCities) {
+                  var citiesSelect = document.getElementById(
+                    "stats-cities-type",
+                  );
+                  var citiesTypeKey =
+                    (citiesSelect && citiesSelect.value) || "all";
+                  populatePresetDropdown(s);
+                  updateNetworkChipFromPreset();
+                  renderTopCities(citiesTypeKey);
+                } else {
+                  populatePresetDropdown(s);
+                  updateNetworkChipFromPreset();
+                }
+                if (!window.__statsChartInitialLoaded) {
+                  window.__statsChartInitialLoaded = true;
+                  fetchChartData(chartPresetValue)
+                    .then(function (results) {
+                      initStatsContent(results[0], results[1] || []);
+                    })
+                    .catch(function (err) {
+                      showError(
+                        err.message || "Could not load sync history.",
+                      );
+                    });
+                }
               })
-              .catch(function () {});
+              .catch(function () {
+                if (!window.__statsChartInitialLoaded) {
+                  window.__statsChartInitialLoaded = true;
+                  fetchChartData(chartPresetValue)
+                    .then(function (results) {
+                      initStatsContent(results[0], results[1] || []);
+                    })
+                    .catch(function (err) {
+                      showError(
+                        err.message || "Could not load sync history.",
+                      );
+                    });
+                }
+              });
           }
           if (!window.__statsSummaryLoaded) {
             loadStatsSummary();
@@ -2869,7 +1277,8 @@
               });
             if (statsChartInstance) applyChartRange(currentChartRange);
           };
-          if (citiesSelectEl) {
+          if (citiesSelectEl && !window.__statsCitiesSelectWired) {
+            window.__statsCitiesSelectWired = true;
             citiesSelectEl.addEventListener("change", function () {
               renderTopCities(this.value);
             });
@@ -2983,6 +1392,22 @@
             cumulative += r.nodes_added + r.nodes_restored - r.nodes_removed;
             return cumulative;
           });
+
+          // Match Network badge when ledger under-counts (e.g. unattributed baseline); requires statsDataCache.
+          var badgeTarget = getNetworkCountForPreset(currentPresetValue);
+          if (
+            badgeTarget != null &&
+            cumulativeData.length > 0 &&
+            statsDataCache
+          ) {
+            var lastCum = cumulativeData[cumulativeData.length - 1];
+            var delta = badgeTarget - lastCum;
+            if (delta > 0 && delta <= Math.min(badgeTarget, 5000)) {
+              for (var ci = 0; ci < cumulativeData.length; ci++) {
+                cumulativeData[ci] += delta;
+              }
+            }
+          }
 
           // Cumulative by node type from node_changes (same logic as playback)
           var byDateCh = {};
@@ -3819,6 +2244,36 @@
                   );
                 },
               },
+              responsive: [
+                {
+                  breakpoint: 641,
+                  options: {
+                    chart: { offsetX: 0, offsetY: -4 },
+                    grid: {
+                      padding: {
+                        top: 2,
+                        right: 0,
+                        bottom: 2,
+                        left: 0,
+                      },
+                    },
+                    legend: {
+                      position: "bottom",
+                      horizontalAlign: "center",
+                      fontSize: "10px",
+                      itemMargin: { horizontal: 5, vertical: 2 },
+                      markers: { width: 9, height: 9, radius: 4 },
+                    },
+                    xaxis: {
+                      tickAmount: 5,
+                      labels: {
+                        style: { colors: "#57534e", fontSize: "9px" },
+                        maxHeight: 56,
+                      },
+                    },
+                  },
+                },
+              ],
               dataLabels: { enabled: false },
             });
             statsChartInstance.render();
@@ -4044,6 +2499,8 @@
               showError(err.message || "Could not load sync history.");
             });
         };
+        // First paint: initStatsContent must run from here; loadStatsSummary lives inside it and
+        // only runs after this path, so removing this left the page stuck on "Loading sync history…".
         fetchChartData(chartPresetValue)
           .then(function (results) {
             initStatsContent(results[0], results[1] || []);

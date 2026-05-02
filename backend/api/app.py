@@ -7,7 +7,7 @@ import json
 import sys
 import os
 from typing import Optional
-from flask import Flask, jsonify, request, send_from_directory, session, redirect, Response
+from flask import Flask, jsonify, request, send_from_directory, session, redirect, Response, make_response
 from flask_cors import CORS
 from flask_session import Session
 import secrets
@@ -356,7 +356,50 @@ def _parse_radio_custom_from_request():
         if not (4 <= cr_i <= 9):
             return None
         out["cr"] = cr_i
-    return out if out else None
+        return out if out else None
+
+
+# Day before stats.html syncStatsStartDate (2026-01-12): carries active nodes with no synthetic insert day.
+STATS_PRE_TRACKING_BASELINE_DATE = "2026-01-11"
+
+
+def count_unattributed_active_baseline_nodes(
+    frequency_preset: Optional[str] = None,
+    radio_custom: Optional[dict] = None,
+) -> int:
+    """
+    Active nodes (same preset filter as synthetic) that never appear in get_synthetic_sync_rows:
+    missing insert/created source, or date(COALESCE(...)) NULL/empty so GROUP BY d excludes them.
+    """
+    preset_sql, preset_params = _active_frequency_sql_params(
+        frequency_preset, radio_custom
+    )
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            """
+            SELECT COUNT(*) AS n FROM belgian_nodes
+            WHERE is_active = 1
+              AND (1=1"""
+            + preset_sql
+            + """)
+              AND NOT (
+                (
+                  (inserted_date IS NOT NULL AND trim(inserted_date) != '')
+                  OR (created_at IS NOT NULL
+                      AND (inserted_date IS NULL OR trim(inserted_date) = ''))
+                )
+                AND date(COALESCE(NULLIF(trim(inserted_date), ''), created_at)) IS NOT NULL
+                AND trim(COALESCE(date(COALESCE(NULLIF(trim(inserted_date), ''), created_at)), '')) != ''
+              )
+        """,
+            preset_params,
+        )
+        row = cursor.fetchone()
+        return int(row["n"] if row and row["n"] is not None else 0)
+    finally:
+        conn.close()
 
 
 def get_synthetic_sync_rows(
@@ -365,8 +408,18 @@ def get_synthetic_sync_rows(
 ):
     """
     One row per day with nodes_added = count of nodes whose inserted_date (or created_at) falls on that day.
-    This is the single source of truth for "added"; real sync_history nodes_added is ignored when merging.
-    When frequency_preset or radio_custom is set, only counts nodes matching that filter.
+
+    Only **is_active = 1** rows are counted so daily adds align with ``get_statistics()`` ``total_nodes``
+    and the stats chart cumulative line does not drift above the Network badge when inactive rows
+    lack a matching ``node_changes`` ``removed`` entry.
+
+    Trade-off: per-day counts reflect "inserts among nodes that are still active today", not every
+    historical insert ever recorded. For a full lifecycle ledger without this filter, sync would
+    need to log deactivations as removals consistently (see ``node_changes``).
+
+    Real sync_history nodes_added is ignored when merging; frequency_preset / radio_custom filter
+    the same way as statistics. Nodes that never land in this query are counted on
+    STATS_PRE_TRACKING_BASELINE_DATE in get_sync_history instead.
     """
     preset_sql, preset_params = _active_frequency_sql_params(
         frequency_preset, radio_custom
@@ -378,7 +431,8 @@ def get_synthetic_sync_rows(
             SELECT date(COALESCE(NULLIF(trim(inserted_date), ''), created_at)) AS d,
                    COUNT(*) AS cnt
             FROM belgian_nodes
-            WHERE ((inserted_date IS NOT NULL AND trim(inserted_date) != '')
+            WHERE is_active = 1
+              AND ((inserted_date IS NOT NULL AND trim(inserted_date) != '')
                OR (created_at IS NOT NULL AND (inserted_date IS NULL OR trim(inserted_date) = '')))
               AND (1=1""" + preset_sql + """)
             GROUP BY d
@@ -409,6 +463,12 @@ def get_sync_history(
     is used for removed/restored/updated only (nodes_added zeroed to avoid double count).
     When frequency_preset or radio_custom is set, synthetic is filtered; real sync_history
     removed/restored/updated are also filtered by aggregating from node_changes.
+
+    Active nodes without a parseable insert day are counted once as nodes_added on
+    STATS_PRE_TRACKING_BASELINE_DATE so the chart cumulative aligns with total_nodes.
+
+    ``limit`` only caps how many ``sync_history`` rows are loaded from the DB; the returned
+    list includes all synthetic per-day rows plus merged baseline (no row-count cap).
     """
     synthetic = get_synthetic_sync_rows(
         frequency_preset=frequency_preset, radio_custom=radio_custom
@@ -442,9 +502,34 @@ def get_sync_history(
             r["from_sync"] = True
         combined = real + synthetic
 
+    baseline = count_unattributed_active_baseline_nodes(
+        frequency_preset, radio_custom
+    )
+    if baseline > 0:
+        anchor = STATS_PRE_TRACKING_BASELINE_DATE
+        hit = None
+        for r in combined:
+            if (r.get("sync_date") or "")[:10] == anchor:
+                hit = r
+                break
+        if hit is not None:
+            hit["nodes_added"] = (hit.get("nodes_added") or 0) + baseline
+        else:
+            combined.append(
+                {
+                    "sync_date": anchor,
+                    "nodes_added": baseline,
+                    "nodes_removed": 0,
+                    "nodes_restored": 0,
+                    "nodes_updated": 0,
+                    "from_sync": False,
+                }
+            )
+
     combined.sort(key=lambda r: (r.get("sync_date") or ""))
-    max_rows = max(limit, 2000)
-    return combined[:max_rows] if len(combined) > max_rows else combined
+    # Do not truncate merged history: ``combined[:N]`` kept only the oldest N rows by date,
+    # dropping recent synthetic days and the pre-tracking baseline on STATS_PRE_TRACKING_BASELINE_DATE.
+    return combined
 
 
 def _get_sync_history_from_node_changes(
@@ -686,7 +771,9 @@ def sync_history():
         history = get_sync_history(
             limit=limit, frequency_preset=preset, radio_custom=radio_custom
         )
-        return jsonify(history), 200
+        resp = make_response(jsonify(history))
+        resp.headers["Cache-Control"] = "no-store"
+        return resp, 200
     except Exception as e:
         print(f"Error in sync_history endpoint: {e}")
         return jsonify({

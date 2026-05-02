@@ -1,0 +1,163 @@
+/**
+ * RRY Map Bot — shared layout and motion for tool pages (stats, region
+ * configurator, region map). Load after css/style.css (relies on body.map-page
+ * --app-* tokens).
+ *
+ * Page-specific UI tokens (--stats-*, --cfg-*, --rm-*) stay in each *-page.css
+ * file and intentionally re-alias --app-* for clarity in those large sheets.
+ */
+
+@keyframes rty-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Scrollable document pages (stats, region configurator) */
+body.rty-doc-page.map-page {
+  margin: 0;
+  padding: 0;
+  padding-bottom: env(safe-area-inset-bottom, 0);
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow-x: clip;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Beer.css tints main/footer; keep page background visible on doc tools */
+body.rty-doc-page.map-page main,
+body.rty-doc-page.map-page footer,
+body.rty-doc-page.map-page .config-footer {
+  background: transparent !important;
+}
+
+/* Max content width + safe-area padding (stats + config) */
+.rty-page-wrap {
+  max-width: 1380px;
+  margin: 0 auto;
+  padding: max(1.75rem, env(safe-area-inset-top, 0px))
+    max(1rem, env(safe-area-inset-right, 0px))
+    max(4rem, env(safe-area-inset-bottom, 0px))
+    max(1rem, env(safe-area-inset-left, 0px));
+  box-sizing: border-box;
+}
+
+/* Configurator: column layout + ordered blocks */
+.rty-page-wrap.rty-page-wrap--stack {
+  display: flex;
+  flex-direction: column;
+}
+
+.rty-page-wrap--stack > .config-header {
+  order: 1;
+}
+
+.rty-page-wrap--stack > #policy-cli-row {
+  order: 2;
+}
+
+.rty-page-wrap--stack > #config-app {
+  order: 3;
+  min-width: 0;
+  animation: rty-reveal var(--app-reveal-duration, 0.4s)
+    var(--app-ease, 0.25s ease) 0.16s both;
+}
+
+/* Full-viewport embedded map (region map) */
+body.rty-map-view.map-page {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow: hidden;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* iOS: avoid zoom on focus; applies to all doc tool form controls */
+@media (max-width: 640px) {
+  body.rty-doc-page.map-page input[type="text"],
+  body.rty-doc-page.map-page input[type="search"],
+  body.rty-doc-page.map-page input[type="number"],
+  body.rty-doc-page.map-page select:not([size]),
+  body.rty-doc-page.map-page textarea {
+    font-size: max(16px, 0.875rem);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Shared chrome — compose on tool-page heroes (optional classes on host)
+   -------------------------------------------------------------------------- */
+.rty-glass-surface {
+  backdrop-filter: blur(14px) saturate(1.12);
+  -webkit-backdrop-filter: blur(14px) saturate(1.12);
+}
+
+/* Host may set --rty-accent-bar-radius to match header border-radius */
+.rty-chrome-accent-bar::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  border-radius: var(--rty-accent-bar-radius, 0) var(--rty-accent-bar-radius, 0) 0
+    0;
+  background: linear-gradient(
+    90deg,
+    rgba(212, 160, 23, 0.65) 0%,
+    rgba(212, 160, 23, 0.14) 42%,
+    rgba(88, 101, 242, 0.22) 100%
+  );
+  pointer-events: none;
+}
+
+/* Pill nav links — uses --app-* from body.map-page */
+a.rty-back-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.55rem 1rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+  box-sizing: border-box;
+  touch-action: manipulation;
+  color: var(--app-accent, #d4a017);
+  text-decoration: none;
+  border-radius: calc(var(--app-radius, 10px) + 2px);
+  background: var(--app-surface, rgba(255, 255, 255, 0.92));
+  border: 1px solid var(--app-border, #e7e5e4);
+  box-shadow: var(--app-shadow, 0 1px 3px rgba(26, 25, 23, 0.06));
+  transition:
+    background 0.2s ease,
+    color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+}
+
+a.rty-back-link:hover {
+  background: var(--app-surface-hover, rgba(250, 250, 249, 0.98));
+  color: var(--app-accent-hover, #b88a14);
+  box-shadow: var(--app-shadow-lg, 0 4px 20px rgba(26, 25, 23, 0.08));
+  transform: translateY(-2px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rty-page-wrap--stack > #config-app,
+  .stats-header,
+  .config-header,
+  .config-policy-cli-row,
+  .region-map-header-bar {
+    animation: none !important;
+  }
+
+  a.rty-back-link:hover,
+  .region-map-header-icon-btn:hover {
+    transform: none;
+  }
+}

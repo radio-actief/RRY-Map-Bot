@@ -2901,6 +2901,13 @@ time {
   table.node-info tr td:first-child {
     width: 7.5rem;
   }
+
+  /* iOS Safari: inputs below 16px trigger page zoom on focus */
+  body.map-page .search .field.border input.background,
+  body.map-page #node-filter input[type="text"],
+  body.map-page #node-filter input[type="date"] {
+    font-size: max(16px, 0.875rem);
+  }
 }
 
 @media (max-width: 380px) {
@@ -2917,15 +2924,6 @@ time {
   .float-action-grid {
     width: 48px;
     height: 48px;
-  }
-}
-
-/* iOS Safari: inputs below 16px trigger page zoom on focus */
-@media (max-width: 640px) {
-  body.map-page .search .field.border input.background,
-  body.map-page #node-filter input[type="text"],
-  body.map-page #node-filter input[type="date"] {
-    font-size: max(16px, 0.875rem);
   }
 }
 

@@ -2594,6 +2594,15 @@
               btn.setAttribute("data-value", value);
               btn.addEventListener("click", function () {
                 window.__statsRadioCustom = null;
+                [
+                  "stats-custom-freq",
+                  "stats-custom-sf",
+                  "stats-custom-bw",
+                  "stats-custom-cr",
+                ].forEach(function (id) {
+                  var el = document.getElementById(id);
+                  if (el) el.value = "";
+                });
                 chartPresetValue = value;
                 currentPresetValue = value;
                 var networkChip = document.getElementById(

@@ -1,0 +1,7 @@
+# Optional dev / offline tooling (not used by Dockerfile / API image).
+# Install: pip install -r requirements-dev.txt
+
+-r requirements.txt
+
+# OSM PBF parsing for scripts/generate-be-locode.py --osm-pbf
+osmium>=3.6.0

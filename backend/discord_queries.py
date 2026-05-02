@@ -213,6 +213,40 @@ def get_user_nodes(user_id: str, include_inactive: bool = True) -> List[Dict[str
         conn.close()
 
 
+def _custom_radio_filter_clause(freq: float, sf: int, bw: float, cr: int) -> tuple:
+    """
+    SQL fragment matching stored params JSON (same LIKE strategy as named presets).
+    """
+    sql = " AND (params LIKE ? AND params LIKE ? AND params LIKE ? AND params LIKE ?)"
+    params = [
+        f'%"freq": {freq}%',
+        f'%"sf": {sf}%',
+        f'%"bw": {bw}%',
+        f'%"cr": {cr}%',
+    ]
+    return (sql, params)
+
+
+def _active_frequency_sql_params(
+    frequency_preset: Optional[str],
+    radio_custom: Optional[Dict[str, Any]],
+) -> tuple:
+    """
+    Preset name or explicit freq/sf/bw/cr. Custom dict wins when all keys are numeric.
+    """
+    if radio_custom:
+        try:
+            return _custom_radio_filter_clause(
+                float(radio_custom["freq"]),
+                int(radio_custom["sf"]),
+                float(radio_custom["bw"]),
+                int(radio_custom["cr"]),
+            )
+        except (KeyError, TypeError, ValueError):
+            return ("", [])
+    return _preset_filter_clause(frequency_preset)
+
+
 def _preset_filter_clause(preset_name: Optional[str]) -> tuple:
     """
     Return (sql_fragment, params) for filtering by frequency preset.
@@ -255,7 +289,10 @@ def _preset_filter_clause(preset_name: Optional[str]) -> tuple:
     return (sql, params)
 
 
-def get_statistics(frequency_preset: Optional[str] = None) -> Dict[str, Any]:
+def get_statistics(
+    frequency_preset: Optional[str] = None,
+    radio_custom: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
     """
     Get statistics about Belgian nodes.
     Only counts active nodes.
@@ -263,13 +300,17 @@ def get_statistics(frequency_preset: Optional[str] = None) -> Dict[str, Any]:
     Args:
         frequency_preset: Optional preset name to filter all counts by (e.g. "EU/UK (Narrow)").
             Use "all" or None for unfiltered stats. "Custom settings" and "Unknown" are not supported.
+        radio_custom: Optional {"freq": float, "sf": int, "bw": float, "cr": int} matching stored
+            node params exactly. When set, overrides frequency_preset for SQL filtering.
     
     Returns:
         Dictionary with statistics (all filtered by preset when frequency_preset is set)
     """
     conn = get_connection()
     cursor = conn.cursor()
-    preset_sql, preset_params = _preset_filter_clause(frequency_preset)
+    preset_sql, preset_params = _active_frequency_sql_params(
+        frequency_preset, radio_custom
+    )
     
     try:
         stats = {}

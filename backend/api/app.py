@@ -38,7 +38,7 @@ from backend.discord_queries import (
     verify_ownership,
     remove_ownership,
     get_node_by_key,
-    _preset_filter_clause,
+    _active_frequency_sql_params,
 )
 from backend.discord_notifications import (
     notify_node_claimed,
@@ -270,13 +270,70 @@ def _params_match_preset(params: Optional[dict], preset_name: str) -> bool:
             int(cr) == preset['cr'])
 
 
-def get_synthetic_sync_rows(frequency_preset: Optional[str] = None):
+def _params_match_radio_custom(params: Optional[dict], custom: dict) -> bool:
+    """True if node params match explicit freq / SF / BW / CR (same semantics as preset match)."""
+    if not params or not custom:
+        return False
+    try:
+        freq = params.get('freq')
+        sf = params.get('sf')
+        bw = params.get('bw')
+        cr = params.get('cr')
+        if freq is None or sf is None or bw is None or cr is None:
+            return False
+        return (abs(float(freq) - float(custom['freq'])) < 0.001 and
+                int(sf) == int(custom['sf']) and
+                abs(float(bw) - float(custom['bw'])) < 0.001 and
+                int(cr) == int(custom['cr']))
+    except (TypeError, ValueError):
+        return False
+
+
+def _row_matches_frequency_filter(
+    params: Optional[dict],
+    frequency_preset: Optional[str],
+    radio_custom: Optional[dict],
+) -> bool:
+    if radio_custom:
+        return _params_match_radio_custom(params, radio_custom)
+    return _params_match_preset(params, frequency_preset or '')
+
+
+def _parse_radio_custom_from_request():
+    """
+    If freq, sf, bw, cr query params are all present and in sane ranges, return a dict.
+    Otherwise None. Used by stats API for filtering outside named presets.
+    """
+    freq = request.args.get('freq')
+    sf = request.args.get('sf')
+    bw = request.args.get('bw')
+    cr = request.args.get('cr')
+    if freq is None or sf is None or bw is None or cr is None:
+        return None
+    try:
+        freq_f = float(freq)
+        sf_i = int(sf)
+        bw_f = float(bw)
+        cr_i = int(cr)
+    except (TypeError, ValueError):
+        return None
+    if not (100 <= freq_f <= 1000 and 5 <= sf_i <= 13 and 30 <= bw_f <= 1000 and 4 <= cr_i <= 9):
+        return None
+    return {'freq': freq_f, 'sf': sf_i, 'bw': bw_f, 'cr': cr_i}
+
+
+def get_synthetic_sync_rows(
+    frequency_preset: Optional[str] = None,
+    radio_custom: Optional[dict] = None,
+):
     """
     One row per day with nodes_added = count of nodes whose inserted_date (or created_at) falls on that day.
     This is the single source of truth for "added"; real sync_history nodes_added is ignored when merging.
-    When frequency_preset is set, only counts nodes matching that preset.
+    When frequency_preset or radio_custom is set, only counts nodes matching that filter.
     """
-    preset_sql, preset_params = _preset_filter_clause(frequency_preset)
+    preset_sql, preset_params = _active_frequency_sql_params(
+        frequency_preset, radio_custom
+    )
     conn = get_connection()
     cursor = conn.cursor()
     try:
@@ -305,19 +362,27 @@ def get_synthetic_sync_rows(frequency_preset: Optional[str] = None):
         conn.close()
 
 
-def get_sync_history(limit: int = 500, frequency_preset: Optional[str] = None):
+def get_sync_history(
+    limit: int = 500,
+    frequency_preset: Optional[str] = None,
+    radio_custom: Optional[dict] = None,
+):
     """
     Sync history: "added" comes only from inserted_date (synthetic rows). Real sync_history
     is used for removed/restored/updated only (nodes_added zeroed to avoid double count).
-    When frequency_preset is set, synthetic is filtered by preset; real sync_history
+    When frequency_preset or radio_custom is set, synthetic is filtered; real sync_history
     removed/restored/updated are also filtered by aggregating from node_changes.
     """
-    synthetic = get_synthetic_sync_rows(frequency_preset)
+    synthetic = get_synthetic_sync_rows(
+        frequency_preset=frequency_preset, radio_custom=radio_custom
+    )
     for r in synthetic:
         r["from_sync"] = False
 
-    if frequency_preset:
-        real_filtered = _get_sync_history_from_node_changes(frequency_preset)
+    if frequency_preset or radio_custom:
+        real_filtered = _get_sync_history_from_node_changes(
+            frequency_preset, radio_custom
+        )
         for r in real_filtered:
             r["from_sync"] = True
         combined = synthetic + real_filtered
@@ -345,8 +410,11 @@ def get_sync_history(limit: int = 500, frequency_preset: Optional[str] = None):
     return combined[:max_rows] if len(combined) > max_rows else combined
 
 
-def _get_sync_history_from_node_changes(frequency_preset: str):
-    """Build removed/restored/updated counts per day from node_changes, filtered by preset."""
+def _get_sync_history_from_node_changes(
+    frequency_preset: Optional[str] = None,
+    radio_custom: Optional[dict] = None,
+):
+    """Build removed/restored/updated counts per day from node_changes, filtered by preset or custom radio."""
     from backend.database import json_deserialize
     conn = get_connection()
     cursor = conn.cursor()
@@ -369,7 +437,9 @@ def _get_sync_history_from_node_changes(frequency_preset: str):
             params = (data or {}).get("params") if isinstance(data, dict) else None
             if isinstance(params, str):
                 params = json_deserialize(params) if params else None
-            if not _params_match_preset(params, frequency_preset):
+            if not _row_matches_frequency_filter(
+                params, frequency_preset, radio_custom
+            ):
                 continue
             if sync_date not in by_day:
                 by_day[sync_date] = {"nodes_added": 0, "nodes_removed": 0, "nodes_restored": 0, "nodes_updated": 0}
@@ -416,13 +486,18 @@ def _node_change_row(public_key: str, change_type: str, sync_date: str, data: di
     }
 
 
-def get_synthetic_node_changes(frequency_preset: Optional[str] = None):
+def get_synthetic_node_changes(
+    frequency_preset: Optional[str] = None,
+    radio_custom: Optional[dict] = None,
+):
     """
     One "added" event per node with sync_date = inserted_date (or created_at). Single source
     of truth for when a node appeared; real node_changes "added" are not used for playback.
-    When frequency_preset is set, only includes nodes matching that preset.
+    When frequency_preset or radio_custom is set, only includes nodes matching that filter.
     """
-    preset_sql, preset_params = _preset_filter_clause(frequency_preset)
+    preset_sql, preset_params = _active_frequency_sql_params(
+        frequency_preset, radio_custom
+    )
     base_sql = """
             SELECT public_key, type, adv_name, adv_lat, adv_lon,
                    date(COALESCE(NULLIF(trim(inserted_date), ''), created_at)) AS d
@@ -458,14 +533,17 @@ def get_node_changes_since(
     since_date: Optional[str] = None,
     limit: int = 5000,
     frequency_preset: Optional[str] = None,
+    radio_custom: Optional[dict] = None,
 ):
     """
     Node changes playback: "added" from inserted_date only (synthetic). Real node_changes
     used only for removed, updated, restored (so we don't double-count real "added").
-    When frequency_preset is set, filters both synthetic and real changes by preset.
+    When frequency_preset or radio_custom is set, filters both synthetic and real changes.
     """
     from backend.database import json_deserialize
-    synthetic = get_synthetic_node_changes(frequency_preset)
+    synthetic = get_synthetic_node_changes(
+        frequency_preset=frequency_preset, radio_custom=radio_custom
+    )
     out = []
     conn = get_connection()
     cursor = conn.cursor()
@@ -489,12 +567,14 @@ def get_node_changes_since(
         rows = cursor.fetchall()
         for row in rows:
             d = dict_from_row(row)
-            if frequency_preset:
+            if frequency_preset or radio_custom:
                 data = d.get('new_data') or d.get('old_data')
                 params = (data or {}).get("params") if isinstance(data, dict) else None
                 if isinstance(params, str):
                     params = json_deserialize(params) if params else None
-                if not _params_match_preset(params, frequency_preset):
+                if not _row_matches_frequency_filter(
+                    params, frequency_preset, radio_custom
+                ):
                     continue
             data = d.get('new_data') or d.get('old_data')
             r = _node_change_row(
@@ -519,17 +599,24 @@ def node_changes():
     GET /api/v1/node-changes
 
     Returns node-level change log for historical stats playback (lat, lon, name per change).
-    Query: since=YYYY-MM-DD (optional), limit (default 5000), frequency_preset (optional).
+    Query: since=YYYY-MM-DD (optional), limit (default 5000), frequency_preset (optional),
+        or custom radio: freq (MHz), sf, bw (kHz), cr (all required together; overrides preset).
     """
     try:
         since = request.args.get('since')
         limit = request.args.get('limit', type=int) or 5000
         limit = min(max(1, limit), 20000)
+        radio_custom = _parse_radio_custom_from_request()
         preset = request.args.get('frequency_preset')
         if preset == 'all':
             preset = None
+        if radio_custom:
+            preset = None
         changes = get_node_changes_since(
-            since_date=since, limit=limit, frequency_preset=preset
+            since_date=since,
+            limit=limit,
+            frequency_preset=preset,
+            radio_custom=radio_custom,
         )
         return jsonify(changes), 200
     except Exception as e:
@@ -547,15 +634,21 @@ def sync_history():
 
     Returns sync history for the historical stats view: each run's date and
     counts (nodes_added, nodes_removed, nodes_restored, nodes_updated).
-    Optional query: limit (default 500), frequency_preset (optional).
+    Optional query: limit (default 500), frequency_preset (optional),
+        or custom freq, sf, bw, cr (MHz / SF / kHz / CR — all required; overrides preset).
     """
     try:
         limit = request.args.get('limit', type=int) or 500
         limit = min(max(1, limit), 2000)
+        radio_custom = _parse_radio_custom_from_request()
         preset = request.args.get('frequency_preset')
         if preset == 'all':
             preset = None
-        history = get_sync_history(limit=limit, frequency_preset=preset)
+        if radio_custom:
+            preset = None
+        history = get_sync_history(
+            limit=limit, frequency_preset=preset, radio_custom=radio_custom
+        )
         return jsonify(history), 200
     except Exception as e:
         print(f"Error in sync_history endpoint: {e}")
@@ -573,18 +666,25 @@ def get_stats():
     Query params:
         frequency_preset: Optional. Filter all stats by frequency preset name
             (e.g. "EU/UK (Narrow)"). Use "all" or omit for unfiltered stats.
+        freq, sf, bw, cr: Optional custom radio match (MHz, spreading factor, bandwidth kHz,
+            coding rate). When all four are present and valid, they override frequency_preset.
     
     Returns:
         JSON object with statistics
     """
     from backend.discord_queries import get_statistics
-    
+
+    radio_custom = _parse_radio_custom_from_request()
     frequency_preset = request.args.get('frequency_preset')
     if frequency_preset == 'all':
         frequency_preset = None
-    
+    if radio_custom:
+        frequency_preset = None
+
     try:
-        stats = get_statistics(frequency_preset=frequency_preset)
+        stats = get_statistics(
+            frequency_preset=frequency_preset, radio_custom=radio_custom
+        )
         return jsonify(stats), 200
     except Exception as e:
         print(f"Error in get_stats endpoint: {e}")

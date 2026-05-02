@@ -548,7 +548,7 @@
         width: max-content;
         max-width: min(260px, calc(100vw - 2rem));
         min-width: 0;
-        max-height: 280px;
+        max-height: min(420px, 70vh);
         overflow-y: auto;
         overflow-x: hidden;
         background: linear-gradient(
@@ -610,6 +610,54 @@
       .stats-preset-dropdown button:hover,
       .stats-preset-dropdown a:hover {
         background: var(--stats-surface-hover);
+      }
+
+      .stats-preset-dropdown .stats-preset-custom {
+        margin-top: 0.35rem;
+        padding-top: 0.4rem;
+        border-top: 1px solid var(--stats-border);
+      }
+      .stats-preset-dropdown .stats-preset-custom-title {
+        font-size: 0.65rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--stats-text-muted);
+        margin-bottom: 0.4rem;
+      }
+      .stats-preset-dropdown .stats-preset-custom-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.35rem 0.5rem;
+        margin-bottom: 0.45rem;
+      }
+      .stats-preset-dropdown .stats-preset-custom-grid label {
+        display: flex;
+        flex-direction: column;
+        gap: 0.12rem;
+        font-size: 0.65rem;
+        font-weight: 600;
+        color: var(--stats-text-muted);
+      }
+      .stats-preset-dropdown .stats-preset-custom-grid input {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 0.35rem 0.45rem;
+        font-size: 0.8125rem;
+        font-family: var(--stats-font-body);
+        border: 1px solid var(--stats-border);
+        border-radius: var(--stats-radius-sm);
+        background: var(--stats-surface);
+        color: var(--stats-text);
+      }
+      .stats-preset-dropdown .stats-preset-custom-hint {
+        font-size: 0.65rem;
+        color: var(--stats-text-muted);
+        line-height: 1.35;
+        margin-bottom: 0.35rem;
+      }
+      .stats-preset-dropdown #stats-preset-custom-apply {
+        margin-top: 0.1rem;
       }
 
       /* Download dropdown chip */
@@ -2291,10 +2339,34 @@
         }
 
         var chartPresetValue = "all";
+        window.__statsRadioCustom = null;
+        function statsFrequencyQuerySuffix() {
+          if (
+            window.__statsRadioCustom &&
+            window.__statsRadioCustom.freq != null
+          ) {
+            var c = window.__statsRadioCustom;
+            return (
+              "&freq=" +
+              encodeURIComponent(c.freq) +
+              "&sf=" +
+              encodeURIComponent(c.sf) +
+              "&bw=" +
+              encodeURIComponent(c.bw) +
+              "&cr=" +
+              encodeURIComponent(c.cr)
+            );
+          }
+          var p = chartPresetValue || "all";
+          return p !== "all"
+            ? "&frequency_preset=" + encodeURIComponent(p)
+            : "";
+        }
         function fetchChartData(preset) {
-          var p = preset || "all";
-          var presetParam =
-            p !== "all" ? "&frequency_preset=" + encodeURIComponent(p) : "";
+          if (!window.__statsRadioCustom) {
+            chartPresetValue = preset != null ? preset : chartPresetValue;
+          }
+          var presetParam = statsFrequencyQuerySuffix();
           return Promise.all([
             fetch("/api/v1/sync-history?limit=500" + presetParam).then(
               function (r) {
@@ -2494,6 +2566,10 @@
               return statsDataCache.unknown_frequency != null
                 ? Number(statsDataCache.unknown_frequency)
                 : null;
+            if (presetKey === "__custom__")
+              return statsDataCache.total_nodes != null
+                ? Number(statsDataCache.total_nodes)
+                : null;
             var presets = statsDataCache.frequency_presets || {};
             return presets[presetKey] != null
               ? Number(presets[presetKey])
@@ -2517,6 +2593,8 @@
               btn.textContent = label;
               btn.setAttribute("data-value", value);
               btn.addEventListener("click", function () {
+                window.__statsRadioCustom = null;
+                chartPresetValue = value;
                 currentPresetValue = value;
                 var networkChip = document.getElementById(
                   "stats-chip-network-wrap",
@@ -2557,6 +2635,86 @@
               )
                 addOption(name, name);
             });
+            var customWrap = document.createElement("div");
+            customWrap.className = "stats-preset-custom";
+            customWrap.innerHTML =
+              '<div class="stats-preset-custom-title">Custom radio</div>' +
+              '<p class="stats-preset-custom-hint">Match stored params exactly (MHz, SF, BW kHz, CR). Overrides named presets.</p>' +
+              '<div class="stats-preset-custom-grid">' +
+              '<label>Freq (MHz)<input type="number" step="0.001" id="stats-custom-freq" placeholder="869.618" /></label>' +
+              '<label>SF<input type="number" step="1" min="5" max="13" id="stats-custom-sf" placeholder="8" /></label>' +
+              '<label>BW (kHz)<input type="number" step="0.1" id="stats-custom-bw" placeholder="62.5" /></label>' +
+              '<label>CR<input type="number" step="1" min="4" max="9" id="stats-custom-cr" placeholder="8" /></label>' +
+              "</div>" +
+              '<button type="button" id="stats-preset-custom-apply">Apply custom filter</button>';
+            container.appendChild(customWrap);
+            var applyBtn = document.getElementById("stats-preset-custom-apply");
+            if (applyBtn) {
+              applyBtn.addEventListener("click", function (e) {
+                e.stopPropagation();
+                var freqEl = document.getElementById("stats-custom-freq");
+                var sfEl = document.getElementById("stats-custom-sf");
+                var bwEl = document.getElementById("stats-custom-bw");
+                var crEl = document.getElementById("stats-custom-cr");
+                var freq = freqEl ? parseFloat(freqEl.value) : NaN;
+                var sf = sfEl ? parseInt(sfEl.value, 10) : NaN;
+                var bw = bwEl ? parseFloat(bwEl.value) : NaN;
+                var cr = crEl ? parseInt(crEl.value, 10) : NaN;
+                if (
+                  !(
+                    freq >= 100 &&
+                    freq <= 1000 &&
+                    sf >= 5 &&
+                    sf <= 13 &&
+                    bw >= 30 &&
+                    bw <= 1000 &&
+                    cr >= 4 &&
+                    cr <= 9
+                  )
+                ) {
+                  window.alert(
+                    "Enter valid freq (100–1000 MHz), SF (5–13), BW (30–1000 kHz), and CR (4–9).",
+                  );
+                  return;
+                }
+                window.__statsRadioCustom = {
+                  freq: freq,
+                  sf: sf,
+                  bw: bw,
+                  cr: cr,
+                };
+                chartPresetValue = "all";
+                currentPresetValue = "__custom__";
+                var networkChip = document.getElementById(
+                  "stats-chip-network-wrap",
+                );
+                if (networkChip) networkChip.classList.remove("is-open");
+                var qs =
+                  "freq=" +
+                  encodeURIComponent(freq) +
+                  "&sf=" +
+                  encodeURIComponent(sf) +
+                  "&bw=" +
+                  encodeURIComponent(bw) +
+                  "&cr=" +
+                  encodeURIComponent(cr);
+                fetch("/api/v1/stats?" + qs)
+                  .then(function (r) {
+                    return r.ok ? r.json() : Promise.reject();
+                  })
+                  .then(function (data) {
+                    statsDataCache = data;
+                    fillHeaderChips(data);
+                    renderTopCities(
+                      (citiesSelectEl && citiesSelectEl.value) || "all",
+                    );
+                    if (typeof window.__statsRefetchChart === "function")
+                      window.__statsRefetchChart(null);
+                    updateNetworkChipFromPreset();
+                  })
+                  .catch(function () {});
+              });
+            }
           }
           function updateNetworkChipFromPreset() {
             var valEl = document.getElementById("stats-chip-total");
@@ -3835,8 +3993,10 @@
           })(nodeChanges);
         }
         window.__statsRefetchChart = function (preset) {
-          chartPresetValue = preset || chartPresetValue;
-          fetchChartData(chartPresetValue)
+          if (preset != null && preset !== "" && !window.__statsRadioCustom) {
+            chartPresetValue = preset;
+          }
+          fetchChartData(null)
             .then(function (results) {
               initStatsContent(results[0], results[1] || []);
             })

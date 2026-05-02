@@ -1649,13 +1649,27 @@
 
     <script>
       (function () {
+        function rryDataUrl(filename) {
+          var p = window.location.pathname || "";
+          if (/\.html?$/i.test(p)) {
+            return "./data/" + filename;
+          }
+          if (/(?:^|\/)(region-map|region-configurator)(?:\/|$)/.test(p)) {
+            return "/data/" + filename;
+          }
+          return "./data/" + filename;
+        }
+
         let CITIES = [];
-        fetch("./data/be-locode.json")
+        fetch(rryDataUrl("be-locode.json"))
           .then(function (r) {
-            return r.ok ? r.json() : [];
+            if (!r.ok) return [];
+            return r.json().catch(function () {
+              return [];
+            });
           })
           .then(function (data) {
-            CITIES = data || [];
+            CITIES = Array.isArray(data) ? data : [];
             var inp = document.getElementById("city-search");
             if (inp)
               inp.placeholder =

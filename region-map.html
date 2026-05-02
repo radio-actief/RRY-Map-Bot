@@ -900,6 +900,22 @@
     <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
     <script>
       (function () {
+        /**
+         * Resolve data/ URLs for both local *.html files and Flask routes
+         * /region-map and /region-configurator (with or without trailing slash).
+         * Relative ./data/ from /region-map/ incorrectly becomes /region-map/data/…
+         */
+        function rryDataUrl(filename) {
+          var p = window.location.pathname || "";
+          if (/\.html?$/i.test(p)) {
+            return "./data/" + filename;
+          }
+          if (/(?:^|\/)(region-map|region-configurator)(?:\/|$)/.test(p)) {
+            return "/data/" + filename;
+          }
+          return "./data/" + filename;
+        }
+
         const PROVINCE_NAMES = {
           "be-van": "Antwerpen",
           "be-vbr": "Vlaams-Brabant",
@@ -1462,7 +1478,8 @@
           });
           ac.style.display = "block";
           autocompleteIndex = 0;
-          ac.querySelector(".autocomplete-item")?.classList.add("active");
+          var firstAc = ac.querySelector(".autocomplete-item");
+          if (firstAc) firstAc.classList.add("active");
         }
 
         function runCodeSearch(code, type) {
@@ -1709,11 +1726,21 @@
           });
 
           Promise.all([
-            fetch("./data/be-locode.json").then(function (r) {
-              return r.ok ? r.json() : [];
-            }),
-            fetch("./data/be-provinces.geojson").then(function (r) {
-              return r.ok ? r.json() : null;
+            fetch(rryDataUrl("be-locode.json"))
+              .then(function (r) {
+                if (!r.ok) return [];
+                return r.json().catch(function () {
+                  return [];
+                });
+              })
+              .then(function (data) {
+                return Array.isArray(data) ? data : [];
+              }),
+            fetch(rryDataUrl("be-provinces.geojson")).then(function (r) {
+              if (!r.ok) return null;
+              return r.json().catch(function () {
+                return null;
+              });
             }),
           ])
             .then(function (results) {

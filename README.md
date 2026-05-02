@@ -42,24 +42,24 @@ The bot allows searching nodes, listing your own nodes, claiming/unclaiming node
 
 ```
 ┌─────────────────────────────────────┐
-│   Official MeshCore Map API          │
+│   Official MeshCore Map API         │
 │   (map.meshcore.io/api/v1/nodes)    │
 └──────────────┬──────────────────────┘
                │
                │ Periodic Sync
                │
-┌──────────────▼──────────────────────┐
+┌──────────────▼───────────────────────┐
 │   Sync Service                       │
 │   (Filters & Verifies Belgian Nodes) │
-└──────────────┬──────────────────────┘
+└──────────────┬───────────────────────┘
                │
                │ SQLite Database
                │ (Single Source of Truth)
                │
     ┌──────────┴──────────┐
     │                     │
-┌───▼──────┐      ┌──────▼──────┐
-│ Web Map  │      │ Discord Bot │
+┌───▼──────┐      ┌───────▼──────┐
+│ Web Map  │      │ Discord Bot  │
 │ (Flask)  │      │ (discord.py) │
 │          │      │              │
 │ REST API │      │ Direct DB    │

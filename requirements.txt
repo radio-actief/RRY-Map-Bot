@@ -12,6 +12,13 @@ geopy>=2.4.0
 # Environment Variables
 python-dotenv>=1.0.0
 
+# StatBel NIS6 / REFNIS xlsx for generate-be-locode.py
+openpyxl>=3.1.0
+
+# generate-be-locode.py --osm-pbf / sector centroids (geometry)
+shapely>=2.0.0
+pyproj>=3.6.0
+
 # REST API Framework
 flask>=3.0.0
 flask-cors>=4.0.0

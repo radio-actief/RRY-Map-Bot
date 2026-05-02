@@ -8,7 +8,7 @@
     />
     <meta
       name="description"
-      content="#BEmesh — MeshCore repeater region codes for Belgium (UN/LOCODE). Generate region CLI from your location."
+      content="#BEmesh: build MeshCore region CLI for Belgium — country (be), ISO 3166-2 provinces (be-*), optional UN/LOCODE municipalities, and flood policy."
     />
     <link rel="icon" type="image/x-icon" href="./favicon.ico" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -19,7 +19,7 @@
     />
     <link rel="stylesheet" href="./css/style.css" />
     <link rel="stylesheet" href="./lib/css/beer.css" />
-    <title>Regioncodes – #BEmesh Map</title>
+    <title>Region codes · #BEmesh configurator</title>
     <style>
       /* Tokens bridge map design system (style.css body.map-page) → config UI */
       :root.config-page {
@@ -37,7 +37,12 @@
         overflow-x: clip;
         -webkit-text-size-adjust: 100%;
         --cfg-font-body: var(--app-font-body, "Figtree", system-ui, sans-serif);
-        --cfg-font-display: var(--app-font-display, "Figtree", system-ui, sans-serif);
+        --cfg-font-display: var(
+          --app-font-display,
+          "Figtree",
+          system-ui,
+          sans-serif
+        );
         --cfg-bg: var(--app-bg, #f6f5f2);
         --cfg-bg-subtle: #eeedea;
         --cfg-surface: rgba(255, 255, 255, 0.92);
@@ -49,7 +54,10 @@
         --cfg-accent-hover: var(--app-accent-hover, #b88a14);
         --cfg-border: var(--app-border, #e7e5e4);
         --cfg-shadow: var(--app-shadow, 0 1px 3px rgba(26, 25, 23, 0.06));
-        --cfg-shadow-lg: var(--app-shadow-lg, 0 4px 20px rgba(26, 25, 23, 0.08));
+        --cfg-shadow-lg: var(
+          --app-shadow-lg,
+          0 4px 20px rgba(26, 25, 23, 0.08)
+        );
         --cfg-shadow-hover: 0 12px 36px rgba(26, 25, 23, 0.1);
         --cfg-radius: var(--app-radius, 10px);
         --cfg-radius-sm: var(--app-radius-sm, 6px);
@@ -66,11 +74,7 @@
             rgba(212, 160, 23, 0.06),
             transparent
           ),
-          linear-gradient(
-            180deg,
-            var(--cfg-bg) 0%,
-            var(--cfg-bg-subtle) 100%
-          );
+          linear-gradient(180deg, var(--cfg-bg) 0%, var(--cfg-bg-subtle) 100%);
       }
 
       @keyframes config-reveal {
@@ -113,8 +117,8 @@
       .config-wrap > #config-app {
         order: 3;
         min-width: 0;
-        animation: config-reveal var(--app-reveal-duration, 0.4s) var(--cfg-ease)
-          0.16s both;
+        animation: config-reveal var(--app-reveal-duration, 0.4s)
+          var(--cfg-ease) 0.16s both;
       }
 
       /* Hero header — glass panel; padding/gaps match .stats-header */
@@ -141,8 +145,8 @@
         box-shadow:
           0 1px 0 rgba(255, 255, 255, 0.78) inset,
           var(--cfg-shadow-lg);
-        animation: config-reveal var(--app-reveal-duration, 0.4s) var(--cfg-ease)
-          0.04s both;
+        animation: config-reveal var(--app-reveal-duration, 0.4s)
+          var(--cfg-ease) 0.04s both;
       }
       .config-header::before {
         content: "";
@@ -180,26 +184,6 @@
         text-align: left;
       }
 
-      .config-badge {
-        display: inline-block;
-        font-size: 0.6rem;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.09em;
-        color: var(--cfg-accent-hover);
-        background: linear-gradient(
-          135deg,
-          rgba(212, 160, 23, 0.18),
-          rgba(212, 160, 23, 0.08)
-        );
-        padding: 0.3rem 0.55rem;
-        border-radius: 999px;
-        vertical-align: middle;
-        margin-left: 0.5rem;
-        border: 1px solid rgba(212, 160, 23, 0.28);
-        box-shadow: 0 1px 2px rgba(26, 25, 23, 0.05);
-      }
-
       .config-header-desc {
         margin: 0.5rem 0 0;
         font-size: 0.9375rem;
@@ -208,18 +192,36 @@
         text-align: left;
       }
 
-      .config-header-ref {
-        margin: 0.4rem 0 0;
-        font-size: 0.8rem;
-        line-height: 1.4;
-        font-style: italic;
-        color: var(--cfg-text-muted);
+      .config-header-docs {
+        margin: 0.45rem 0 0;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.3rem;
         text-align: left;
+      }
+
+      .config-header-docs-primary {
+        margin: 0;
+        font-size: 0.8125rem;
+        line-height: 1.45;
+        color: var(--cfg-text-muted);
+      }
+
+      .config-header-docs-secondary {
+        margin: 0;
+        font-size: 0.6875rem;
+        line-height: 1.4;
+        color: var(--cfg-text-muted);
+      }
+
+      .config-header-docs-secondary code {
+        font-size: 0.9em;
       }
 
       .config-header-doc-link {
         color: var(--cfg-accent);
-        font-weight: 500;
+        font-weight: 600;
         text-decoration: none;
       }
 
@@ -255,8 +257,15 @@
         gap: var(--cfg-space-md);
         margin-bottom: var(--cfg-space-md);
         min-width: 0;
-        animation: config-reveal var(--app-reveal-duration, 0.4s) var(--cfg-ease)
-          0.1s both;
+        animation: config-reveal var(--app-reveal-duration, 0.4s)
+          var(--cfg-ease) 0.1s both;
+      }
+
+      .config-cli-results-stack {
+        display: flex;
+        flex-direction: column;
+        gap: var(--cfg-space-md);
+        min-width: 0;
       }
 
       @media (min-width: 900px) {
@@ -265,28 +274,12 @@
           align-items: flex-start;
         }
         .config-policy-cli-row > #policy-card,
-        .config-policy-cli-row > #commands-card {
+        .config-policy-cli-row > .config-cli-results-stack {
           flex: 1;
           min-width: 0;
-          margin-bottom: 0;
         }
-      }
-
-      .config-results-row {
-        display: flex;
-        flex-direction: column;
-        gap: var(--cfg-space-md);
-        margin-bottom: var(--cfg-space-md);
-      }
-
-      @media (min-width: 900px) {
-        .config-results-row {
-          flex-direction: row;
-          align-items: flex-start;
-        }
-        .config-results-row > .config-card {
-          flex: 1;
-          min-width: 0;
+        .config-policy-cli-row > #policy-card,
+        .config-policy-cli-row > .config-cli-results-stack > .config-card {
           margin-bottom: 0;
         }
       }
@@ -618,7 +611,17 @@
       .result-found-stack {
         display: flex;
         flex-direction: column;
-        gap: var(--cfg-space-md);
+        gap: var(--cfg-space-sm);
+      }
+
+      .result-codes-section {
+        display: flex;
+        flex-direction: column;
+        gap: 0.28rem;
+      }
+
+      .result-codes-section .result-block-heading {
+        margin-bottom: 0;
       }
 
       .result-block-heading {
@@ -627,6 +630,42 @@
         font-size: 0.95rem;
         font-weight: 600;
         color: var(--cfg-text);
+      }
+
+      .result-neighbors-details {
+        margin-top: 0;
+        border: 1px solid var(--cfg-border);
+        border-radius: var(--cfg-radius-sm);
+        background: var(--cfg-surface);
+        overflow: hidden;
+      }
+
+      .result-neighbors-details > summary {
+        list-style-position: outside;
+        cursor: pointer;
+        padding: 0.55rem 0.75rem;
+        font-family: var(--cfg-font-display);
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: var(--cfg-text);
+        user-select: none;
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      .result-neighbors-details > summary::-webkit-details-marker {
+        color: var(--cfg-accent);
+      }
+
+      .result-neighbors-details[open] > summary {
+        border-bottom: 1px solid var(--cfg-border);
+        background: var(--cfg-secondary);
+      }
+
+      .result-neighbors-details .result-neighbors-list {
+        max-height: min(48vh, 280px);
+        overflow-y: auto;
+        padding: 0.5rem 0.65rem 0.65rem;
+        -webkit-overflow-scrolling: touch;
       }
 
       .result-neighbors-list {
@@ -667,68 +706,127 @@
         color: var(--cfg-text-muted);
       }
 
-      /* Found codes card — compact layout */
+      /* Found codes card — dense compact layout */
       #result-card.config-card {
-        padding: var(--cfg-space-sm) var(--cfg-space-md);
+        padding: 0.4rem 0.5rem 0.5rem;
+        margin-bottom: var(--cfg-space-sm);
       }
       #result-card > h2 {
-        margin-bottom: var(--cfg-space-xs);
+        margin: 0 0 0.15rem;
+        font-size: 0.78rem;
+        letter-spacing: 0.055em;
       }
       #result-card .result-found-stack {
-        gap: var(--cfg-space-sm);
+        gap: 0.3rem;
+      }
+      #result-card .result-codes-section {
+        gap: 0.15rem;
+      }
+      #result-card .result-codes-section .result-grid {
+        margin-top: 0;
       }
       #result-card .result-grid {
-        grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
-        gap: 0.4rem;
+        grid-template-columns: repeat(auto-fill, minmax(102px, 1fr));
+        gap: 0.28rem;
       }
       #result-card .result-item {
-        padding: 0.45rem 0.55rem;
+        padding: 0.32rem 0.42rem;
+        border-radius: 5px;
       }
       #result-card .result-item-hero {
-        padding: 0.55rem 0.65rem;
+        padding: 0.42rem 0.5rem;
       }
       #result-card .result-item-hero .result-item-value {
-        font-size: 0.95rem;
+        font-size: 0.88rem;
       }
       #result-card .result-item-label {
-        font-size: 0.62rem;
-        margin-bottom: 0.12rem;
-        letter-spacing: 0.04em;
+        font-size: 0.58rem;
+        margin-bottom: 0.06rem;
+        letter-spacing: 0.035em;
       }
       #result-card .result-item-value {
-        font-size: 0.78rem;
+        font-size: 0.7rem;
         font-weight: 600;
+        line-height: 1.25;
       }
       #result-card .result-block-heading {
-        margin: 0 0 0.3rem;
-        font-size: 0.75rem;
+        margin: 0;
+        font-size: 0.68rem;
         font-weight: 700;
         text-transform: uppercase;
-        letter-spacing: 0.05em;
+        letter-spacing: 0.045em;
         color: var(--cfg-text-muted);
+        line-height: 1.2;
       }
       #result-card .result-neighbors-list {
-        gap: 0.35rem;
+        gap: 0.28rem;
       }
       #result-card .result-neighbor-card {
-        padding: 0.45rem 0.55rem;
-        border-radius: 6px;
+        padding: 0.35rem 0.42rem;
+        border-radius: 5px;
       }
       #result-card .result-neighbor-title {
-        font-size: 0.78rem;
+        font-size: 0.72rem;
         font-weight: 600;
-        line-height: 1.3;
+        line-height: 1.25;
       }
       #result-card .result-neighbor-distance {
-        font-size: 0.68rem;
+        font-size: 0.62rem;
       }
       #result-card .result-muted-note {
-        font-size: 0.75rem;
-        line-height: 1.35;
+        font-size: 0.68rem;
+        line-height: 1.32;
+      }
+
+      #result-card .result-neighbors-details > summary {
+        font-size: 0.66rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.035em;
+        color: var(--cfg-text-muted);
+        padding: 0.3rem 0.42rem;
+      }
+
+      #result-card .result-neighbors-details[open] > summary {
+        color: var(--cfg-text);
+      }
+
+      #result-card .result-neighbors-details .result-neighbors-list {
+        max-height: min(38dvh, 200px);
+        padding: 0.3rem 0.38rem 0.42rem;
+      }
+
+      #result-card .result-neighbors-details > .result-muted-note {
+        margin: 0;
+        padding: 0.32rem 0.45rem 0.45rem;
+        line-height: 1.32;
+      }
+
+      /* CLI card — match result card density when visible */
+      #commands-card.config-card {
+        padding: 0.55rem 0.65rem 0.65rem;
+        margin-bottom: 0;
+      }
+      #commands-card > h2 {
+        margin-bottom: 0.25rem;
+      }
+      #commands-card .config-card-desc {
+        margin-bottom: 0.45rem;
+        font-size: 0.78rem;
+        line-height: 1.4;
+      }
+      #commands-card .commands-block {
+        padding: 0.55rem 0.65rem;
+        margin: 0;
+      }
+      #commands-card .copy-btn {
+        margin-top: 0.45rem;
+        min-height: 2.5rem;
       }
 
       .commands-block {
-        font-family: ui-monospace, "Cascadia Code", "Consolas", "Monaco", monospace;
+        font-family:
+          ui-monospace, "Cascadia Code", "Consolas", "Monaco", monospace;
         font-size: clamp(0.72rem, 2.8vw, 0.8rem);
         line-height: 1.55;
         background: linear-gradient(
@@ -786,160 +884,6 @@
         border-color: var(--app-success, #15803d);
         color: var(--app-success, #15803d);
         background: rgba(21, 128, 61, 0.08);
-      }
-
-      .cli-region-details {
-        margin-top: var(--cfg-space-md);
-        border: 1px solid var(--cfg-border);
-        border-radius: var(--cfg-radius);
-        background: rgba(252, 251, 248, 0.65);
-        overflow: hidden;
-        transition: border-color var(--cfg-ease), box-shadow var(--cfg-ease);
-      }
-
-      .cli-region-details:hover {
-        border-color: rgba(212, 160, 23, 0.2);
-      }
-
-      .cli-region-details[open] {
-        box-shadow: 0 2px 14px rgba(26, 25, 23, 0.05);
-      }
-
-      .cli-region-summary {
-        padding: var(--cfg-space-sm) var(--cfg-space-md);
-        font-weight: 600;
-        font-size: 0.8125rem;
-        min-height: 2.75rem;
-        box-sizing: border-box;
-        cursor: pointer;
-        list-style-position: outside;
-        margin: 0;
-        color: var(--cfg-text);
-        transition: background var(--cfg-ease);
-      }
-
-      .cli-region-summary::-webkit-details-marker {
-        color: var(--cfg-accent);
-      }
-
-      .cli-region-details[open] .cli-region-summary {
-        border-bottom: 1px solid var(--cfg-border);
-        background: linear-gradient(
-          180deg,
-          rgba(255, 255, 255, 0.5) 0%,
-          rgba(238, 237, 234, 0.45) 100%
-        );
-      }
-
-      .cli-region-reference {
-        padding: var(--cfg-space-md);
-        font-size: 0.8125rem;
-        line-height: 1.5;
-        color: var(--cfg-text);
-      }
-
-      .cli-region-reference p {
-        margin: 0 0 0.65rem;
-      }
-
-      .cli-region-reference p:last-child {
-        margin-bottom: 0;
-      }
-
-      .cli-region-table-wrap {
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
-        margin: 0.5rem 0 0.65rem;
-        border-radius: var(--cfg-radius-sm);
-      }
-
-      .cli-region-table {
-        width: 100%;
-        min-width: 18rem;
-        border-collapse: collapse;
-        font-size: 0.76rem;
-        margin: 0;
-      }
-
-      .cli-region-table th,
-      .cli-region-table td {
-        border: 1px solid var(--cfg-border);
-        padding: 0.45rem 0.55rem;
-        text-align: left;
-        vertical-align: top;
-      }
-
-      .cli-region-table th {
-        background: var(--cfg-surface);
-        font-weight: 600;
-        color: var(--cfg-text-muted);
-        font-size: 0.72rem;
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
-      }
-
-      .cli-region-table code {
-        font-size: 0.76rem;
-        word-break: break-all;
-      }
-
-      .cli-region-doc-link {
-        font-weight: 600;
-        color: var(--cfg-accent);
-        text-decoration: none;
-      }
-
-      .cli-region-doc-link:hover {
-        color: var(--cfg-accent-hover);
-        text-decoration: underline;
-      }
-
-      .cli-region-h4 {
-        margin: 1.15rem 0 0.45rem;
-        font-size: 0.82rem;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
-        color: var(--cfg-text-muted);
-      }
-
-      .cli-region-snippet {
-        margin: 0.35rem 0 0.75rem;
-        padding: 0.65rem 0.8rem;
-        font-size: 0.74rem;
-        line-height: 1.5;
-        font-family: "Consolas", "Monaco", "Courier New", monospace;
-        background: var(--cfg-surface);
-        border: 1px solid var(--cfg-border);
-        border-radius: var(--cfg-radius-sm);
-        overflow-x: auto;
-        white-space: pre;
-        tab-size: 2;
-      }
-
-      .cli-region-notes {
-        margin: 0 0 0.85rem;
-        padding-left: 1.25rem;
-        font-size: 0.84rem;
-        line-height: 1.5;
-      }
-
-      .cli-region-notes li {
-        margin-bottom: 0.3rem;
-      }
-
-      .cli-region-sub {
-        margin: 0.35rem 0 0.5rem;
-        font-size: 0.84rem;
-        font-weight: 600;
-        color: var(--cfg-text);
-      }
-
-      .cli-region-links {
-        display: flex;
-        flex-direction: column;
-        gap: 0.4rem;
-        margin-top: 0.75rem;
       }
 
       .config-footer {
@@ -1027,7 +971,8 @@
         display: flex;
         flex-direction: column;
         gap: var(--cfg-space-sm);
-        margin-bottom: var(--cfg-space-md);
+        margin-top: var(--cfg-space-md);
+        margin-bottom: 0;
         padding: var(--cfg-space-md);
         background: var(--cfg-secondary);
         border-radius: var(--cfg-radius-sm);
@@ -1035,27 +980,35 @@
       }
 
       .policy-quick-actions {
-        margin-bottom: var(--cfg-space-md);
-        padding: var(--cfg-space-md);
+        margin-bottom: var(--cfg-space-sm);
+        padding: var(--cfg-space-sm) var(--cfg-space-md);
         background: var(--cfg-secondary);
         border-radius: var(--cfg-radius-sm);
         border: 1px solid var(--cfg-border);
       }
 
       .policy-quick-actions-title {
-        margin: 0 0 0.5rem;
+        margin: 0 0 0.28rem;
         font-family: var(--cfg-font-display);
-        font-size: 0.78rem;
+        font-size: 0.7rem;
         font-weight: 700;
         text-transform: uppercase;
-        letter-spacing: 0.05em;
+        letter-spacing: 0.045em;
         color: var(--cfg-text-muted);
+        line-height: 1.2;
       }
 
       .policy-quick-actions .policy-global-actions {
         padding: 0;
         border: none;
         background: transparent;
+        gap: 0.26rem 0.42rem;
+      }
+
+      .policy-quick-actions .policy-global-btn {
+        font-size: 0.66rem;
+        padding: 0.26rem 0.48rem;
+        border-radius: 5px;
       }
 
       .policy-master {
@@ -1366,15 +1319,6 @@
         }
       }
 
-      @media (max-width: 900px) {
-        .config-wrap > #config-app {
-          order: 2;
-        }
-        .config-wrap > #policy-cli-row {
-          order: 3;
-        }
-      }
-
       @media (min-width: 901px) {
         .config-footer-iframe {
           height: min(52vh, 420px);
@@ -1422,11 +1366,11 @@
           min-height: 200px;
         }
         #result-card .result-grid {
-          grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-          gap: 0.32rem;
+          grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+          gap: 0.24rem;
         }
         #result-card .result-item {
-          padding: 0.38rem 0.45rem;
+          padding: 0.3rem 0.38rem;
         }
       }
 
@@ -1507,18 +1451,15 @@
     <div class="config-wrap">
       <div class="config-header">
         <div class="config-header-top">
-          <h1>
-            #BEmesh Regioncodes Configurator
-            <span class="config-badge">Under construction</span>
-          </h1>
+          <h1>#BEmesh region codes configurator</h1>
           <div class="config-header-links">
-            <a href="/" class="back-link">← Back to map</a>
+            <a href="/" class="back-link">← Map</a>
             <a href="/stats" class="back-link">Stats</a>
             <a
               href="/region-map"
               class="config-map-btn"
-              title="#BEmesh region map"
-              aria-label="#BEmesh region map"
+              title="Open region map (#BEmesh)"
+              aria-label="Open region map (#BEmesh)"
             >
               <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                 <path
@@ -1529,27 +1470,33 @@
           </div>
         </div>
         <p class="config-header-desc">
-          For the <strong>#BEmesh</strong> Belgian mesh: search your location
-          (<a
-            class="config-header-doc-link"
-            href="https://service.unece.org/trade/locode/be.htm"
-            target="_blank"
-            rel="noopener noreferrer"
-            >UN/LOCODE in Belgium</a
-          >) and generate MeshCore repeater CLI commands.
+          Search for your province or city to apply proper region scopes to your
+          repeater.
         </p>
-        <p class="config-header-ref">
-          Region command reference:
-          <a
-            class="config-header-doc-link"
-            href="https://github.com/meshcore-dev/MeshCore/blob/main/docs/cli_commands.md#region-management-v110"
-            target="_blank"
-            rel="noopener noreferrer"
-            >MeshCore CLI docs (region management)</a
-          >.
-        </p>
+        <nav class="config-header-docs" aria-label="Region documentation links">
+          <p class="config-header-docs-primary">
+            Visit Radio-Actief →
+            <a
+              class="config-header-doc-link"
+              href="https://docs.radio-actief.be/nl/MeshCore/RegioScopes"
+              target="_blank"
+              rel="noopener noreferrer"
+              >Region-Scope documentation</a
+            >
+          </p>
+          <p class="config-header-docs-secondary">
+            Official command syntax:
+            <a
+              class="config-header-doc-link"
+              href="https://github.com/meshcore-dev/MeshCore/blob/main/docs/cli_commands.md#region-management-v110"
+              target="_blank"
+              rel="noopener noreferrer"
+              >MeshCore <code>cli_commands.md</code> — region management</a
+            >
+          </p>
+        </nav>
         <div class="config-header-search">
-          <h2>Choose your location</h2>
+          <h2>Search country, province, or municipality</h2>
           <div class="search-wrap">
             <span class="search-icon" aria-hidden="true">
               <svg
@@ -1567,6 +1514,7 @@
               class="search-input"
               id="city-search"
               placeholder="Loading locations…"
+              aria-label="Search locations and region codes"
               autocomplete="off"
             />
             <div
@@ -1584,35 +1532,40 @@
           id="policy-card"
           aria-live="polite"
         >
-          <h2>Policy configuration</h2>
+          <h2>Flood policy</h2>
           <p class="config-card-desc">
-            Tick <strong>Allow</strong> or <strong>Deny</strong> for each area
-            to control flood traffic.
-            <span class="config-card-desc-tip"
-              >Tip: Leave on <strong>Defaults</strong> to start with a clean
-              slate. Eventually add neighboring provinces.</span
+            Tick <strong>Allow</strong> or <strong>Deny</strong> for
+            <strong>flood forwarding</strong> on each scope (see
+            <a
+              class="config-header-doc-link"
+              href="https://docs.radio-actief.be/nl/MeshCore/RegioScopes"
+              target="_blank"
+              rel="noopener noreferrer"
+              >Regio-scopes</a
             >
+            for <code>allowf</code> / <code>denyf</code>).
           </p>
-          <div class="policy-masters">
-            <label class="policy-master">
-              <input type="checkbox" id="policy-untagged-flood" checked />
-              <span
-                ><strong>Allow flood</strong> for traffic
-                <strong>without a region tag</strong>.
-                <strong>Keep checked by default</strong>. Uncheck only to block
-                all traffic on purpose, make sure your other allows cover what
-                you still need and your neighbouring repeaters use the same
-                policy. Else all packets will be dropped.</span
-              >
-            </label>
-          </div>
           <div class="policy-quick-actions">
             <h3 class="policy-quick-actions-title">Quick actions</h3>
             <div
               class="policy-global-actions"
               role="group"
-              aria-label="Quick actions — apply to every policy scope below"
+              aria-label="Apply to all policy scopes below"
             >
+              <button
+                type="button"
+                class="policy-global-btn"
+                data-global-bulk="defaults"
+              >
+                Defaults
+              </button>
+              <button
+                type="button"
+                class="policy-global-btn policy-global-btn--clear"
+                data-global-bulk="clear"
+              >
+                Clear all
+              </button>
               <button
                 type="button"
                 class="policy-global-btn"
@@ -1627,424 +1580,53 @@
               >
                 Deny all
               </button>
-              <button
-                type="button"
-                class="policy-global-btn policy-global-btn--clear"
-                data-global-bulk="clear"
-              >
-                Clear all
-              </button>
-              <button
-                type="button"
-                class="policy-global-btn"
-                data-global-bulk="defaults"
-              >
-                Defaults
-              </button>
             </div>
           </div>
           <div id="policy-grids-container" class="policy-grids-container"></div>
+          <div class="policy-masters">
+            <label class="policy-master">
+              <input type="checkbox" id="policy-untagged-flood" checked />
+              <span
+                ><strong>Allow flood without a region tag</strong> (wildcard
+                <code>*</code>). Leave on unless you deliberately block untagged
+                flood. If you turn it off, align with neighbouring repeaters and
+                keep enough <strong>Allow</strong> rows — otherwise packets can
+                be dropped.</span
+              >
+            </label>
+          </div>
         </div>
 
-        <div class="config-card result-section" id="commands-card">
-          <h2>Generated MeshCore CLI commands</h2>
-          <p class="config-card-desc">
-            Paste the block below into your repeater’s serial console.
-            <span class="config-card-desc-tip"
-              >Tip: You might need to paste one line at a time.</span
-            >
-          </p>
-          <pre class="commands-block" id="commands-block"></pre>
-          <button type="button" class="copy-btn" id="copy-btn">
-            Copy commands
-          </button>
+        <div class="config-cli-results-stack">
+          <div class="config-card result-section" id="commands-card">
+            <h2>MeshCore CLI output</h2>
+            <p class="config-card-desc">
+              Paste into your repeater serial console. The block ends with
+              <code>region save</code>. This output does not include
+              <code>region default</code> (not mapped here; see MeshCore
+              upstream <code>cli_commands.md</code> if you need it).
+              <span class="config-card-desc-tip"
+                >Some consoles only accept one line at a time.</span
+              >
+            </p>
+            <pre class="commands-block" id="commands-block"></pre>
+            <button type="button" class="copy-btn" id="copy-btn">
+              Copy commands
+            </button>
+          </div>
+          <div class="config-card result-section" id="result-card">
+            <h2>Codes for this selection</h2>
+            <div class="result-found-stack" id="result-grid"></div>
+          </div>
         </div>
       </div>
 
       <main id="config-app">
-        <div class="config-results-row">
-          <div class="config-card result-section" id="result-card">
-            <h2>Found codes</h2>
-            <div class="result-found-stack" id="result-grid"></div>
-          </div>
-        </div>
-
-        <div class="config-card" id="cli-reference-card">
-          <details class="cli-region-details">
-            <summary class="cli-region-summary">
-              Region CLI reference — tree, flood behaviour, inspection
-            </summary>
-            <div class="cli-region-reference">
-              <p>
-                Short guide for Belgian repeaters. Authoritative syntax and
-                notes:
-                <a
-                  class="cli-region-doc-link"
-                  href="https://github.com/meshcore-dev/MeshCore/blob/main/docs/cli_commands.md#region-management-v110"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  >MeshCore <code>cli_commands.md</code> — region management
-                  →</a
-                >. Use <code>be</code> / <code>be-*</code> / UN/LOCODE city
-                codes from this page for Belgium.
-              </p>
-              <h4 class="cli-region-h4">
-                Flood forwarding:
-                <code>region load</code> vs <code>allowf</code> /
-                <code>denyf</code>
-              </h4>
-              <p>
-                <strong>allowf / denyf</strong> control whether traffic for that
-                exact region name may use <strong>flood forwarding</strong>.
-                That is separate from building the tree with
-                <code>region put</code> or interactive <code>region load</code>.
-              </p>
-              <ul class="cli-region-notes">
-                <li>
-                  <strong><code>region load</code></strong> (interactive): a
-                  line may end with <code>F</code> to enable flood for that node
-                  while loading the tree.
-                </li>
-                <li>
-                  <strong
-                    ><code>region allowf</code> /
-                    <code>region denyf</code></strong
-                  >: set flood forwarding per region name once regions exist —
-                  the Allow / deny policy table on this page generates these
-                  lines only (not the <code>region load</code>
-                  <code>F</code> suffix).
-                </li>
-              </ul>
-              <p>
-                Full syntax and behaviour:
-                <a
-                  class="cli-region-doc-link"
-                  href="https://github.com/meshcore-dev/MeshCore/blob/main/docs/cli_commands.md#region-management-v110"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  >MeshCore <code>cli_commands.md</code> — region management
-                  →</a
-                >.
-              </p>
-
-              <h4 class="cli-region-h4">
-                Practice: region &amp; message scope
-              </h4>
-              <p>
-                Naming and scopes follow MeshCore region semantics (see upstream
-                docs). <strong>This configurator targets Belgium only</strong> —
-                use the generated <code>be</code> tree (provinces such as
-                <code>be-vbr</code> or <code>be-bru</code>, cities as UN/LOCODE
-                such as <code>beleu</code>).
-              </p>
-              <ul class="cli-region-notes">
-                <li>
-                  Follow international conventions: country code, province, city
-                  (UN/LOCODE); optional broader “area” codes where used.
-                </li>
-                <li>
-                  Messages <strong>without</strong> a scope are often tied to
-                  wildcard <code>*</code> — keep <code>allowf *</code> for
-                  compatibility while you add specific regions (see MeshCore
-                  docs).
-                </li>
-                <li>
-                  Configure at least your province layer and
-                  <code>allowf</code> for scopes you want to forward; border
-                  repeaters can add neighbouring provinces (same idea as the
-                  neighbour lists in this tool).
-                </li>
-                <li>
-                  Some firmware builds recommend a <strong>reboot</strong> after
-                  region changes — follow your device notes.
-                </li>
-              </ul>
-              <p>
-                For Belgium, rely on the <code>be-*</code> structure from the
-                generator and command block on this page.
-              </p>
-
-              <div class="cli-region-table-wrap">
-                <table class="cli-region-table">
-                  <thead>
-                    <tr>
-                      <th>Command</th>
-                      <th>Description</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td><code>region</code></td>
-                      <td>
-                        Show region tree and flood flags (older firmware: serial
-                        dump only).
-                      </td>
-                    </tr>
-                    <tr>
-                      <td><code>region put &lt;name&gt; [parent]</code></td>
-                      <td>
-                        Create a region; optional parent (defaults to wildcard).
-                      </td>
-                    </tr>
-                    <tr>
-                      <td><code>region remove &lt;name&gt;</code></td>
-                      <td>
-                        Remove a leaf region (no children; remove children
-                        first).
-                      </td>
-                    </tr>
-                    <tr>
-                      <td><code>region allowf &lt;name&gt;</code></td>
-                      <td>
-                        Allow <strong>flood forwarding</strong> for this exact
-                        region name. <code>allowf *</code>: behaviour for
-                        <code>ROUTE_TYPE_FLOOD</code> packets
-                        <strong>without</strong> region transport codes (see
-                        below).
-                      </td>
-                    </tr>
-                    <tr>
-                      <td><code>region denyf &lt;name&gt;</code></td>
-                      <td>
-                        Deny flood forwarding (default for new regions).
-                        <code>denyf *</code>: drop those untagged flood packets.
-                      </td>
-                    </tr>
-                    <tr>
-                      <td><code>region home &lt;name&gt;</code></td>
-                      <td>
-                        Set home region (often shown with <code>^</code> in the
-                        tree).
-                      </td>
-                    </tr>
-                    <tr>
-                      <td><code>region get &lt;name&gt;</code></td>
-                      <td>Show details for one region.</td>
-                    </tr>
-                    <tr>
-                      <td><code>region list allowed</code></td>
-                      <td>
-                        List regions that allow flood (serial-only; firmware ≥
-                        1.12).
-                      </td>
-                    </tr>
-                    <tr>
-                      <td><code>region list denied</code></td>
-                      <td>
-                        List regions that deny flood (serial-only; firmware ≥
-                        1.12).
-                      </td>
-                    </tr>
-                    <tr>
-                      <td><code>region save</code></td>
-                      <td>Persist region changes to flash.</td>
-                    </tr>
-                    <tr>
-                      <td><code>region load</code></td>
-                      <td>
-                        Start interactive multi-line mode: tree by indentation,
-                        optional <code>F</code> suffix per line for flood on
-                        that node. Blank line ends session. Empty name not
-                        usable remotely.
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-
-              <h4 class="cli-region-h4">
-                Example configuration (Belgian codes)
-              </h4>
-              <p class="cli-region-sub">CLI input</p>
-              <pre class="cli-region-snippet">
-region put be
-region put be-vbr be
-region put be-vov be
-region put beleu be-vbr
-region allowf be
-region allowf be-vbr
-region allowf beleu
-region save</pre
-              >
-              <p class="cli-region-sub">Resulting tree (<code>region</code>)</p>
-              <pre class="cli-region-snippet">
-* F
- be F
-  be-vbr F
-   beleu F
-  be-vov</pre
-              >
-              <ul class="cli-region-notes">
-                <li>
-                  <code>*</code> is the wildcard root; <code>F</code> after a
-                  name means flood is <strong>allowed</strong> for that region.
-                </li>
-                <li>
-                  <code>be-vov</code> (example East Flanders) has no
-                  <code>F</code> here — flood denied unless you add
-                  <code>allowf</code>.
-                </li>
-                <li>
-                  <code>be</code>, <code>be-vbr</code>, and <code>beleu</code>
-                  allow flood in this sketch.
-                </li>
-              </ul>
-
-              <h4 class="cli-region-h4">
-                The wildcard region (<code>*</code>)
-              </h4>
-              <p>
-                The <code>*</code> region controls packets that use
-                <strong>ROUTE_TYPE_FLOOD</strong>
-                <strong>without</strong> region transport codes:
-              </p>
-              <ul class="cli-region-notes">
-                <li>
-                  <code>region allowf *</code> — forward those untagged flood
-                  packets (common default).
-                </li>
-                <li>
-                  <code>region denyf *</code> — drop all untagged flood packets.
-                </li>
-              </ul>
-
-              <h4 class="cli-region-h4">Important behaviour</h4>
-              <p class="cli-region-sub">Flat matching (no routing hierarchy)</p>
-              <p>
-                Despite parent-child <strong>display</strong> in the tree,
-                matching is <strong>flat</strong>: a packet tagged
-                <code>beleu</code> does <strong>not</strong> automatically match
-                <code>be-vbr</code> for routing, even if <code>be-vbr</code> is
-                the parent of <code>beleu</code> in the tree.
-              </p>
-              <p>
-                The parent argument to <code>region put</code> mainly affects:
-              </p>
-              <ul class="cli-region-notes">
-                <li>Tree layout in <code>region</code> output;</li>
-                <li>
-                  Removal rules (cannot <code>remove</code> a node that still
-                  has children);
-                </li>
-                <li><code>region get</code> output.</li>
-              </ul>
-              <p>It does <strong>not</strong> change packet routing logic.</p>
-
-              <p class="cli-region-sub">Default deny (flood)</p>
-              <p>
-                New regions start with flood denied. Use
-                <code>region allowf &lt;name&gt;</code> (or a line ending in
-                <code>F</code> during <code>region load</code>) to allow flood
-                forwarding for that name.
-              </p>
-
-              <p class="cli-region-sub">Persistence</p>
-              <p>
-                Regions are stored on device flash (e.g. under
-                <code>/regions2</code>). Run <code>region save</code> after
-                changes — otherwise they are lost on reboot.
-              </p>
-
-              <h4 class="cli-region-h4">Firmware memory limits</h4>
-              <ul class="cli-region-notes">
-                <li>
-                  At most <strong>32</strong> regions per repeater
-                  (<code>MAX_REGION_ENTRIES</code>).
-                </li>
-                <li>Region names up to <strong>30</strong> characters.</li>
-                <li>
-                  <strong>16</strong> cached transport keys
-                  (<code>MAX_TKS_ENTRIES</code>).
-                </li>
-              </ul>
-
-              <h4 class="cli-region-h4">Practical use cases</h4>
-              <p class="cli-region-sub">Geographic scoping (Belgium)</p>
-              <pre class="cli-region-snippet">
-region put be
-region put be-vbr be
-region put be-vov be
-region allowf be-vbr
-region save</pre
-              >
-              <p>
-                This repeater only allows flood for <code>be-vbr</code>; traffic
-                tagged for <code>be-vov</code> does not burden this node. Add
-                provinces and cities from the Found codes section as needed.
-              </p>
-
-              <p class="cli-region-sub">Topic-style channels</p>
-              <pre class="cli-region-snippet">
-region put emergencies
-region put chat
-region put weather
-region allowf emergencies
-region allowf weather
-region save</pre
-              >
-              <p>
-                Forward only selected topics (here: emergencies and weather, not
-                general chat). Use names agreed within your mesh community.
-              </p>
-
-              <p class="cli-region-sub">Private networks</p>
-              <pre class="cli-region-snippet">
-region put $company
-region allowf $company</pre
-              >
-              <p>
-                Private regions (<code>$name</code>) need keystore support;
-                firmware may still be incomplete — check MeshCore source and
-                release notes.
-              </p>
-
-              <h4 class="cli-region-h4">Limitations</h4>
-              <ul class="cli-region-notes">
-                <li>
-                  <strong>16-bit transport codes</strong> — collisions are
-                  theoretically possible; HMAC makes deliberate collisions
-                  infeasible.
-                </li>
-                <li>
-                  <strong>No hierarchical matching</strong> — parent-child is
-                  cosmetic (see flat matching above).
-                </li>
-                <li>
-                  <strong>Private regions</strong> (<code>$name</code>) —
-                  keystore not fully complete on all builds; check firmware.
-                </li>
-                <li>
-                  <strong>Static configuration</strong> — per repeater via CLI;
-                  no automatic discovery or sync.
-                </li>
-              </ul>
-
-              <div class="cli-region-links">
-                <a
-                  class="cli-region-doc-link"
-                  href="https://github.com/meshcore-dev/MeshCore/blob/main/docs/cli_commands.md"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  >MeshCore — full CLI command reference
-                  (<code>cli_commands.md</code>) →</a
-                >
-                <a
-                  class="cli-region-doc-link"
-                  href="https://github.com/meshcore-dev/MeshCore/blob/main/docs/cli_commands.md#region-management-v110"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  >MeshCore — region management section →</a
-                >
-              </div>
-            </div>
-          </details>
-        </div>
-
         <footer class="config-footer">
           <h3>#BEmesh region map</h3>
           <p class="config-footer-desc">
-            Type a region code below to highlight matching places across Belgium
-            (same codes as in the CLI block above).
+            Same <code>be</code> / <code>be-*</code> / municipality codes as
+            above — search the map to cross-check names and coordinates.
           </p>
           <a
             href="/region-map"
@@ -2057,7 +1639,7 @@ region allowf $company</pre
           <div class="config-footer-embed">
             <iframe
               src="/region-map"
-              title="#BEmesh region map"
+              title="#BEmesh region map (embedded)"
               class="config-footer-iframe"
             ></iframe>
           </div>
@@ -2077,14 +1659,13 @@ region allowf $company</pre
             var inp = document.getElementById("city-search");
             if (inp)
               inp.placeholder =
-                "Type to search (e.g. Vilvoorde, Ghent, Brussels…)";
+                "Try Vlaams-Brabant, be-vbr, België, or a municipality…";
           })
           .catch(function () {
             CITIES = [];
             var inp = document.getElementById("city-search");
             if (inp)
-              inp.placeholder =
-                "Could not load locations. Please try again later.";
+              inp.placeholder = "Could not load locations — try again later.";
           });
 
         const PROVINCE_NAMES = {
@@ -2101,6 +1682,47 @@ region allowf $company</pre
           "be-wlx": "Luxemburg",
         };
 
+        /**
+         * Land borders between Belgian provinces (ISO 3166-2:BE MeshCore codes).
+         * Used for neighbour-province policy rows instead of centroid + radius,
+         * which missed real borders (e.g. West Flanders ↔ East Flanders).
+         */
+        const PROVINCE_ADJACENCY = {
+          "be-van": ["be-vbr", "be-vov", "be-vli"],
+          "be-vbr": [
+            "be-van",
+            "be-vli",
+            "be-vov",
+            "be-wbr",
+            "be-bru",
+            "be-wht",
+            "be-wlg",
+          ],
+          "be-vov": ["be-vwv", "be-van", "be-vbr", "be-vli", "be-wht"],
+          "be-vwv": ["be-vov", "be-wht"],
+          "be-vli": ["be-van", "be-vbr", "be-vov", "be-wlg"],
+          "be-bru": ["be-vbr", "be-wbr"],
+          "be-wbr": ["be-vbr", "be-bru", "be-wht", "be-wna", "be-wlg"],
+          "be-wht": [
+            "be-vwv",
+            "be-vov",
+            "be-vbr",
+            "be-wbr",
+            "be-wna",
+            "be-wlg",
+          ],
+          "be-wlg": [
+            "be-vli",
+            "be-vbr",
+            "be-wbr",
+            "be-wna",
+            "be-wlx",
+            "be-wht",
+          ],
+          "be-wna": ["be-wbr", "be-wht", "be-wlg", "be-wlx"],
+          "be-wlx": ["be-wna", "be-wlg"],
+        };
+
         const input = document.getElementById("city-search");
         const dropdown = document.getElementById("city-dropdown");
         const resultCard = document.getElementById("result-card");
@@ -2113,11 +1735,75 @@ region allowf $company</pre
           "policy-grids-container",
         );
 
+        let selectionMode = "none";
+        let selectedProvinceCode = null;
         let selectedCity = null;
         let activeIndex = -1;
         let lastMatches = [];
         let lastNeighbors = [];
         let lastHasCoords = false;
+
+        function provinceCentroid(pc) {
+          let sumLat = 0;
+          let sumLon = 0;
+          let n = 0;
+          for (let i = 0; i < CITIES.length; i++) {
+            const r = CITIES[i];
+            if (r.province_code !== pc) continue;
+            if (
+              r.lat == null ||
+              r.lon == null ||
+              !Number.isFinite(r.lat) ||
+              !Number.isFinite(r.lon)
+            )
+              continue;
+            sumLat += r.lat;
+            sumLon += r.lon;
+            n++;
+          }
+          if (!n) return { lat: 50.5, lon: 4.35 };
+          return { lat: sumLat / n, lon: sumLon / n };
+        }
+
+        function getAnchor() {
+          if (selectionMode === "city" && selectedCity)
+            return {
+              mode: "city",
+              province_code: selectedCity.province_code,
+              row: selectedCity,
+            };
+          if (selectionMode === "province" && selectedProvinceCode)
+            return {
+              mode: "province",
+              province_code: selectedProvinceCode,
+              row: null,
+            };
+          if (selectionMode === "country")
+            return { mode: "country", province_code: null, row: null };
+          return null;
+        }
+
+        function neighborSeedRow(anchor) {
+          if (!anchor) return null;
+          if (anchor.mode === "city" && anchor.row) return anchor.row;
+          if (anchor.mode === "province") {
+            const c = provinceCentroid(anchor.province_code);
+            return {
+              lat: c.lat,
+              lon: c.lon,
+              province_code: anchor.province_code,
+              city_code: "__province_centroid__",
+              plaats: "",
+            };
+          }
+          return {
+            lat: 50.5,
+            lon: 4.35,
+            province_code: "be-vbr",
+            city_code: "__be_centroid__",
+            plaats: "",
+          };
+        }
 
         function normalize(s) {
           return (s || "")
@@ -2126,15 +1812,77 @@ region allowf $company</pre
             .replace(/[\u0300-\u036f]/g, "");
         }
 
-        function filterCities(query) {
+        function cityMatchesQuery(c, q) {
+          if (
+            normalize(c.plaats).includes(q) ||
+            normalize(c.gemeente).includes(q) ||
+            normalize(c.city_code).includes(q)
+          )
+            return true;
+          const al = c.search_aliases;
+          if (!al || !Array.isArray(al) || !al.length) return false;
+          for (let i = 0; i < al.length; i++) {
+            if (normalize(al[i]).includes(q)) return true;
+          }
+          return false;
+        }
+
+        function filterLocationChoices(query) {
           if (!query || query.length < 2) return [];
           const q = normalize(query);
-          return CITIES.filter(
-            (c) =>
-              normalize(c.plaats).includes(q) ||
-              normalize(c.gemeente).includes(q) ||
-              normalize(c.city_code).includes(q),
-          ).slice(0, 16);
+          const out = [];
+          const seen = new Set();
+
+          const belMatch =
+            q === "be" ||
+            normalize("belgium").includes(q) ||
+            normalize("belgie").includes(q) ||
+            normalize("belgië").includes(q) ||
+            normalize("belgique").includes(q);
+          if (belMatch) {
+            out.push({
+              type: "country",
+              code: "be",
+              label: "België (be) · country",
+            });
+            seen.add("__country_be__");
+          }
+
+          const provKeys = Object.keys(PROVINCE_NAMES);
+          for (let pi = 0; pi < provKeys.length; pi++) {
+            if (out.length >= 16) break;
+            const pc = provKeys[pi];
+            const pn = PROVINCE_NAMES[pc];
+            if (normalize(pc).includes(q) || normalize(pn).includes(q)) {
+              if (seen.has("p:" + pc)) continue;
+              seen.add("p:" + pc);
+              out.push({
+                type: "province",
+                code: pc,
+                label: pn + " (" + pc + ") · province",
+              });
+            }
+          }
+
+          for (let ci = 0; ci < CITIES.length && out.length < 16; ci++) {
+            const c = CITIES[ci];
+            if (cityMatchesQuery(c, q)) {
+              if (seen.has("c:" + c.city_code)) continue;
+              seen.add("c:" + c.city_code);
+              out.push({
+                type: "place",
+                code: c.city_code,
+                row: c,
+                label:
+                  c.plaats +
+                  " (" +
+                  c.city_code +
+                  ") · " +
+                  (PROVINCE_NAMES[c.province_code] || c.province_code),
+              });
+            }
+          }
+          return out;
         }
 
         function renderDropdown(matches) {
@@ -2144,24 +1892,35 @@ region allowf $company</pre
             return;
           }
           dropdown.innerHTML = matches
-            .map(
-              (c, i) => `
-            <div class="search-dropdown-item" data-index="${i}">
-              <span class="search-dropdown-place">${escapeHtml(c.plaats)}</span>
-              <small><span class="search-dropdown-code">${escapeHtml(c.city_code)}</span> · ${escapeHtml(PROVINCE_NAMES[c.province_code] || c.province_code)}</small>
-            </div>
-          `,
-            )
+            .map(function (item, i) {
+              const safeLabel = escapeHtml(item.label || "");
+              return (
+                '<div class="search-dropdown-item" data-index="' +
+                i +
+                '" data-choice-type="' +
+                escapeHtml(item.type) +
+                '">' +
+                '<span class="search-dropdown-place">' +
+                safeLabel +
+                "</span></div>"
+              );
+            })
             .join("");
           dropdown.style.display = "block";
           activeIndex = 0;
           dropdown
             .querySelectorAll(".search-dropdown-item")
-            .forEach((el, i) => {
+            .forEach(function (el, i) {
               el.classList.toggle("active", i === 0);
-              el.addEventListener("click", () =>
-                selectCity(lastMatches[parseInt(el.dataset.index, 10)]),
-              );
+              el.addEventListener("click", function () {
+                const idx = parseInt(el.dataset.index, 10);
+                const item = lastMatches[idx];
+                if (!item) return;
+                if (item.type === "country") selectCountryBe();
+                else if (item.type === "province") selectProvince(item.code);
+                else if (item.type === "place" && item.row)
+                  selectCity(item.row);
+              });
             });
         }
 
@@ -2187,7 +1946,7 @@ region allowf $company</pre
 
         /** Max distance (km) for neighbouring municipalities / province hints. */
         const NEIGHBOR_RADIUS_KM = 25;
-        /** Max municipality rows in the policy scope (Found codes lists all within radius). */
+        /** Max municipality rows in the policy scope (codes panel lists the full radius). */
         const NEIGHBOR_SCOPE_MAX_CITIES = 10;
 
         /**
@@ -2264,10 +2023,19 @@ region allowf $company</pre
           );
         }
 
-        const SUPER_REGION_CLI = [
-          ["Region (CLI)", "European Union", "eu"],
-          ["Region (CLI)", "Benelux", "bx"],
-        ];
+        function chosenLocationRowsFromAnchor(anchor) {
+          if (!anchor) return "";
+          if (anchor.mode === "country")
+            return resultRow("Country", "België", "be");
+          if (anchor.mode === "province" && anchor.province_code) {
+            const n =
+              PROVINCE_NAMES[anchor.province_code] || anchor.province_code;
+            return resultRow("Province", n, anchor.province_code);
+          }
+          if (anchor.mode === "city" && anchor.row)
+            return chosenLocationRowsHTML(anchor.row);
+          return "";
+        }
 
         const COUNTRY_CLI = [
           ["Country (CLI)", "Netherlands", "nl"],
@@ -2361,7 +2129,7 @@ region allowf $company</pre
          * selected home city and home province so region put lines follow home
          * Allow checkboxes only.
          */
-        function expandRegionNeeded(needed, homeCity) {
+        function expandRegionNeeded(needed, anchor) {
           let changed = true;
           while (changed) {
             changed = false;
@@ -2370,14 +2138,23 @@ region allowf $company</pre
               const c = snap[i];
               const row = findCityByCode(c);
               if (row) {
-                const isHomeCity = homeCity && c === homeCity.city_code;
+                const isHomeCity =
+                  anchor &&
+                  anchor.mode === "city" &&
+                  anchor.row &&
+                  c === anchor.row.city_code;
                 if (!isHomeCity) {
                   if (addRegionCode(needed, row.province_code)) changed = true;
                   if (addRegionCode(needed, "be")) changed = true;
                 }
               }
               if (Object.prototype.hasOwnProperty.call(PROVINCE_NAMES, c)) {
-                const isHomeProv = homeCity && c === homeCity.province_code;
+                const isHomeProv =
+                  anchor &&
+                  ((anchor.mode === "city" &&
+                    anchor.row &&
+                    c === anchor.row.province_code) ||
+                    (anchor.mode === "province" && c === anchor.province_code));
                 if (!isHomeProv) {
                   if (addRegionCode(needed, "be")) changed = true;
                 }
@@ -2409,7 +2186,7 @@ region allowf $company</pre
           return null;
         }
 
-        function buildOrderedRegionPutLines(needed, homeCity) {
+        function buildOrderedRegionPutLines(needed, homeCityRow) {
           const lines = [];
           const structured = new Set();
 
@@ -2453,7 +2230,8 @@ region allowf $company</pre
           needed.forEach(function (c) {
             if (structured.has(c)) return;
             let row = findCityByCode(c);
-            if (!row && homeCity && c === homeCity.city_code) row = homeCity;
+            if (!row && homeCityRow && c === homeCityRow.city_code)
+              row = homeCityRow;
             if (row) {
               cityRows.push({ code: c, prov: row.province_code });
             }
@@ -2607,18 +2385,29 @@ region allowf $company</pre
         }
 
         /**
-         * Default region home when Home override is off: the smallest (most
-         * specific) home scope with Allow checked — municipality, else province,
-         * else Belgium (be). If none of those are allowed, use *.
+         * Default region home when Home override is off: smallest Allow in home
+         * table — city (only in city mode), province, then be. Country-only: be.
          */
-        function deepestAllowedHomeRegionCode(city) {
-          if (!city) return "*";
+        function deepestAllowedHomeRegionCode(anchor) {
+          if (!anchor) return "*";
           const home = policyCard
             ? policyCard.querySelector(
                 '.policy-subsection[data-policy-scope="home"]',
               )
             : null;
-          const chain = [city.city_code, city.province_code, "be"];
+          if (anchor.mode === "country") {
+            if (homeAllowChecked(home, "be")) return "be";
+            return "*";
+          }
+          const chain = [];
+          if (anchor.mode === "city" && anchor.row && anchor.row.city_code)
+            chain.push(anchor.row.city_code);
+          const pc =
+            anchor.mode === "province"
+              ? anchor.province_code
+              : anchor.row && anchor.row.province_code;
+          if (pc) chain.push(pc);
+          chain.push("be");
           for (let i = 0; i < chain.length; i++) {
             if (homeAllowChecked(home, chain[i])) return chain[i];
           }
@@ -2626,7 +2415,7 @@ region allowf $company</pre
         }
 
         /**
-         * Repopulate the home-override dropdown: No home, Select…, every
+         * Repopulate the home-override dropdown: No home, Default, every
          * Allow-checked scope, plus * (wildcard root). Option text shows full name
          * in brackets where known.
          */
@@ -2653,7 +2442,7 @@ region allowf $company</pre
           sel.innerHTML = "";
           const opt0 = document.createElement("option");
           opt0.value = "";
-          opt0.textContent = "Select…";
+          opt0.textContent = "Default";
           sel.appendChild(opt0);
           const optNoHome = document.createElement("option");
           optNoHome.value = HOME_OVERRIDE_OMIT;
@@ -2680,7 +2469,7 @@ region allowf $company</pre
          * Override off, or on with empty select → automatic smallest home Allow, else *.
          * Override on with "No home" → omit line. Override on with a code → that code.
          */
-        function regionHomeLineForCli(city) {
+        function regionHomeLineForCli(anchor) {
           const ov = document.getElementById("policy-home-override");
           if (ov && ov.checked) {
             const sel = document.getElementById("policy-home-override-select");
@@ -2689,11 +2478,11 @@ region allowf $company</pre
               return null;
             }
             if (!v) {
-              return "region home " + deepestAllowedHomeRegionCode(city);
+              return "region home " + deepestAllowedHomeRegionCode(anchor);
             }
             return "region home " + v;
           }
-          return "region home " + deepestAllowedHomeRegionCode(city);
+          return "region home " + deepestAllowedHomeRegionCode(anchor);
         }
 
         /**
@@ -2701,16 +2490,26 @@ region allowf $company</pre
          * matching home row (be / province / place) has Allow or Deny checked.
          * Otherwise the whole subsection is hidden and its checkboxes cleared.
          */
-        function applyNeighborPolicyGating(city) {
-          if (!policyCard || !city) return;
+        function applyNeighborPolicyGating(anchor) {
+          if (!policyCard || !anchor) return;
           const home = policyCard.querySelector(
             '.policy-subsection[data-policy-scope="home"]',
           );
           if (!home) return;
 
           const gateCountry = homeAllowOrDenyChecked(home, "be");
-          const gateProvince = homeAllowOrDenyChecked(home, city.province_code);
-          const gateCity = homeAllowOrDenyChecked(home, city.city_code);
+          const provCode =
+            anchor.mode === "province"
+              ? anchor.province_code
+              : anchor.row
+                ? anchor.row.province_code
+                : null;
+          const gateProvince =
+            !!provCode && homeAllowOrDenyChecked(home, provCode);
+          const gateCity =
+            anchor.mode === "city" &&
+            anchor.row &&
+            homeAllowOrDenyChecked(home, anchor.row.city_code);
 
           const tiers = [
             ["neighbor-municipalities", gateCity],
@@ -2762,7 +2561,8 @@ region allowf $company</pre
 
         function finalizePolicyUiChange() {
           if (!policyCard) return;
-          if (selectedCity) applyNeighborPolicyGating(selectedCity);
+          const anchor = getAnchor();
+          if (anchor) applyNeighborPolicyGating(anchor);
           policyCard
             .querySelectorAll(".policy-subsection")
             .forEach(syncScopeMasters);
@@ -2774,13 +2574,19 @@ region allowf $company</pre
          * @param {{ c: object, km: number }[]} neighborsRadius — all within radius; provinces + empty checks
          */
         function renderPolicyGrids(
-          city,
+          anchor,
           neighborsScope,
           neighborsRadius,
           hasCoords,
         ) {
-          if (!policyGridsContainer) return;
+          if (!policyGridsContainer || !anchor) return;
           let html = "";
+          const homeProvinceCode =
+            anchor.mode === "province"
+              ? anchor.province_code
+              : anchor.row
+                ? anchor.row.province_code
+                : null;
           function addSubsection(title, rows, emptyNote, scopeKey, opts) {
             opts = opts || {};
             const skipIfEmpty = !!opts.skipIfEmpty;
@@ -2800,7 +2606,7 @@ region allowf $company</pre
                 "</h3></div>";
               html +=
                 '<p class="result-muted-note policy-empty">' +
-                escapeHtml(emptyNote || "No items.") +
+                escapeHtml(emptyNote || "Nothing to list here.") +
                 "</p></div>";
               return;
             }
@@ -2818,7 +2624,7 @@ region allowf $company</pre
               '<div class="policy-head-clear-wrap" role="columnheader">' +
               '<button type="button" class="policy-head-clear-link" data-bulk="clear" aria-label="' +
               escapeHtml(title + " — clear all checkboxes in this scope") +
-              '" title="Clear all Allow/Deny in this scope">Clear scope</button>' +
+              '" title="Clear Allow and Deny in this scope">Clear scope</button>' +
               "</div>" +
               '<div class="policy-head-col" role="columnheader">' +
               '<span class="policy-head-label">Allow</span>' +
@@ -2849,63 +2655,86 @@ region allowf $company</pre
                 "<span>Home override</span></label>" +
                 '<p class="policy-home-override-hint">' +
                 escapeHtml(
-                  "When enabled: No home omits the region home command; Select… uses automatic home (smallest Allow in the table above); or pick any Allow-checked scope (or *). Names in brackets are display only.",
+                  "By default, region home is the smallest scope with Allow checked in the table above. Check Home override if you want a different target.",
                 ) +
                 "</p>" +
                 '<label class="policy-home-override-select-label" for="policy-home-override-select">' +
-                "Region for region home</label>" +
+                "Target for region home</label>" +
                 '<select id="policy-home-override-select" class="policy-home-override-select" disabled aria-label="Override region home code">' +
-                '<option value="">Select…</option>' +
+                '<option value="">Default</option>' +
                 "</select></div>";
             }
             html += "</div>";
           }
 
-          addSubsection(
-            "Home: country \u2192 province \u2192 place",
-            [
-              { label: "Belgium (be)", code: "be", allow: true },
-              {
-                label:
-                  escapeHtml(
-                    PROVINCE_NAMES[city.province_code] || city.province_code,
-                  ) +
-                  " (" +
-                  escapeHtml(city.province_code) +
-                  ")",
-                code: city.province_code,
-                allow: true,
-              },
-              {
-                label:
-                  escapeHtml(city.plaats) +
-                  " (" +
-                  escapeHtml(city.city_code) +
-                  ")",
-                code: city.city_code,
-                allow: false,
-              },
-            ],
-            undefined,
-            "home",
-            { homeOverrideFooter: true },
-          );
+          const homeRows = [{ label: "Belgium (be)", code: "be", allow: true }];
+          let homeTitle = "Home scopes: country \u2192 province";
+          if (anchor.mode === "country") {
+            /* only be */
+          } else if (anchor.mode === "province" && anchor.province_code) {
+            const pc = anchor.province_code;
+            homeRows.push({
+              label:
+                escapeHtml(PROVINCE_NAMES[pc] || pc) +
+                " (" +
+                escapeHtml(pc) +
+                ")",
+              code: pc,
+              allow: true,
+            });
+          } else if (anchor.mode === "city" && anchor.row) {
+            const city = anchor.row;
+            homeTitle += " \u2192 municipality (UN/LOCODE)";
+            homeRows.push({
+              label:
+                escapeHtml(
+                  PROVINCE_NAMES[city.province_code] || city.province_code,
+                ) +
+                " (" +
+                escapeHtml(city.province_code) +
+                ")",
+              code: city.province_code,
+              allow: true,
+            });
+            homeRows.push({
+              label:
+                escapeHtml(city.plaats) +
+                " (" +
+                escapeHtml(city.city_code) +
+                ")",
+              code: city.city_code,
+              allow: false,
+            });
+          }
+
+          addSubsection(homeTitle, homeRows, undefined, "home", {
+            homeOverrideFooter: true,
+          });
 
           const nEmptyGeo = !hasCoords
             ? "No coordinates for this location."
             : !neighborsRadius.length
-              ? "No other places within ~" +
-                NEIGHBOR_RADIUS_KM +
-                " km with coordinates in the dataset."
+              ? "No other mapped places within ~" + NEIGHBOR_RADIUS_KM + " km."
               : "";
 
-          const npCodes =
-            neighborsRadius.length > 0
-              ? neighborProvincesFromNeighbors(
-                  neighborsRadius,
-                  city.province_code,
-                )
-              : [];
+          const npCodes = neighborProvincesFromNeighbors(
+            neighborsRadius,
+            homeProvinceCode,
+          );
+
+          const munNoteCity =
+            escapeHtml(
+              "Shows the nearest " +
+                NEIGHBOR_SCOPE_MAX_CITIES +
+                " municipalities within ~" +
+                NEIGHBOR_RADIUS_KM +
+                " km. See ",
+            ) +
+            "<code>Codes for this selection</code>" +
+            escapeHtml(" for the full list inside that radius.");
+          const munNoteProv = escapeHtml(
+            "Optional: pick a municipality to populate distance-based neighbours. Province-only setups can skip this.",
+          );
 
           addSubsection(
             "Neighbouring municipalities (by place)",
@@ -2925,27 +2754,16 @@ region allowf $company</pre
                   };
                 })
               : [],
-            nEmptyGeo || "No neighbouring municipalities in the dataset.",
+            nEmptyGeo || "No neighbouring municipalities in the dataset yet.",
             "neighbor-municipalities",
             {
-              skipIfEmpty: true,
-              subNoteHtml:
-                escapeHtml(
-                  "Nearest " +
-                    NEIGHBOR_SCOPE_MAX_CITIES +
-                    " municipalities within ~" +
-                    NEIGHBOR_RADIUS_KM +
-                    " km. Scroll down to the ",
-                ) +
-                "<code>Found codes</code>" +
-                escapeHtml(
-                  " section to see all places in that radius.",
-                ),
+              skipIfEmpty: anchor.mode === "city",
+              subNoteHtml: anchor.mode === "city" ? munNoteCity : munNoteProv,
             },
           );
 
           addSubsection(
-            "Neighbouring provinces",
+            "Neighbouring provinces (land borders)",
             npCodes.map(function (pc) {
               const name = PROVINCE_NAMES[pc] || pc;
               return {
@@ -2954,9 +2772,18 @@ region allowf $company</pre
               };
             }),
             nEmptyGeo ||
-              "All nearby municipalities are in the same province as your location.",
+              "No neighbouring provinces for this selection (none of the home province's land-border provinces have a mapped place within ~" +
+                NEIGHBOR_RADIUS_KM +
+                " km).",
             "neighbor-provinces",
-            { skipIfEmpty: true },
+            {
+              skipIfEmpty: true,
+              subNoteHtml: escapeHtml(
+                "Land-border provinces of the home province, limited to those with at least one mapped municipality within ~" +
+                  NEIGHBOR_RADIUS_KM +
+                  " km of this selection (so the list matches where you are, not the whole province outline).",
+              ),
+            },
           );
 
           addSubsection(
@@ -2976,7 +2803,7 @@ region allowf $company</pre
             {
               skipIfEmpty: true,
               subNoteHtml: escapeHtml(
-                "These rows are the top-level country codes only. To allow or deny flood for provinces or other regional scopes inside a neighbouring country, add those region names on the repeater as well (see that country’s regional / mesh code list).",
+                "Country rows only. For provinces or other scopes inside a neighbour, add those names manually (see that country’s mesh code list).",
               ),
             },
           );
@@ -2992,7 +2819,7 @@ region allowf $company</pre
           );
 
           policyGridsContainer.innerHTML = html;
-          applyNeighborPolicyGating(city);
+          applyNeighborPolicyGating(anchor);
           policyGridsContainer
             .querySelectorAll(".policy-subsection")
             .forEach(syncScopeMasters);
@@ -3009,11 +2836,20 @@ region allowf $company</pre
                   .querySelectorAll("input.policy-allow")
                   .forEach(function (el) {
                     const code = el.getAttribute("data-code");
-                    const prov =
-                      selectedCity && selectedCity.province_code
-                        ? selectedCity.province_code
-                        : "";
-                    el.checked = code === "be" || (prov && code === prov);
+                    if (selectionMode === "country") {
+                      el.checked = code === "be";
+                    } else if (
+                      selectionMode === "province" &&
+                      selectedProvinceCode
+                    ) {
+                      el.checked =
+                        code === "be" || code === selectedProvinceCode;
+                    } else if (selectionMode === "city" && selectedCity) {
+                      const prov = selectedCity.province_code || "";
+                      el.checked = code === "be" || (prov && code === prov);
+                    } else {
+                      el.checked = false;
+                    }
                   });
                 sub
                   .querySelectorAll("input.policy-deny")
@@ -3038,8 +2874,8 @@ region allowf $company</pre
         }
 
         function refreshMeshcoreCli() {
-          if (!selectedCity || !commandsBlock) return;
-          const city = selectedCity;
+          const anchor = getAnchor();
+          if (!anchor || !commandsBlock) return;
           refreshHomeOverrideSelect();
           const allowCodes = [];
           const denyCodes = [];
@@ -3074,8 +2910,12 @@ region allowf $company</pre
           withoutStar(denyForCli).forEach(function (c) {
             needed.add(c);
           });
-          expandRegionNeeded(needed, city);
-          const putLines = buildOrderedRegionPutLines(needed, city).join("\n");
+          expandRegionNeeded(needed, anchor);
+          const homeCityRow =
+            anchor.mode === "city" && anchor.row ? anchor.row : null;
+          const putLines = buildOrderedRegionPutLines(needed, homeCityRow).join(
+            "\n",
+          );
           const allowfLines = allowSorted
             .map((r) => `region allowf ${r}`)
             .join("\n");
@@ -3083,7 +2923,7 @@ region allowf $company</pre
             .map((r) => `region denyf ${r}`)
             .join("\n");
 
-          const homeLine = regionHomeLineForCli(city);
+          const homeLine = regionHomeLineForCli(anchor);
 
           const blocks = [];
           const putTrimmed = putLines.trim();
@@ -3108,21 +2948,40 @@ region allowf $company</pre
           commandsBlock.textContent = cmd;
         }
 
-        function tuplesToResultRows(tuples) {
-          return tuples
-            .map(function (t) {
-              return resultRow(t[0], t[1], t[2]);
-            })
-            .join("");
-        }
-
+        /**
+         * Neighbour provinces for policy / “Codes for this selection”:
+         * land borders (PROVINCE_ADJACENCY) ∩ provinces that actually appear
+         * among municipalities within NEIGHBOR_RADIUS_KM of the seed point.
+         * Pure adjacency alone lists every province sharing any border with the
+         * home province (e.g. Limburg for all of East Flanders, including Ronse).
+         */
         function neighborProvincesFromNeighbors(neighbors, homeProvinceCode) {
-          const set = new Set();
-          for (let i = 0; i < neighbors.length; i++) {
-            const pc = neighbors[i].c.province_code;
-            if (pc && pc !== homeProvinceCode) set.add(pc);
+          const pc =
+            homeProvinceCode != null && typeof homeProvinceCode === "string"
+              ? homeProvinceCode.trim()
+              : homeProvinceCode;
+          if (
+            !pc ||
+            !Object.prototype.hasOwnProperty.call(PROVINCE_ADJACENCY, pc)
+          ) {
+            return [];
           }
-          return Array.from(set).sort();
+          const adjacent = PROVINCE_ADJACENCY[pc];
+          const nearbyProv = new Set();
+          const arr = neighbors || [];
+          for (let i = 0; i < arr.length; i++) {
+            const ocp = arr[i].c.province_code;
+            if (ocp && ocp !== pc) nearbyProv.add(ocp);
+          }
+          if (nearbyProv.size > 0) {
+            const out = [];
+            for (let j = 0; j < adjacent.length; j++) {
+              const op = adjacent[j];
+              if (nearbyProv.has(op)) out.push(op);
+            }
+            return out.sort();
+          }
+          return adjacent.slice().sort();
         }
 
         function neighborProvincesSectionHTML(neighbors, homeProvinceCode) {
@@ -3130,35 +2989,78 @@ region allowf $company</pre
             neighbors,
             homeProvinceCode,
           );
+          const n = codes.length;
           if (!codes.length) {
             return (
-              '<h3 class="result-block-heading">Neighbouring provinces</h3>' +
-              '<p class="result-muted-note">No other province among municipalities within ~' +
-              NEIGHBOR_RADIUS_KM +
-              " km.</p>"
+              '<details class="result-neighbors-details result-province-neighbors">' +
+              "<summary>" +
+              escapeHtml("Neighbouring provinces (land borders)") +
+              "</summary>" +
+              '<p class="result-muted-note">' +
+              escapeHtml(
+                "No neighbouring provinces for this selection (none of the home province's land-border provinces have a mapped place within ~" +
+                  NEIGHBOR_RADIUS_KM +
+                  " km).",
+              ) +
+              "</p></details>"
             );
           }
+          const sum =
+            "Neighbouring provinces · " +
+            n +
+            (n === 1 ? " land border" : " land borders");
           return (
-            '<h3 class="result-block-heading">Neighbouring provinces</h3><div class="result-grid">' +
+            '<details class="result-neighbors-details result-province-neighbors">' +
+            "<summary>" +
+            escapeHtml(sum) +
+            "</summary>" +
+            '<div class="result-neighbors-list">' +
             codes
               .map(function (pc) {
                 const name = PROVINCE_NAMES[pc] || pc;
-                return resultRow("Province", name, pc);
+                return (
+                  '<div class="result-neighbor-card"><p class="result-neighbor-title">' +
+                  escapeHtml(name) +
+                  ' <span class="result-code-inline">(' +
+                  escapeHtml(pc) +
+                  ')</span> <span class="result-neighbor-distance">' +
+                  escapeHtml("· land border") +
+                  "</span></p></div>"
+                );
               })
               .join("") +
-            "</div>"
+            "</div></details>"
           );
         }
 
-        function buildFoundCodesInnerHTML(city, neighbors, hasCoords) {
+        function buildFoundCodesInnerHTML(anchor, neighbors, hasCoords) {
           let neighborSection = "";
           let neighborProvincesSection = "";
+          const homeProv =
+            anchor.mode === "province"
+              ? anchor.province_code
+              : anchor.row
+                ? anchor.row.province_code
+                : null;
           if (hasCoords) {
             if (neighbors.length) {
+              const nMun = neighbors.length;
+              const munLabel =
+                nMun === 1 ? "1 municipality" : nMun + " municipalities";
+              const detailsOpen = nMun <= 6 ? " open" : "";
               neighborSection =
-                '<h3 class="result-block-heading">Neighbouring municipalities within ~' +
-                NEIGHBOR_RADIUS_KM +
-                ' km (by distance)</h3><div class="result-neighbors-list">' +
+                '<details class="result-neighbors-details"' +
+                detailsOpen +
+                ">" +
+                "<summary>" +
+                escapeHtml(
+                  "Neighbouring municipalities (~" +
+                    NEIGHBOR_RADIUS_KM +
+                    " km) · " +
+                    munLabel,
+                ) +
+                "</summary>" +
+                '<div class="result-neighbors-list">' +
                 neighbors
                   .map(function (item) {
                     const o = item.c;
@@ -3174,54 +3076,131 @@ region allowf $company</pre
                     );
                   })
                   .join("") +
-                "</div>";
-              neighborProvincesSection = neighborProvincesSectionHTML(
-                neighbors,
-                city.province_code,
-              );
+                "</div></details>";
             } else {
               neighborSection =
-                '<h3 class="result-block-heading">Neighbouring municipalities within ~' +
+                '<details class="result-neighbors-details">' +
+                "<summary>" +
+                escapeHtml(
+                  "Neighbouring municipalities (~" +
+                    NEIGHBOR_RADIUS_KM +
+                    " km)",
+                ) +
+                "</summary>" +
+                '<p class="result-muted-note">No other mapped places within ~' +
                 NEIGHBOR_RADIUS_KM +
-                ' km (by distance)</h3><p class="result-muted-note">No other places within ~' +
-                NEIGHBOR_RADIUS_KM +
-                " km with valid coordinates in the dataset.</p>";
+                " km.</p></details>";
             }
           } else {
             neighborSection =
-              '<h3 class="result-block-heading">Neighbouring municipalities within ~' +
-              NEIGHBOR_RADIUS_KM +
-              ' km (by distance)</h3><p class="result-muted-note">No coordinates for this location — neighbours not computed.</p>';
+              '<details class="result-neighbors-details">' +
+              "<summary>" +
+              escapeHtml(
+                "Neighbouring municipalities (~" + NEIGHBOR_RADIUS_KM + " km)",
+              ) +
+              "</summary>" +
+              '<p class="result-muted-note">No coordinates for this location — neighbours not computed.</p></details>';
+          }
+          if (homeProv) {
+            neighborProvincesSection = neighborProvincesSectionHTML(
+              neighbors,
+              homeProv,
+            );
           }
 
           return (
-            '<h3 class="result-block-heading">Wider regions (CLI)</h3><div class="result-grid">' +
-            tuplesToResultRows(SUPER_REGION_CLI) +
-            '</div><h3 class="result-block-heading">Countries (CLI)</h3><div class="result-grid">' +
-            tuplesToResultRows(COUNTRY_CLI) +
-            '</div><h3 class="result-block-heading">Selected location</h3><div class="result-grid">' +
-            chosenLocationRowsHTML(city) +
-            "</div>" +
+            '<div class="result-codes-section">' +
+            '<h3 class="result-block-heading">Selected location</h3><div class="result-grid">' +
+            chosenLocationRowsFromAnchor(anchor) +
+            "</div></div>" +
             neighborProvincesSection +
             neighborSection
           );
         }
 
         function refreshFoundCodesAndCli() {
-          if (!selectedCity || !resultGrid) return;
+          const anchor = getAnchor();
+          if (!anchor || !resultGrid) return;
           resultGrid.innerHTML = buildFoundCodesInnerHTML(
-            selectedCity,
+            anchor,
             lastNeighbors,
             lastHasCoords,
           );
           refreshMeshcoreCli();
         }
 
+        function selectProvince(pc) {
+          selectionMode = "province";
+          selectedProvinceCode = pc;
+          selectedCity = null;
+          input.value = PROVINCE_NAMES[pc] || pc;
+          dropdown.style.display = "none";
+
+          const anchor = getAnchor();
+          const seed = neighborSeedRow(anchor);
+          const neighborsRadius = findGeographicNeighbors(seed, {
+            maxKm: NEIGHBOR_RADIUS_KM,
+          });
+          const neighborsScope = neighborsRadius.slice(
+            0,
+            NEIGHBOR_SCOPE_MAX_CITIES,
+          );
+          const hasCoords =
+            seed.lat != null &&
+            seed.lon != null &&
+            Number.isFinite(seed.lat) &&
+            Number.isFinite(seed.lon);
+
+          lastNeighbors = neighborsRadius;
+          lastHasCoords = hasCoords;
+
+          renderPolicyGrids(anchor, neighborsScope, neighborsRadius, hasCoords);
+          if (policyCard) policyCard.classList.add("visible");
+          applyPolicyDefaults();
+          resultCard.classList.add("visible");
+          commandsCard.classList.add("visible");
+        }
+
+        function selectCountryBe() {
+          selectionMode = "country";
+          selectedProvinceCode = null;
+          selectedCity = null;
+          input.value = "België (be)";
+          dropdown.style.display = "none";
+
+          const anchor = getAnchor();
+          const seed = neighborSeedRow(anchor);
+          const neighborsRadius = findGeographicNeighbors(seed, {
+            maxKm: NEIGHBOR_RADIUS_KM,
+          });
+          const neighborsScope = neighborsRadius.slice(
+            0,
+            NEIGHBOR_SCOPE_MAX_CITIES,
+          );
+          const hasCoords =
+            seed.lat != null &&
+            seed.lon != null &&
+            Number.isFinite(seed.lat) &&
+            Number.isFinite(seed.lon);
+
+          lastNeighbors = neighborsRadius;
+          lastHasCoords = hasCoords;
+
+          renderPolicyGrids(anchor, neighborsScope, neighborsRadius, hasCoords);
+          if (policyCard) policyCard.classList.add("visible");
+          applyPolicyDefaults();
+          resultCard.classList.add("visible");
+          commandsCard.classList.add("visible");
+        }
+
         function selectCity(city) {
+          selectionMode = "city";
+          selectedProvinceCode = city.province_code;
           selectedCity = city;
           input.value = city.plaats;
           dropdown.style.display = "none";
 
+          const anchor = getAnchor();
           const neighborsRadius = findGeographicNeighbors(city, {
             maxKm: NEIGHBOR_RADIUS_KM,
           });
@@ -3238,15 +3217,15 @@ region allowf $company</pre
           lastNeighbors = neighborsRadius;
           lastHasCoords = hasCoords;
 
-          renderPolicyGrids(city, neighborsScope, neighborsRadius, hasCoords);
+          renderPolicyGrids(anchor, neighborsScope, neighborsRadius, hasCoords);
           if (policyCard) policyCard.classList.add("visible");
-          refreshFoundCodesAndCli();
+          applyPolicyDefaults();
           resultCard.classList.add("visible");
           commandsCard.classList.add("visible");
         }
 
         input.addEventListener("input", () => {
-          const matches = filterCities(input.value);
+          const matches = filterLocationChoices(input.value);
           renderDropdown(matches);
         });
 
@@ -3276,14 +3255,17 @@ region allowf $company</pre
             lastMatches[activeIndex]
           ) {
             e.preventDefault();
-            selectCity(lastMatches[activeIndex]);
+            const item = lastMatches[activeIndex];
+            if (item.type === "country") selectCountryBe();
+            else if (item.type === "province") selectProvince(item.code);
+            else if (item.type === "place" && item.row) selectCity(item.row);
           } else if (e.key === "Escape") {
             dropdown.style.display = "none";
           }
         });
 
         input.addEventListener("focus", () => {
-          const matches = filterCities(input.value);
+          const matches = filterLocationChoices(input.value);
           if (matches.length) renderDropdown(matches);
         });
 
@@ -3296,7 +3278,7 @@ region allowf $company</pre
         copyBtn.addEventListener("click", () => {
           refreshFoundCodesAndCli();
           navigator.clipboard.writeText(commandsBlock.textContent).then(() => {
-            copyBtn.textContent = "✓ Copied!";
+            copyBtn.textContent = "Copied";
             copyBtn.classList.add("copied");
             setTimeout(() => {
               copyBtn.textContent = "Copy commands";
@@ -3443,9 +3425,8 @@ region allowf $company</pre
                       el.checked = true;
                     });
                 }
-                if (selectedCity) {
-                  applyNeighborPolicyGating(selectedCity);
-                }
+                const anchorAllow = getAnchor();
+                if (anchorAllow) applyNeighborPolicyGating(anchorAllow);
                 policyCard
                   .querySelectorAll("input.policy-allow")
                   .forEach(function (el) {
@@ -3472,9 +3453,8 @@ region allowf $company</pre
                       el.checked = true;
                     });
                 }
-                if (selectedCity) {
-                  applyNeighborPolicyGating(selectedCity);
-                }
+                const anchorDeny = getAnchor();
+                if (anchorDeny) applyNeighborPolicyGating(anchorDeny);
                 policyCard
                   .querySelectorAll("input.policy-deny")
                   .forEach(function (el) {

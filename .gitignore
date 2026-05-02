@@ -81,6 +81,24 @@ env/
 ENV/
 .venv
 
+# StatBel reference spreadsheets (download from StatBel; use data/inputs/ for local copies)
+data/statbel/*.xlsx
+
+# StatBel statistical sectors (large; download from StatBel / data.gov.be)
+data/statbel/sh_statbel_statistical_sectors*.geojson
+
+# Local build inputs (NIS6 / REFNIS xlsx, Geofabrik PBF, sector GeoJSON — not served by the web UI)
+data/inputs/**
+!data/inputs/README.md
+
+# Ephemeral verify/compare outputs (defaults in scripts point here)
+data/.cache/
+
+# Legacy verify artifact filenames (in case old paths are used)
+data/be-locode-verify-report.json
+data/be-locode-osm-verify.json
+data/be-locode-verify-summary.md
+
 # Database
 data/*.db
 data/*.sqlite

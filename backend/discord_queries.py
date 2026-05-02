@@ -213,17 +213,30 @@ def get_user_nodes(user_id: str, include_inactive: bool = True) -> List[Dict[str
         conn.close()
 
 
-def _custom_radio_filter_clause(freq: float, sf: int, bw: float, cr: int) -> tuple:
+def _partial_radio_filter_clause(parts: Dict[str, Any]) -> tuple:
     """
-    SQL fragment matching stored params JSON (same LIKE strategy as named presets).
+    SQL AND of LIKE fragments for each provided key (freq, sf, bw, cr).
+    Same substring strategy as named presets. Empty or unknown keys → no clause.
     """
-    sql = " AND (params LIKE ? AND params LIKE ? AND params LIKE ? AND params LIKE ?)"
-    params = [
-        f'%"freq": {freq}%',
-        f'%"sf": {sf}%',
-        f'%"bw": {bw}%',
-        f'%"cr": {cr}%',
-    ]
+    if not parts:
+        return ("", [])
+    fragments: List[str] = []
+    params: List[Any] = []
+    if "freq" in parts:
+        fragments.append("params LIKE ?")
+        params.append(f'%"freq": {float(parts["freq"])}%')
+    if "sf" in parts:
+        fragments.append("params LIKE ?")
+        params.append(f'%"sf": {int(parts["sf"])}%')
+    if "bw" in parts:
+        fragments.append("params LIKE ?")
+        params.append(f'%"bw": {float(parts["bw"])}%')
+    if "cr" in parts:
+        fragments.append("params LIKE ?")
+        params.append(f'%"cr": {int(parts["cr"])}%')
+    if not fragments:
+        return ("", [])
+    sql = " AND (" + " AND ".join(fragments) + ")"
     return (sql, params)
 
 
@@ -232,17 +245,13 @@ def _active_frequency_sql_params(
     radio_custom: Optional[Dict[str, Any]],
 ) -> tuple:
     """
-    Preset name or explicit freq/sf/bw/cr. Custom dict wins when all keys are numeric.
+    Preset name or partial custom {freq, sf, bw, cr} — any non-empty subset.
+    Custom dict wins when non-empty.
     """
     if radio_custom:
         try:
-            return _custom_radio_filter_clause(
-                float(radio_custom["freq"]),
-                int(radio_custom["sf"]),
-                float(radio_custom["bw"]),
-                int(radio_custom["cr"]),
-            )
-        except (KeyError, TypeError, ValueError):
+            return _partial_radio_filter_clause(radio_custom)
+        except (TypeError, ValueError, KeyError):
             return ("", [])
     return _preset_filter_clause(frequency_preset)
 
@@ -300,8 +309,8 @@ def get_statistics(
     Args:
         frequency_preset: Optional preset name to filter all counts by (e.g. "EU/UK (Narrow)").
             Use "all" or None for unfiltered stats. "Custom settings" and "Unknown" are not supported.
-        radio_custom: Optional {"freq": float, "sf": int, "bw": float, "cr": int} matching stored
-            node params exactly. When set, overrides frequency_preset for SQL filtering.
+        radio_custom: Optional subset of {"freq", "sf", "bw", "cr"} (validated ranges).
+            Nodes must match every provided field. When non-empty, overrides frequency_preset.
     
     Returns:
         Dictionary with statistics (all filtered by preset when frequency_preset is set)

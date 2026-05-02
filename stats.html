@@ -2343,19 +2343,19 @@
         function statsFrequencyQuerySuffix() {
           if (
             window.__statsRadioCustom &&
-            window.__statsRadioCustom.freq != null
+            Object.keys(window.__statsRadioCustom).length > 0
           ) {
             var c = window.__statsRadioCustom;
-            return (
-              "&freq=" +
-              encodeURIComponent(c.freq) +
-              "&sf=" +
-              encodeURIComponent(c.sf) +
-              "&bw=" +
-              encodeURIComponent(c.bw) +
-              "&cr=" +
-              encodeURIComponent(c.cr)
-            );
+            var parts = [];
+            if (c.freq != null && c.freq !== "")
+              parts.push("freq=" + encodeURIComponent(c.freq));
+            if (c.sf != null && c.sf !== "")
+              parts.push("sf=" + encodeURIComponent(c.sf));
+            if (c.bw != null && c.bw !== "")
+              parts.push("bw=" + encodeURIComponent(c.bw));
+            if (c.cr != null && c.cr !== "")
+              parts.push("cr=" + encodeURIComponent(c.cr));
+            return parts.length ? "&" + parts.join("&") : "";
           }
           var p = chartPresetValue || "all";
           return p !== "all"
@@ -2639,7 +2639,7 @@
             customWrap.className = "stats-preset-custom";
             customWrap.innerHTML =
               '<div class="stats-preset-custom-title">Custom radio</div>' +
-              '<p class="stats-preset-custom-hint">Match stored params exactly (MHz, SF, BW kHz, CR). Overrides named presets.</p>' +
+              '<p class="stats-preset-custom-hint">Optional fields — leave blank to ignore. All filled fields must match stored params (AND). Example: CR only, or Freq + CR together. Overrides named presets.</p>' +
               '<div class="stats-preset-custom-grid">' +
               '<label>Freq (MHz)<input type="number" step="0.001" id="stats-custom-freq" placeholder="869.618" /></label>' +
               '<label>SF<input type="number" step="1" min="5" max="13" id="stats-custom-sf" placeholder="8" /></label>' +
@@ -2656,48 +2656,79 @@
                 var sfEl = document.getElementById("stats-custom-sf");
                 var bwEl = document.getElementById("stats-custom-bw");
                 var crEl = document.getElementById("stats-custom-cr");
-                var freq = freqEl ? parseFloat(freqEl.value) : NaN;
-                var sf = sfEl ? parseInt(sfEl.value, 10) : NaN;
-                var bw = bwEl ? parseFloat(bwEl.value) : NaN;
-                var cr = crEl ? parseInt(crEl.value, 10) : NaN;
-                if (
-                  !(
-                    freq >= 100 &&
-                    freq <= 1000 &&
-                    sf >= 5 &&
-                    sf <= 13 &&
-                    bw >= 30 &&
-                    bw <= 1000 &&
-                    cr >= 4 &&
-                    cr <= 9
-                  )
-                ) {
+                function numOrEmpty(el, parseFn) {
+                  if (!el) return null;
+                  var s = String(el.value || "").trim();
+                  if (s === "") return null;
+                  var v = parseFn(s);
+                  return isNaN(v) ? false : v;
+                }
+                var freq = numOrEmpty(freqEl, parseFloat);
+                var sf = numOrEmpty(sfEl, function (s) {
+                  return parseInt(s, 10);
+                });
+                var bw = numOrEmpty(bwEl, parseFloat);
+                var cr = numOrEmpty(crEl, function (s) {
+                  return parseInt(s, 10);
+                });
+                if (freq === false || sf === false || bw === false || cr === false) {
                   window.alert(
-                    "Enter valid freq (100–1000 MHz), SF (5–13), BW (30–1000 kHz), and CR (4–9).",
+                    "Use numbers only. Freq 100–1000 MHz, SF 5–13, BW 30–1000 kHz, CR 4–9.",
                   );
                   return;
                 }
-                window.__statsRadioCustom = {
-                  freq: freq,
-                  sf: sf,
-                  bw: bw,
-                  cr: cr,
-                };
+                var custom = {};
+                if (freq != null) {
+                  if (freq < 100 || freq > 1000) {
+                    window.alert("Freq must be between 100 and 1000 MHz.");
+                    return;
+                  }
+                  custom.freq = freq;
+                }
+                if (sf != null) {
+                  if (sf < 5 || sf > 13) {
+                    window.alert("SF must be between 5 and 13.");
+                    return;
+                  }
+                  custom.sf = sf;
+                }
+                if (bw != null) {
+                  if (bw < 30 || bw > 1000) {
+                    window.alert("BW must be between 30 and 1000 kHz.");
+                    return;
+                  }
+                  custom.bw = bw;
+                }
+                if (cr != null) {
+                  if (cr < 4 || cr > 9) {
+                    window.alert("CR must be between 4 and 9.");
+                    return;
+                  }
+                  custom.cr = cr;
+                }
+                if (Object.keys(custom).length === 0) {
+                  window.alert(
+                    "Enter at least one of: Freq, SF, BW, or CR (others optional).",
+                  );
+                  return;
+                }
+                window.__statsRadioCustom = custom;
                 chartPresetValue = "all";
                 currentPresetValue = "__custom__";
                 var networkChip = document.getElementById(
                   "stats-chip-network-wrap",
                 );
                 if (networkChip) networkChip.classList.remove("is-open");
-                var qs =
-                  "freq=" +
-                  encodeURIComponent(freq) +
-                  "&sf=" +
-                  encodeURIComponent(sf) +
-                  "&bw=" +
-                  encodeURIComponent(bw) +
-                  "&cr=" +
-                  encodeURIComponent(cr);
+                var qsParts = [];
+                if (custom.freq != null)
+                  qsParts.push("freq=" + encodeURIComponent(custom.freq));
+                if (custom.sf != null)
+                  qsParts.push("sf=" + encodeURIComponent(custom.sf));
+                if (custom.bw != null)
+                  qsParts.push("bw=" + encodeURIComponent(custom.bw));
+                if (custom.cr != null)
+                  qsParts.push("cr=" + encodeURIComponent(custom.cr));
+                var qs = qsParts.join("&");
                 fetch("/api/v1/stats?" + qs)
                   .then(function (r) {
                     return r.ok ? r.json() : Promise.reject();

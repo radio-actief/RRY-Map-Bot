@@ -270,21 +270,36 @@ def _params_match_preset(params: Optional[dict], preset_name: str) -> bool:
             int(cr) == preset['cr'])
 
 
-def _params_match_radio_custom(params: Optional[dict], custom: dict) -> bool:
-    """True if node params match explicit freq / SF / BW / CR (same semantics as preset match)."""
+def _params_match_radio_partial(params: Optional[dict], custom: dict) -> bool:
+    """True if node params match every field present in custom (subset of freq/sf/bw/cr)."""
     if not params or not custom:
         return False
     try:
-        freq = params.get('freq')
-        sf = params.get('sf')
-        bw = params.get('bw')
-        cr = params.get('cr')
-        if freq is None or sf is None or bw is None or cr is None:
-            return False
-        return (abs(float(freq) - float(custom['freq'])) < 0.001 and
-                int(sf) == int(custom['sf']) and
-                abs(float(bw) - float(custom['bw'])) < 0.001 and
-                int(cr) == int(custom['cr']))
+        if "freq" in custom:
+            pv = params.get("freq")
+            if pv is None:
+                return False
+            if abs(float(pv) - float(custom["freq"])) >= 0.001:
+                return False
+        if "sf" in custom:
+            pv = params.get("sf")
+            if pv is None:
+                return False
+            if int(pv) != int(custom["sf"]):
+                return False
+        if "bw" in custom:
+            pv = params.get("bw")
+            if pv is None:
+                return False
+            if abs(float(pv) - float(custom["bw"])) >= 0.001:
+                return False
+        if "cr" in custom:
+            pv = params.get("cr")
+            if pv is None:
+                return False
+            if int(pv) != int(custom["cr"]):
+                return False
+        return True
     except (TypeError, ValueError):
         return False
 
@@ -295,31 +310,53 @@ def _row_matches_frequency_filter(
     radio_custom: Optional[dict],
 ) -> bool:
     if radio_custom:
-        return _params_match_radio_custom(params, radio_custom)
+        return _params_match_radio_partial(params, radio_custom)
     return _params_match_preset(params, frequency_preset or '')
 
 
 def _parse_radio_custom_from_request():
     """
-    If freq, sf, bw, cr query params are all present and in sane ranges, return a dict.
-    Otherwise None. Used by stats API for filtering outside named presets.
+    Build a dict from optional query params freq, sf, bw, cr.
+    At least one must be present and valid; invalid value for any present key → None.
     """
-    freq = request.args.get('freq')
-    sf = request.args.get('sf')
-    bw = request.args.get('bw')
-    cr = request.args.get('cr')
-    if freq is None or sf is None or bw is None or cr is None:
-        return None
-    try:
-        freq_f = float(freq)
-        sf_i = int(sf)
-        bw_f = float(bw)
-        cr_i = int(cr)
-    except (TypeError, ValueError):
-        return None
-    if not (100 <= freq_f <= 1000 and 5 <= sf_i <= 13 and 30 <= bw_f <= 1000 and 4 <= cr_i <= 9):
-        return None
-    return {'freq': freq_f, 'sf': sf_i, 'bw': bw_f, 'cr': cr_i}
+    out = {}
+    raw_freq = request.args.get("freq")
+    if raw_freq is not None and str(raw_freq).strip() != "":
+        try:
+            freq_f = float(raw_freq)
+        except (TypeError, ValueError):
+            return None
+        if not (100 <= freq_f <= 1000):
+            return None
+        out["freq"] = freq_f
+    raw_sf = request.args.get("sf")
+    if raw_sf is not None and str(raw_sf).strip() != "":
+        try:
+            sf_i = int(raw_sf)
+        except (TypeError, ValueError):
+            return None
+        if not (5 <= sf_i <= 13):
+            return None
+        out["sf"] = sf_i
+    raw_bw = request.args.get("bw")
+    if raw_bw is not None and str(raw_bw).strip() != "":
+        try:
+            bw_f = float(raw_bw)
+        except (TypeError, ValueError):
+            return None
+        if not (30 <= bw_f <= 1000):
+            return None
+        out["bw"] = bw_f
+    raw_cr = request.args.get("cr")
+    if raw_cr is not None and str(raw_cr).strip() != "":
+        try:
+            cr_i = int(raw_cr)
+        except (TypeError, ValueError):
+            return None
+        if not (4 <= cr_i <= 9):
+            return None
+        out["cr"] = cr_i
+    return out if out else None
 
 
 def get_synthetic_sync_rows(
@@ -600,7 +637,7 @@ def node_changes():
 
     Returns node-level change log for historical stats playback (lat, lon, name per change).
     Query: since=YYYY-MM-DD (optional), limit (default 5000), frequency_preset (optional),
-        or custom radio: freq (MHz), sf, bw (kHz), cr (all required together; overrides preset).
+        or custom radio: any of freq (MHz), sf, bw (kHz), cr — combine as needed; overrides preset.
     """
     try:
         since = request.args.get('since')
@@ -635,7 +672,7 @@ def sync_history():
     Returns sync history for the historical stats view: each run's date and
     counts (nodes_added, nodes_removed, nodes_restored, nodes_updated).
     Optional query: limit (default 500), frequency_preset (optional),
-        or custom freq, sf, bw, cr (MHz / SF / kHz / CR — all required; overrides preset).
+        or any subset of freq, sf, bw, cr (same units; overrides preset).
     """
     try:
         limit = request.args.get('limit', type=int) or 500
@@ -666,8 +703,8 @@ def get_stats():
     Query params:
         frequency_preset: Optional. Filter all stats by frequency preset name
             (e.g. "EU/UK (Narrow)"). Use "all" or omit for unfiltered stats.
-        freq, sf, bw, cr: Optional custom radio match (MHz, spreading factor, bandwidth kHz,
-            coding rate). When all four are present and valid, they override frequency_preset.
+        freq, sf, bw, cr: Optional custom radio filters (MHz, SF, bandwidth kHz, CR).
+            Provide any combination; nodes must match all given fields. Overrides frequency_preset.
     
     Returns:
         JSON object with statistics

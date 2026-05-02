@@ -1220,7 +1220,11 @@ body.map-page .search .field.border .filter:focus-visible {
   color: #1d4ed8;
 }
 
-.leaflet-bottom {
+/* Main mesh map (#map) only: fixed bottom clears FABs. Other map-page UIs (stats
+   playback, region map) keep Leaflet’s absolute positioning so attribution stays
+   inside the map container, not the viewport. */
+body.map-page:not(.stats-body):not(.region-map-body):not(.config-body)
+  .leaflet-bottom {
   position: fixed !important;
 }
 

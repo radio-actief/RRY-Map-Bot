@@ -662,6 +662,11 @@
         height: 1.15rem;
       }
 
+      /* Standalone page only: hide when ?embed=1 or loaded in an iframe (e.g. configurator). */
+      html.region-map-embed .region-map-header-bar {
+        display: none !important;
+      }
+
       /* Narrow screens: map on top, controls as bottom sheet (readable on phones) */
       @media (max-width: 768px) {
         .region-map-layout {
@@ -877,6 +882,22 @@
     </style>
   </head>
   <body class="light map-page region-map-body">
+    <script>
+      (function () {
+        var q = new URLSearchParams(window.location.search || "");
+        var ev = (q.get("embed") || "").toLowerCase();
+        var embedParam = ev === "1" || ev === "true" || (q.has("embed") && ev === "");
+        var inFrame = false;
+        try {
+          inFrame = window.self !== window.top;
+        } catch (e) {
+          inFrame = true;
+        }
+        if (embedParam || inFrame) {
+          document.documentElement.classList.add("region-map-embed");
+        }
+      })();
+    </script>
     <div class="region-map-layout">
       <div class="region-map-controls" id="controls">
         <div class="region-map-controls-inner">

@@ -1453,7 +1453,7 @@
         <div class="config-header-top">
           <h1>#BEmesh region codes configurator</h1>
           <div class="config-header-links">
-            <a href="/" class="back-link">← Map</a>
+            <a href="/" class="back-link">← Back to map</a>
             <a href="/stats" class="back-link">Stats</a>
             <a
               href="/region-map"
@@ -1475,7 +1475,7 @@
         </p>
         <nav class="config-header-docs" aria-label="Region documentation links">
           <p class="config-header-docs-primary">
-            Visit Radio-Actief →
+            Visit → Radio-Actief
             <a
               class="config-header-doc-link"
               href="https://docs.radio-actief.be/nl/MeshCore/RegioScopes"
@@ -1485,13 +1485,13 @@
             >
           </p>
           <p class="config-header-docs-secondary">
-            Official command syntax:
+            Official MeshCore documentation →
             <a
               class="config-header-doc-link"
-              href="https://github.com/meshcore-dev/MeshCore/blob/main/docs/cli_commands.md#region-management-v110"
+              href="https://docs.meshcore.io/cli_commands/?h=#region-management-v110"
               target="_blank"
               rel="noopener noreferrer"
-              >MeshCore <code>cli_commands.md</code> — region management</a
+              >docs.meshcore.io — CLI Commands — Region Management</a
             >
           </p>
         </nav>
@@ -1638,7 +1638,7 @@
           </a>
           <div class="config-footer-embed">
             <iframe
-              src="/region-map"
+              src="/region-map?embed=1"
               title="#BEmesh region map (embedded)"
               class="config-footer-iframe"
             ></iframe>
@@ -1673,7 +1673,7 @@
             var inp = document.getElementById("city-search");
             if (inp)
               inp.placeholder =
-                "Try Vlaams-Brabant, be-vbr, België, or a municipality…";
+                "Search here ; i.e. Vlaams-Brabant, be-vbr, België, or a municipality…";
           })
           .catch(function () {
             CITIES = [];

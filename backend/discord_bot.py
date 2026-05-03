@@ -5,10 +5,10 @@ Handles all Discord bot functionality including commands and interactions.
 
 import discord
 from discord import app_commands
-from discord.ext import commands
+from discord.ext import commands, tasks
 import sys
 import os
-from datetime import datetime, timezone
+from datetime import datetime, time as dtime, timezone
 from zoneinfo import ZoneInfo
 from typing import Optional, Dict, Any, List
 
@@ -24,7 +24,11 @@ try:
         NODE_TYPES,
         NODE_TYPES_REVERSE,
         NODE_TYPE_ICONS,
-        FREQUENCY_PRESETS
+        FREQUENCY_PRESETS,
+        DAILY_DIGEST_ENABLED,
+        DAILY_DIGEST_HOUR,
+        DAILY_DIGEST_MINUTE,
+        DAILY_DIGEST_TZ,
     )
 except (ImportError, ModuleNotFoundError):
     # Fallback if config not available
@@ -32,6 +36,10 @@ except (ImportError, ModuleNotFoundError):
     DISCORD_GUILD_ID = os.getenv('DISCORD_GUILD_ID')
     STARTUP_CHANNEL_ID = os.getenv('STARTUP_CHANNEL_ID')
     STARTUP_MESSAGE_ID = os.getenv('STARTUP_MESSAGE_ID')
+    DAILY_DIGEST_ENABLED = os.getenv('DAILY_DIGEST_ENABLED', '1').strip() in ('1', 'true', 'True', 'yes', 'YES')
+    DAILY_DIGEST_HOUR = int(os.getenv('DAILY_DIGEST_HOUR', '9'))
+    DAILY_DIGEST_MINUTE = int(os.getenv('DAILY_DIGEST_MINUTE', '0'))
+    DAILY_DIGEST_TZ = os.getenv('DAILY_DIGEST_TZ', 'Europe/Brussels')
     
     NODE_TYPES = {
         1: "companion",
@@ -1560,8 +1568,77 @@ async def stats(interaction: discord.Interaction):
     await interaction.response.send_message(embed=embed1)
 
 
+from backend.daily_digest import post_daily_digest
+
+
+# ============================================================================
+# Daily Digest scheduler
+# ============================================================================
+
+_digest_time = dtime(
+    DAILY_DIGEST_HOUR,
+    DAILY_DIGEST_MINUTE,
+    tzinfo=ZoneInfo(DAILY_DIGEST_TZ),
+)
+
+
+@tasks.loop(time=_digest_time)
+async def daily_digest_loop() -> None:
+    """Post the daily digest once a day at DAILY_DIGEST_* local time."""
+    try:
+        await post_daily_digest(bot)
+    except Exception as e:
+        print(f"[daily_digest_loop] error: {e}")
+        import traceback
+        traceback.print_exc()
+
+
+@daily_digest_loop.before_loop
+async def _before_daily_digest_loop() -> None:
+    await bot.wait_until_ready()
+
+
+# Digest slash command group — admin-only
+digest_group = app_commands.Group(
+    name="digest",
+    description="Daily map digest controls (admin only)",
+)
+
+
+def _is_guild_admin(interaction: discord.Interaction) -> bool:
+    member = interaction.user
+    perms = getattr(member, 'guild_permissions', None)
+    if perms is None:
+        return False
+    return bool(perms.administrator or perms.manage_guild)
+
+
+@digest_group.command(name="run", description="Post the daily digest now (admin only)")
+async def digest_run(interaction: discord.Interaction) -> None:
+    if not _is_guild_admin(interaction):
+        await interaction.response.send_message(
+            "You need server administrator permissions to run this command.",
+            ephemeral=True,
+        )
+        return
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    try:
+        sent = await post_daily_digest(bot, force=True)
+    except Exception as e:
+        await interaction.followup.send(f"Digest failed: {e}", ephemeral=True)
+        return
+    if sent:
+        await interaction.followup.send("Daily digest posted.", ephemeral=True)
+    else:
+        await interaction.followup.send(
+            "Digest was not posted (no channel configured or channel unreachable).",
+            ephemeral=True,
+        )
+
+
 # Register command groups BEFORE on_ready
 bot.tree.add_command(node_group)
+bot.tree.add_command(digest_group)
 
 # Debug: Verify commands are registered at module load time
 def _debug_print_commands():
@@ -1660,7 +1737,23 @@ async def on_ready():
     
     # Update bot instructions post
     await update_bot_instructions_post()
-    
+
+    # Start the daily digest loop (guarded so reconnects don't double-start it)
+    if DAILY_DIGEST_ENABLED:
+        if not daily_digest_loop.is_running():
+            try:
+                daily_digest_loop.start()
+                print(
+                    f"[daily_digest] Scheduled for {DAILY_DIGEST_HOUR:02d}:"
+                    f"{DAILY_DIGEST_MINUTE:02d} {DAILY_DIGEST_TZ}."
+                )
+            except RuntimeError as e:
+                print(f"[daily_digest] Loop already running: {e}")
+        else:
+            print("[daily_digest] Loop already running.")
+    else:
+        print("[daily_digest] Disabled via DAILY_DIGEST_ENABLED=0.")
+
     print("\n✅ Bot is ready!")
 
 

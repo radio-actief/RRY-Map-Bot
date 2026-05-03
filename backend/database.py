@@ -152,7 +152,27 @@ def init_database() -> None:
             CREATE INDEX IF NOT EXISTS idx_node_changes_change_type 
             ON node_changes(change_type)
         """)
-        
+
+        # Index on sync_date to speed up daily digest queries
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_node_changes_sync_date
+            ON node_changes(sync_date)
+        """)
+
+        # Digest state (single-row) table used by the daily Discord digest
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS digest_state (
+                id              INTEGER PRIMARY KEY CHECK (id = 1),
+                last_sent_utc   TEXT,
+                last_channel_id TEXT,
+                last_message_id TEXT
+            )
+        """)
+        cursor.execute("""
+            INSERT OR IGNORE INTO digest_state (id, last_sent_utc)
+            VALUES (1, NULL)
+        """)
+
         conn.commit()
         print(f"Database initialized successfully at {get_db_path()}")
         

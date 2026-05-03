@@ -92,3 +92,29 @@ Optional flags:
 ```
 
 **Output schema (per feature):** `properties.nis5`, `properties.plaats`, `properties.gemeente`, `properties.province_code`, `properties.city_code`; `geometry` is a `Polygon` or `MultiPolygon` in EPSG:4326.
+
+## One-shot DB backfills
+
+### `backfill_cities.py`
+
+Rewrites every row's `city` using the local StatBel-based geocoder. See the script's own docstring for the full behaviour (backup, dry-run, logs, `node_changes` audit with `change_type='city_backfill'`).
+
+```bash
+cd RRY-Map-Bot
+.venv/bin/python3 scripts/backfill_cities.py --dry-run
+.venv/bin/python3 scripts/backfill_cities.py
+```
+
+### `backfill_inserted_date.py`
+
+Fills `inserted_date` on any `belgian_nodes` row where it is `NULL` or empty, using `created_at` first and the current time as a last resort. The stats chart and timeline playback treat `inserted_date` as "first seen on the official MeshCore map" (see `get_synthetic_sync_rows` in [`backend/api/app.py`](../backend/api/app.py)); an empty value would fall through `COALESCE` to `created_at`, or worse, into the pre-tracking baseline bucket anchored at `STATS_PRE_TRACKING_BASELINE_DATE = 2026-01-11`, distorting cumulative totals.
+
+The sync importer already stamps `inserted_date = get_current_timestamp()` when the official feed omits it (see [`backend/sync_belgian_nodes.integrate_added_node`](../backend/sync_belgian_nodes.py)), so this script is a one-shot safety net for historical rows and a re-runnable future-proof guard. On a clean DB it touches zero rows.
+
+```bash
+cd RRY-Map-Bot
+.venv/bin/python3 scripts/backfill_inserted_date.py --dry-run
+.venv/bin/python3 scripts/backfill_inserted_date.py
+```
+
+Each write is mirrored into `node_changes` with `change_type='inserted_date_backfill'` (old value = `null`, new value = chosen timestamp + `fallback_source`).

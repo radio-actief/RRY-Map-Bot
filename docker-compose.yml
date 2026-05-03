@@ -58,11 +58,12 @@ services:
         echo 'Sync service started. Waiting for initial delay...' &&
         sleep 60 &&
         SYNC_INTERVAL_HOURS=$${SYNC_INTERVAL_HOURS:-6} &&
-        SYNC_INTERVAL_SECONDS=$$((SYNC_INTERVAL_HOURS * 3600)) &&
+        SYNC_INTERVAL_MINUTES=$${SYNC_INTERVAL_MINUTES:-$$((SYNC_INTERVAL_HOURS * 60))} &&
+        SYNC_INTERVAL_SECONDS=$$((SYNC_INTERVAL_MINUTES * 60)) &&
         while true; do
-          echo 'Running sync at $$(date)' &&
+          echo 'Running sync at '$$(date) &&
           python3 backend/sync_belgian_nodes.py &&
-          echo \"Sync completed. Next run in $${SYNC_INTERVAL_HOURS} hour(s)...\" &&
+          echo \"Sync completed. Next run in $${SYNC_INTERVAL_MINUTES} minute(s)...\" &&
           sleep $${SYNC_INTERVAL_SECONDS}
         done
       "

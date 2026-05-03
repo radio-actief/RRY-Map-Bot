@@ -40,7 +40,8 @@ try:
         OFFICIAL_API_URL,
         BELGIUM_BOUNDS,
         GEOPY_USER_AGENT,
-        GEOPY_TIMEOUT
+        GEOPY_TIMEOUT,
+        SYNC_INTERVAL_MINUTES,
     )
 except (ImportError, ModuleNotFoundError):
     # Fallback if config not available
@@ -53,6 +54,7 @@ except (ImportError, ModuleNotFoundError):
     }
     GEOPY_USER_AGENT = 'belgian_meshcore_map'
     GEOPY_TIMEOUT = 10
+    SYNC_INTERVAL_MINUTES = int(os.getenv('SYNC_INTERVAL_MINUTES', str(int(os.getenv('SYNC_INTERVAL_HOURS', '6')) * 60)))
 
 from backend.database import (
     get_connection,
@@ -473,7 +475,13 @@ def integrate_added_node(node: Dict[str, Any], conn) -> None:
         conn: Database connection.
     """
     cursor = conn.cursor()
-    
+
+    # Always stamp inserted_date: prefer the official feed's value, fall back to our
+    # current scrape time so the stats chart / playback never rely on the pre-tracking
+    # baseline bucket for newly-added rows. See STATS_PRE_TRACKING_BASELINE_DATE in
+    # backend/api/app.py and scripts/backfill_inserted_date.py.
+    inserted_date_value = node.get('inserted_date') or get_current_timestamp()
+
     try:
         cursor.execute("""
             INSERT INTO belgian_nodes (
@@ -490,7 +498,7 @@ def integrate_added_node(node: Dict[str, Any], conn) -> None:
             node.get('adv_lon'),
             node.get('city'),
             node.get('last_advert'),
-            node.get('inserted_date'),
+            inserted_date_value,
             node.get('updated_date'),
             json_serialize(node.get('params')),
             node.get('link'),
@@ -1071,12 +1079,12 @@ def send_sync_notification(
     """
     try:
         from config.config import (
-            DISCORD_BOT_TOKEN, 
-            STARTUP_CHANNEL_ID, 
+            DISCORD_BOT_TOKEN,
+            STARTUP_CHANNEL_ID,
             NODE_TYPE_ICONS,
-            SYNC_INTERVAL_HOURS
+            SYNC_INTERVAL_MINUTES as _SYNC_MINUTES,
         )
-        
+
         if not DISCORD_BOT_TOKEN or not STARTUP_CHANNEL_ID:
             print("Discord bot token or startup channel ID not configured. Skipping notification.")
             return
@@ -1104,7 +1112,7 @@ def send_sync_notification(
                 stats = get_statistics()
                 
                 # Calculate next sync time in CET for footer (user-facing)
-                next_sync_utc = datetime.now(timezone.utc) + timedelta(hours=SYNC_INTERVAL_HOURS)
+                next_sync_utc = datetime.now(timezone.utc) + timedelta(minutes=_SYNC_MINUTES)
                 next_sync_cet = next_sync_utc.astimezone(ZoneInfo("Europe/Brussels"))
                 next_sync_str = next_sync_cet.strftime("%Y-%m-%d %H:%M") + " " + next_sync_cet.tzname()
                 
@@ -1263,7 +1271,7 @@ def send_sync_notification(
                     )
                 
                 # Footer: Next Sync (no icon, no seconds)
-                embed.set_footer(text=f"Next Sync: {next_sync_str} (in {SYNC_INTERVAL_HOURS} hours)")
+                embed.set_footer(text=f"Next Sync: {next_sync_str} (in {_SYNC_MINUTES} minutes)")
                 
                 # Send the message
                 await channel.send(embed=embed)
@@ -1292,6 +1300,7 @@ def sync_belgian_nodes(
     geopy_delay: float = 1.5,
     skip_geopy: bool = False,
     use_geopy: Optional[bool] = None,
+    notify: bool = False,
 ) -> Dict[str, Any]:
     """
     Main sync function: download, filter, verify, and integrate Belgian nodes.
@@ -1304,6 +1313,9 @@ def sync_belgian_nodes(
         use_geopy: Force the Geopy/Nominatim path instead of the local geocoder.
             ``None`` (default) means: local geocoder if available, else Geopy,
             honouring the ``USE_GEOPY_FALLBACK`` env var.
+        notify: If True, post the legacy per-sync Discord message via a
+            short-lived client. Defaults to False — the long-running
+            ``discord-bot`` service now posts a single daily digest instead.
 
     Returns:
         Dictionary with sync results and statistics.
@@ -1451,11 +1463,14 @@ def sync_belgian_nodes(
         # 9. Calculate elapsed time
         elapsed_time = time.time() - start_time
         
-        # 10. Send Discord notification only when there are added or removed nodes (not for updates-only)
+        # 10. Discord notification: disabled by default.
+        # The long-running discord-bot service posts a single daily digest
+        # (see backend/daily_digest.py). Legacy per-sync message is still
+        # available behind the --notify CLI flag for ops emergencies.
         has_added = changes.get('added_count', 0) > 0
         has_removed = changes.get('removed_count', 0) > 0
         has_restored = changes.get('restored_count', 0) > 0
-        if has_added or has_removed or has_restored:
+        if notify and (has_added or has_removed or has_restored):
             try:
                 send_sync_notification(
                     changes,
@@ -1524,13 +1539,17 @@ if __name__ == '__main__':
                             '(also via USE_GEOPY_FALLBACK=1)')
     parser.add_argument('--geopy-delay', type=float, default=1.5,
                        help='Delay between Geopy requests in seconds (only used with --use-geopy, default: 1.5)')
-    
+    parser.add_argument('--notify', action='store_true',
+                       help='Post a one-off per-sync Discord message (legacy behaviour). '
+                            'Normal sync runs leave notifications to the daily digest job.')
+
     args = parser.parse_args()
-    
+
     result = sync_belgian_nodes(
         geopy_delay=args.geopy_delay,
         skip_geopy=args.skip_geopy,
         use_geopy=args.use_geopy or None,
+        notify=args.notify,
     )
     
     if result['success']:

@@ -42,7 +42,22 @@ LOCAL_API_URL = os.getenv('LOCAL_API_URL', 'http://localhost:8000/api/v1')
 MAP_BASE_URL = os.getenv('MAP_BASE_URL', 'https://meshmap.radio-actief.be')
 
 # Sync Configuration
-SYNC_INTERVAL_HOURS = int(os.getenv('SYNC_INTERVAL_HOURS', '6'))
+# Preferred env: SYNC_INTERVAL_MINUTES. Legacy SYNC_INTERVAL_HOURS is still read
+# for backwards-compat (hours*60) when SYNC_INTERVAL_MINUTES is unset.
+SYNC_INTERVAL_HOURS = int(os.getenv('SYNC_INTERVAL_HOURS', '6'))  # deprecated, kept for compat
+_raw_sync_minutes = os.getenv('SYNC_INTERVAL_MINUTES')
+if _raw_sync_minutes is not None and _raw_sync_minutes.strip() != '':
+    SYNC_INTERVAL_MINUTES = int(_raw_sync_minutes)
+else:
+    SYNC_INTERVAL_MINUTES = SYNC_INTERVAL_HOURS * 60
+
+# Daily Digest Configuration (posted once per day by the Discord bot)
+DAILY_DIGEST_ENABLED = os.getenv('DAILY_DIGEST_ENABLED', '1').strip() in ('1', 'true', 'True', 'yes', 'YES')
+DAILY_DIGEST_HOUR = int(os.getenv('DAILY_DIGEST_HOUR', '9'))
+DAILY_DIGEST_MINUTE = int(os.getenv('DAILY_DIGEST_MINUTE', '0'))
+DAILY_DIGEST_TZ = os.getenv('DAILY_DIGEST_TZ', 'Europe/Brussels')
+# Channel override: falls back to STARTUP_CHANNEL_ID when unset.
+DAILY_DIGEST_CHANNEL_ID = os.getenv('DAILY_DIGEST_CHANNEL_ID') or STARTUP_CHANNEL_ID
 
 # Discord OAuth2 Configuration
 DISCORD_OAUTH2_CLIENT_ID = os.getenv('DISCORD_OAUTH2_CLIENT_ID')

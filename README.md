@@ -30,11 +30,14 @@ The bot allows searching nodes, listing your own nodes, claiming/unclaiming node
 ### 🔄 Data Synchronization
 - Automatic sync from official MeshCore map (`https://map.meshcore.io/api/v1/nodes`)
 - Filters nodes by Belgian geographic bounds
-- Verifies with Geopy (country code = BE)
-- Extracts native city names
-- Tracks added, removed, updated, and restored nodes
+- Verifies with the local Belgian geocoder (Shapely + StatBel GeoJSON); Geopy is
+  an optional fallback (`USE_GEOPY_FALLBACK=1`)
+- Extracts canonical city names from `be-locode.json`
+- Tracks added, removed, updated, and restored nodes in `node_changes`
 - Preserves Discord ownership and edits
-- Sends sync notifications to Discord channel
+- Sync runs every `SYNC_INTERVAL_MINUTES` and no longer posts to Discord per run
+- A separate daily digest job (running inside the `discord-bot` container)
+  posts one aggregated message per day at `DAILY_DIGEST_HOUR:MINUTE` local time
 
 ---
 
@@ -133,11 +136,19 @@ See `rry-map-bot.env.example` for all available options:
 
 - `DISCORD_BOT_TOKEN` - Discord bot token (required)
 - `DISCORD_GUILD_ID` - Discord server ID (optional, for guild-specific commands)
-- `STARTUP_CHANNEL_ID` - Channel for bot instructions and sync notifications
+- `STARTUP_CHANNEL_ID` - Channel for bot instructions and (fallback) daily digest posts
 - `STARTUP_MESSAGE_ID` - Message ID to update with bot instructions
 - `DATABASE_PATH` - Path to SQLite database (default: `data/belgian_nodes.db`)
-- `SYNC_INTERVAL_HOURS` - Hours between sync runs (default: 6)
-- `GEOPY_USER_AGENT` - User agent for Geopy requests
+- `SYNC_INTERVAL_MINUTES` - Minutes between sync runs (preferred; default: 360)
+- `SYNC_INTERVAL_HOURS` - Legacy, still supported if `SYNC_INTERVAL_MINUTES` is unset
+- `DAILY_DIGEST_ENABLED` - `1` to enable the once-per-day Discord digest job (default: `1`)
+- `DAILY_DIGEST_HOUR` / `DAILY_DIGEST_MINUTE` - Local time when the digest is posted (default: `9:00`)
+- `DAILY_DIGEST_TZ` - IANA time zone for the digest schedule (default: `Europe/Brussels`)
+- `DAILY_DIGEST_CHANNEL_ID` - Optional override; defaults to `STARTUP_CHANNEL_ID`
+- `BE_MUNICIPALITIES_GEOJSON` - Path to the local geocoder GeoJSON (default: `data/be-municipalities.geojson`)
+- `GEOCODE_BUFFER_METERS` - Nearest-gemeente fallback buffer in metres (default: `0` = strict PIP)
+- `USE_GEOPY_FALLBACK` - `1` to force the Geopy path instead of the local geocoder
+- `GEOPY_USER_AGENT` - User agent for Geopy requests (fallback only)
 - `OFFICIAL_MAP_API_URL` - Official map API URL
 
 ---

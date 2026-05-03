@@ -2213,17 +2213,13 @@ createApp({
     async function downloadNodes() {
       try {
         app.loading = true;
-        const nodesReq = await fetch(apiUrl);
-        app.nodes = await nodesReq.json();
-
-        // Fetch presets from API (similar to upstream)
-        getPresets()
-          .then(() => {
-            // Presets are now loaded and cached in FREQUENCY_PRESETS
-          })
-          .catch((err) => {
+        const [nodesReq] = await Promise.all([
+          fetch(apiUrl),
+          getPresets().catch((err) => {
             console.warn("Preset loading error (using fallback):", err);
-          });
+          }),
+        ]);
+        app.nodes = await nodesReq.json();
 
         const byType = {};
         const freqSet = new Set();

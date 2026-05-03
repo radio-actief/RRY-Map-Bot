@@ -23,8 +23,6 @@
     <link rel="stylesheet" href="./css/stats-page.css" />
     <link rel="stylesheet" href="./lib/css/leaflet.css" />
     <title>Stats - #BEmesh Map</title>
-    <script src="https://cdn.jsdelivr.net/npm/apexcharts@3.45.1/dist/apexcharts.min.js"></script>
-    <script src="./lib/leaflet.js"></script>
   </head>
   <body class="light map-page stats-body rty-doc-page">
     <div class="rty-page-wrap">
@@ -579,19 +577,6 @@
           set("stats-chip-claimed", claimed);
           set("stats-chip-users", users);
         }
-        fetch("/api/v1/stats")
-          .then(function (r) {
-            return r.ok ? r.json() : Promise.reject();
-          })
-          .then(function (s) {
-            fillHeaderChips(s);
-            var main = document.querySelector(".stats-header-main");
-            if (main) main.classList.remove("is-loading");
-          })
-          .catch(function () {
-            var main = document.querySelector(".stats-header-main");
-            if (main) main.classList.remove("is-loading");
-          });
 
         // Download + filter flyouts: close on outside click; mutual close when opening the other
         const downloadChip = document.getElementById("stats-download-chip");
@@ -687,6 +672,520 @@
         var statsDataCache = null;
         var currentPresetValue = "all";
         window.__statsRadioCustom = null;
+        var citiesSelectEl = document.getElementById("stats-cities-type");
+        var __statsPlaybackGen = 0;
+
+        function formatDateOnly(dateStr) {
+          var d = new Date(dateStr + "T12:00:00");
+          return d.toLocaleDateString(undefined, { dateStyle: "medium" });
+        }
+
+        function ensureApexCharts() {
+          return new Promise(function (resolve, reject) {
+            if (typeof ApexCharts !== "undefined") {
+              resolve();
+              return;
+            }
+            var s = document.createElement("script");
+            s.src =
+              "https://cdn.jsdelivr.net/npm/apexcharts@3.45.1/dist/apexcharts.min.js";
+            s.async = true;
+            s.onload = function () {
+              resolve();
+            };
+            s.onerror = function () {
+              reject(new Error("Failed to load chart library"));
+            };
+            document.head.appendChild(s);
+          });
+        }
+
+        function ensureStatsLeaflet() {
+          return new Promise(function (resolve, reject) {
+            if (typeof L !== "undefined" && L.map) {
+              resolve();
+              return;
+            }
+            var s = document.createElement("script");
+            s.src = "./lib/leaflet.js";
+            s.async = true;
+            s.onload = function () {
+              resolve();
+            };
+            s.onerror = function () {
+              reject(new Error("Failed to load map library"));
+            };
+            document.head.appendChild(s);
+          });
+        }
+
+        function getNetworkCountForPreset(presetKey) {
+          if (!statsDataCache) return null;
+          if (presetKey === "all")
+            return statsDataCache.total_nodes != null
+              ? Number(statsDataCache.total_nodes)
+              : null;
+          if (presetKey === "Custom settings")
+            return statsDataCache.custom_frequency != null
+              ? Number(statsDataCache.custom_frequency)
+              : null;
+          if (presetKey === "Unknown")
+            return statsDataCache.unknown_frequency != null
+              ? Number(statsDataCache.unknown_frequency)
+              : null;
+          if (presetKey === "__custom__")
+            return statsDataCache.total_nodes != null
+              ? Number(statsDataCache.total_nodes)
+              : null;
+          var presets = statsDataCache.frequency_presets || {};
+          return presets[presetKey] != null
+            ? Number(presets[presetKey])
+            : null;
+        }
+
+        function syncStatsPresetPanelActive() {
+          var listEl = document.getElementById("stats-preset-dropdown");
+          if (listEl) {
+            listEl
+              .querySelectorAll("button[data-value]")
+              .forEach(function (b) {
+                b.classList.toggle(
+                  "is-active",
+                  b.getAttribute("data-value") === currentPresetValue,
+                );
+              });
+          }
+          var customRoot = document.getElementById(
+            "stats-preset-custom-root",
+          );
+          var customWrap =
+            customRoot && customRoot.querySelector(".stats-preset-custom");
+          if (customWrap) {
+            customWrap.classList.toggle(
+              "is-active",
+              currentPresetValue === "__custom__",
+            );
+          }
+        }
+
+        function populatePresetDropdown(s) {
+          var container = document.getElementById("stats-preset-dropdown");
+          var customRoot = document.getElementById(
+            "stats-preset-custom-root",
+          );
+          if (!container || !customRoot) return;
+          var presets = s.frequency_presets || {};
+          var presetOrder = [
+            "EU/UK (Narrow)",
+            "EU 433MHz (Long Range)",
+            "EU/UK (Long Range)",
+            "EU/UK (Medium Range)",
+          ];
+          container.innerHTML = "";
+          customRoot.innerHTML = "";
+          function addOption(value, label) {
+            var btn = document.createElement("button");
+            btn.type = "button";
+            btn.textContent = label;
+            btn.setAttribute("data-value", value);
+            btn.addEventListener("click", function () {
+              window.__statsRadioCustom = null;
+              [
+                "stats-custom-freq",
+                "stats-custom-sf",
+                "stats-custom-bw",
+                "stats-custom-cr",
+              ].forEach(function (id) {
+                var el = document.getElementById(id);
+                if (el) el.value = "";
+              });
+              chartPresetValue = value;
+              currentPresetValue = value;
+              syncStatsPresetPanelActive();
+              var url =
+                value === "all"
+                  ? "/api/v1/stats"
+                  : "/api/v1/stats?frequency_preset=" +
+                    encodeURIComponent(value);
+              fetch(url)
+                .then(function (r) {
+                  return r.ok ? r.json() : Promise.reject();
+                })
+                .then(function (data) {
+                  statsDataCache = data;
+                  fillHeaderChips(data);
+                  renderTopCities(
+                    (citiesSelectEl && citiesSelectEl.value) || "all",
+                  );
+                  if (typeof window.__statsRefetchChart === "function")
+                    window.__statsRefetchChart(value);
+                  closeStatsHeaderPopovers();
+                  scheduleStatsHeaderChartResize();
+                })
+                .catch(function () {});
+            });
+            container.appendChild(btn);
+          }
+          addOption("all", "All frequencies");
+          presetOrder.forEach(function (name) {
+            if (presets[name] != null && presets[name] > 0)
+              addOption(name, name);
+          });
+          Object.keys(presets).forEach(function (name) {
+            if (
+              presetOrder.indexOf(name) === -1 &&
+              presets[name] != null &&
+              presets[name] > 0
+            )
+              addOption(name, name);
+          });
+          var customWrap = document.createElement("div");
+          customWrap.className = "stats-preset-custom";
+          customWrap.innerHTML =
+            '<div class="stats-preset-custom-grid">' +
+            '<label>Freq (MHz)<input type="number" step="0.001" id="stats-custom-freq" placeholder="869.618" /></label>' +
+            '<label>SF<input type="number" step="1" min="5" max="13" id="stats-custom-sf" placeholder="8" /></label>' +
+            '<label>BW (kHz)<input type="number" step="0.1" id="stats-custom-bw" placeholder="62.5" /></label>' +
+            '<label>CR<input type="number" step="1" min="4" max="9" id="stats-custom-cr" placeholder="8" /></label>' +
+            "</div>" +
+            '<button type="button" id="stats-preset-custom-apply">Apply</button>';
+          customRoot.appendChild(customWrap);
+          var applyBtn = document.getElementById("stats-preset-custom-apply");
+          if (applyBtn) {
+            applyBtn.addEventListener("click", function (e) {
+              e.stopPropagation();
+              var freqEl = document.getElementById("stats-custom-freq");
+              var sfEl = document.getElementById("stats-custom-sf");
+              var bwEl = document.getElementById("stats-custom-bw");
+              var crEl = document.getElementById("stats-custom-cr");
+              function numOrEmpty(el, parseFn) {
+                if (!el) return null;
+                var s = String(el.value || "").trim();
+                if (s === "") return null;
+                var v = parseFn(s);
+                return isNaN(v) ? false : v;
+              }
+              var freq = numOrEmpty(freqEl, parseFloat);
+              var sf = numOrEmpty(sfEl, function (s) {
+                return parseInt(s, 10);
+              });
+              var bw = numOrEmpty(bwEl, parseFloat);
+              var cr = numOrEmpty(crEl, function (s) {
+                return parseInt(s, 10);
+              });
+              if (
+                freq === false ||
+                sf === false ||
+                bw === false ||
+                cr === false
+              ) {
+                window.alert(
+                  "Use numbers only. Freq 100–1000 MHz, SF 5–13, BW 30–1000 kHz, CR 4–9.",
+                );
+                return;
+              }
+              var custom = {};
+              if (freq != null) {
+                if (freq < 100 || freq > 1000) {
+                  window.alert("Freq must be between 100 and 1000 MHz.");
+                  return;
+                }
+                custom.freq = freq;
+              }
+              if (sf != null) {
+                if (sf < 5 || sf > 13) {
+                  window.alert("SF must be between 5 and 13.");
+                  return;
+                }
+                custom.sf = sf;
+              }
+              if (bw != null) {
+                if (bw < 30 || bw > 1000) {
+                  window.alert("BW must be between 30 and 1000 kHz.");
+                  return;
+                }
+                custom.bw = bw;
+              }
+              if (cr != null) {
+                if (cr < 4 || cr > 9) {
+                  window.alert("CR must be between 4 and 9.");
+                  return;
+                }
+                custom.cr = cr;
+              }
+              if (Object.keys(custom).length === 0) {
+                window.alert(
+                  "Enter at least one of: Freq, SF, BW, or CR (others optional).",
+                );
+                return;
+              }
+              window.__statsRadioCustom = custom;
+              chartPresetValue = "all";
+              currentPresetValue = "__custom__";
+              syncStatsPresetPanelActive();
+              var qsParts = [];
+              if (custom.freq != null)
+                qsParts.push("freq=" + encodeURIComponent(custom.freq));
+              if (custom.sf != null)
+                qsParts.push("sf=" + encodeURIComponent(custom.sf));
+              if (custom.bw != null)
+                qsParts.push("bw=" + encodeURIComponent(custom.bw));
+              if (custom.cr != null)
+                qsParts.push("cr=" + encodeURIComponent(custom.cr));
+              var qs = qsParts.join("&");
+              fetch("/api/v1/stats?" + qs)
+                .then(function (r) {
+                  return r.ok ? r.json() : Promise.reject();
+                })
+                .then(function (data) {
+                  statsDataCache = data;
+                  fillHeaderChips(data);
+                  renderTopCities(
+                    (citiesSelectEl && citiesSelectEl.value) || "all",
+                  );
+                  if (typeof window.__statsRefetchChart === "function")
+                    window.__statsRefetchChart(null);
+                  updateNetworkChipFromPreset();
+                  syncStatsPresetPanelActive();
+                  closeStatsHeaderPopovers();
+                  scheduleStatsHeaderChartResize();
+                })
+                .catch(function () {});
+            });
+          }
+          syncStatsPresetPanelActive();
+        }
+
+        function updateNetworkChipFromPreset() {
+          var valEl = document.getElementById("stats-chip-total");
+          if (!valEl) return;
+          var count = getNetworkCountForPreset(currentPresetValue);
+          valEl.textContent =
+            count != null ? Number(count).toLocaleString() : "—";
+        }
+
+        function getTopCitiesForType(typeKey) {
+          var key =
+            typeKey === "all"
+              ? "top_cities"
+              : typeKey === "1"
+                ? "top_cities_companions"
+                : typeKey === "2"
+                  ? "top_cities_repeaters"
+                  : typeKey === "3"
+                    ? "top_cities_room_servers"
+                    : typeKey === "4"
+                      ? "top_cities_sensors"
+                      : "top_cities";
+          var arr = (statsDataCache && statsDataCache[key]) || [];
+          return arr.slice(0, 5);
+        }
+
+        function renderTopCities(typeKey) {
+          var tCities = document.getElementById("stats-summary-cities");
+          var citiesSelect = document.getElementById("stats-cities-type");
+          var titleEl = document.getElementById("stats-summary-cities-title");
+          var inlineWrap = document.querySelector(".stats-top-cities-inline");
+          if (!tCities) return;
+          tCities.innerHTML = "";
+          if (citiesSelect) citiesSelect.value = typeKey;
+          if (titleEl) titleEl.textContent = "Top cities";
+          if (inlineWrap) {
+            inlineWrap.classList.toggle("is-filtered", typeKey !== "all");
+          }
+          var list = getTopCitiesForType(typeKey);
+          function row(tbody, label, value) {
+            var tr = document.createElement("tr");
+            tr.innerHTML =
+              "<td>" + label + '</td><td class="num">' + value + "</td>";
+            tbody.appendChild(tr);
+          }
+          if (list.length > 0)
+            list.forEach(function (c) {
+              row(
+                tCities,
+                c.city,
+                '<span class="value">' +
+                  Number(c.count).toLocaleString() +
+                  "</span>",
+              );
+            });
+          else row(tCities, "—", "—");
+        }
+
+        function initStatsPlaybackMap(changes) {
+          if (!changes || changes.length === 0) return;
+          var byDate = {};
+          changes.forEach(function (c) {
+            var d = (c.sync_date || "").slice(0, 10);
+            if (!byDate[d]) byDate[d] = [];
+            byDate[d].push(c);
+          });
+          var sortedDates = Object.keys(byDate).sort();
+          var frames = [];
+          var visible = {};
+          sortedDates.forEach(function (d) {
+            byDate[d].forEach(function (c) {
+              if (c.change_type === "added" || c.change_type === "restored") {
+                visible[c.public_key] = {
+                  lat: c.lat,
+                  lon: c.lon,
+                  adv_name: c.adv_name,
+                  type: c.type || 1,
+                };
+              } else if (
+                c.change_type === "updated" &&
+                visible[c.public_key]
+              ) {
+                visible[c.public_key] = {
+                  lat: c.lat,
+                  lon: c.lon,
+                  adv_name: c.adv_name,
+                  type: c.type || 1,
+                };
+              } else if (c.change_type === "removed") {
+                delete visible[c.public_key];
+              }
+            });
+            frames.push({
+              date: d,
+              nodes: Object.keys(visible).map(function (k) {
+                return visible[k];
+              }),
+            });
+          });
+          if (frames.length === 0) return;
+
+          var nodeTypeColors = {
+            1: { fill: "#2196f3", stroke: "#1565C0" },
+            2: { fill: "#4CAF50", stroke: "#2E7D32" },
+            3: { fill: "#9C27B0", stroke: "#6A1B9A" },
+            4: { fill: "#0891b2", stroke: "#0e7490" },
+          };
+          function colorForType(t) {
+            return nodeTypeColors[t] || nodeTypeColors[1];
+          }
+
+          var slider = document.getElementById("playback-slider");
+          var dateEl = document.getElementById("playback-date");
+          var playBtn = document.getElementById("playback-play");
+          var speedSelect = document.getElementById("playback-speed");
+          if (!slider || !dateEl || !playBtn || !speedSelect) return;
+
+          var map = L.map("stats-map", {
+            center: [50.8503, 4.3517],
+            zoom: 7,
+          });
+          window.__statsPlaybackMap = map;
+          L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            attribution:
+              '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+            }).addTo(map);
+          var markersLayer = L.layerGroup().addTo(map);
+
+          slider.max = Math.max(0, frames.length - 1);
+
+          function setFrame(i) {
+            i = Math.max(0, Math.min(i, frames.length - 1));
+            slider.value = i;
+            var f = frames[i];
+            dateEl.textContent = formatDateOnly(f.date);
+            var countsByType = { 1: 0, 2: 0, 3: 0, 4: 0 };
+            f.nodes.forEach(function (n) {
+              var t = n.type || 1;
+              countsByType[t] = (countsByType[t] || 0) + 1;
+            });
+            var legendEl = document.getElementById("playback-legend");
+            for (var t = 1; t <= 4; t++) {
+              var count = countsByType[t] || 0;
+              var el = document.getElementById("playback-legend-count-" + t);
+              if (el) el.textContent = count;
+              var row = legendEl
+                ? legendEl.querySelector('[data-type="' + t + '"]')
+                : null;
+              if (row) row.style.display = count > 0 ? "" : "none";
+            }
+            var totalEl = document.getElementById(
+              "playback-legend-count-total",
+            );
+            if (totalEl) totalEl.textContent = f.nodes.length;
+            markersLayer.clearLayers();
+            f.nodes.forEach(function (n) {
+              var c = colorForType(n.type);
+              var m = L.circleMarker([n.lat, n.lon], {
+                radius: 6,
+                fillColor: c.fill,
+                color: c.stroke,
+                weight: 1,
+                fillOpacity: 0.9,
+              });
+              var tip = n.adv_name || "";
+              if (n.type) {
+                var typeNames = {
+                  1: "Client",
+                  2: "Repeater",
+                  3: "Room Server",
+                  4: "Sensor",
+                };
+                tip =
+                  (tip ? tip + " \u2014 " : "") +
+                  (typeNames[n.type] || "Node");
+              }
+              if (tip) m.bindTooltip(tip, { permanent: false });
+              markersLayer.addLayer(m);
+            });
+          }
+
+          setFrame(frames.length - 1);
+
+          var playInterval = null;
+          function stopPlay() {
+            if (playInterval) {
+              clearInterval(playInterval);
+              playInterval = null;
+            }
+            playBtn.textContent = "\u25B6";
+            playBtn.title = "Play";
+          }
+          function startPlay() {
+            var speed = parseFloat(speedSelect.value) || 1;
+            var ms = Math.max(200, 800 / speed);
+            playBtn.textContent = "\u23F8";
+            playBtn.title = "Pause";
+            playInterval = setInterval(function () {
+              var next = parseInt(slider.value, 10) + 1;
+              if (next >= frames.length) next = 0;
+              setFrame(next);
+            }, ms);
+          }
+          playBtn.addEventListener("click", function () {
+            if (playInterval) stopPlay();
+            else startPlay();
+          });
+          speedSelect.addEventListener("change", function () {
+            if (playInterval) {
+              stopPlay();
+              startPlay();
+            }
+          });
+
+          document
+            .getElementById("playback-prev")
+            .addEventListener("click", function () {
+              stopPlay();
+              setFrame(parseInt(slider.value, 10) - 1);
+            });
+          document
+            .getElementById("playback-next")
+            .addEventListener("click", function () {
+              stopPlay();
+              setFrame(parseInt(slider.value, 10) + 1);
+            });
+          slider.addEventListener("input", function () {
+            stopPlay();
+            setFrame(parseInt(slider.value, 10));
+          });
+        }
         function statsFrequencyQuerySuffix() {
           if (
             window.__statsRadioCustom &&
@@ -709,18 +1208,26 @@
             ? "&frequency_preset=" + encodeURIComponent(p)
             : "";
         }
-        function fetchChartData(preset) {
+        function fetchChartData(preset, opts) {
+          opts = opts || {};
+          var includeNodeChanges = opts.includeNodeChanges !== false;
           if (!window.__statsRadioCustom) {
             chartPresetValue = preset != null ? preset : chartPresetValue;
           }
           var presetParam = statsFrequencyQuerySuffix();
+          var syncP = fetch(
+            "/api/v1/sync-history?limit=500" + presetParam,
+          ).then(function (r) {
+            if (!r.ok) throw new Error("Failed to load sync history");
+            return r.json();
+          });
+          if (!includeNodeChanges) {
+            return syncP.then(function (history) {
+              return [history, []];
+            });
+          }
           return Promise.all([
-            fetch("/api/v1/sync-history?limit=500" + presetParam).then(
-              function (r) {
-                if (!r.ok) throw new Error("Failed to load sync history");
-                return r.json();
-              },
-            ),
+            syncP,
             fetch("/api/v1/node-changes?limit=15000" + presetParam).then(
               function (r) {
                 return r.ok ? r.json() : [];
@@ -744,6 +1251,8 @@
           );
         }
         function initStatsContent(history, nodeChanges) {
+          __statsPlaybackGen++;
+          var playbackGen = __statsPlaybackGen;
           if (window.__statsChartInstance) {
             window.__statsChartInstance.destroy();
             window.__statsChartInstance = null;
@@ -904,369 +1413,7 @@
           hideStatsError();
           contentEl.style.display = "block";
 
-          function setEl(id, value) {
-            var el = document.getElementById(id);
-            if (el)
-              el.textContent =
-                value != null ? Number(value).toLocaleString() : "—";
-          }
-          function getNetworkCountForPreset(presetKey) {
-            if (!statsDataCache) return null;
-            if (presetKey === "all")
-              return statsDataCache.total_nodes != null
-                ? Number(statsDataCache.total_nodes)
-                : null;
-            if (presetKey === "Custom settings")
-              return statsDataCache.custom_frequency != null
-                ? Number(statsDataCache.custom_frequency)
-                : null;
-            if (presetKey === "Unknown")
-              return statsDataCache.unknown_frequency != null
-                ? Number(statsDataCache.unknown_frequency)
-                : null;
-            if (presetKey === "__custom__")
-              return statsDataCache.total_nodes != null
-                ? Number(statsDataCache.total_nodes)
-                : null;
-            var presets = statsDataCache.frequency_presets || {};
-            return presets[presetKey] != null
-              ? Number(presets[presetKey])
-              : null;
-          }
-          function syncStatsPresetPanelActive() {
-            var listEl = document.getElementById("stats-preset-dropdown");
-            if (listEl) {
-              listEl
-                .querySelectorAll("button[data-value]")
-                .forEach(function (b) {
-                  b.classList.toggle(
-                    "is-active",
-                    b.getAttribute("data-value") === currentPresetValue,
-                  );
-                });
-            }
-            var customRoot = document.getElementById(
-              "stats-preset-custom-root",
-            );
-            var customWrap =
-              customRoot && customRoot.querySelector(".stats-preset-custom");
-            if (customWrap) {
-              customWrap.classList.toggle(
-                "is-active",
-                currentPresetValue === "__custom__",
-              );
-            }
-          }
-          function populatePresetDropdown(s) {
-            var container = document.getElementById("stats-preset-dropdown");
-            var customRoot = document.getElementById(
-              "stats-preset-custom-root",
-            );
-            if (!container || !customRoot) return;
-            var presets = s.frequency_presets || {};
-            var presetOrder = [
-              "EU/UK (Narrow)",
-              "EU 433MHz (Long Range)",
-              "EU/UK (Long Range)",
-              "EU/UK (Medium Range)",
-            ];
-            container.innerHTML = "";
-            customRoot.innerHTML = "";
-            function addOption(value, label) {
-              var btn = document.createElement("button");
-              btn.type = "button";
-              btn.textContent = label;
-              btn.setAttribute("data-value", value);
-              btn.addEventListener("click", function () {
-                window.__statsRadioCustom = null;
-                [
-                  "stats-custom-freq",
-                  "stats-custom-sf",
-                  "stats-custom-bw",
-                  "stats-custom-cr",
-                ].forEach(function (id) {
-                  var el = document.getElementById(id);
-                  if (el) el.value = "";
-                });
-                chartPresetValue = value;
-                currentPresetValue = value;
-                syncStatsPresetPanelActive();
-                var url =
-                  value === "all"
-                    ? "/api/v1/stats"
-                    : "/api/v1/stats?frequency_preset=" +
-                      encodeURIComponent(value);
-                fetch(url)
-                  .then(function (r) {
-                    return r.ok ? r.json() : Promise.reject();
-                  })
-                  .then(function (data) {
-                    statsDataCache = data;
-                    fillHeaderChips(data);
-                    renderTopCities(
-                      (citiesSelectEl && citiesSelectEl.value) || "all",
-                    );
-                    if (typeof window.__statsRefetchChart === "function")
-                      window.__statsRefetchChart(value);
-                    closeStatsHeaderPopovers();
-                    scheduleStatsHeaderChartResize();
-                  })
-                  .catch(function () {});
-              });
-              container.appendChild(btn);
-            }
-            addOption("all", "All frequencies");
-            presetOrder.forEach(function (name) {
-              if (presets[name] != null && presets[name] > 0)
-                addOption(name, name);
-            });
-            Object.keys(presets).forEach(function (name) {
-              if (
-                presetOrder.indexOf(name) === -1 &&
-                presets[name] != null &&
-                presets[name] > 0
-              )
-                addOption(name, name);
-            });
-            var customWrap = document.createElement("div");
-            customWrap.className = "stats-preset-custom";
-            customWrap.innerHTML =
-              '<div class="stats-preset-custom-grid">' +
-              '<label>Freq (MHz)<input type="number" step="0.001" id="stats-custom-freq" placeholder="869.618" /></label>' +
-              '<label>SF<input type="number" step="1" min="5" max="13" id="stats-custom-sf" placeholder="8" /></label>' +
-              '<label>BW (kHz)<input type="number" step="0.1" id="stats-custom-bw" placeholder="62.5" /></label>' +
-              '<label>CR<input type="number" step="1" min="4" max="9" id="stats-custom-cr" placeholder="8" /></label>' +
-              "</div>" +
-              '<button type="button" id="stats-preset-custom-apply">Apply</button>';
-            customRoot.appendChild(customWrap);
-            var applyBtn = document.getElementById("stats-preset-custom-apply");
-            if (applyBtn) {
-              applyBtn.addEventListener("click", function (e) {
-                e.stopPropagation();
-                var freqEl = document.getElementById("stats-custom-freq");
-                var sfEl = document.getElementById("stats-custom-sf");
-                var bwEl = document.getElementById("stats-custom-bw");
-                var crEl = document.getElementById("stats-custom-cr");
-                function numOrEmpty(el, parseFn) {
-                  if (!el) return null;
-                  var s = String(el.value || "").trim();
-                  if (s === "") return null;
-                  var v = parseFn(s);
-                  return isNaN(v) ? false : v;
-                }
-                var freq = numOrEmpty(freqEl, parseFloat);
-                var sf = numOrEmpty(sfEl, function (s) {
-                  return parseInt(s, 10);
-                });
-                var bw = numOrEmpty(bwEl, parseFloat);
-                var cr = numOrEmpty(crEl, function (s) {
-                  return parseInt(s, 10);
-                });
-                if (
-                  freq === false ||
-                  sf === false ||
-                  bw === false ||
-                  cr === false
-                ) {
-                  window.alert(
-                    "Use numbers only. Freq 100–1000 MHz, SF 5–13, BW 30–1000 kHz, CR 4–9.",
-                  );
-                  return;
-                }
-                var custom = {};
-                if (freq != null) {
-                  if (freq < 100 || freq > 1000) {
-                    window.alert("Freq must be between 100 and 1000 MHz.");
-                    return;
-                  }
-                  custom.freq = freq;
-                }
-                if (sf != null) {
-                  if (sf < 5 || sf > 13) {
-                    window.alert("SF must be between 5 and 13.");
-                    return;
-                  }
-                  custom.sf = sf;
-                }
-                if (bw != null) {
-                  if (bw < 30 || bw > 1000) {
-                    window.alert("BW must be between 30 and 1000 kHz.");
-                    return;
-                  }
-                  custom.bw = bw;
-                }
-                if (cr != null) {
-                  if (cr < 4 || cr > 9) {
-                    window.alert("CR must be between 4 and 9.");
-                    return;
-                  }
-                  custom.cr = cr;
-                }
-                if (Object.keys(custom).length === 0) {
-                  window.alert(
-                    "Enter at least one of: Freq, SF, BW, or CR (others optional).",
-                  );
-                  return;
-                }
-                window.__statsRadioCustom = custom;
-                chartPresetValue = "all";
-                currentPresetValue = "__custom__";
-                syncStatsPresetPanelActive();
-                var qsParts = [];
-                if (custom.freq != null)
-                  qsParts.push("freq=" + encodeURIComponent(custom.freq));
-                if (custom.sf != null)
-                  qsParts.push("sf=" + encodeURIComponent(custom.sf));
-                if (custom.bw != null)
-                  qsParts.push("bw=" + encodeURIComponent(custom.bw));
-                if (custom.cr != null)
-                  qsParts.push("cr=" + encodeURIComponent(custom.cr));
-                var qs = qsParts.join("&");
-                fetch("/api/v1/stats?" + qs)
-                  .then(function (r) {
-                    return r.ok ? r.json() : Promise.reject();
-                  })
-                  .then(function (data) {
-                    statsDataCache = data;
-                    fillHeaderChips(data);
-                    renderTopCities(
-                      (citiesSelectEl && citiesSelectEl.value) || "all",
-                    );
-                    if (typeof window.__statsRefetchChart === "function")
-                      window.__statsRefetchChart(null);
-                    updateNetworkChipFromPreset();
-                    syncStatsPresetPanelActive();
-                    closeStatsHeaderPopovers();
-                    scheduleStatsHeaderChartResize();
-                  })
-                  .catch(function () {});
-              });
-            }
-            syncStatsPresetPanelActive();
-          }
-          function updateNetworkChipFromPreset() {
-            var valEl = document.getElementById("stats-chip-total");
-            if (!valEl) return;
-            var count = getNetworkCountForPreset(currentPresetValue);
-            valEl.textContent =
-              count != null ? Number(count).toLocaleString() : "—";
-          }
-          function getTopCitiesForType(typeKey) {
-            var key =
-              typeKey === "all"
-                ? "top_cities"
-                : typeKey === "1"
-                  ? "top_cities_companions"
-                  : typeKey === "2"
-                    ? "top_cities_repeaters"
-                    : typeKey === "3"
-                      ? "top_cities_room_servers"
-                      : typeKey === "4"
-                        ? "top_cities_sensors"
-                        : "top_cities";
-            var arr = (statsDataCache && statsDataCache[key]) || [];
-            return arr.slice(0, 5);
-          }
-          function renderTopCities(typeKey) {
-            var tCities = document.getElementById("stats-summary-cities");
-            var citiesSelect = document.getElementById("stats-cities-type");
-            var titleEl = document.getElementById("stats-summary-cities-title");
-            var inlineWrap = document.querySelector(".stats-top-cities-inline");
-            if (!tCities) return;
-            tCities.innerHTML = "";
-            if (citiesSelect) citiesSelect.value = typeKey;
-            if (titleEl) titleEl.textContent = "Top cities";
-            if (inlineWrap) {
-              inlineWrap.classList.toggle("is-filtered", typeKey !== "all");
-            }
-            var list = getTopCitiesForType(typeKey);
-            function row(tbody, label, value) {
-              var tr = document.createElement("tr");
-              tr.innerHTML =
-                "<td>" + label + '</td><td class="num">' + value + "</td>";
-              tbody.appendChild(tr);
-            }
-            if (list.length > 0)
-              list.forEach(function (c) {
-                row(
-                  tCities,
-                  c.city,
-                  '<span class="value">' +
-                    Number(c.count).toLocaleString() +
-                    "</span>",
-                );
-              });
-            else row(tCities, "—", "—");
-          }
-          function loadStatsSummary() {
-            fetch("/api/v1/stats")
-              .then(function (r) {
-                return r.ok ? r.json() : Promise.reject();
-              })
-              .then(function (s) {
-                statsDataCache = s;
-                fillHeaderChips(s);
-                var byType = s.by_type || {};
-                var total = s.total_nodes != null ? Number(s.total_nodes) : 0;
-                var companions = byType[1] != null ? Number(byType[1]) : 0;
-                var repeaters = byType[2] != null ? Number(byType[2]) : 0;
-                var roomServers = byType[3] != null ? Number(byType[3]) : 0;
-                var sensors = byType[4] != null ? Number(byType[4]) : 0;
-                var cities =
-                  s.total_cities != null ? Number(s.total_cities) : 0;
-                var claimed =
-                  s.claimed_nodes != null ? Number(s.claimed_nodes) : 0;
-                var users =
-                  s.registered_users != null ? Number(s.registered_users) : 0;
-                var tCities = document.getElementById("stats-summary-cities");
-                if (tCities) {
-                  var citiesSelect = document.getElementById(
-                    "stats-cities-type",
-                  );
-                  var citiesTypeKey =
-                    (citiesSelect && citiesSelect.value) || "all";
-                  populatePresetDropdown(s);
-                  updateNetworkChipFromPreset();
-                  renderTopCities(citiesTypeKey);
-                } else {
-                  populatePresetDropdown(s);
-                  updateNetworkChipFromPreset();
-                }
-                if (!window.__statsChartInitialLoaded) {
-                  window.__statsChartInitialLoaded = true;
-                  fetchChartData(chartPresetValue)
-                    .then(function (results) {
-                      initStatsContent(results[0], results[1] || []);
-                    })
-                    .catch(function (err) {
-                      showError(
-                        err.message || "Could not load sync history.",
-                      );
-                    });
-                }
-              })
-              .catch(function () {
-                if (!window.__statsChartInitialLoaded) {
-                  window.__statsChartInitialLoaded = true;
-                  fetchChartData(chartPresetValue)
-                    .then(function (results) {
-                      initStatsContent(results[0], results[1] || []);
-                    })
-                    .catch(function (err) {
-                      showError(
-                        err.message || "Could not load sync history.",
-                      );
-                    });
-                }
-              });
-          }
-          if (!window.__statsSummaryLoaded) {
-            loadStatsSummary();
-            window.__statsSummaryLoaded = true;
-          }
-
           // Wire dropdown and node-type chips to filter Top cities
-          var citiesSelectEl = document.getElementById("stats-cities-type");
           window.__statsResetNodeFilter = function () {
             renderTopCities("all");
             chartFilterType = null;
@@ -1312,11 +1459,6 @@
                 });
               });
             window.__statsChipHandlersAttached = true;
-          }
-
-          function formatDateOnly(dateStr) {
-            const d = new Date(dateStr + "T12:00:00");
-            return d.toLocaleDateString(undefined, { dateStyle: "medium" });
           }
 
           var topN = 3;
@@ -2314,178 +2456,40 @@
             }
           }
 
-          // Playback map: use node_changes already fetched for chart
-          (function initPlayback(changes) {
-            if (!changes || changes.length === 0) return;
-            var byDate = {};
-            changes.forEach(function (c) {
-              var d = (c.sync_date || "").slice(0, 10);
-              if (!byDate[d]) byDate[d] = [];
-              byDate[d].push(c);
-            });
-            var sortedDates = Object.keys(byDate).sort();
-            var frames = [];
-            var visible = {};
-            sortedDates.forEach(function (d) {
-              byDate[d].forEach(function (c) {
-                if (c.change_type === "added" || c.change_type === "restored") {
-                  visible[c.public_key] = {
-                    lat: c.lat,
-                    lon: c.lon,
-                    adv_name: c.adv_name,
-                    type: c.type || 1,
-                  };
-                } else if (
-                  c.change_type === "updated" &&
-                  visible[c.public_key]
-                ) {
-                  visible[c.public_key] = {
-                    lat: c.lat,
-                    lon: c.lon,
-                    adv_name: c.adv_name,
-                    type: c.type || 1,
-                  };
-                } else if (c.change_type === "removed") {
-                  delete visible[c.public_key];
+          // Playback map: defer heavy node_changes + Leaflet until idle (or run immediately when refetch passes data).
+          function runPlaybackWithChanges(ch) {
+            if (playbackGen !== __statsPlaybackGen) return;
+            ensureStatsLeaflet()
+              .then(function () {
+                if (playbackGen !== __statsPlaybackGen) return;
+                initStatsPlaybackMap(ch || []);
+              })
+              .catch(function () {});
+          }
+          if (nodeChanges && nodeChanges.length) {
+            runPlaybackWithChanges(nodeChanges);
+          } else {
+            var ric =
+              window.requestIdleCallback ||
+              function (fn) {
+                setTimeout(fn, 250);
+              };
+            ric(function () {
+              if (playbackGen !== __statsPlaybackGen) return;
+              var pp = statsFrequencyQuerySuffix();
+              fetch("/api/v1/node-changes?limit=15000" + pp).then(function (r) {
+                if (playbackGen !== __statsPlaybackGen) return;
+                if (!r.ok) {
+                  runPlaybackWithChanges([]);
+                  return;
                 }
-              });
-              frames.push({
-                date: d,
-                nodes: Object.keys(visible).map(function (k) {
-                  return visible[k];
-                }),
-              });
-            });
-            if (frames.length === 0) return;
-
-            var nodeTypeColors = {
-              1: { fill: "#2196F3", stroke: "#1565C0" },
-              2: { fill: "#4CAF50", stroke: "#2E7D32" },
-              3: { fill: "#9C27B0", stroke: "#6A1B9A" },
-              4: { fill: "#0891b2", stroke: "#0e7490" },
-            };
-            function colorForType(t) {
-              return nodeTypeColors[t] || nodeTypeColors[1];
-            }
-
-            var map = L.map("stats-map", {
-              center: [50.8503, 4.3517],
-              zoom: 7,
-            });
-            window.__statsPlaybackMap = map;
-            L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-              attribution:
-                '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-            }).addTo(map);
-            var markersLayer = L.layerGroup().addTo(map);
-
-            var slider = document.getElementById("playback-slider");
-            var dateEl = document.getElementById("playback-date");
-            var playBtn = document.getElementById("playback-play");
-            var speedSelect = document.getElementById("playback-speed");
-            slider.max = Math.max(0, frames.length - 1);
-
-            function setFrame(i) {
-              i = Math.max(0, Math.min(i, frames.length - 1));
-              slider.value = i;
-              var f = frames[i];
-              dateEl.textContent = formatDateOnly(f.date);
-              var countsByType = { 1: 0, 2: 0, 3: 0, 4: 0 };
-              f.nodes.forEach(function (n) {
-                var t = n.type || 1;
-                countsByType[t] = (countsByType[t] || 0) + 1;
-              });
-              var legendEl = document.getElementById("playback-legend");
-              for (var t = 1; t <= 4; t++) {
-                var count = countsByType[t] || 0;
-                var el = document.getElementById("playback-legend-count-" + t);
-                if (el) el.textContent = count;
-                var row = legendEl
-                  ? legendEl.querySelector('[data-type="' + t + '"]')
-                  : null;
-                if (row) row.style.display = count > 0 ? "" : "none";
-              }
-              var totalEl = document.getElementById(
-                "playback-legend-count-total",
-              );
-              if (totalEl) totalEl.textContent = f.nodes.length;
-              markersLayer.clearLayers();
-              f.nodes.forEach(function (n) {
-                var c = colorForType(n.type);
-                var m = L.circleMarker([n.lat, n.lon], {
-                  radius: 6,
-                  fillColor: c.fill,
-                  color: c.stroke,
-                  weight: 1,
-                  fillOpacity: 0.9,
+                return r.json().then(function (ch) {
+                  if (playbackGen !== __statsPlaybackGen) return;
+                  runPlaybackWithChanges(ch || []);
                 });
-                var tip = n.adv_name || "";
-                if (n.type) {
-                  var typeNames = {
-                    1: "Client",
-                    2: "Repeater",
-                    3: "Room Server",
-                    4: "Sensor",
-                  };
-                  tip =
-                    (tip ? tip + " \u2014 " : "") +
-                    (typeNames[n.type] || "Node");
-                }
-                if (tip) m.bindTooltip(tip, { permanent: false });
-                markersLayer.addLayer(m);
               });
-            }
-
-            setFrame(frames.length - 1);
-
-            var playInterval = null;
-            function stopPlay() {
-              if (playInterval) {
-                clearInterval(playInterval);
-                playInterval = null;
-              }
-              playBtn.textContent = "\u25B6";
-              playBtn.title = "Play";
-            }
-            function startPlay() {
-              var speed = parseFloat(speedSelect.value) || 1;
-              var ms = Math.max(200, 800 / speed);
-              playBtn.textContent = "\u23F8";
-              playBtn.title = "Pause";
-              playInterval = setInterval(function () {
-                var next = parseInt(slider.value, 10) + 1;
-                if (next >= frames.length) next = 0;
-                setFrame(next);
-              }, ms);
-            }
-            playBtn.addEventListener("click", function () {
-              if (playInterval) stopPlay();
-              else startPlay();
             });
-            speedSelect.addEventListener("change", function () {
-              if (playInterval) {
-                stopPlay();
-                startPlay();
-              }
-            });
-
-            document
-              .getElementById("playback-prev")
-              .addEventListener("click", function () {
-                stopPlay();
-                setFrame(parseInt(slider.value, 10) - 1);
-              });
-            document
-              .getElementById("playback-next")
-              .addEventListener("click", function () {
-                stopPlay();
-                setFrame(parseInt(slider.value, 10) + 1);
-              });
-            slider.addEventListener("input", function () {
-              stopPlay();
-              setFrame(parseInt(slider.value, 10));
-            });
-          })(nodeChanges);
+          }
         }
         window.__statsRefetchChart = function (preset) {
           if (preset != null && preset !== "" && !window.__statsRadioCustom) {
@@ -2499,14 +2503,51 @@
               showError(err.message || "Could not load sync history.");
             });
         };
-        // First paint: initStatsContent must run from here; loadStatsSummary lives inside it and
-        // only runs after this path, so removing this left the page stuck on "Loading sync history…".
-        fetchChartData(chartPresetValue)
-          .then(function (results) {
-            initStatsContent(results[0], results[1] || []);
+        var presetParamBoot = statsFrequencyQuerySuffix();
+        Promise.all([
+          fetch("/api/v1/stats").then(function (r) {
+            if (!r.ok) throw new Error("Failed to load stats");
+            return r.json();
+          }),
+          fetch("/api/v1/sync-history?limit=500" + presetParamBoot).then(
+            function (r) {
+              if (!r.ok) throw new Error("Failed to load sync history");
+              return r.json();
+            },
+          ),
+          fetch(
+            "/api/v1/node-changes?limit=15000" + presetParamBoot,
+          ).then(function (r) {
+            return r.ok ? r.json() : [];
+          }),
+          ensureApexCharts(),
+        ])
+          .then(function (tuple) {
+            var s = tuple[0];
+            var history = tuple[1];
+            var nodeChangesBoot = tuple[2] || [];
+            statsDataCache = s;
+            fillHeaderChips(s);
+            var main = document.querySelector(".stats-header-main");
+            if (main) main.classList.remove("is-loading");
+            var tCitiesBoot = document.getElementById("stats-summary-cities");
+            if (tCitiesBoot) {
+              var cs = document.getElementById("stats-cities-type");
+              var citiesTypeKey = (cs && cs.value) || "all";
+              populatePresetDropdown(s);
+              updateNetworkChipFromPreset();
+              renderTopCities(citiesTypeKey);
+            } else {
+              populatePresetDropdown(s);
+              updateNetworkChipFromPreset();
+            }
+            initStatsContent(history, nodeChangesBoot);
           })
           .catch(function (err) {
-            showError(err.message || "Could not load sync history.");
+            loadingEl.style.display = "none";
+            showError(err.message || "Could not load stats page data.");
+            var main = document.querySelector(".stats-header-main");
+            if (main) main.classList.remove("is-loading");
           });
       })();
     </script>

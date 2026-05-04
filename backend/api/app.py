@@ -409,13 +409,11 @@ def get_synthetic_sync_rows(
     """
     One row per day with nodes_added = count of nodes whose inserted_date (or created_at) falls on that day.
 
-    Only **is_active = 1** rows are counted so daily adds align with ``get_statistics()`` ``total_nodes``
-    and the stats chart cumulative line does not drift above the Network badge when inactive rows
-    lack a matching ``node_changes`` ``removed`` entry.
-
-    Trade-off: per-day counts reflect "inserts among nodes that are still active today", not every
-    historical insert ever recorded. For a full lifecycle ledger without this filter, sync would
-    need to log deactivations as removals consistently (see ``node_changes``).
+    Counts **all** matching rows in ``belgian_nodes`` (active and inactive) so the chart ledger matches
+    ``node_changes`` removals: a node inserted then deactivated still contributes +1 on its insert day
+    and -1 on its removal day. Filtering by ``is_active = 1`` here caused cumulative totals to drift
+    (e.g. yesterday 500, +5 today, chart not 505) whenever removed rows dropped out of the synthetic
+    insert-day bucket.
 
     Real sync_history nodes_added is ignored when merging; frequency_preset / radio_custom filter
     the same way as statistics. Nodes that never land in this query are counted on
@@ -431,8 +429,7 @@ def get_synthetic_sync_rows(
             SELECT date(COALESCE(NULLIF(trim(inserted_date), ''), created_at)) AS d,
                    COUNT(*) AS cnt
             FROM belgian_nodes
-            WHERE is_active = 1
-              AND ((inserted_date IS NOT NULL AND trim(inserted_date) != '')
+            WHERE ((inserted_date IS NOT NULL AND trim(inserted_date) != '')
                OR (created_at IS NOT NULL AND (inserted_date IS NULL OR trim(inserted_date) = '')))
               AND (1=1""" + preset_sql + """)
             GROUP BY d

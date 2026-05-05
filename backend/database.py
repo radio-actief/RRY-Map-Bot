@@ -68,7 +68,6 @@ def init_database() -> None:
                 updated_by VARCHAR(64),
                 discord_owner_id VARCHAR(20),
                 discord_owner_name VARCHAR(100),
-                discord_updated_date TEXT,
                 synced_from_official INTEGER DEFAULT 0,  -- BOOLEAN as INTEGER
                 last_sync_date TEXT,
                 is_active INTEGER DEFAULT 1,  -- BOOLEAN as INTEGER (1 = TRUE, 0 = FALSE)
@@ -173,6 +172,30 @@ def init_database() -> None:
             VALUES (1, NULL)
         """)
 
+        # node_claims: append-only event log of /node claim and /node unclaim
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS node_claims (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                public_key VARCHAR(64) NOT NULL,
+                discord_owner_id VARCHAR(20),
+                discord_owner_name VARCHAR(100),
+                action VARCHAR(10) NOT NULL,
+                timestamp TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_node_claims_public_key
+            ON node_claims(public_key)
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_node_claims_owner
+            ON node_claims(discord_owner_id)
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_node_claims_timestamp
+            ON node_claims(timestamp)
+        """)
+
         conn.commit()
         print(f"Database initialized successfully at {get_db_path()}")
         
@@ -272,7 +295,7 @@ def verify_schema() -> bool:
             'public_key', 'type', 'adv_name', 'adv_lat', 'adv_lon', 'city',
             'last_advert', 'inserted_date', 'updated_date', 'params', 'link',
             'source', 'inserted_by', 'updated_by', 'discord_owner_id',
-            'discord_owner_name', 'discord_updated_date', 'synced_from_official',
+            'discord_owner_name', 'synced_from_official',
             'last_sync_date', 'is_active', 'removed_from_official', 'removed_date',
             'created_at', 'updated_at'
         }

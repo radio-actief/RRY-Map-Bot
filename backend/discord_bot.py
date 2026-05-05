@@ -83,7 +83,6 @@ from backend.discord_queries import (
     get_user_nodes,
     update_ownership,
     remove_ownership,
-    update_node_properties,
     verify_ownership,
     get_node_by_key,
     get_statistics,
@@ -388,17 +387,12 @@ def format_full_node_details(node: Dict[str, Any], show_coordinates: bool = Fals
         formatted_updated = format_date_display(updated_date)
         embed.add_field(name="Updated Date", value=formatted_updated, inline=True)
     
-    # Last Advert Date (right before Last Discord Update)
+    # Last Advert Date
     last_advert = node.get('last_advert')
     if last_advert:
         formatted_last_advert = format_date_display(last_advert)
         embed.add_field(name="Last Advert", value=formatted_last_advert, inline=True)
-    
-    # Last Discord Update
-    if node.get('discord_updated_date'):
-        formatted_date = format_date_display(node['discord_updated_date'])
-        embed.add_field(name="Last Discord Update", value=formatted_date, inline=True)
-       
+
     # Inserted by (public hex key)
     inserted_by = node.get('inserted_by')
     if inserted_by:
@@ -423,18 +417,18 @@ def format_full_node_details(node: Dict[str, Any], show_coordinates: bool = Fals
 def get_most_recent_date(node: Dict[str, Any]) -> Optional[str]:
     """
     Get the most recent date from a node's date fields.
-    Checks: inserted_date, updated_date, last_advert, discord_updated_date.
+    Checks: inserted_date, updated_date, last_advert.
     All dates are interpreted as UTC (naive = UTC); result is shown in CET with timezone label.
-    
+
     Args:
         node: Node dictionary.
-    
+
     Returns:
         Most recent date as string in CET (e.g. "2026-01-02 19:45 CET"), or None if no dates found.
     """
     cet = ZoneInfo("Europe/Brussels")
     dates_utc = []
-    for date_field in ['inserted_date', 'updated_date', 'last_advert', 'discord_updated_date']:
+    for date_field in ['inserted_date', 'updated_date', 'last_advert']:
         date_val = node.get(date_field)
         if date_val:
             try:
@@ -557,36 +551,6 @@ def format_node_list(nodes: List[Dict[str, Any]], show_full_keys: bool = False) 
             formatted = format_node_simple(node, show_coords=False, show_owner=True)
             lines.append(formatted)
         return "\n\n".join(lines)
-
-
-def update_discord_updated_date(public_key: str) -> None:
-    """
-    Update the discord_updated_date field for a node.
-    This tracks when the node was last modified via Discord bot commands.
-    The official map's updated_date field is NOT modified.
-    
-    Args:
-        public_key: Public key of the node to update (will be normalized to lowercase).
-    """
-    conn = get_connection()
-    cursor = conn.cursor()
-    
-    try:
-        # Normalize public key: remove spaces, dashes, convert to lowercase
-        # This matches the normalization in get_node_by_key
-        public_key_normalized = public_key.replace(' ', '').replace('-', '').lower()
-        
-        cursor.execute("""
-            UPDATE belgian_nodes
-            SET discord_updated_date = ?
-            WHERE public_key = ?
-        """, (get_current_timestamp(), public_key_normalized))
-        conn.commit()
-    except Exception as e:
-        print(f"Error updating discord_updated_date for {public_key}: {e}")
-        conn.rollback()
-    finally:
-        conn.close()
 
 
 def get_map_link(node: Dict[str, Any]) -> str:
@@ -892,7 +856,7 @@ class UnclaimConfirmView(discord.ui.View):
         await interaction.response.edit_message(view=self)
         
         # Remove ownership
-        success = remove_ownership(self.node['public_key'], self.user_id)
+        success = remove_ownership(self.node['public_key'], self.user_id)  # Logs to node_claims as 'unclaim'.
         
         if not success:
             await interaction.followup.send(
@@ -902,7 +866,6 @@ class UnclaimConfirmView(discord.ui.View):
             log_command("NODE_UNCLAIM", interaction.user, self.node.get('adv_name', 'Unknown'), "FAILED: Database error")
             return
         
-        # Note: remove_ownership() already updates discord_updated_date, so no need to call it again
         
         log_command("NODE_UNCLAIM", interaction.user, self.node.get('adv_name', 'Unknown'), f"SUCCESS: Unclaimed {self.node.get('adv_name', 'Unknown')}")
         node_name = self.node.get('adv_name', 'Unknown')
@@ -933,7 +896,7 @@ class UnclaimConfirmView(discord.ui.View):
         embed.add_field(name="Source Type", value=source_capitalized, inline=True)
         embed.add_field(name="Status", value="Unclaimed", inline=True)
         
-        embed.set_footer(text="Use `/mynodes` to see your owned nodes, or `/node update` to change city.")
+        embed.set_footer(text="Use `/mynodes` to see your owned nodes.")
         
         await interaction.followup.send(embed=embed)
     
@@ -1085,7 +1048,7 @@ async def search_nodes(
         embed.add_field(name="View on Map", value=f"[Open on map]({get_map_link(node)})", inline=False)
         owner_id_val = node.get('discord_owner_id')
         if owner_id_val:
-            embed.set_footer(text="If you're the owner, use `/node update` to edit city. Use `/mynodes` to see your owned nodes.")
+            embed.set_footer(text="Use `/mynodes` to see your owned nodes.")
         else:
             embed.set_footer(text="This node is unclaimed. Use `/node claim` to claim ownership. Use `/mynodes` to see your nodes.")
         await interaction.response.send_message(embed=embed)
@@ -1140,9 +1103,9 @@ async def search_nodes(
 
         embed = discord.Embed(title="🔍 Search Results", description=description, color=discord.Color.blue())
         if num_messages > 1:
-            embed.set_footer(text=f"Showing 1-{len(first_chunk)} of {total_nodes} | Use `/search` to refine, `/mynodes` for your nodes, `/node update` to change city.")
+            embed.set_footer(text=f"Showing 1-{len(first_chunk)} of {total_nodes} | Use `/search` to refine, `/mynodes` for your nodes.")
         else:
-            embed.set_footer(text="Use `/search` to refine, `/mynodes` for your nodes, `/node update` to change city.")
+            embed.set_footer(text="Use `/search` to refine, `/mynodes` for your nodes.")
         await interaction.response.send_message(embed=embed)
 
         for i in range(1, num_messages):
@@ -1214,7 +1177,7 @@ async def node_claim(interaction: discord.Interaction, query: str):
         return
     
     # Update ownership
-    success = update_ownership(
+    success = update_ownership(  # Logs to node_claims as 'claim'.
         node['public_key'],
         str(interaction.user.id),
         interaction.user.name
@@ -1228,7 +1191,6 @@ async def node_claim(interaction: discord.Interaction, query: str):
         log_command("NODE_CLAIM", interaction.user, query, "FAILED: Database error")
         return
     
-    # Note: update_ownership() already updates discord_updated_date, so no need to call it again
     
     log_command("NODE_CLAIM", interaction.user, query, f"SUCCESS: Claimed {node.get('adv_name', 'Unknown')}")
     node_name = node.get('adv_name', 'Unknown')
@@ -1259,7 +1221,7 @@ async def node_claim(interaction: discord.Interaction, query: str):
     embed.add_field(name="Source Type", value=source_capitalized, inline=True)
     embed.add_field(name="Claimed By", value=f"<@{interaction.user.id}>", inline=True)
     
-    embed.set_footer(text="Use `/mynodes` to see your owned nodes, or `/node update` to change city.")
+    embed.set_footer(text="Use `/mynodes` to see your owned nodes.")
     await interaction.response.send_message(embed=embed)
 
 
@@ -1305,88 +1267,10 @@ async def mynodes(interaction: discord.Interaction):
         color=discord.Color.blue()
     )
     
-    embed.set_footer(text="Use `/node update` to change city for any of your nodes.")
+    embed.set_footer(text="Use `/node unclaim` to release ownership of any of these nodes.")
     
     # Send as single message (ephemeral)
     await interaction.response.send_message(embed=embed, ephemeral=True)
-
-
-@node_group.command(name="update", description="Update city of an owned node")
-@app_commands.describe(
-    query="Node's partial name or partial public key (required)",
-    city="New city (required)"
-)
-async def node_update(interaction: discord.Interaction, query: str, city: str):
-    """Update the city of a node you own."""
-    city = (city or "").strip()
-    if not city:
-        await interaction.response.send_message("Please provide a city.", ephemeral=True)
-        return
-
-    nodes = query_nodes_substring(query=query, limit=25)
-    log_command("NODE_UPDATE", interaction.user, query, f"{len(nodes)} nodes found")
-
-    if not nodes:
-        await interaction.response.send_message("Node not found.", ephemeral=True)
-        return
-
-    if len(nodes) > 1:
-        max_nodes_to_show = 10
-        nodes_to_show = nodes[:max_nodes_to_show]
-        error_msg = f"**Multiple nodes found ({len(nodes)} total). Please be more specific:**\n\n"
-        error_msg += format_node_list(nodes_to_show, show_full_keys=False)
-        if len(nodes) > max_nodes_to_show:
-            error_msg += f"\n\n*... and {len(nodes) - max_nodes_to_show} more. Please refine your search.*"
-        await interaction.response.send_message(error_msg, ephemeral=True)
-        return
-
-    node = nodes[0]
-    if not verify_ownership(node['public_key'], str(interaction.user.id)):
-        await interaction.response.send_message("You don't own this node.", ephemeral=True)
-        return
-
-    result = update_node_properties(
-        public_key=node['public_key'],
-        user_id=str(interaction.user.id),
-        name=None,
-        city=city,
-        params=None,
-        adv_lat=None,
-        adv_lon=None
-    )
-
-    if not result.get('success'):
-        error_msg = result.get('message', 'Error updating node. Please try again.')
-        await interaction.response.send_message(f"❌ **Error:** {error_msg}", ephemeral=True)
-        log_command("NODE_UPDATE", interaction.user, query, f"FAILED: {error_msg}")
-        return
-
-    changes = result.get('changes', {})
-    node_name = node.get('adv_name', 'Unknown')
-    type_icon = get_node_type_icon(node.get('type', 0))
-    pub_key_display = truncate_public_key(node.get('public_key', ''), show_full=False)
-    type_text = get_node_type_display(node.get('type', 0))
-
-    embed = discord.Embed(
-        title=f"{type_icon} Node Updated",
-        description=f"**{node_name}** `{pub_key_display}` ({type_text.lower()}) has been updated by <@{interaction.user.id}>",
-        color=discord.Color.green()
-    )
-
-    if 'city' in changes:
-        old_city = changes['city'].get('old') or "N/A"
-        new_city = changes['city'].get('new') or "N/A"
-        embed.add_field(name="Changed Detail", value="City", inline=True)
-        embed.add_field(name="Old Value", value=old_city, inline=True)
-        embed.add_field(name="New Value", value=new_city, inline=True)
-    else:
-        embed.add_field(name="Changed Detail", value="No changes detected", inline=True)
-        embed.add_field(name="Old Value", value="—", inline=True)
-        embed.add_field(name="New Value", value="—", inline=True)
-
-    embed.set_footer(text="Use `/mynodes` to see your owned nodes, or `/node update` to change city.")
-    log_command("NODE_UPDATE", interaction.user, query, f"SUCCESS: Updated city to {city}")
-    await interaction.response.send_message(embed=embed)
 
 
 @node_group.command(name="unclaim", description="Remove ownership claim from a node")

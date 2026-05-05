@@ -26,3 +26,6 @@ flask-session>=0.5.0
 
 # SQLite is built-in to Python, no external dependency needed
 
+# Tests (run inside the docker image)
+pytest>=8.0.0
+

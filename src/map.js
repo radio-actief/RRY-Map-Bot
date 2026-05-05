@@ -1036,10 +1036,6 @@ const columns = {
       return `@${val}`;
     },
   },
-  discord_updated_date: {
-    label: "Last Discord Update",
-    value: (val) => formatRelativeTime(val),
-  },
   source: {
     label: "Source",
     value: (val) => {
@@ -1460,14 +1456,13 @@ window.isNewerThan = (date, days) => {
   return dateMs > Date.now() - daysMs;
 };
 
-// Get the most recent date from all 4 date fields for a node
+// Get the most recent date from a node's date fields
 // Returns the date as an ISO string, or null if no valid dates found
 function getMostRecentDate(node) {
   const dates = [
     node.inserted_date,
     node.updated_date,
     node.last_advert,
-    node.discord_updated_date,
   ].filter((date) => date != null && date !== "");
 
   if (dates.length === 0) return null;

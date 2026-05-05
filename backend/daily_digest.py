@@ -100,12 +100,16 @@ def collect_changes_since(conn, since_utc: datetime) -> Dict[str, List[str]]:
     """Return the net add/remove/restore buckets since ``since_utc``.
 
     Rules (per public_key, deduped across the window):
-        added     -> currently is_active=1 AND had no node_changes row
-                     before the window for this key (first sighting is inside
-                     the window).
-        restored  -> currently is_active=1 AND had at least one 'removed'
-                     row before the window start (came back).
-        removed   -> currently is_active=0.
+        added     -> currently is_active=1 AND this window includes an
+                     explicit ``added`` row AND (no prior node_changes history,
+                     OR ``added`` again after a prior lifecycle — re-import).
+        restored  -> currently is_active=1 AND this window includes a
+                     'restored' change AND had a 'removed' row before the
+                     window (reactivation logged in the sync).
+        removed   -> currently is_active=0 AND this window includes an
+                     explicit ``removed`` row (or no ``belgian_nodes`` row but
+                     ``removed`` in the window). Routine ``updated`` rows on
+                     inactive nodes do not count as a new deletion each day.
         updated   -> intentionally excluded from the digest (matches the
                      old per-sync notification).
 
@@ -175,11 +179,22 @@ def collect_changes_since(conn, since_utc: datetime) -> Dict[str, List[str]]:
         had_prior_removed = any((r[0] == 'removed') for r in prior)
 
         if is_active == 0:
-            removed.append(pk)
+            # Only count as removed when this window actually logged a removal.
+            # Otherwise inactive nodes that only receive routine `updated` rows
+            # would show under Deleted on every digest.
+            if 'removed' in types:
+                removed.append(pk)
         else:
-            if had_prior_removed:
+            # Only count as restored when this window includes an explicit
+            # `restored` row. Otherwise every stable repeater that was ever
+            # offline once would reappear under Restored whenever it gets a
+            # routine `updated` sync row.
+            if had_prior_removed and 'restored' in types:
                 restored.append(pk)
-            elif not had_prior_history:
+            # Only count as added when this window includes an explicit `added`
+            # row. Otherwise a key whose first ledger row is only `updated`
+            # (or bulk-import gaps) would be misclassified as New on every run.
+            elif not had_prior_history and 'added' in types:
                 added.append(pk)
             elif 'added' in types:
                 added.append(pk)

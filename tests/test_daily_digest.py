@@ -165,6 +165,64 @@ class TestCollectChangesSince(unittest.TestCase):
         self.assertNotIn(pk, agg["added"])
         self.assertNotIn(pk, agg["removed"])
 
+    def test_prior_removed_but_only_updated_not_restored(self) -> None:
+        """Stable nodes that were removed long ago must not show as Restored on routine updates."""
+        pk = "f" * 64
+        _insert_node(self.conn, pk, "Old-Repeater", is_active=1)
+        _insert_change(
+            self.conn, pk, "added",
+            self.window_start - timedelta(days=100),
+        )
+        _insert_change(
+            self.conn, pk, "removed",
+            self.window_start - timedelta(days=50),
+        )
+        _insert_change(
+            self.conn, pk, "restored",
+            self.window_start - timedelta(days=49),
+        )
+        _insert_change(self.conn, pk, "updated", self.window_start + timedelta(minutes=5))
+        self.conn.commit()
+
+        agg = collect_changes_since(self.conn, self.window_start)
+        self.assertNotIn(pk, agg["restored"])
+        self.assertNotIn(pk, agg["added"])
+        self.assertNotIn(pk, agg["removed"])
+        self.assertEqual(agg["updated_count"], 1)
+
+    def test_inactive_only_updated_not_deleted_each_digest(self) -> None:
+        """Inactive nodes must not appear under Deleted when the window only has ``updated``."""
+        pk = "0" * 64
+        _insert_node(self.conn, pk, "Stale-Offline", is_active=0)
+        _insert_change(
+            self.conn, pk, "added",
+            self.window_start - timedelta(days=20),
+        )
+        _insert_change(
+            self.conn, pk, "removed",
+            self.window_start - timedelta(days=10),
+        )
+        _insert_change(self.conn, pk, "updated", self.window_start + timedelta(minutes=3))
+        self.conn.commit()
+
+        agg = collect_changes_since(self.conn, self.window_start)
+        self.assertNotIn(pk, agg["removed"])
+        self.assertNotIn(pk, agg["added"])
+        self.assertNotIn(pk, agg["restored"])
+
+    def test_active_no_prior_only_updated_not_new(self) -> None:
+        """A key whose first node_changes row in the window is only ``updated`` is not New."""
+        pk = "1" * 64
+        _insert_node(self.conn, pk, "Weird-Import", is_active=1)
+        _insert_change(self.conn, pk, "updated", self.window_start + timedelta(minutes=2))
+        self.conn.commit()
+
+        agg = collect_changes_since(self.conn, self.window_start)
+        self.assertNotIn(pk, agg["added"])
+        self.assertNotIn(pk, agg["removed"])
+        self.assertNotIn(pk, agg["restored"])
+        self.assertEqual(agg["updated_count"], 1)
+
     def test_pure_update_excluded_from_embed_buckets(self) -> None:
         pk = "e" * 64
         _insert_node(self.conn, pk, "Just-Updated", is_active=1)

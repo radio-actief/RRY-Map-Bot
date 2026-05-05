@@ -103,8 +103,9 @@ def collect_changes_since(conn, since_utc: datetime) -> Dict[str, List[str]]:
         added     -> currently is_active=1 AND had no node_changes row
                      before the window for this key (first sighting is inside
                      the window).
-        restored  -> currently is_active=1 AND had at least one 'removed'
-                     row before the window start (came back).
+        restored  -> currently is_active=1 AND this window includes a
+                     'restored' change AND had a 'removed' row before the
+                     window (reactivation logged in the sync).
         removed   -> currently is_active=0.
         updated   -> intentionally excluded from the digest (matches the
                      old per-sync notification).
@@ -177,7 +178,11 @@ def collect_changes_since(conn, since_utc: datetime) -> Dict[str, List[str]]:
         if is_active == 0:
             removed.append(pk)
         else:
-            if had_prior_removed:
+            # Only count as restored when this window includes an explicit
+            # `restored` row. Otherwise every stable repeater that was ever
+            # offline once would reappear under Restored whenever it gets a
+            # routine `updated` sync row.
+            if had_prior_removed and 'restored' in types:
                 restored.append(pk)
             elif not had_prior_history:
                 added.append(pk)

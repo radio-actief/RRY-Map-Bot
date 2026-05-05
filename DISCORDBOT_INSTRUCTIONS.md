@@ -17,7 +17,6 @@ Gebruik je de bot liever niet? Gebruik dan [**BEMesh Map**](https://meshmap.radi
 - **`/mynodes`** - Bekijk al je nodes
 - **`/node claim`** - Claim een onbeheerde node
 - **`/node unclaim`** - Geef je node vrij
-- **`/node update`** - Update alleen de **stad** van een node die je beheert
 
 ### :mag: Zoeken
 - **`/search`** - Zoek op naam, public key, type, stad, frequentiepreset, eigenaar, claimstatus, inactief of bron. Minstens één criterium invullen.

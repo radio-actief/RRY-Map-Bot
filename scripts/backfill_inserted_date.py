@@ -6,13 +6,12 @@ currently has a NULL or empty value.
 Why: the stats chart and timeline playback treat each node's ``inserted_date``
 as its "first seen on the official MeshCore map" date
 (see ``get_synthetic_sync_rows`` / ``get_synthetic_node_changes`` in
-``backend/api/app.py`` and ``STATS_PRE_TRACKING_BASELINE_DATE`` right above them).
-Rows with an empty ``inserted_date`` fall through a ``COALESCE`` to
-``created_at``, or worse end up in the "pre-tracking baseline" bucket, both of
-which distort cumulative totals. The sync importer now stamps
-``inserted_date = get_current_timestamp()`` when the feed omits it (see
-``backend/sync_belgian_nodes.integrate_added_node``), so this script is a
-one-shot safety net for historical rows and a re-runnable future-proof guard.
+``backend/api/app.py``). Rows with an empty ``inserted_date`` fall through a
+``COALESCE`` to ``created_at``, distorting cumulative totals. The sync importer
+stamps ``inserted_date = get_current_timestamp()`` when the feed omits it (see
+``backend/sync_belgian_nodes.integrate_added_node``); this script is a
+re-runnable safety net for historical rows. ``backend/migrations/reset_history``
+also runs this backfill as part of the one-shot reset.
 
 Behaviour:
 

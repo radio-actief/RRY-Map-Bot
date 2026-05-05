@@ -34,7 +34,6 @@ from backend.auth import (
 )
 from backend.discord_queries import (
     update_ownership,
-    update_node_properties,
     verify_ownership,
     remove_ownership,
     get_node_by_key,
@@ -121,7 +120,6 @@ def get_all_belgian_nodes():
                 'city': node_dict.get('city'),
                 'discord_owner_name': node_dict.get('discord_owner_name'),
                 'discord_owner_id': node_dict.get('discord_owner_id'),
-                'discord_updated_date': node_dict.get('discord_updated_date'),
             }
             
             # Add coords field for frontend compatibility (format: "lat, lon")
@@ -138,19 +136,27 @@ def get_all_belgian_nodes():
         conn.close()
 
 
+def _displayable_predicate(t: str = "b") -> str:
+    """
+    The single SQL predicate that defines a "displayable" node: active and with
+    valid map coordinates. Map header, stats chips, the chart's first-seen seed,
+    and timeline playback all filter through this predicate so their totals
+    match by construction.
+    """
+    return (
+        f"({t}.is_active = 1 "
+        f"AND {t}.adv_lat IS NOT NULL AND {t}.adv_lon IS NOT NULL)"
+    )
+
+
 def get_displayable_node_count():
-    """
-    Count of nodes that appear on the map: is_active = 1 and has valid coordinates.
-    Same logic as get_all_belgian_nodes() so the stats page "Current total" matches the map bar.
-    """
+    """Count of nodes that appear on the map (see _displayable_predicate)."""
     conn = get_connection()
     cursor = conn.cursor()
     try:
-        cursor.execute("""
-            SELECT COUNT(*) FROM belgian_nodes
-            WHERE is_active = 1
-              AND adv_lat IS NOT NULL AND adv_lon IS NOT NULL
-        """)
+        cursor.execute(
+            f"SELECT COUNT(*) FROM belgian_nodes b WHERE {_displayable_predicate('b')}"
+        )
         return cursor.fetchone()[0]
     finally:
         conn.close()
@@ -311,7 +317,11 @@ def _row_matches_frequency_filter(
 ) -> bool:
     if radio_custom:
         return _params_match_radio_partial(params, radio_custom)
-    return _params_match_preset(params, frequency_preset or '')
+    # Unfiltered chart ("all"): include every row. ``_params_match_preset(..., '')`` is False
+    # for all rows, which would make ``_get_sync_history_from_node_changes(None, None)`` empty.
+    if not frequency_preset or str(frequency_preset).strip() in ('', 'all'):
+        return True
+    return _params_match_preset(params, frequency_preset)
 
 
 def _parse_radio_custom_from_request():
@@ -359,47 +369,17 @@ def _parse_radio_custom_from_request():
         return out if out else None
 
 
-# Day before stats.html syncStatsStartDate (2026-01-12): carries active nodes with no synthetic insert day.
-STATS_PRE_TRACKING_BASELINE_DATE = "2026-01-11"
-
-
-def count_unattributed_active_baseline_nodes(
-    frequency_preset: Optional[str] = None,
-    radio_custom: Optional[dict] = None,
-) -> int:
+def _chart_day_expr(table_alias: str = "b") -> str:
     """
-    Active nodes (same preset filter as synthetic) that never appear in get_synthetic_sync_rows:
-    missing insert/created source, or date(COALESCE(...)) NULL/empty so GROUP BY d excludes them.
+    Calendar day (YYYY-MM-DD) of a node's first-seen, used by the synthetic
+    sync-history seed and timeline playback. After the reset every active row
+    has an ``inserted_date``; ``created_at`` is the safety net for any future
+    row inserted without one.
     """
-    preset_sql, preset_params = _active_frequency_sql_params(
-        frequency_preset, radio_custom
+    t = table_alias
+    return (
+        f"date(COALESCE(NULLIF(trim({t}.inserted_date), ''), {t}.created_at))"
     )
-    conn = get_connection()
-    cursor = conn.cursor()
-    try:
-        cursor.execute(
-            """
-            SELECT COUNT(*) AS n FROM belgian_nodes
-            WHERE is_active = 1
-              AND (1=1"""
-            + preset_sql
-            + """)
-              AND NOT (
-                (
-                  (inserted_date IS NOT NULL AND trim(inserted_date) != '')
-                  OR (created_at IS NOT NULL
-                      AND (inserted_date IS NULL OR trim(inserted_date) = ''))
-                )
-                AND date(COALESCE(NULLIF(trim(inserted_date), ''), created_at)) IS NOT NULL
-                AND trim(COALESCE(date(COALESCE(NULLIF(trim(inserted_date), ''), created_at)), '')) != ''
-              )
-        """,
-            preset_params,
-        )
-        row = cursor.fetchone()
-        return int(row["n"] if row and row["n"] is not None else 0)
-    finally:
-        conn.close()
 
 
 def get_synthetic_sync_rows(
@@ -407,34 +387,45 @@ def get_synthetic_sync_rows(
     radio_custom: Optional[dict] = None,
 ):
     """
-    One row per day with nodes_added = count of nodes whose inserted_date (or created_at) falls on that day.
+    One row per day with ``nodes_added`` = count of currently-displayable
+    ``belgian_nodes`` whose effective first-seen calendar day is that day.
 
-    Counts **all** matching rows in ``belgian_nodes`` (active and inactive) so the chart ledger matches
-    ``node_changes`` removals: a node inserted then deactivated still contributes +1 on its insert day
-    and -1 on its removal day. Filtering by ``is_active = 1`` here caused cumulative totals to drift
-    (e.g. yesterday 500, +5 today, chart not 505) whenever removed rows dropped out of the synthetic
-    insert-day bucket.
+    "Displayable" matches the main map exactly (see ``_displayable_predicate``)
+    so the chart's running ledger lands on the same total as the map header.
 
-    Real sync_history nodes_added is ignored when merging; frequency_preset / radio_custom filter
-    the same way as statistics. Nodes that never land in this query are counted on
-    STATS_PRE_TRACKING_BASELINE_DATE in get_sync_history instead.
+    The effective day is ``date(COALESCE(trim(inserted_date), created_at))``
+    of each currently-displayable node (see ``_chart_day_expr``).
+
+    ``frequency_preset`` and ``radio_custom`` filter the same way as the
+    statistics endpoint.
     """
     preset_sql, preset_params = _active_frequency_sql_params(
         frequency_preset, radio_custom
     )
+    day_sql = _chart_day_expr("b")
     conn = get_connection()
     cursor = conn.cursor()
     try:
-        cursor.execute("""
-            SELECT date(COALESCE(NULLIF(trim(inserted_date), ''), created_at)) AS d,
-                   COUNT(*) AS cnt
-            FROM belgian_nodes
-            WHERE ((inserted_date IS NOT NULL AND trim(inserted_date) != '')
-               OR (created_at IS NOT NULL AND (inserted_date IS NULL OR trim(inserted_date) = '')))
-              AND (1=1""" + preset_sql + """)
-            GROUP BY d
-            HAVING d IS NOT NULL AND d != ''
-        """, preset_params)
+        cursor.execute(
+            """
+            SELECT sub.eff_day AS d, COUNT(*) AS cnt
+            FROM (
+                SELECT """
+            + day_sql
+            + """ AS eff_day
+                FROM belgian_nodes b
+                WHERE """
+            + _displayable_predicate("b")
+            + """
+                  AND (1=1"""
+            + preset_sql
+            + """)
+            ) AS sub
+            WHERE sub.eff_day IS NOT NULL AND trim(sub.eff_day) != ''
+            GROUP BY sub.eff_day
+            """,
+            preset_params,
+        )
         rows = cursor.fetchall()
         return [
             {
@@ -456,76 +447,36 @@ def get_sync_history(
     radio_custom: Optional[dict] = None,
 ):
     """
-    Sync history: "added" comes only from inserted_date (synthetic rows). Real sync_history
-    is used for removed/restored/updated only (nodes_added zeroed to avoid double count).
-    When frequency_preset or radio_custom is set, synthetic is filtered; real sync_history
-    removed/restored/updated are also filtered by aggregating from node_changes.
+    Sync history feeding the stats chart and timeline playback.
 
-    Active nodes without a parseable insert day are counted once as nodes_added on
-    STATS_PRE_TRACKING_BASELINE_DATE so the chart cumulative aligns with total_nodes.
+    Two sources are merged per day:
 
-    ``limit`` only caps how many ``sync_history`` rows are loaded from the DB; the returned
-    list includes all synthetic per-day rows plus merged baseline (no row-count cap).
+    - **First-seen seed**: ``get_synthetic_sync_rows`` returns ``nodes_added``
+      counted per first-seen calendar day for currently displayable nodes.
+    - **Forward changes**: ``_get_sync_history_from_node_changes`` aggregates
+      removed / restored / updated events from ``node_changes``.
+
+    The chart sums these per day; with the unified displayable predicate,
+    the running total lands on ``displayable_map_nodes``.
+
+    ``limit`` is accepted for API compatibility but ignored: the returned list
+    covers every synthetic day plus every change-event day.
     """
+    _ = limit  # Request param kept for API compatibility; merge is not row-capped.
     synthetic = get_synthetic_sync_rows(
         frequency_preset=frequency_preset, radio_custom=radio_custom
     )
     for r in synthetic:
         r["from_sync"] = False
 
-    if frequency_preset or radio_custom:
-        real_filtered = _get_sync_history_from_node_changes(
-            frequency_preset, radio_custom
-        )
-        for r in real_filtered:
-            r["from_sync"] = True
-        combined = synthetic + real_filtered
-    else:
-        conn = get_connection()
-        cursor = conn.cursor()
-        try:
-            cursor.execute("""
-                SELECT id, sync_date, nodes_added, nodes_removed, nodes_restored,
-                       nodes_updated, details
-                FROM sync_history
-                ORDER BY sync_date ASC
-                LIMIT ?
-            """, (limit,))
-            real = [dict_from_row(row) for row in cursor.fetchall()]
-        finally:
-            conn.close()
-        for r in real:
-            r["nodes_added"] = 0
-            r["from_sync"] = True
-        combined = real + synthetic
-
-    baseline = count_unattributed_active_baseline_nodes(
+    real_rows = _get_sync_history_from_node_changes(
         frequency_preset, radio_custom
     )
-    if baseline > 0:
-        anchor = STATS_PRE_TRACKING_BASELINE_DATE
-        hit = None
-        for r in combined:
-            if (r.get("sync_date") or "")[:10] == anchor:
-                hit = r
-                break
-        if hit is not None:
-            hit["nodes_added"] = (hit.get("nodes_added") or 0) + baseline
-        else:
-            combined.append(
-                {
-                    "sync_date": anchor,
-                    "nodes_added": baseline,
-                    "nodes_removed": 0,
-                    "nodes_restored": 0,
-                    "nodes_updated": 0,
-                    "from_sync": False,
-                }
-            )
+    for r in real_rows:
+        r["from_sync"] = True
 
+    combined = synthetic + real_rows
     combined.sort(key=lambda r: (r.get("sync_date") or ""))
-    # Do not truncate merged history: ``combined[:N]`` kept only the oldest N rows by date,
-    # dropping recent synthetic days and the pre-tracking baseline on STATS_PRE_TRACKING_BASELINE_DATE.
     return combined
 
 
@@ -533,19 +484,40 @@ def _get_sync_history_from_node_changes(
     frequency_preset: Optional[str] = None,
     radio_custom: Optional[dict] = None,
 ):
-    """Build removed/restored/updated counts per day from node_changes, filtered by preset or custom radio."""
+    """
+    Aggregate removed / restored / updated events per day from ``node_changes``,
+    restricted to events whose node is currently displayable.
+
+    Both renderer surfaces use the same row set, so the chart's running ledger
+    converges on ``displayable_map_nodes`` regardless of how many forward
+    changes have been recorded.
+    """
     from backend.database import json_deserialize
     conn = get_connection()
     cursor = conn.cursor()
     by_day = {}
+    preset_sql, preset_params = _active_frequency_sql_params(
+        frequency_preset, radio_custom
+    )
+    preset_b = preset_sql.replace("params", "b.params") if preset_sql else ""
     try:
-        cursor.execute("""
-            SELECT sync_date, change_type, old_data, new_data
-            FROM node_changes
-            WHERE change_type IN ('removed', 'updated', 'restored')
-            ORDER BY sync_date ASC
+        cursor.execute(
+            """
+            SELECT nc.sync_date, nc.change_type, nc.old_data, nc.new_data
+            FROM node_changes nc
+            INNER JOIN belgian_nodes b ON b.public_key = nc.public_key
+            WHERE nc.change_type IN ('removed', 'updated', 'restored')
+              AND """
+            + _displayable_predicate("b")
+            + """
+              AND (1=1"""
+            + preset_b
+            + """)
+            ORDER BY nc.sync_date ASC
             LIMIT 50000
-        """)
+            """,
+            preset_params,
+        )
         for row in cursor.fetchall():
             d = dict_from_row(row)
             sync_date = (d.get("sync_date") or "")[:10]
@@ -610,21 +582,29 @@ def get_synthetic_node_changes(
     radio_custom: Optional[dict] = None,
 ):
     """
-    One "added" event per node with sync_date = inserted_date (or created_at). Single source
-    of truth for when a node appeared; real node_changes "added" are not used for playback.
-    When frequency_preset or radio_custom is set, only includes nodes matching that filter.
+    One synthetic "added" event per currently-displayable node for the timeline
+    playback. ``sync_date`` is the same effective first-seen day as the chart
+    (see ``_chart_day_expr``).
+
+    Real ``node_changes`` rows of type ``added`` are not replayed (avoids
+    double-counting). ``frequency_preset`` / ``radio_custom`` filter the result.
     """
     preset_sql, preset_params = _active_frequency_sql_params(
         frequency_preset, radio_custom
     )
-    base_sql = """
-            SELECT public_key, type, adv_name, adv_lat, adv_lon,
-                   date(COALESCE(NULLIF(trim(inserted_date), ''), created_at)) AS d
-            FROM belgian_nodes
-            WHERE ((inserted_date IS NOT NULL AND trim(inserted_date) != '')
-                   OR (created_at IS NOT NULL AND (inserted_date IS NULL OR trim(inserted_date) = '')))
-              AND (adv_lat IS NOT NULL AND adv_lon IS NOT NULL)
-    """
+    day_col = _chart_day_expr("b")
+    base_sql = (
+        """
+            SELECT b.public_key, b.type, b.adv_name, b.adv_lat, b.adv_lon,
+                   """
+        + day_col
+        + """ AS d
+            FROM belgian_nodes b
+            WHERE """
+        + _displayable_predicate("b")
+        + """
+        """
+    )
     conn = get_connection()
     cursor = conn.cursor()
     try:
@@ -655,7 +635,8 @@ def get_node_changes_since(
     radio_custom: Optional[dict] = None,
 ):
     """
-    Node changes playback: "added" from inserted_date only (synthetic). Real node_changes
+    Node changes playback: synthetic "added" uses the same effective day as the stats chart
+    (see ``get_synthetic_node_changes``). Real node_changes
     used only for removed, updated, restored (so we don't double-count real "added").
     When frequency_preset or radio_custom is set, filters both synthetic and real changes.
     """
@@ -806,6 +787,7 @@ def get_stats():
         stats = get_statistics(
             frequency_preset=frequency_preset, radio_custom=radio_custom
         )
+        stats['displayable_map_nodes'] = get_displayable_node_count()
         return jsonify(stats), 200
     except Exception as e:
         print(f"Error in get_stats endpoint: {e}")
@@ -1208,62 +1190,6 @@ def unclaim_node(public_key: str):
     }), 200
 
 
-@app.route('/api/v1/nodes/<public_key>/update', methods=['POST'])
-@login_required
-def update_node(public_key: str):
-    """
-    Update node properties (name, city, params, coordinates).
-    
-    Requires authentication and ownership.
-    """
-    user = get_current_user()
-    if not user:
-        return jsonify({'error': 'Not authenticated'}), 401
-    
-    # Normalize public key
-    public_key_normalized = public_key.replace(' ', '').replace('-', '').lower()
-    
-    # Verify ownership
-    if not verify_ownership(public_key_normalized, user['id']):
-        return jsonify({
-            'error': 'You do not own this node.'
-        }), 403
-    
-    # Get update data from request
-    data = request.get_json()
-    if not data:
-        return jsonify({'error': 'No data provided'}), 400
-    
-    # Extract update fields
-    name = data.get('name')
-    city = data.get('city')
-    params = data.get('params')
-    adv_lat = data.get('lat')
-    adv_lon = data.get('lon')
-    
-    # Update node properties
-    result = update_node_properties(
-        public_key_normalized,
-        user['id'],
-        name=name,
-        city=city,
-        params=params,
-        adv_lat=adv_lat,
-        adv_lon=adv_lon
-    )
-    
-    if not result.get('success'):
-        return jsonify({
-            'error': result.get('message', 'Failed to update node')
-        }), 400
-    
-    return jsonify({
-        'success': True,
-        'message': 'Node updated successfully',
-        'changes': result.get('changes', {})
-    }), 200
-
-
 @app.route('/api/v1/nodes/<public_key>/ownership', methods=['GET'])
 def check_ownership(public_key: str):
     """
@@ -1328,7 +1254,6 @@ def get_my_nodes():
             'city': node_dict.get('city'),
             'discord_owner_name': node_dict.get('discord_owner_name'),
             'discord_owner_id': node_dict.get('discord_owner_id'),
-            'discord_updated_date': node_dict.get('discord_updated_date'),
         }
         
         formatted_node['coords'] = f"{node_dict['adv_lat']}, {node_dict['adv_lon']}"

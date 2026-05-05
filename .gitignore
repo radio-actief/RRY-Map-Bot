@@ -103,7 +103,9 @@ data/be-locode-verify-summary.md
 data/*.db
 data/*.sqlite
 data/*.sqlite3
+data/*.db.backup-*
 *.db
+*.db.backup-*
 *.sqlite
 *.sqlite3
 

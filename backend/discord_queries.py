@@ -348,7 +348,7 @@ def get_statistics(
         """, preset_params)
         stats['registered_users'] = cursor.fetchone()[0]
         
-        # Count by type
+        # Count by type (all active; may include nodes without map coordinates)
         cursor.execute(f"""
             SELECT type, COUNT(*) as count
             FROM belgian_nodes
@@ -357,6 +357,19 @@ def get_statistics(
             ORDER BY type
         """, preset_params)
         stats['by_type'] = {row['type']: row['count'] for row in cursor.fetchall()}
+
+        # Same row set as the main map (active + valid coordinates).
+        # This predicate must stay in sync with backend.api.app._displayable_predicate
+        # so the map header total equals sum(by_type_map.values()).
+        cursor.execute(f"""
+            SELECT type, COUNT(*) as count
+            FROM belgian_nodes
+            WHERE is_active = 1
+              AND adv_lat IS NOT NULL AND adv_lon IS NOT NULL{preset_sql}
+            GROUP BY type
+            ORDER BY type
+        """, preset_params)
+        stats['by_type_map'] = {row['type']: row['count'] for row in cursor.fetchall()}
         
         # Top cities (limit to top 10)
         cursor.execute(f"""
@@ -507,37 +520,33 @@ def get_statistics(
         stats['custom_frequency'] = custom_count
         stats['unknown_frequency'] = unknown_count
         
-        # Activity stats: devices active in last 24h, 7d, 30d
-        # Based on most recent of: inserted_date, updated_date, last_advert, discord_updated_date
+        # Activity stats: devices active in last 24h, 7d, 30d.
+        # Based on most recent of inserted_date, updated_date, last_advert.
         from datetime import datetime, timedelta
-        
+
         now = datetime.now()
         day_ago = now - timedelta(days=1)
         week_ago = now - timedelta(days=7)
         month_ago = now - timedelta(days=30)
-        
-        # Get all active nodes with their dates
+
         cursor.execute(f"""
-            SELECT 
+            SELECT
                 inserted_date,
                 updated_date,
-                last_advert,
-                discord_updated_date
+                last_advert
             FROM belgian_nodes
             WHERE is_active = 1{preset_sql}
         """, preset_params)
-        
+
         active_24h = 0
         active_7d = 0
         active_30d = 0
-        
+
         for row in cursor.fetchall():
-            # Convert row to dict if needed
             if not isinstance(row, dict):
                 row = dict_from_row(row)
-            # Get most recent date from all 4 date fields
             dates = []
-            for date_val in [row.get('inserted_date'), row.get('updated_date'), row.get('last_advert'), row.get('discord_updated_date')]:
+            for date_val in [row.get('inserted_date'), row.get('updated_date'), row.get('last_advert')]:
                 if date_val:
                     try:
                         # Handle different date formats
@@ -579,6 +588,7 @@ def get_statistics(
         return {
             'total_nodes': 0,
             'by_type': {},
+            'by_type_map': {},
             'top_cities': [],
             'top_cities_repeaters': [],
             'top_cities_companions': [],
@@ -641,41 +651,46 @@ def get_source_statistics() -> Dict[str, Any]:
 
 def update_ownership(public_key: str, user_id: str, username: str) -> bool:
     """
-    Update node ownership (claim node).
-    Sets discord_owner_id, discord_owner_name, and discord_updated_date.
-    
+    Claim a node for a Discord user.
+
+    Sets ``discord_owner_id`` and ``discord_owner_name`` on ``belgian_nodes``
+    and appends a ``'claim'`` row to ``node_claims``. Both writes happen in
+    the same transaction.
+
     Args:
-        public_key: Public key of the node (will be normalized to lowercase).
+        public_key: Public key of the node (normalised to lowercase).
         user_id: Discord user ID.
         username: Discord username.
-    
+
     Returns:
-        True if successful, False otherwise.
+        True if the node was found and the claim was recorded, False otherwise.
     """
     conn = get_connection()
     cursor = conn.cursor()
-    
+
     try:
-        from backend.database import get_current_timestamp
-        
-        # Normalize public key: remove spaces, dashes, convert to lowercase
-        # This matches the normalization in get_node_by_key
         public_key_normalized = public_key.replace(' ', '').replace('-', '').lower()
-        
+
         cursor.execute("""
             UPDATE belgian_nodes
             SET discord_owner_id = ?,
-                discord_owner_name = ?,
-                discord_updated_date = ?
+                discord_owner_name = ?
             WHERE public_key = ? AND is_active = 1
-        """, (str(user_id), username, get_current_timestamp(), public_key_normalized))
-        
+        """, (str(user_id), username, public_key_normalized))
+
         if cursor.rowcount == 0:
+            conn.rollback()
             return False
-        
+
+        cursor.execute("""
+            INSERT INTO node_claims
+                (public_key, discord_owner_id, discord_owner_name, action, timestamp)
+            VALUES (?, ?, ?, 'claim', CURRENT_TIMESTAMP)
+        """, (public_key_normalized, str(user_id), username))
+
         conn.commit()
         return True
-        
+
     except Exception as e:
         print(f"Error updating ownership: {e}")
         conn.rollback()
@@ -686,181 +701,57 @@ def update_ownership(public_key: str, user_id: str, username: str) -> bool:
 
 def remove_ownership(public_key: str, user_id: str) -> bool:
     """
-    Remove node ownership (unclaim node).
-    Verifies ownership before removing.
-    Updates discord_updated_date.
-    
+    Unclaim a node previously claimed by ``user_id``.
+
+    Clears ``discord_owner_id`` / ``discord_owner_name`` on ``belgian_nodes``
+    and appends an ``'unclaim'`` row to ``node_claims`` with the user that
+    held the claim. Both writes happen in the same transaction.
+
     Args:
-        public_key: Public key of the node (will be normalized to lowercase).
-        user_id: Discord user ID (for verification).
-    
+        public_key: Public key of the node (normalised to lowercase).
+        user_id: Discord user ID (must match the current owner).
+
     Returns:
-        True if successful, False otherwise.
+        True if the node was owned by ``user_id`` and the unclaim was
+        recorded, False otherwise.
     """
     conn = get_connection()
     cursor = conn.cursor()
-    
+
     try:
-        from backend.database import get_current_timestamp
-        
-        # Normalize public key: remove spaces, dashes, convert to lowercase
-        # This matches the normalization in get_node_by_key
         public_key_normalized = public_key.replace(' ', '').replace('-', '').lower()
-        
-        # Verify ownership first
+
         cursor.execute("""
-            SELECT discord_owner_id FROM belgian_nodes
+            SELECT discord_owner_id, discord_owner_name FROM belgian_nodes
             WHERE public_key = ?
         """, (public_key_normalized,))
         row = cursor.fetchone()
-        
+
         if not row or str(row['discord_owner_id']) != str(user_id):
-            return False  # Not owned by this user
-        
-        # Remove ownership
+            return False
+
+        prior_owner_name = row['discord_owner_name']
+
         cursor.execute("""
             UPDATE belgian_nodes
             SET discord_owner_id = NULL,
-                discord_owner_name = NULL,
-                discord_updated_date = ?
+                discord_owner_name = NULL
             WHERE public_key = ?
-        """, (get_current_timestamp(), public_key_normalized))
-        
+        """, (public_key_normalized,))
+
+        cursor.execute("""
+            INSERT INTO node_claims
+                (public_key, discord_owner_id, discord_owner_name, action, timestamp)
+            VALUES (?, ?, ?, 'unclaim', CURRENT_TIMESTAMP)
+        """, (public_key_normalized, str(user_id), prior_owner_name))
+
         conn.commit()
         return True
-        
+
     except Exception as e:
         print(f"Error removing ownership: {e}")
         conn.rollback()
         return False
-    finally:
-        conn.close()
-
-
-def update_node_properties(
-    public_key: str,
-    user_id: str,
-    name: Optional[str] = None,
-    city: Optional[str] = None,
-    params: Optional[Dict[str, Any]] = None,
-    adv_lat: Optional[float] = None,
-    adv_lon: Optional[float] = None
-) -> Dict[str, Any]:
-    """
-    Update node properties (name, city, frequency parameters, coordinates).
-    Verifies ownership before updating.
-    Updates discord_updated_date.
-    Does NOT modify immutable fields (public_key, type, etc.).
-    
-    Args:
-        public_key: Public key of the node (will be normalized to lowercase).
-        user_id: Discord user ID (for verification).
-        name: New node name (optional).
-        city: New city name (optional).
-        params: New frequency parameters dict (optional).
-        adv_lat: New latitude (optional).
-        adv_lon: New longitude (optional).
-    
-    Returns:
-        Dict with 'success' (bool) and 'changes' (dict) showing old -> new values.
-        On failure, returns {'success': False, 'message': str}.
-    """
-    conn = get_connection()
-    cursor = conn.cursor()
-    
-    try:
-        from backend.database import get_current_timestamp, json_serialize, json_deserialize
-        
-        # Normalize public key: remove spaces, dashes, convert to lowercase
-        # This matches the normalization in get_node_by_key
-        public_key_normalized = public_key.replace(' ', '').replace('-', '').lower()
-        
-        # Get current node values to track changes
-        cursor.execute("""
-            SELECT adv_name, city, params, adv_lat, adv_lon, discord_owner_id
-            FROM belgian_nodes
-            WHERE public_key = ? AND is_active = 1
-        """, (public_key_normalized,))
-        row = cursor.fetchone()
-        
-        if not row:
-            return {'success': False, 'message': 'Node not found or inactive.'}
-        
-        if str(row['discord_owner_id']) != str(user_id):
-            return {'success': False, 'message': 'You do not own this node.'}
-        
-        # Get current values
-        current_name = row['adv_name']
-        current_city = row['city']
-        current_params = json_deserialize(row['params']) if row['params'] else {}
-        current_lat = row['adv_lat']
-        current_lon = row['adv_lon']
-        
-        # Track changes
-        changes = {}
-        
-        # Build update query
-        updates = []
-        params_list = []
-        
-        if name is not None and name != current_name:
-            updates.append("adv_name = ?")
-            params_list.append(name)
-            changes['name'] = {'old': current_name, 'new': name}
-        
-        if city is not None and city != current_city:
-            updates.append("city = ?")
-            params_list.append(city)
-            changes['city'] = {'old': current_city, 'new': city}
-        
-        if params is not None:
-            # Compare params (convert to dict if needed)
-            if isinstance(current_params, str):
-                current_params = json_deserialize(current_params) or {}
-            if params != current_params:
-                updates.append("params = ?")
-                params_list.append(json_serialize(params))
-                changes['params'] = {'old': current_params, 'new': params}
-        
-        if adv_lat is not None:
-            # Check if value actually changed (handles None -> value and value -> value)
-            if adv_lat != current_lat:
-                updates.append("adv_lat = ?")
-                params_list.append(adv_lat)
-                changes['latitude'] = {'old': current_lat, 'new': adv_lat}
-        
-        if adv_lon is not None:
-            # Check if value actually changed (handles None -> value and value -> value)
-            if adv_lon != current_lon:
-                updates.append("adv_lon = ?")
-                params_list.append(adv_lon)
-                changes['longitude'] = {'old': current_lon, 'new': adv_lon}
-        
-        if not updates:
-            return {'success': False, 'message': 'No changes to apply.'}
-        
-        # Add discord_updated_date
-        updates.append("discord_updated_date = ?")
-        params_list.append(get_current_timestamp())
-        
-        # Add WHERE clause
-        params_list.append(public_key_normalized)
-        
-        # Execute update
-        query = f"""
-            UPDATE belgian_nodes
-            SET {', '.join(updates)}
-            WHERE public_key = ?
-        """
-        cursor.execute(query, params_list)
-        
-        conn.commit()
-        return {'success': True, 'changes': changes}
-        
-    except Exception as e:
-        print(f"Error updating node properties: {e}")
-        conn.rollback()
-        return {'success': False, 'message': f'Database error: {str(e)}'}
     finally:
         conn.close()
 

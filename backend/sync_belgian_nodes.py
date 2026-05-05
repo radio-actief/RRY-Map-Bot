@@ -476,10 +476,9 @@ def integrate_added_node(node: Dict[str, Any], conn) -> None:
     """
     cursor = conn.cursor()
 
-    # Always stamp inserted_date: prefer the official feed's value, fall back to our
-    # current scrape time so the stats chart / playback never rely on the pre-tracking
-    # baseline bucket for newly-added rows. See STATS_PRE_TRACKING_BASELINE_DATE in
-    # backend/api/app.py and scripts/backfill_inserted_date.py.
+    # Always stamp inserted_date: prefer the official feed's value, fall back
+    # to our current scrape time so every row has a first-seen day for the
+    # stats chart and timeline playback.
     inserted_date_value = node.get('inserted_date') or get_current_timestamp()
 
     try:
@@ -590,11 +589,10 @@ def restore_removed_node(node: Dict[str, Any], conn) -> None:
     public_key_normalized = node['public_key'].replace(' ', '').replace('-', '').lower()
     
     # Get current node to preserve Discord ownership, source, and city
-    cursor.execute("SELECT discord_owner_id, discord_owner_name, discord_updated_date, source, adv_lat, adv_lon, city FROM belgian_nodes WHERE public_key = ?", (public_key_normalized,))
+    cursor.execute("SELECT discord_owner_id, discord_owner_name, source, adv_lat, adv_lon, city FROM belgian_nodes WHERE public_key = ?", (public_key_normalized,))
     existing = cursor.fetchone()
     discord_owner_id = existing['discord_owner_id'] if existing else None
     discord_owner_name = existing['discord_owner_name'] if existing else None
-    discord_updated_date = existing['discord_updated_date'] if existing else None
     current_source = existing['source'] if existing else None
     current_lat = existing['adv_lat'] if existing else None
     current_lon = existing['adv_lon'] if existing else None
@@ -613,7 +611,7 @@ def restore_removed_node(node: Dict[str, Any], conn) -> None:
     else:
         city_to_use = current_city
     
-    # Update ALL fields from official map, reactivate, preserve Discord ownership and discord source
+    # Update ALL fields from official map, reactivate, preserve Discord ownership.
     cursor.execute("""
         UPDATE belgian_nodes
         SET is_active = 1,
@@ -633,15 +631,14 @@ def restore_removed_node(node: Dict[str, Any], conn) -> None:
             updated_by = ?,
             last_sync_date = ?,
             discord_owner_id = ?,
-            discord_owner_name = ?,
-            discord_updated_date = ?
+            discord_owner_name = ?
         WHERE public_key = ?
     """, (
         node.get('type'),
         node.get('adv_name'),
         node.get('adv_lat'),
         node.get('adv_lon'),
-        city_to_use,  # Use determined city
+        city_to_use,
         node.get('last_advert'),
         node.get('updated_date'),
         json_serialize(node.get('params')),
@@ -650,9 +647,8 @@ def restore_removed_node(node: Dict[str, Any], conn) -> None:
         node.get('inserted_by'),
         node.get('updated_by'),
         get_current_timestamp(),
-        discord_owner_id,  # Preserve Discord ownership
-        discord_owner_name,  # Preserve Discord ownership
-        discord_updated_date,  # Preserve Discord ownership
+        discord_owner_id,
+        discord_owner_name,
         public_key_normalized
     ))
     
@@ -667,60 +663,6 @@ def restore_removed_node(node: Dict[str, Any], conn) -> None:
         get_current_timestamp(),
         json_serialize(node)
     ))
-
-
-def should_preserve_discord_edit(db_node: Dict[str, Any], 
-                                  official_node: Dict[str, Any], 
-                                  field: str) -> bool:
-    """
-    Determine if Discord user edit should be preserved for a field.
-    
-    Args:
-        db_node: Node from database.
-        official_node: Node from official map.
-        field: Field name to check.
-    
-    Returns:
-        True if Discord edit should be preserved, False if official map should win.
-    """
-    # If Discord never edited this field, official map wins
-    if not db_node.get('discord_updated_date'):
-        return False
-    
-    # If official map updated_date is newer than discord_updated_date, official wins
-    official_updated = official_node.get('updated_date')
-    discord_updated = db_node.get('discord_updated_date')
-    
-    if not official_updated:
-        return True  # No official update, preserve Discord edit
-    
-    # Compare timestamps
-    try:
-        # Handle different timestamp formats
-        # ISO format: "2025-01-15T14:30:00" or "2025-01-15T14:30:00.123456"
-        # Space format: "2025-01-15 14:30:00"
-        # Normalize formats
-        official_normalized = official_updated.replace('Z', '+00:00').replace(' ', 'T')
-        discord_normalized = discord_updated.replace('Z', '+00:00').replace(' ', 'T')
-        
-        # Parse timestamps
-        official_dt = datetime.fromisoformat(official_normalized)
-        discord_dt = datetime.fromisoformat(discord_normalized)
-        
-        # Make both timezone-aware or both timezone-naive for comparison
-        # If one is aware and one is naive, make both naive (assume UTC for naive)
-        if official_dt.tzinfo is None and discord_dt.tzinfo is not None:
-            # Official is naive, Discord is aware - make Discord naive
-            discord_dt = discord_dt.replace(tzinfo=None)
-        elif official_dt.tzinfo is not None and discord_dt.tzinfo is None:
-            # Official is aware, Discord is naive - make official naive
-            official_dt = official_dt.replace(tzinfo=None)
-        
-        return discord_dt > official_dt
-    except (ValueError, AttributeError) as e:
-        # If we can't parse dates, default to preserving Discord edit
-        # This is safer than losing user edits
-        return True
 
 
 def merge_node_update(node: Dict[str, Any], 
@@ -760,38 +702,22 @@ def merge_node_update(node: Dict[str, Any],
     }
     
     # Always update source from official map (e.g. if a Discord-registered node
-    # is later detected by an uploader, API will have source=uploader and we sync that)
+    # is later detected by an uploader, API will have source=uploader and we sync that).
     immutable_updates['source'] = node.get('source')
-    
-    # Editable fields: conflict resolution
-    editable_updates = {}
-    
-    # adv_name
-    if should_preserve_discord_edit(db_node, node, 'adv_name'):
-        editable_updates['adv_name'] = db_node.get('adv_name')
-    else:
-        editable_updates['adv_name'] = node.get('adv_name')
-    
-    # city
-    # Local geocoding is effectively free, so we always prefer the freshly
-    # resolved `new_city` unless the user edited the city via Discord after the
-    # last sync (preserve user edits). If `new_city` is empty/None (e.g. node
-    # was "kept from DB" after a geocode miss) fall back to the current value.
+
+    # Editable fields are owned by the official map; Discord-side claim/unclaim
+    # only touches discord_owner_id / discord_owner_name (handled separately).
+    editable_updates = {
+        'adv_name': node.get('adv_name'),
+        'params': node.get('params'),
+    }
+
+    # Local geocoding is effectively free, so we prefer the freshly resolved
+    # `new_city`. If the sync couldn't resolve a city (e.g. "kept from DB" path)
+    # fall back to the current value.
     current_city = db_node.get('city')
     new_city = node.get('city')
-
-    if should_preserve_discord_edit(db_node, node, 'city'):
-        editable_updates['city'] = current_city
-    elif new_city:
-        editable_updates['city'] = new_city
-    else:
-        editable_updates['city'] = current_city
-    
-    # params (frequency parameters)
-    if should_preserve_discord_edit(db_node, node, 'params'):
-        editable_updates['params'] = db_node.get('params')
-    else:
-        editable_updates['params'] = node.get('params')
+    editable_updates['city'] = new_city if new_city else current_city
     
     # Check if there are any actual changes
     # Compare current values with new values to determine if update is needed

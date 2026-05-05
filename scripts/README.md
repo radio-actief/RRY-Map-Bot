@@ -107,7 +107,7 @@ cd RRY-Map-Bot
 
 ### `backfill_inserted_date.py`
 
-Fills `inserted_date` on any `belgian_nodes` row where it is `NULL` or empty, using `created_at` first and the current time as a last resort. The stats chart and timeline playback treat `inserted_date` as "first seen on the official MeshCore map" (see `get_synthetic_sync_rows` in [`backend/api/app.py`](../backend/api/app.py)); an empty value would fall through `COALESCE` to `created_at`, or worse, into the pre-tracking baseline bucket anchored at `STATS_PRE_TRACKING_BASELINE_DATE = 2026-01-11`, distorting cumulative totals.
+Fills `inserted_date` on any `belgian_nodes` row where it is `NULL` or empty, using `created_at` first and the current time as a last resort. The stats chart and timeline playback treat `inserted_date` as "first seen on the official MeshCore map" (see `get_synthetic_sync_rows` in [`backend/api/app.py`](../backend/api/app.py)); an empty value would fall through `COALESCE` to `created_at`, distorting cumulative totals.
 
 The sync importer already stamps `inserted_date = get_current_timestamp()` when the official feed omits it (see [`backend/sync_belgian_nodes.integrate_added_node`](../backend/sync_belgian_nodes.py)), so this script is a one-shot safety net for historical rows and a re-runnable future-proof guard. On a clean DB it touches zero rows.
 

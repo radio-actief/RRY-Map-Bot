@@ -530,7 +530,12 @@
 
         // Populate header chips immediately
         function fillHeaderChips(s) {
-          var byType = s.by_type || {};
+          var byType =
+            s.by_type_map &&
+            typeof s.by_type_map === "object" &&
+            Object.keys(s.by_type_map).length > 0
+              ? s.by_type_map
+              : s.by_type || {};
           var total = s.total_nodes != null ? Number(s.total_nodes) : 0;
           var companions = byType[1] != null ? Number(byType[1]) : 0;
           var repeaters = byType[2] != null ? Number(byType[2]) : 0;
@@ -722,9 +727,11 @@
         function getNetworkCountForPreset(presetKey) {
           if (!statsDataCache) return null;
           if (presetKey === "all")
-            return statsDataCache.total_nodes != null
-              ? Number(statsDataCache.total_nodes)
-              : null;
+            return statsDataCache.displayable_map_nodes != null
+              ? Number(statsDataCache.displayable_map_nodes)
+              : statsDataCache.total_nodes != null
+                ? Number(statsDataCache.total_nodes)
+                : null;
           if (presetKey === "Custom settings")
             return statsDataCache.custom_frequency != null
               ? Number(statsDataCache.custom_frequency)
@@ -1108,7 +1115,25 @@
             var totalEl = document.getElementById(
               "playback-legend-count-total",
             );
-            if (totalEl) totalEl.textContent = f.nodes.length;
+            if (totalEl) {
+              var atEnd = i === frames.length - 1;
+              var presetAllForMap =
+                typeof currentPresetValue !== "undefined" &&
+                currentPresetValue === "all" &&
+                (!window.__statsRadioCustom ||
+                  Object.keys(window.__statsRadioCustom).length === 0);
+              var mapCount =
+                atEnd &&
+                presetAllForMap &&
+                statsDataCache &&
+                statsDataCache.displayable_map_nodes != null
+                  ? Number(statsDataCache.displayable_map_nodes)
+                  : null;
+              totalEl.textContent =
+                mapCount != null && !isNaN(mapCount)
+                  ? mapCount
+                  : f.nodes.length;
+            }
             markersLayer.clearLayers();
             f.nodes.forEach(function (n) {
               var c = colorForType(n.type);
@@ -1352,46 +1377,6 @@
             dailyRowsChart.push(row);
           }
 
-          // Distribute a metric across gap runs. useSyncData: for removed/restored we use
-          // "days with no sync" as gap so they spread over periods without syncs; for added we use "no data".
-          function distributeMetric(metric, useSyncData) {
-            var hasVal = useSyncData ? "hasSyncData" : "hasData";
-            var i = 0;
-            while (i < dailyRowsChart.length) {
-              if (dailyRowsChart[i][hasVal]) {
-                i++;
-                continue;
-              }
-              var runStart = i;
-              while (i < dailyRowsChart.length && !dailyRowsChart[i][hasVal])
-                i++;
-              if (i >= dailyRowsChart.length) break;
-              var runEnd = i;
-              var runLen = runEnd - runStart + 1;
-              var total = dailyRowsChart[runEnd][metric];
-              var base = Math.floor(total / runLen);
-              var rem = total % runLen;
-              for (var j = runStart; j <= runEnd; j++) {
-                var idx = j - runStart;
-                dailyRowsChart[j][metric] =
-                  idx < runLen - rem ? base : base + 1;
-              }
-              i = runEnd + 1;
-            }
-          }
-          distributeMetric("nodes_added", false);
-          distributeMetric("nodes_removed", true);
-          distributeMetric("nodes_restored", true);
-
-          // Removals/restored before this date are ignored; API adds unattributed active nodes on 2026-01-11 (STATS_PRE_TRACKING_BASELINE_DATE in app.py).
-          var syncStatsStartDate = "2026-01-12";
-          dailyRowsChart.forEach(function (r) {
-            if (r.date < syncStatsStartDate) {
-              r.nodes_removed = 0;
-              r.nodes_restored = 0;
-            }
-          });
-
           // Table rows: from chart, date >= chartStartDate, restored merged into added
           var dailyRowsTable = dailyRows
             .filter(function (r) {
@@ -1528,28 +1513,15 @@
           fillTopdayCard(topdayGrowth, topGrowth, "growth");
           fillTopdayCard(topdayDecline, topDecline, "growth");
 
-          // Cumulative = (added + restored) - removed (restored merged into added), full timeline, no reset
+          // Cumulative = (added + restored) - removed, full timeline, no reset.
+          // After the unified displayable predicate, the running ledger over the
+          // first-seen seed and node_changes lands on displayable_map_nodes; no
+          // floor / badge / snap reconciliation is needed.
           var cumulative = 0;
           var cumulativeData = dailyRowsChart.map(function (r) {
             cumulative += r.nodes_added + r.nodes_restored - r.nodes_removed;
             return cumulative;
           });
-
-          // Match Network badge when ledger under-counts (e.g. unattributed baseline); requires statsDataCache.
-          var badgeTarget = getNetworkCountForPreset(currentPresetValue);
-          if (
-            badgeTarget != null &&
-            cumulativeData.length > 0 &&
-            statsDataCache
-          ) {
-            var lastCum = cumulativeData[cumulativeData.length - 1];
-            var delta = badgeTarget - lastCum;
-            if (delta > 0 && delta <= Math.min(badgeTarget, 5000)) {
-              for (var ci = 0; ci < cumulativeData.length; ci++) {
-                cumulativeData[ci] += delta;
-              }
-            }
-          }
 
           // Cumulative by node type from node_changes (same logic as playback)
           var byDateCh = {};
@@ -1593,7 +1565,8 @@
             return best.counts;
           }
 
-          // Chart from 12 Jan 2026 only; cumulative keeps full running total
+          // Visible chart window starts at first day in history (chartStartDate = dailyRows[0].date).
+          // Cumulative series is built over the full dailyRowsChart before slicing.
           var chartFromIdx = dailyRowsChart.findIndex(function (r) {
             return r.date >= chartStartDate;
           });
@@ -1759,12 +1732,23 @@
                   : c[i] - c[i - 1];
               }),
             };
-            var filteredNetChange = filteredRows.map(function (_, i) {
+            var filteredBarNetFromTypes = filteredRows.map(function (_, i) {
               var sum = 0;
               for (var t = 1; t <= 4; t++) {
                 sum += filteredNetChangeByType[t][i] || 0;
               }
               return sum;
+            });
+            var baseIdx = chartFromIdx + startIdx;
+            var filteredNetChange = filteredRows.map(function (_, i) {
+              var cur = cumulativeData[baseIdx + i];
+              var prev =
+                i > 0
+                  ? cumulativeData[baseIdx + i - 1]
+                  : baseIdx > 0
+                    ? cumulativeData[baseIdx - 1]
+                    : 0;
+              return cur - prev;
             });
             var filteredNetPositive = filteredNetChange.map(function (v) {
               return v > 0 ? v : 0;
@@ -1786,6 +1770,25 @@
                 return cumulativeByTypeForDate(r.date)[4];
               }),
             };
+            if (filteredRows.length >= 1) {
+              var _fn = filteredRows.length - 1;
+              for (var _tr = 1; _tr <= 4; _tr++) {
+                if (
+                  !filteredCumulativeByType[_tr] ||
+                  !filteredNetChangeByType[_tr]
+                )
+                  continue;
+                if (filteredRows.length === 1) {
+                  filteredNetChangeByType[_tr][0] =
+                    filteredCumulativeByType[_tr][0] -
+                    (prevCumulativeByType[_tr] || 0);
+                } else {
+                  filteredNetChangeByType[_tr][_fn] =
+                    filteredCumulativeByType[_tr][_fn] -
+                    filteredCumulativeByType[_tr][_fn - 1];
+                }
+              }
+            }
             var filteredBarMax = Math.max(
               Math.max.apply(null, filteredNetPositive) || 0,
               Math.max.apply(null, filteredNetNegative) || 0,
@@ -2072,7 +2075,18 @@
               colors: colorsConfig,
               stroke: {
                 width: strokeConfig,
-                curve: "smooth",
+                curve:
+                  chartFilterType && strokeConfig.length === 3
+                    ? ["straight", "straight", "straight"]
+                    : [
+                        "straight",
+                        "straight",
+                        "smooth",
+                        "smooth",
+                        "smooth",
+                        "smooth",
+                        "straight",
+                      ],
                 lineCap: "round",
               },
               xaxis: { categories: filteredLabels },
@@ -2176,7 +2190,15 @@
               ],
               stroke: {
                 width: [0, 0, 3, 3, 3, 3, 5],
-                curve: "smooth",
+                curve: [
+                  "straight",
+                  "straight",
+                  "smooth",
+                  "smooth",
+                  "smooth",
+                  "smooth",
+                  "straight",
+                ],
                 lineCap: "round",
               },
               plotOptions: {
@@ -2340,6 +2362,7 @@
                     "<div>Net: " + (net > 0 ? "+" : "") + net + "</div>",
                   );
                   if (
+                    chartFilterType &&
                     currentNetChangeByType &&
                     (currentNetChangeByType[1] ||
                       currentNetChangeByType[2] ||
@@ -2356,7 +2379,7 @@
                         parts.push(
                           "<div style='padding-left:8px;font-size:11px'>" +
                             typeNames[t] +
-                            ": " +
+                            " (day): " +
                             (v > 0 ? "+" : "") +
                             v +
                             "</div>",
@@ -2364,8 +2387,31 @@
                       }
                     }
                   }
+                  var tipLastIdx =
+                    chartTooltipDates && chartTooltipDates.length
+                      ? chartTooltipDates.length - 1
+                      : -1;
+                  var tipUseMapCounts =
+                    i === tipLastIdx &&
+                    statsDataCache &&
+                    statsDataCache.by_type_map &&
+                    !chartFilterType;
                   for (var s = 2; s < series.length; s++) {
                     var val = series[s] && series[s][i];
+                    if (
+                      tipUseMapCounts &&
+                      s >= 2 &&
+                      s <= 5 &&
+                      s < series.length - 1
+                    ) {
+                      var ty = s - 1;
+                      var bm = statsDataCache.by_type_map;
+                      var bmp =
+                        bm[ty] != null ? bm[ty] : bm[String(ty)] != null
+                          ? bm[String(ty)]
+                          : null;
+                      if (bmp != null) val = Number(bmp);
+                    }
                     if (val != null) {
                       var name =
                         (w.globals.seriesNames && w.globals.seriesNames[s]) ||

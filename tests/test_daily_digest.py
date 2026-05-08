@@ -25,6 +25,7 @@ REPO_ROOT = THIS_DIR.parent
 sys.path.insert(0, str(REPO_ROOT))
 
 from backend.daily_digest import (  # noqa: E402
+    _count_syncs_since,
     build_digest_embed,
     collect_changes_since,
 )
@@ -91,6 +92,13 @@ def _insert_change(conn, pk: str, change: str, when: datetime) -> None:
     conn.execute(
         "INSERT INTO node_changes (public_key, change_type, sync_date) VALUES (?, ?, ?)",
         (pk, change, _iso(when)),
+    )
+
+
+def _insert_change_raw(conn, pk: str, change: str, raw_sync_date: str) -> None:
+    conn.execute(
+        "INSERT INTO node_changes (public_key, change_type, sync_date) VALUES (?, ?, ?)",
+        (pk, change, raw_sync_date),
     )
 
 
@@ -238,6 +246,49 @@ class TestCollectChangesSince(unittest.TestCase):
         self.assertNotIn(pk, agg["removed"])
         self.assertNotIn(pk, agg["restored"])
         self.assertEqual(agg["updated_count"], 1)
+
+    def test_iso_timestamp_boundary_respected(self) -> None:
+        """ISO timestamps earlier on the same day must not leak into the window."""
+        window_start = datetime(2026, 5, 8, 9, 0, 0, tzinfo=timezone.utc)
+
+        pk_before = "2" * 64
+        pk_after = "3" * 64
+        _insert_node(self.conn, pk_before, "Before-Window", is_active=1)
+        _insert_node(self.conn, pk_after, "After-Window", is_active=1)
+        _insert_change_raw(self.conn, pk_before, "added", "2026-05-08T08:59:59+00:00")
+        _insert_change_raw(self.conn, pk_after, "added", "2026-05-08T09:00:01+00:00")
+        self.conn.commit()
+
+        agg = collect_changes_since(self.conn, window_start)
+        self.assertNotIn(pk_before, agg["added"])
+        self.assertIn(pk_after, agg["added"])
+        self.assertEqual(len(agg["added"]), 1)
+
+
+class TestCountSyncsSince(unittest.TestCase):
+    def setUp(self) -> None:
+        self.conn = _make_test_db()
+
+    def tearDown(self) -> None:
+        self.conn.close()
+
+    def test_handles_iso_and_legacy_timestamps(self) -> None:
+        window_start = datetime(2026, 5, 8, 9, 0, 0, tzinfo=timezone.utc)
+        self.conn.execute(
+            "INSERT INTO sync_history (sync_date, nodes_added, nodes_removed, nodes_restored, nodes_updated) VALUES (?, 0, 0, 0, 0)",
+            ("2026-05-08 08:00:00",),
+        )
+        self.conn.execute(
+            "INSERT INTO sync_history (sync_date, nodes_added, nodes_removed, nodes_restored, nodes_updated) VALUES (?, 0, 0, 0, 0)",
+            ("2026-05-08T08:30:00+00:00",),
+        )
+        self.conn.execute(
+            "INSERT INTO sync_history (sync_date, nodes_added, nodes_removed, nodes_restored, nodes_updated) VALUES (?, 0, 0, 0, 0)",
+            ("2026-05-08T10:30:00+00:00",),
+        )
+        self.conn.commit()
+
+        self.assertEqual(_count_syncs_since(self.conn, window_start), 1)
 
 
 class TestBuildDigestEmbed(unittest.TestCase):

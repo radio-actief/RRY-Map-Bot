@@ -123,7 +123,9 @@ def collect_changes_since(conn, since_utc: datetime) -> Dict[str, List[str]]:
     """
     if since_utc.tzinfo is None:
         since_utc = since_utc.replace(tzinfo=timezone.utc)
-    since_iso = since_utc.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    # Store/compare in full ISO UTC so SQLite datetime funcs can parse both
+    # legacy "YYYY-MM-DD HH:MM:SS" rows and newer ISO-8601 rows reliably.
+    since_iso = since_utc.astimezone(timezone.utc).isoformat(timespec="seconds")
 
     cursor = conn.cursor()
 
@@ -131,8 +133,8 @@ def collect_changes_since(conn, since_utc: datetime) -> Dict[str, List[str]]:
         """
         SELECT public_key, change_type
         FROM node_changes
-        WHERE sync_date >= ?
-          AND change_type IN ('added','removed','restored','updated')
+        WHERE change_type IN ('added','removed','restored','updated')
+          AND julianday(sync_date) >= julianday(?)
         """,
         (since_iso,),
     )
@@ -169,8 +171,8 @@ def collect_changes_since(conn, since_utc: datetime) -> Dict[str, List[str]]:
             SELECT change_type, sync_date
             FROM node_changes
             WHERE public_key = ?
-              AND sync_date < ?
-            ORDER BY sync_date ASC
+              AND julianday(sync_date) < julianday(?)
+            ORDER BY julianday(sync_date) ASC
             """,
             (pk, since_iso),
         )
@@ -209,10 +211,10 @@ def collect_changes_since(conn, since_utc: datetime) -> Dict[str, List[str]]:
 
 
 def _count_syncs_since(conn, since_utc: datetime) -> int:
-    since_iso = since_utc.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    since_iso = since_utc.astimezone(timezone.utc).isoformat(timespec="seconds")
     cursor = conn.cursor()
     cursor.execute(
-        "SELECT COUNT(*) FROM sync_history WHERE sync_date >= ?",
+        "SELECT COUNT(*) FROM sync_history WHERE julianday(sync_date) >= julianday(?)",
         (since_iso,),
     )
     row = cursor.fetchone()

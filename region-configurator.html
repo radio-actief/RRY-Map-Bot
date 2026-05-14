@@ -178,7 +178,12 @@
             <h2>MeshCore CLI output</h2>
             <p class="config-card-desc">
               Paste into your repeater serial console. The block ends with
-              <code>region save</code>. This output does not include
+              <code>region save</code>, then duty cycle / multi-byte path /
+              loop detection:
+              <code>set dutycycle 10</code>,
+              <code>set path.hash.mode 1</code>,
+              <code>set loop.detect minimal</code>.
+              This output does not include
               <code>region default</code> (not mapped here; see MeshCore
               upstream <code>cli_commands.md</code> if you need it).
               <span class="config-card-desc-tip"
@@ -638,6 +643,13 @@
         const NEIGHBOR_COUNTRY_CODES = ["nl", "lu", "fr", "de"];
 
         const CLI_ORDER_FIRST = ["eu", "bx", "nl", "lu", "fr", "de", "be"];
+
+        /** Appended after region save in generated CLI (Belgian #BEmesh repeater defaults). */
+        const REPEATER_SETUP_LINES = [
+          "set dutycycle 10",
+          "set path.hash.mode 1",
+          "set loop.detect minimal",
+        ].join("\n");
 
         function neighborCountryLabel(code) {
           for (let i = 0; i < COUNTRY_CLI.length; i++) {
@@ -1534,6 +1546,9 @@
             cmd += homeLine + "\n\n";
           }
           cmd += "region save";
+          if (REPEATER_SETUP_LINES) {
+            cmd += "\n\n" + REPEATER_SETUP_LINES;
+          }
 
           commandsBlock.textContent = cmd;
         }

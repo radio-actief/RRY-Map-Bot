@@ -106,7 +106,7 @@ def integrate_added_node(node_data):
 **Fields Set**:
 - All official map fields: `public_key`, `type`, `adv_name`, `adv_lat`, `adv_lon`, `last_advert`, `inserted_date`, `updated_date`, `params`, `link`, `source`, `inserted_by`, `updated_by`
 - Our system fields: `city` (from Geopy), `synced_from_official=TRUE`, `last_sync_date`
-- Discord fields: `discord_owner_id=NULL`, `discord_owner_name=NULL`, `discord_updated_date=NULL` (not set yet)
+- Discord fields: `discord_owner_id=NULL`, `discord_owner_name=NULL` (set later by `/node claim`)
 
 **Result**: Node is immediately available in database, visible on web map and Discord bot.
 
@@ -161,7 +161,7 @@ ALTER TABLE belgian_nodes ADD COLUMN removed_date TIMESTAMP;
 **Visibility**:
 - **Web Map**: Inactive nodes are **NOT displayed** (filter: `WHERE is_active = TRUE`)
 - **Discord Bot**: Inactive nodes are **NOT searchable** (filter: `WHERE is_active = TRUE`)
-- **Discord Ownership**: Users can still see their claimed inactive nodes via `/manage list` (for transparency)
+- **Discord Ownership**: Users can still see their claimed inactive nodes via `/mynodes` (for transparency)
 
 **Restoration** (Node Reappears in Official Map):
 - If a removed node (`is_active = FALSE`) reappears in official map, **restore it completely**:
@@ -191,8 +191,9 @@ ALTER TABLE belgian_nodes ADD COLUMN removed_date TIMESTAMP;
           last_sync_date = CURRENT_TIMESTAMP
       WHERE public_key = official_node['public_key']
       
-      # Note: Discord ownership fields (discord_owner_id, discord_owner_name, discord_updated_date)
-      # are preserved - they are NOT overwritten by official map data
+      # Note: Discord ownership fields (discord_owner_id, discord_owner_name) are
+      # preserved - they are NOT overwritten by official map data. Ownership history
+      # lives in node_claims and is never touched by the sync.
       
       # Log restoration
       INSERT INTO node_changes (
@@ -205,7 +206,7 @@ ALTER TABLE belgian_nodes ADD COLUMN removed_date TIMESTAMP;
       )
   ```
 - **All official map data is refreshed** - node is completely updated with latest information
-- **Discord ownership is preserved** - `discord_owner_id`, `discord_owner_name`, `discord_updated_date` are NOT overwritten
+- **Discord ownership is preserved** - `discord_owner_id` and `discord_owner_name` are NOT overwritten; ownership history lives in `node_claims`
 - Node becomes immediately visible again on web map and Discord bot
 
 **Cleanup Policy** (Optional - Future Enhancement):
@@ -288,115 +289,44 @@ SET type = ?,
 WHERE public_key = ?
 ```
 
-#### B. Editable Fields (Conflict Resolution)
+#### B. Editable Fields (Sync Authority)
 
-**Note**: Conflict resolution strategies will be **elaborated and refined later** based on real-world usage patterns and user feedback. The following rules are the initial implementation.
-
-**Editable Fields** (can be modified by Discord users):
-- `adv_name` - Node name
-- `city` - City name
-- `params` - Frequency parameters (freq, sf, bw, cr)
-
-**Conflict Resolution Rules** (Initial Implementation - To Be Refined):
-
-1. **If Discord user has NOT edited the field** (`discord_updated_date` is NULL or older than official `updated_date`):
-   - **Action**: Update from official map
-   - **Rationale**: Official map is source of truth, no user edits to preserve
-
-2. **If Discord user HAS edited the field** (`discord_updated_date` is newer than official `updated_date`):
-   - **Action**: **Preserve Discord user edit** (do NOT overwrite)
-   - **Rationale**: User's recent edit takes precedence
-   - **Exception**: If official map `updated_date` is significantly newer (e.g., > 7 days), consider updating (future enhancement)
-
-3. **If both updated recently** (within same day):
-   - **Action**: **Preserve Discord user edit** (user intent is more recent)
-   - **Rationale**: User edits are intentional, official map updates might be automatic
+The Discord bot does not edit any node attribute. The official map owns
+`adv_name`, `city`, `params`, `adv_lat`, `adv_lon`, `link`, `inserted_by`,
+`updated_by`, `last_advert`, `inserted_date`, and `updated_date`. The sync
+service refreshes these on every run.
 
 **Process**:
 ```python
 def merge_node_update(db_node, official_node):
-    """
-    Merge official map update with existing database node.
-    Preserves Discord user edits where appropriate.
-    """
-    updates = {}
-    
-    # Always update immutable fields
-    updates['type'] = official_node['type']
-    updates['adv_lat'] = official_node['adv_lat']
-    updates['adv_lon'] = official_node['adv_lon']
-    updates['link'] = official_node['link']
-    updates['inserted_by'] = official_node['inserted_by']
-    updates['updated_by'] = official_node['updated_by']
-    updates['updated_date'] = official_node['updated_date']
-    updates['last_sync_date'] = CURRENT_TIMESTAMP
-    
-    # Merge editable fields based on conflict resolution
-    # Node name
-    if should_preserve_discord_edit(db_node, 'adv_name', official_node):
-        # Keep Discord edit
-        pass  # Don't update adv_name
-    else:
-        # Update from official map
-        updates['adv_name'] = official_node['adv_name']
-    
-    # City (our system field, but can be edited by Discord users)
-    if should_preserve_discord_edit(db_node, 'city', official_node):
-        # Keep Discord edit
-        pass  # Don't update city
-    else:
-        # Update from official map (if city changed, re-verify with Geopy)
-        updates['city'] = official_node['city']  # Already verified in sync
-    
-    # Frequency parameters
-    if should_preserve_discord_edit(db_node, 'params', official_node):
-        # Keep Discord edit
-        pass  # Don't update params
-    else:
-        # Update from official map
-        updates['params'] = official_node['params']
-    
-    # Apply updates
-    UPDATE belgian_nodes SET ... WHERE public_key = ?
-    
-    # Log change
-    log_node_change(public_key, 'updated', old_data, new_data)
+    """Merge official map update into the database row.
 
-def should_preserve_discord_edit(db_node, field, official_node):
+    Discord-only fields (`discord_owner_id`, `discord_owner_name`) are
+    preserved; everything else is taken from the official map. The
+    `node_claims` log records ownership history independently of the sync.
     """
-    Determine if Discord user edit should be preserved.
-    Returns True if Discord edit is more recent than official map update.
-    """
-    # If field hasn't changed, no conflict
-    if db_node[field] == official_node[field]:
-        return False
-    
-    # If Discord user hasn't edited this field, update from official
-    if not db_node.get('discord_updated_date'):
-        return False
-    
-    # Compare timestamps
-    discord_updated = db_node['discord_updated_date']
-    official_updated = official_node['updated_date']
-    
-    # If Discord edit is more recent, preserve it
-    if discord_updated > official_updated:
-        return True
-    
-    # If official update is more recent, update from official
-    return False
+    updates = {
+        'type':         official_node['type'],
+        'adv_name':     official_node['adv_name'],
+        'adv_lat':      official_node['adv_lat'],
+        'adv_lon':      official_node['adv_lon'],
+        'city':         official_node['city'],   # Verified in the sync.
+        'params':       official_node['params'],
+        'link':         official_node['link'],
+        'inserted_by':  official_node['inserted_by'],
+        'updated_by':   official_node['updated_by'],
+        'updated_date': official_node['updated_date'],
+        'last_sync_date': CURRENT_TIMESTAMP,
+    }
+    UPDATE belgian_nodes SET ... WHERE public_key = ?
+    log_node_change(public_key, 'updated', old_data, new_data)
 ```
 
 **Special Cases**:
 
-1. **City Field**:
-   - City is extracted via Geopy during sync
-   - If coordinates changed, city is re-extracted
-   - If Discord user edited city, preserve their edit unless coordinates changed significantly
-
-2. **Frequency Parameters**:
-   - If Discord user set a preset, preserve it
-   - If official map updated params, only update if Discord user hasn't edited recently
+1. **City Field** – The sync re-runs the local Belgian geocoder; the freshly
+   resolved value wins, with the previous value kept only when the geocoder
+   couldn't resolve a city this run.
 
 ---
 
@@ -404,29 +334,13 @@ def should_preserve_discord_edit(db_node, field, official_node):
 
 ### Priority Rules
 
-1. **Official Map Always Wins** (Immutable Fields):
-   - `public_key`, `type`, `adv_lat`, `adv_lon`, `link`, `inserted_by`, `updated_by`, `updated_date`, `inserted_date`
-
-2. **Discord User Edits Win** (If More Recent):
-   - `adv_name`, `city`, `params` (frequency parameters)
-   - Only if `discord_updated_date` > `updated_date` (from official map)
-
-3. **Official Map Wins** (If Discord User Hasn't Edited):
-   - `adv_name`, `city`, `params`
-   - If `discord_updated_date` is NULL or older than official `updated_date`
-
-### Date Field Logic
-
-```
-IF discord_updated_date IS NULL:
-    → Update from official map (no user edits to preserve)
-    
-ELSE IF discord_updated_date > updated_date (official):
-    → Preserve Discord user edit (user edit is more recent)
-    
-ELSE IF updated_date (official) > discord_updated_date:
-    → Update from official map (official update is more recent)
-```
+1. **Official Map Always Wins** for every node attribute:
+   `public_key`, `type`, `adv_name`, `adv_lat`, `adv_lon`, `city`, `params`,
+   `link`, `inserted_by`, `updated_by`, `inserted_date`, `updated_date`,
+   `last_advert`.
+2. **Discord-only fields** (`discord_owner_id`, `discord_owner_name`) are
+   never overwritten by the sync. They are managed by `/node claim` and
+   `/node unclaim`, which also append a row to `node_claims` for each event.
 
 ---
 
@@ -542,9 +456,9 @@ Each sync operation is logged in `sync_history` table:
 | `public_key` | Official Map | Always | N/A (immutable, never changes) |
 | `type` | Official Map | Always | Official map always wins |
 | `adv_lat`, `adv_lon` | Official Map | Always | Official map always wins |
-| `adv_name` | Both | Conditional | Discord wins if `discord_updated_date` > `updated_date` |
-| `city` | Both | Conditional | Discord wins if `discord_updated_date` > `updated_date` |
-| `params` (freq, sf, bw, cr) | Both | Conditional | Discord wins if `discord_updated_date` > `updated_date` |
+| `adv_name` | Official Map | Always | Official map always wins |
+| `city` | Official Map | Always | Official map always wins (re-geocoded by sync) |
+| `params` (freq, sf, bw, cr) | Official Map | Always | Official map always wins |
 | `last_advert` | Official Map | Always | Official map always wins |
 | `inserted_date` | Official Map | Always | Official map always wins |
 | `updated_date` | Official Map | Always | Official map always wins |
@@ -554,7 +468,7 @@ Each sync operation is logged in `sync_history` table:
 | `updated_by` | Official Map | Always | Official map always wins |
 | `discord_owner_id` | Discord Bot | Never | Never updated by sync (Discord-only field) |
 | `discord_owner_name` | Discord Bot | Never | Never updated by sync (Discord-only field) |
-| `discord_updated_date` | Discord Bot | Never | Never updated by sync (Discord-only field) |
+| `node_claims` (table) | Discord Bot | Append-only | Inserted on every `/node claim` and `/node unclaim` |
 | `synced_from_official` | Sync Service | Always | Always TRUE for synced nodes |
 | `last_sync_date` | Sync Service | Always | Updated on every sync |
 | `is_active` | Sync Service | Conditional | Set to FALSE when removed, TRUE when restored |
@@ -583,13 +497,12 @@ ALTER TABLE belgian_nodes ADD COLUMN removed_date TIMESTAMP;
 **Discord Bot Queries - ALL Commands**:
 - **ALL Discord bot commands MUST filter inactive nodes**: `WHERE is_active = TRUE`
 - This applies to:
-  - `/search` - Only search active nodes
-  - `/claim` - Only claim active nodes
-  - `/manage update` - Only update active nodes
-  - `/manage unclaim` - Only unclaim active nodes
-  - `/stats` - Only count active nodes
-- **Exception**: `/manage list` - Shows both active AND inactive nodes for user's claimed nodes
-  - Allows users to see their claimed nodes even if removed from official map
+  - `/search` – Only search active nodes
+  - `/node claim` – Only claim active nodes
+  - `/node unclaim` – Only unclaim active nodes
+  - `/stats` – Only count active nodes
+- **Exception**: `/mynodes` – Shows both active AND inactive nodes for the user's claimed nodes
+  - Allows users to see their claimed nodes even if removed from the official map
   - Format: Clearly indicate which nodes are inactive (e.g., "⚠️ [INACTIVE] Node Name")
 
 ### Performance Considerations
@@ -646,12 +559,11 @@ Before integrating:
 5. **Node Updated (With Discord edits)**: Verify Discord edits preserved when more recent
 6. **Discord Bot Filtering**: Verify inactive nodes NOT shown in:
    - `/search` results
-   - `/claim` results
-   - `/manage update` results
-   - `/manage unclaim` results
+   - `/node claim` results
+   - `/node unclaim` results
    - `/stats` counts
-7. **Discord Bot Exception**: Verify `/manage list` shows both active and inactive nodes (with clear indication)
-8. **Conflict Resolution**: Test all conflict scenarios (to be refined later)
+7. **Discord Bot Exception**: Verify `/mynodes` shows both active and inactive nodes (with clear indication)
+8. **Claim Logging**: `/node claim` and `/node unclaim` each append exactly one row to `node_claims`
 
 ---
 

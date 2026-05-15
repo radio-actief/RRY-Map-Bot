@@ -27,7 +27,6 @@ from backend.discord_queries import (
     get_statistics,
     update_ownership,
     remove_ownership,
-    update_node_properties,
     verify_ownership
 )
 from backend.sync_belgian_nodes import (
@@ -36,7 +35,6 @@ from backend.sync_belgian_nodes import (
     integrate_removed_node,
     restore_removed_node,
     merge_node_update,
-    should_preserve_discord_edit
 )
 
 
@@ -52,14 +50,21 @@ class IntegrationTestSuite:
             self.db_path = os.path.join(
                 os.path.dirname(__file__), '..', 'data', 'test_belgian_nodes.db'
             )
-        
+
         # Ensure test database directory exists
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
-        
+
         # Remove existing test database
         if os.path.exists(self.db_path):
             os.remove(self.db_path)
-        
+
+        # Pin DATABASE_PATH env var so backend.database.get_db_path() always
+        # resolves to this test DB (env var takes precedence over module-level
+        # DATABASE_PATH, which makes Python-side rebinding alone insufficient
+        # in containers where DATABASE_PATH is set in .env).
+        self._old_env_db = os.environ.get('DATABASE_PATH')
+        os.environ['DATABASE_PATH'] = self.db_path
+
         self.test_results = []
         self.passed = 0
         self.failed = 0
@@ -426,91 +431,51 @@ class IntegrationTestSuite:
         finally:
             db_module.DATABASE_PATH = original_path
     
-    def test_conflict_resolution(self):
-        """Test conflict resolution between Discord edits and official map updates."""
+    def test_claim_logs_node_claims(self):
+        """A successful /node claim must append a 'claim' row to node_claims."""
         conn = self.get_test_connection()
-        
-        # Add a test node
+
         test_node = {
-            'public_key': 'conflict_test_001',
+            'public_key': 'claim_log_001',
             'type': 1,
-            'adv_name': 'Original Name',
+            'adv_name': 'Claim Log Node',
             'adv_lat': 50.5,
             'adv_lon': 4.5,
             'city': 'Brussels',
             'last_advert': get_current_timestamp(),
             'inserted_date': get_current_timestamp(),
-            'updated_date': '2025-01-01 00:00:00',
+            'updated_date': get_current_timestamp(),
             'params': {'freq': 869.525, 'sf': 10, 'bw': 250, 'cr': 5},
-            'link': 'meshcore://conflict',
+            'link': 'meshcore://claim_log',
             'source': 'app',
             'inserted_by': 'test',
             'updated_by': 'test'
         }
-        
         integrate_added_node(test_node, conn)
         conn.commit()
-        
-        # User edits via Discord (more recent)
-        user_id = 'test_user_123'
-        user_name = 'TestUser'
-        
-        # Set ownership and update directly in test database
-        cursor = conn.cursor()
-        
-        # Set ownership
-        cursor.execute("""
-            UPDATE belgian_nodes 
-            SET discord_owner_id = ?, 
-                discord_owner_name = ?
-            WHERE public_key = ?
-        """, (user_id, user_name, test_node['public_key']))
-        
-        # Simulate Discord update (sets discord_updated_date to now)
-        discord_timestamp = get_current_timestamp()
-        cursor.execute("""
-            UPDATE belgian_nodes 
-            SET adv_name = ?,
-                city = ?,
-                discord_updated_date = ?
-            WHERE public_key = ?
-        """, ('Discord Edited Name', 'Discord City', discord_timestamp, test_node['public_key']))
-        
-        conn.commit()
-        
-        # Get current state
-        cursor.execute("SELECT * FROM belgian_nodes WHERE public_key = ?", (test_node['public_key'],))
-        db_node = dict_from_row(cursor.fetchone())
-        
-        # Verify discord_updated_date was set
-        if not db_node.get('discord_updated_date'):
-            conn.close()
-            return False
-        
-        # Simulate official map update (older timestamp)
-        # Use ISO format to match what get_current_timestamp() returns
-        old_timestamp = (datetime.now() - timedelta(days=1)).isoformat()  # 1 day ago
-        
-        official_node = {
-            'public_key': 'conflict_test_001',
-            'type': 1,
-            'adv_name': 'Official Updated Name',
-            'adv_lat': 50.5,
-            'adv_lon': 4.5,
-            'city': 'Official City',
-            'updated_date': old_timestamp  # Older than Discord edit
-        }
-        
-        # Test conflict resolution
-        preserve_name = should_preserve_discord_edit(db_node, official_node, 'adv_name')
-        preserve_city = should_preserve_discord_edit(db_node, official_node, 'city')
-        
         conn.close()
-        
-        # Discord edit should be preserved (more recent)
-        # The function checks if discord_updated_date > official updated_date
-        return preserve_name and preserve_city
-    
+
+        import backend.database as db_module
+        original_path = db_module.DATABASE_PATH
+        db_module.DATABASE_PATH = self.db_path
+        try:
+            if not update_ownership('claim_log_001', '111', 'alice'):
+                return False
+
+            verify_conn = sqlite3.connect(self.db_path)
+            verify_conn.row_factory = sqlite3.Row
+            cur = verify_conn.cursor()
+            cur.execute(
+                "SELECT public_key, action, discord_owner_id "
+                "FROM node_claims WHERE public_key = ? ORDER BY id",
+                ('claim_log_001',),
+            )
+            rows = [tuple(r) for r in cur.fetchall()]
+            verify_conn.close()
+            return rows == [('claim_log_001', 'claim', '111')]
+        finally:
+            db_module.DATABASE_PATH = original_path
+
     def test_statistics(self):
         """Test statistics query."""
         conn = self.get_test_connection()
@@ -571,7 +536,7 @@ class IntegrationTestSuite:
         self.test("Node Lifecycle - Restore", self.test_node_lifecycle_restore)
         self.test("Inactive Node Filtering", self.test_inactive_node_filtering)
         self.test("Discord Ownership Workflow", self.test_discord_ownership_workflow)
-        self.test("Conflict Resolution", self.test_conflict_resolution)
+        self.test("Claim Logs Node Claims", self.test_claim_logs_node_claims)
         self.test("Statistics Query", self.test_statistics)
         
         # Print summary
@@ -595,13 +560,24 @@ class IntegrationTestSuite:
 
 if __name__ == '__main__':
     test_suite = IntegrationTestSuite()
-    
+
     try:
         success = test_suite.run_all_tests()
-        sys.exit(0 if success else 1)
+        exit_code = 0 if success else 1
     except Exception as e:
         print(f"Test suite error: {e}")
         import traceback
         traceback.print_exc()
-        sys.exit(1)
+        exit_code = 1
+    finally:
+        # Restore the original DATABASE_PATH env var so we don't leak the
+        # test path into anything that runs after pytest in the same process.
+        if test_suite._old_env_db is not None:
+            os.environ['DATABASE_PATH'] = test_suite._old_env_db
+        else:
+            os.environ.pop('DATABASE_PATH', None)
+        if os.path.exists(test_suite.db_path):
+            os.remove(test_suite.db_path)
+
+    sys.exit(exit_code)
 

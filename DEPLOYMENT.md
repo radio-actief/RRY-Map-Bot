@@ -282,7 +282,7 @@ For larger deployments, consider:
 ```nginx
 server {
     listen 80;
-    server_name map.axistem.eu;
+    server_name meshmap.radio-actief.be;
 
     location / {
         proxy_pass http://localhost:8000;
@@ -303,7 +303,7 @@ api:
   # ... existing config ...
   labels:
     - "traefik.enable=true"
-    - "traefik.http.routers.api.rule=Host(`map.axistem.eu`)"
+    - "traefik.http.routers.api.rule=Host(`meshmap.radio-actief.be`)"
     - "traefik.http.services.api.loadbalancer.server.port=8000"
 ```
 

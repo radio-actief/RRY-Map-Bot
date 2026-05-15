@@ -1,0 +1,8429 @@
+[
+{
+"nis5": "41002",
+"plaats": "Aalst",
+"gemeente": "Aalst",
+"province_code": "be-vov",
+"city_code": "beaab",
+"search_aliases": [
+"HOFSTADE",
+"GIJZEGEM",
+"HERDERSEM",
+"MOORSEL",
+"BAARDEGEM",
+"MELDERT",
+"EREMBODEGEM",
+"NIEUWERKERKEN",
+"Alost"
+],
+"lat": 50.93832,
+"lon": 4.03921
+},
+{
+"nis5": "44084",
+"plaats": "Aalter",
+"gemeente": "Aalter",
+"province_code": "be-vov",
+"city_code": "beaal",
+"search_aliases": [
+"BELLEM",
+"LOTENHULLE",
+"POEKE",
+"KNESSELARE",
+"URSEL"
+],
+"lat": 51.08389,
+"lon": 3.44852
+},
+{
+"nis5": "24001",
+"plaats": "Aarschot",
+"gemeente": "Aarschot",
+"province_code": "be-vbr",
+"city_code": "beaas",
+"search_aliases": [
+"LANGDORP",
+"RILLAAR",
+"GELRODE"
+],
+"lat": 50.98427,
+"lon": 4.83643
+},
+{
+"nis5": "11001",
+"plaats": "Aartselaar",
+"gemeente": "Aartselaar",
+"province_code": "be-van",
+"city_code": "beaar",
+"search_aliases": [],
+"lat": 51.1333,
+"lon": 4.38702
+},
+{
+"nis5": "23105",
+"plaats": "Affligem",
+"gemeente": "Affligem",
+"province_code": "be-vbr",
+"city_code": "beaff",
+"search_aliases": [
+"HEKELGEM",
+"ESSENE",
+"TERALFENE"
+],
+"lat": 50.90351,
+"lon": 4.11747
+},
+{
+"nis5": "52074",
+"plaats": "Aiseau-Presles",
+"gemeente": "Aiseau-Presles",
+"province_code": "be-wht",
+"city_code": "beape",
+"search_aliases": [
+"AISEAU",
+"PRESLES",
+"PONT - DE - LOUP",
+"ROSELIES"
+],
+"lat": 50.41636,
+"lon": 4.5712
+},
+{
+"nis5": "73001",
+"plaats": "Alken",
+"gemeente": "Alken",
+"province_code": "be-vli",
+"city_code": "beakn",
+"search_aliases": [],
+"lat": 50.87547,
+"lon": 5.30799
+},
+{
+"nis5": "38002",
+"plaats": "Alveringem",
+"gemeente": "Alveringem",
+"province_code": "be-vwv",
+"city_code": "beavr",
+"search_aliases": [
+"HOOGSTADE",
+"LEISELE",
+"IZENBERGE",
+"GIJVERINKHOVE",
+"STAVELE",
+"BEVEREN"
+],
+"lat": 51.012,
+"lon": 2.7105
+},
+{
+"nis5": "61003",
+"plaats": "Amay",
+"gemeente": "Amay",
+"province_code": "be-wlg",
+"city_code": "beamy",
+"search_aliases": [
+"FLONE",
+"OMBRET-RAWSA",
+"AMPSIN",
+"JEHAY-BODEGNEE"
+],
+"lat": 50.54978,
+"lon": 5.3241
+},
+{
+"nis5": "63001",
+"plaats": "Amblève",
+"gemeente": "Amblève",
+"province_code": "be-wlg",
+"city_code": "beaml",
+"search_aliases": [
+"AMEL",
+"HEPPENBACH",
+"MEYERODE",
+"GEBIETSTEIL  RECHT"
+],
+"lat": 50.35431,
+"lon": 6.17056
+},
+{
+"nis5": "92003",
+"plaats": "Andenne",
+"gemeente": "Andenne",
+"province_code": "be-wna",
+"city_code": "beand",
+"search_aliases": [
+"COUTISSE",
+"BONNEVILLE",
+"THON",
+"MAIZERET",
+"NAMECHE",
+"SCLAYN",
+"VEZIN",
+"LANDENNE*+PARTIE DE HERON",
+"SEILLES"
+],
+"lat": 50.4894,
+"lon": 5.09655
+},
+{
+"nis5": "21001",
+"plaats": "Anderlecht",
+"gemeente": "Anderlecht",
+"province_code": "be-bru",
+"city_code": "beanl",
+"search_aliases": [
+"ANDERLECHT-CENTRUM",
+"ANDERLECHT-CENTRE",
+"ANDERLECHT-KANAAL-SPOOR OOST",
+"ANDERLECHT-CANAL-CHEM.FER EST",
+"ANDERLECHT-RING WEST",
+"ANDERLECHT-RING OUEST"
+],
+"lat": 50.8391,
+"lon": 4.32965
+},
+{
+"nis5": "56001",
+"plaats": "Anderlues",
+"gemeente": "Anderlues",
+"province_code": "be-wht",
+"city_code": "beadu",
+"search_aliases": [],
+"lat": 50.40782,
+"lon": 4.27009
+},
+{
+"nis5": "91005",
+"plaats": "Anhée",
+"gemeente": "Anhée",
+"province_code": "be-wna",
+"city_code": "beanh",
+"search_aliases": [
+"SOSOYE",
+"DENEE",
+"BIOUL",
+"ANNEVOIE-ROUILLON"
+],
+"lat": 50.31015,
+"lon": 4.8776
+},
+{
+"nis5": "62003",
+"plaats": "Ans",
+"gemeente": "Ans",
+"province_code": "be-wlg",
+"city_code": "beans",
+"search_aliases": [
+"LONCIN* +  PARTIE DE GRACE-HOLLOGNE",
+"ALLEUR",
+"XHENDREMAEL + PARTIE DE AWANS"
+],
+"lat": 50.65287,
+"lon": 5.54061
+},
+{
+"nis5": "61079",
+"plaats": "Anthisnes",
+"gemeente": "Anthisnes",
+"province_code": "be-wlg",
+"city_code": "beais",
+"search_aliases": [
+"HODY",
+"TAVIER + PARTIE DE ELLEMELLE",
+"VILLERS-AUX-TOURS + PARTIE DE ESNEUX"
+],
+"lat": 50.48166,
+"lon": 5.52253
+},
+{
+"nis5": "57003",
+"plaats": "Antoing",
+"gemeente": "Antoing",
+"province_code": "be-wht",
+"city_code": "beato",
+"search_aliases": [
+"FONTENOY",
+"MAUBRAY",
+"PERONNES-LEZ-ANTOING",
+"BRUYELLE",
+"CALONNE"
+],
+"lat": 50.56595,
+"lon": 3.45112
+},
+{
+"nis5": "11002",
+"plaats": "Antwerpen",
+"gemeente": "Antwerpen",
+"province_code": "be-van",
+"city_code": "beanr",
+"search_aliases": [
+"BERENDRECHT-ZANDVLIET-LILLO",
+"EKEREN",
+"MERKSEM",
+"DEURNE",
+"BORGERHOUT",
+"BERCHEM",
+"WILRIJK",
+"HOBOKEN",
+"BORSBEEK",
+"Anvers"
+],
+"lat": 51.22111,
+"lon": 4.39971
+},
+{
+"nis5": "34002",
+"plaats": "Anzegem",
+"gemeente": "Anzegem",
+"province_code": "be-vwv",
+"city_code": "beazm",
+"search_aliases": [
+"GIJZELBRECHTEGEM",
+"KASTER",
+"TIEGEM",
+"INGOOIGEM",
+"VICHTE"
+],
+"lat": 50.83254,
+"lon": 3.4784
+},
+{
+"nis5": "37020",
+"plaats": "Ardooie",
+"gemeente": "Ardooie",
+"province_code": "be-vwv",
+"city_code": "beado",
+"search_aliases": [
+"KOOLSKAMP"
+],
+"lat": 50.97979,
+"lon": 3.19743
+},
+{
+"nis5": "13001",
+"plaats": "Arendonk",
+"gemeente": "Arendonk",
+"province_code": "be-van",
+"city_code": "beaej",
+"search_aliases": [
+"ARENDONK* & DEEL RETIE"
+],
+"lat": 51.32023,
+"lon": 5.08646
+},
+{
+"nis5": "81001",
+"plaats": "Arlon",
+"gemeente": "Arlon",
+"province_code": "be-wlx",
+"city_code": "bearl",
+"search_aliases": [
+"ARLON + PARTIE DE WOLKRANGE",
+"AUTELBAS",
+"HEINSCH + PARTIE DE HACHY",
+"BONNERT",
+"GUIRSCH",
+"TOERNICH",
+"Aarlen"
+],
+"lat": 49.68346,
+"lon": 5.81677
+},
+{
+"nis5": "71002",
+"plaats": "As",
+"gemeente": "As",
+"province_code": "be-vli",
+"city_code": "beasm",
+"search_aliases": [
+"NIEL-BIJ-AS"
+],
+"lat": 51.00633,
+"lon": 5.58313
+},
+{
+"nis5": "23002",
+"plaats": "Asse",
+"gemeente": "Asse",
+"province_code": "be-vbr",
+"city_code": "beaes",
+"search_aliases": [
+"MOLLEM",
+"KOBBEGEM",
+"RELEGEM",
+"ZELLIK",
+"BEKKERZEEL"
+],
+"lat": 50.90943,
+"lon": 4.20156
+},
+{
+"nis5": "43002",
+"plaats": "Assenede",
+"gemeente": "Assenede",
+"province_code": "be-vov",
+"city_code": "beane",
+"search_aliases": [
+"OOSTEEKLO",
+"BASSEVELDE",
+"BOEKHOUTE"
+],
+"lat": 51.22759,
+"lon": 3.75329
+},
+{
+"nis5": "92006",
+"plaats": "Assesse",
+"gemeente": "Assesse",
+"province_code": "be-wna",
+"city_code": "beasn",
+"search_aliases": [
+"CRUPET",
+"MAILLEN",
+"SART-BERNARD",
+"COURRIERE",
+"SORINNE-LA-LONGUE",
+"FLOREE"
+],
+"lat": 50.37183,
+"lon": 5.02176
+},
+{
+"nis5": "51004",
+"plaats": "Ath",
+"gemeente": "Ath",
+"province_code": "be-wht",
+"city_code": "beath",
+"search_aliases": [
+"LANQUESAINT",
+"REBAIX",
+"ISIERES",
+"MESLIN - L'EVEQUE",
+"GHISLENGHIEN",
+"GIBECQ",
+"ARBRE",
+"MAFFLE",
+"IRCHONWELZ",
+"ORMEIGNIES",
+"MOULBAIX",
+"VILLERS - NOTRE - DAME",
+"VILLERS-SAINT-AMAND",
+"LIGNE",
+"HOUTAING",
+"MAINVAULT",
+"BOUVIGNIES",
+"OSTICHES",
+"Aat"
+],
+"lat": 50.63113,
+"lon": 3.77695
+},
+{
+"nis5": "81003",
+"plaats": "Attert",
+"gemeente": "Attert",
+"province_code": "be-wlx",
+"city_code": "beate",
+"search_aliases": [
+"TONTELANGE",
+"THIAUMONT",
+"NOBRESSART",
+"NOTHOMB"
+],
+"lat": 49.7515,
+"lon": 5.78722
+},
+{
+"nis5": "81004",
+"plaats": "Aubange",
+"gemeente": "Aubange",
+"province_code": "be-wlx",
+"city_code": "beaug",
+"search_aliases": [
+"ATHUS + PARTIE DE MESSANCY",
+"HALANZY",
+"RACHECOURT"
+],
+"lat": 49.5672,
+"lon": 5.8045
+},
+{
+"nis5": "63003",
+"plaats": "Aubel",
+"gemeente": "Aubel",
+"province_code": "be-wlg",
+"city_code": "beaul",
+"search_aliases": [
+"AUBEL + PARTIE DE CHARNEUX"
+],
+"lat": 50.70415,
+"lon": 5.85856
+},
+{
+"nis5": "34003",
+"plaats": "Avelgem",
+"gemeente": "Avelgem",
+"province_code": "be-vwv",
+"city_code": "beavl",
+"search_aliases": [
+"WAARMAARDE",
+"KERKHOVE",
+"OUTRIJVE",
+"BOSSUIT"
+],
+"lat": 50.77584,
+"lon": 3.44445
+},
+{
+"nis5": "62006",
+"plaats": "Awans",
+"gemeente": "Awans",
+"province_code": "be-wlg",
+"city_code": "beaws",
+"search_aliases": [
+"AWANS*+ PARTIE DE GRACE-HOLLOGNE",
+"FOOZ + PARTIE DE BIERSET",
+"HOGNOUL",
+"VILLERS-L'EVEQUE",
+"OTHEE"
+],
+"lat": 50.66703,
+"lon": 5.46222
+},
+{
+"nis5": "62009",
+"plaats": "Aywaille",
+"gemeente": "Aywaille",
+"province_code": "be-wlg",
+"city_code": "beayw",
+"search_aliases": [
+"AYWAILLE + PARTIE DE ROUVREUX",
+"SOUGNE-REMOUCHAMPS + PARTIE DE LOUVEIGNE",
+"HARZE",
+"ERNONHEID"
+],
+"lat": 50.4759,
+"lon": 5.67632
+},
+{
+"nis5": "13002",
+"plaats": "Baarle-Hertog",
+"gemeente": "Baarle-Hertog",
+"province_code": "be-van",
+"city_code": "bebho",
+"search_aliases": [
+"Baerle-Duc"
+],
+"lat": 51.44262,
+"lon": 4.93089
+},
+{
+"nis5": "63004",
+"plaats": "Baelen",
+"gemeente": "Baelen",
+"province_code": "be-wlg",
+"city_code": "bebln",
+"search_aliases": [
+"BAELEN*+ PARTIE DE WELKENRAEDT",
+"MEMBACH"
+],
+"lat": 50.63129,
+"lon": 5.97135
+},
+{
+"nis5": "13003",
+"plaats": "Balen",
+"gemeente": "Balen",
+"province_code": "be-van",
+"city_code": "beble",
+"search_aliases": [
+"OLMEN"
+],
+"lat": 51.17076,
+"lon": 5.16969
+},
+{
+"nis5": "62011",
+"plaats": "Bassenge",
+"gemeente": "Bassenge",
+"province_code": "be-wlg",
+"city_code": "bebts",
+"search_aliases": [
+"ROCLENGE-SUR-GEER",
+"BOIRS",
+"GLONS + PARTIE DE SLINS",
+"WONCK",
+"EBEN-EMAEL",
+"Bitsingen"
+],
+"lat": 50.75836,
+"lon": 5.60948
+},
+{
+"nis5": "82039",
+"plaats": "Bastogne",
+"gemeente": "Bastogne",
+"province_code": "be-wlx",
+"city_code": "bebsg",
+"search_aliases": [
+"BASTOGNE + PARTIE DE LONGCHAMPS ET SIBRET",
+"Bastnach",
+"WARDIN",
+"VILLERS-LA-BONNE-EAU",
+"NOVILLE",
+"LONGVILLY",
+"BERTOGNE",
+"LONGCHAMPS",
+"FLAMIERGE",
+"Bastenaken"
+],
+"lat": 50.00231,
+"lon": 5.71734
+},
+{
+"nis5": "56005",
+"plaats": "Beaumont",
+"gemeente": "Beaumont",
+"province_code": "be-wht",
+"city_code": "bebea",
+"search_aliases": [
+"BARBENCON",
+"RENLIES",
+"SOLRE-SAINT-GERY",
+"LEUGNIES",
+"LEVAL-CHAUDEVILLE",
+"THIRIMONT",
+"STREE"
+],
+"lat": 50.23553,
+"lon": 4.23831
+},
+{
+"nis5": "91013",
+"plaats": "Beauraing",
+"gemeente": "Beauraing",
+"province_code": "be-wna",
+"city_code": "bebur",
+"search_aliases": [
+"JAVINGUE",
+"WINENNE",
+"FELENNE",
+"DION",
+"FESCHAUX",
+"BARONVILLE",
+"WIESNE",
+"MARTOUZIN-NEUVILLE",
+"FOCANT",
+"HONNAY",
+"FROIDFONTAINE",
+"VONECHE",
+"WANCENNES",
+"PONDROME"
+],
+"lat": 50.11027,
+"lon": 4.95493
+},
+{
+"nis5": "25005",
+"plaats": "Beauvechain",
+"gemeente": "Beauvechain",
+"province_code": "be-wbr",
+"city_code": "bebvc",
+"search_aliases": [
+"L'ECLUSE",
+"TOURINNES-LA-GROSSE",
+"NODEBAIS",
+"HAMME-MILLE & PARTIE DE BOSSUT GOTTECHAIN",
+"Bevekom"
+],
+"lat": 50.7809,
+"lon": 4.77173
+},
+{
+"nis5": "31003",
+"plaats": "Beernem",
+"gemeente": "Beernem",
+"province_code": "be-vwv",
+"city_code": "bebrm",
+"search_aliases": [
+"OEDELEM",
+"SINT-JORIS"
+],
+"lat": 51.14057,
+"lon": 3.33473
+},
+{
+"nis5": "13004",
+"plaats": "Beerse",
+"gemeente": "Beerse",
+"province_code": "be-van",
+"city_code": "beber",
+"search_aliases": [
+"VLIMMEREN"
+],
+"lat": 51.31914,
+"lon": 4.85645
+},
+{
+"nis5": "23003",
+"plaats": "Beersel",
+"gemeente": "Beersel",
+"province_code": "be-vbr",
+"city_code": "bebee",
+"search_aliases": [
+"ALSEMBERG",
+"DWORP",
+"HUIZINGEN",
+"LOT"
+],
+"lat": 50.76608,
+"lon": 4.30795
+},
+{
+"nis5": "24007",
+"plaats": "Begijnendijk",
+"gemeente": "Begijnendijk",
+"province_code": "be-vbr",
+"city_code": "bebgy",
+"search_aliases": [
+"BETEKOM"
+],
+"lat": 51.01941,
+"lon": 4.78214
+},
+{
+"nis5": "24008",
+"plaats": "Bekkevoort",
+"gemeente": "Bekkevoort",
+"province_code": "be-vbr",
+"city_code": "bebko",
+"search_aliases": [
+"ASSENT",
+"MOLENBEEK-WERSBEEK"
+],
+"lat": 50.94397,
+"lon": 4.97446
+},
+{
+"nis5": "51008",
+"plaats": "Beloeil",
+"gemeente": "Beloeil",
+"province_code": "be-wht",
+"city_code": "beblo",
+"search_aliases": [
+"STAMBRUGES",
+"QUEVAUCAMPS",
+"BASECLES",
+"THUMAIDE",
+"RAMEGNIES",
+"WADELINCOURT",
+"ELLIGNIES-SAINTE-ANNE",
+"AUBECHIES"
+],
+"lat": 50.57392,
+"lon": 3.67682
+},
+{
+"nis5": "71004",
+"plaats": "Beringen",
+"gemeente": "Beringen",
+"province_code": "be-vli",
+"city_code": "berin",
+"search_aliases": [
+"PAAL",
+"KOERSEL",
+"BEVERLO"
+],
+"lat": 51.04896,
+"lon": 5.22669
+},
+{
+"nis5": "12002",
+"plaats": "Berlaar",
+"gemeente": "Berlaar",
+"province_code": "be-van",
+"city_code": "bebar",
+"search_aliases": [
+"GESTEL"
+],
+"lat": 51.1179,
+"lon": 4.65751
+},
+{
+"nis5": "42003",
+"plaats": "Berlare",
+"gemeente": "Berlare",
+"province_code": "be-vov",
+"city_code": "bebrl",
+"search_aliases": [
+"UITBERGEN",
+"OVERMERE"
+],
+"lat": 51.02516,
+"lon": 4.00347
+},
+{
+"nis5": "64008",
+"plaats": "Berloz",
+"gemeente": "Berloz",
+"province_code": "be-wlg",
+"city_code": "belrz",
+"search_aliases": [
+"ROSOUX-CRENWICK",
+"CORSWAREM"
+],
+"lat": 50.69784,
+"lon": 5.21402
+},
+{
+"nis5": "51009",
+"plaats": "Bernissart",
+"gemeente": "Bernissart",
+"province_code": "be-wht",
+"city_code": "beabc",
+"search_aliases": [
+"POMMEROEUL",
+"BLATON"
+],
+"lat": 50.47944,
+"lon": 3.6936
+},
+{
+"nis5": "24009",
+"plaats": "Bertem",
+"gemeente": "Bertem",
+"province_code": "be-vbr",
+"city_code": "bebtm",
+"search_aliases": [
+"KORBEEK-DIJLE",
+"LEEFDAAL"
+],
+"lat": 50.86598,
+"lon": 4.63063
+},
+{
+"nis5": "84009",
+"plaats": "Bertrix",
+"gemeente": "Bertrix",
+"province_code": "be-wlx",
+"city_code": "bebtx",
+"search_aliases": [
+"BERTRIX + PARTIE D'OFFAGNE",
+"JEHONVILLE",
+"ORGEO",
+"CUGNON",
+"AUBY-SUR-SEMOIS"
+],
+"lat": 49.85466,
+"lon": 5.25293
+},
+{
+"nis5": "23009",
+"plaats": "Bever",
+"gemeente": "Bever",
+"province_code": "be-vbr",
+"city_code": "bebve",
+"search_aliases": [
+"Biévène"
+],
+"lat": 50.71645,
+"lon": 3.94315
+},
+{
+"nis5": "46030",
+"plaats": "Beveren-Kruibeke-Zwijndrecht",
+"gemeente": "Beveren-Kruibeke-Zwijndrecht",
+"province_code": "be-vov",
+"city_code": "bebev",
+"search_aliases": [
+"ZWIJNDRECHT",
+"BURCHT",
+"BEVEREN",
+"VRASENE",
+"VERREBROEK",
+"KIELDRECHT",
+"DOEL",
+"KALLO",
+"MELSELE",
+"HAASDONK",
+"KRUIBEKE",
+"BAZEL",
+"RUPELMONDE"
+],
+"lat": 51.21261,
+"lon": 4.25778
+},
+{
+"nis5": "62015",
+"plaats": "Beyne-Heusay",
+"gemeente": "Beyne-Heusay",
+"province_code": "be-wlg",
+"city_code": "bebye",
+"search_aliases": [
+"QUEUE-DU-BOIS+PARTIE DE FLERON",
+"BELLAIRE"
+],
+"lat": 50.62206,
+"lon": 5.65341
+},
+{
+"nis5": "24011",
+"plaats": "Bierbeek",
+"gemeente": "Bierbeek",
+"province_code": "be-vbr",
+"city_code": "bebke",
+"search_aliases": [
+"KORBEEK-LO",
+"LOVENJOEL",
+"HONSEM (DEEL)"
+],
+"lat": 50.82781,
+"lon": 4.75436
+},
+{
+"nis5": "91015",
+"plaats": "Bièvre",
+"gemeente": "Bièvre",
+"province_code": "be-wna",
+"city_code": "bebiv",
+"search_aliases": [
+"GRAIDE",
+"NAOME",
+"OIZY",
+"MONCEAU-EN-ARDENNE"
+],
+"lat": 49.94112,
+"lon": 5.01685
+},
+{
+"nis5": "73110",
+"plaats": "Bilzen-Hoeselt",
+"gemeente": "Bilzen-Hoeselt",
+"province_code": "be-vli",
+"city_code": "beblz",
+"search_aliases": [
+"BILZEN",
+"MUNSTERBILZEN",
+"BEVERST",
+"WALTWILDER",
+"HOELBEEK",
+"EIGENBILZEN",
+"MOPERTINGEN",
+"HEES",
+"ROSMEER",
+"KLEINE-SPOUWEN",
+"GROTE-SPOUWEN",
+"RIJKHOVEN",
+"MARTENSLINDE",
+"HOESELT",
+"WERM",
+"ROMERSHOVEN",
+"SINT-HUIBRECHTS-HERN",
+"SCHALKHOVEN"
+],
+"lat": 50.87078,
+"lon": 5.51811
+},
+{
+"nis5": "58002",
+"plaats": "Binche",
+"gemeente": "Binche",
+"province_code": "be-wht",
+"city_code": "bebci",
+"search_aliases": [
+"RESSAIX",
+"LEVAL-TRAHEGNIES",
+"EPINOIS",
+"BUVRINNES",
+"WAUDREZ",
+"BRAY",
+"PERONNES-LEZ-BINCHE"
+],
+"lat": 50.4103,
+"lon": 4.16516
+},
+{
+"nis5": "31004",
+"plaats": "Blankenberge",
+"gemeente": "Blankenberge",
+"province_code": "be-vwv",
+"city_code": "bebbg",
+"search_aliases": [
+"UITKERKE"
+],
+"lat": 51.31126,
+"lon": 3.13234
+},
+{
+"nis5": "62119",
+"plaats": "Blegny",
+"gemeente": "Blegny",
+"province_code": "be-wlg",
+"city_code": "bebny",
+"search_aliases": [
+"TREMBLEUR",
+"MORTIER + PARTIE DE ST.-ANDRE",
+"BARCHON + PARTIE DE CEREXHE - HEUSEUX, DE EVEGNEE - TIGNEE",
+"SAIVE + PARTIE DE WANDRE",
+"HOUSSE",
+"SAINT-REMY"
+],
+"lat": 50.67272,
+"lon": 5.72524
+},
+{
+"nis5": "72003",
+"plaats": "Bocholt",
+"gemeente": "Bocholt",
+"province_code": "be-vli",
+"city_code": "beboc",
+"search_aliases": [
+"REPPEL",
+"KAULILLE"
+],
+"lat": 51.15441,
+"lon": 5.56271
+},
+{
+"nis5": "11004",
+"plaats": "Boechout",
+"gemeente": "Boechout",
+"province_code": "be-van",
+"city_code": "bebct",
+"search_aliases": [
+"VREMDE"
+],
+"lat": 51.16356,
+"lon": 4.49639
+},
+{
+"nis5": "12005",
+"plaats": "Bonheiden",
+"gemeente": "Bonheiden",
+"province_code": "be-van",
+"city_code": "bebni",
+"search_aliases": [
+"RIJMENAM"
+],
+"lat": 51.02532,
+"lon": 4.54839
+},
+{
+"nis5": "11005",
+"plaats": "Boom",
+"gemeente": "Boom",
+"province_code": "be-van",
+"city_code": "bebom",
+"search_aliases": [],
+"lat": 51.08738,
+"lon": 4.36672
+},
+{
+"nis5": "24014",
+"plaats": "Boortmeerbeek",
+"gemeente": "Boortmeerbeek",
+"province_code": "be-vbr",
+"city_code": "bebmb",
+"search_aliases": [
+"HEVER"
+],
+"lat": 50.98159,
+"lon": 4.57293
+},
+{
+"nis5": "12007",
+"plaats": "Bornem",
+"gemeente": "Bornem",
+"province_code": "be-van",
+"city_code": "bebon",
+"search_aliases": [
+"HINGENE",
+"MARIEKERKE",
+"WEERT"
+],
+"lat": 51.0953,
+"lon": 4.23413
+},
+{
+"nis5": "84010",
+"plaats": "Bouillon",
+"gemeente": "Bouillon",
+"province_code": "be-wlx",
+"city_code": "bebuo",
+"search_aliases": [
+"CORBION + PARTIE D'ALLE",
+"SENSENRUTH",
+"NOIREFONTAINE",
+"DOHAN",
+"ROCHEHAUT",
+"POUPEHAN",
+"UCIMONT",
+"VIVY",
+"BELLEVAUX",
+"LES HAYONS"
+],
+"lat": 49.79498,
+"lon": 5.06725
+},
+{
+"nis5": "53014",
+"plaats": "Boussu",
+"gemeente": "Boussu",
+"province_code": "be-wht",
+"city_code": "bebss",
+"search_aliases": [
+"HORNU"
+],
+"lat": 50.43313,
+"lon": 3.79609
+},
+{
+"nis5": "24016",
+"plaats": "Boutersem",
+"gemeente": "Boutersem",
+"province_code": "be-vbr",
+"city_code": "bebum",
+"search_aliases": [
+"VERTRIJK",
+"KERKOM",
+"ROOSBEEK",
+"NEERVELP",
+"WILLEBRINGEN"
+],
+"lat": 50.83999,
+"lon": 4.83213
+},
+{
+"nis5": "25014",
+"plaats": "Braine-l’Alleud",
+"gemeente": "Braine-l’Alleud",
+"province_code": "be-wbr",
+"city_code": "bebla",
+"search_aliases": [
+"LILLOIS-WITTERZEE",
+"OPHAIN-BOIS-SEIGNEUR-ISAAC",
+"Eigenbrakel"
+],
+"lat": 50.68287,
+"lon": 4.36927
+},
+{
+"nis5": "25015",
+"plaats": "Braine-le-Château",
+"gemeente": "Braine-le-Château",
+"province_code": "be-wbr",
+"city_code": "beblc",
+"search_aliases": [
+"WAUTHIER-BRAINE",
+"Kasteelbrakel"
+],
+"lat": 50.68032,
+"lon": 4.29881
+},
+{
+"nis5": "55004",
+"plaats": "Braine-le-Comte",
+"gemeente": "Braine-le-Comte",
+"province_code": "be-wht",
+"city_code": "bebco",
+"search_aliases": [
+"HENNUYERES",
+"RONQUIERES",
+"HENRIPONT",
+"PETIT-ROEULX-LEZ-BRAINE",
+"STEENKERQUE",
+"’s Gravenbrakel"
+],
+"lat": 50.61071,
+"lon": 4.13607
+},
+{
+"nis5": "64015",
+"plaats": "Braives",
+"gemeente": "Braives",
+"province_code": "be-wlg",
+"city_code": "bebrs",
+"search_aliases": [
+"TOURINNE",
+"LATINNE",
+"FALLAIS",
+"FUMAL",
+"VILLE-EN-HESBAYE",
+"CIPLET",
+"AVENNES"
+],
+"lat": 50.63007,
+"lon": 5.14353
+},
+{
+"nis5": "45059",
+"plaats": "Brakel",
+"gemeente": "Brakel",
+"province_code": "be-vov",
+"city_code": "bebak",
+"search_aliases": [
+"NEDERBRAKEL",
+"OPBRAKEL",
+"ZEGELSEM",
+"ELST",
+"MICHELBEKE + DEEL SINT-MARIA-OUDENHOVE",
+"PARIKE",
+"EVERBEEK"
+],
+"lat": 50.80306,
+"lon": 3.76479
+},
+{
+"nis5": "11008",
+"plaats": "Brasschaat",
+"gemeente": "Brasschaat",
+"province_code": "be-van",
+"city_code": "bebra",
+"search_aliases": [],
+"lat": 51.29007,
+"lon": 4.49173
+},
+{
+"nis5": "11009",
+"plaats": "Brecht",
+"gemeente": "Brecht",
+"province_code": "be-van",
+"city_code": "bebrc",
+"search_aliases": [
+"SINT-LENAARTS",
+"SINT-JOB-IN-'T-GOOR"
+],
+"lat": 51.34848,
+"lon": 4.63987
+},
+{
+"nis5": "35002",
+"plaats": "Bredene",
+"gemeente": "Bredene",
+"province_code": "be-vwv",
+"city_code": "bebir",
+"search_aliases": [
+"STRAND"
+],
+"lat": 51.24085,
+"lon": 2.96479
+},
+{
+"nis5": "72004",
+"plaats": "Bree",
+"gemeente": "Bree",
+"province_code": "be-vli",
+"city_code": "bebre",
+"search_aliases": [
+"GERDINGEN",
+"BEEK",
+"TONGERLO",
+"OPITTER"
+],
+"lat": 51.14161,
+"lon": 5.59746
+},
+{
+"nis5": "51012",
+"plaats": "Brugelette",
+"gemeente": "Brugelette",
+"province_code": "be-wht",
+"city_code": "bebrg",
+"search_aliases": [
+"GAGES",
+"CAMBRON - CASTEAU",
+"MEVERGNIES-LEZ-LENS",
+"ATTRE"
+],
+"lat": 50.59596,
+"lon": 3.85269
+},
+{
+"nis5": "31005",
+"plaats": "Brugge",
+"gemeente": "Brugge",
+"province_code": "be-vwv",
+"city_code": "bebgs",
+"search_aliases": [
+"ZEEBRUGGE",
+"BRUGGE CENTRUM",
+"CHRISTUS-KONING",
+"SINT-PIETERS",
+"SINT-JOZEF",
+"DUDZELE",
+"LISSEWEGE",
+"ZWANKENDAMME",
+"KOOLKERKE",
+"SINT-KRUIS",
+"ASSEBROEK",
+"SINT-MICHIELS",
+"SINT-ANDRIES",
+"Bruges"
+],
+"lat": 51.20855,
+"lon": 3.22677
+},
+{
+"nis5": "57093",
+"plaats": "Brunehaut",
+"gemeente": "Brunehaut",
+"province_code": "be-wht",
+"city_code": "bebht",
+"search_aliases": [
+"BLEHARIES",
+"RONGY",
+"LESDAIN",
+"HOWARDRIES",
+"GUIGNIES",
+"WEZ-VELVAIN",
+"JOLLAIN-MERLIN",
+"HOLLAIN",
+"LAPLAIGNE"
+],
+"lat": 50.52036,
+"lon": 3.38826
+},
+{
+"nis5": "21004",
+"plaats": "Brussel",
+"gemeente": "Brussel",
+"province_code": "be-bru",
+"city_code": "bebru",
+"search_aliases": [
+"BRUSSEL PENTAGOON",
+"BRUXELLES PENTAGONE",
+"BRUSSEL-WETSTRAAT",
+"BRUXELLES-RUE DE LA LOI",
+"BRUSSEL-LOUISA",
+"BRUXELLES-LOUISE",
+"BRUSSEL-ANTWERPSE STWG",
+"BRUXELLES-CHAUSSEE D'ANVERS",
+"BRUSSEL-LAKEN",
+"BRUXELLES-LAEKEN",
+"BRUSSEL-NEDER-OVERHEEMBEEK",
+"BRUXELLES-NEDER-OVERHEEMBEEK",
+"BRUSSEL-HAREN",
+"BRUXELLES-HAREN",
+"Bruxelles"
+],
+"lat": 50.84674,
+"lon": 4.35249
+},
+{
+"nis5": "42004",
+"plaats": "Buggenhout",
+"gemeente": "Buggenhout",
+"province_code": "be-vov",
+"city_code": "bebhu",
+"search_aliases": [
+"OPDORP"
+],
+"lat": 51.01523,
+"lon": 4.20227
+},
+{
+"nis5": "63012",
+"plaats": "Bullange",
+"gemeente": "Bullange",
+"province_code": "be-wlg",
+"city_code": "bebl7",
+"search_aliases": [
+"BULLINGEN",
+"ROCHERATH",
+"MANDERFELD",
+"SCHOENBERG (GEBIETSTEIL)"
+],
+"lat": 50.40755,
+"lon": 6.25783
+},
+{
+"nis5": "61010",
+"plaats": "Burdinne",
+"gemeente": "Burdinne",
+"province_code": "be-wlg",
+"city_code": "bebrd",
+"search_aliases": [
+"HANNECHE",
+"LAMONTZEE",
+"OTEPPE",
+"MARNEFFE"
+],
+"lat": 50.58126,
+"lon": 5.07244
+},
+{
+"nis5": "63087",
+"plaats": "Burg-Reuland",
+"gemeente": "Burg-Reuland",
+"province_code": "be-wlg",
+"city_code": "bebgu",
+"search_aliases": [
+"THOMMEN",
+"REULAND"
+],
+"lat": 50.19675,
+"lon": 6.13426
+},
+{
+"nis5": "63013",
+"plaats": "Butgenbach",
+"gemeente": "Butgenbach",
+"province_code": "be-wlg",
+"city_code": "bebgh",
+"search_aliases": [
+"ELSENBORN"
+],
+"lat": 50.42673,
+"lon": 6.20536
+},
+{
+"nis5": "57018",
+"plaats": "Celles",
+"gemeente": "Celles",
+"province_code": "be-wht",
+"city_code": "becel",
+"search_aliases": [
+"MOLENBAIX",
+"POTTES",
+"ESCANAFFLES",
+"VELAINES",
+"POPUELLES"
+],
+"lat": 50.71254,
+"lon": 3.45717
+},
+{
+"nis5": "93010",
+"plaats": "Cerfontaine",
+"gemeente": "Cerfontaine",
+"province_code": "be-wna",
+"city_code": "becad",
+"search_aliases": [
+"SOUMOY",
+"SILENRIEUX",
+"DAUSSOIS",
+"VILLERS-DEUX-EGLISES",
+"SENZEILLE"
+],
+"lat": 50.16897,
+"lon": 4.41257
+},
+{
+"nis5": "52010",
+"plaats": "Chapelle-lez-Herlaimont",
+"gemeente": "Chapelle-lez-Herlaimont",
+"province_code": "be-wht",
+"city_code": "becho",
+"search_aliases": [
+"GODARVILLE",
+"PIETON"
+],
+"lat": 50.47131,
+"lon": 4.2805
+},
+{
+"nis5": "52011",
+"plaats": "Charleroi",
+"gemeente": "Charleroi",
+"province_code": "be-wht",
+"city_code": "becrl",
+"search_aliases": [
+"DAMPREMY",
+"LODELINSART",
+"GILLY",
+"MONTIGNIES-SUR-SAMBRE",
+"COUILLET",
+"MARCINELLE",
+"MONT-SUR-MARCHIENNE",
+"MARCHIENNE-AU-PONT",
+"MONCEAU-SUR-SAMBRE",
+"GOUTROUX",
+"ROUX",
+"JUMET",
+"GOSSELIES + PARTIE DE WAYAUX",
+"RANSART"
+],
+"lat": 50.41162,
+"lon": 4.44453
+},
+{
+"nis5": "25117",
+"plaats": "Chastre",
+"gemeente": "Chastre",
+"province_code": "be-wbr",
+"city_code": "becar",
+"search_aliases": [
+"CHASTRE-VILLEROUX-BLANMONT",
+"CORTIL-NOIRMONT",
+"SAINT-GERY",
+"GENTINNES"
+],
+"lat": 50.60827,
+"lon": 4.63856
+},
+{
+"nis5": "52012",
+"plaats": "Châtelet",
+"gemeente": "Châtelet",
+"province_code": "be-wht",
+"city_code": "becha",
+"search_aliases": [
+"CHATELINEAU",
+"BOUFFIOULX"
+],
+"lat": 50.40461,
+"lon": 4.52435
+},
+{
+"nis5": "62022",
+"plaats": "Chaudfontaine",
+"gemeente": "Chaudfontaine",
+"province_code": "be-wlg",
+"city_code": "becfo",
+"search_aliases": [
+"BEAUFAYS + PARTIE DE FORET ET DE TILFF",
+"EMBOURG",
+"VAUX-SOUS-CHEVREMONT + PARTIE DE CHENEE"
+],
+"lat": 50.58479,
+"lon": 5.64697
+},
+{
+"nis5": "25018",
+"plaats": "Chaumont-Gistoux",
+"gemeente": "Chaumont-Gistoux",
+"province_code": "be-wbr",
+"city_code": "becgx",
+"search_aliases": [
+"CORROY-LE-GRAND",
+"DION-LE-MONT",
+"DION-LE-VAL",
+"BONLEZ",
+"LONGUEVILLE"
+],
+"lat": 50.68398,
+"lon": 4.69742
+},
+{
+"nis5": "51014",
+"plaats": "Chièvres",
+"gemeente": "Chièvres",
+"province_code": "be-wht",
+"city_code": "bechi",
+"search_aliases": [
+"TONGRE-SAINT-MARTIN",
+"LADEUZE",
+"GROSAGE",
+"HUISSIGNIES",
+"TONGRE-NOTRE-DAME"
+],
+"lat": 50.58727,
+"lon": 3.80884
+},
+{
+"nis5": "56016",
+"plaats": "Chimay",
+"gemeente": "Chimay",
+"province_code": "be-wht",
+"city_code": "bechm",
+"search_aliases": [
+"VIRELLES",
+"VAULX",
+"LOMPRET",
+"BAILEUX",
+"L'ESCAILLERE",
+"RIEZES",
+"BOURLERS",
+"FORGES",
+"SAINT-REMY",
+"VILLERS-LA-TOUR",
+"SALLES",
+"BAILIEVRE",
+"ROBECHIES"
+],
+"lat": 50.04793,
+"lon": 4.31733
+},
+{
+"nis5": "85007",
+"plaats": "Chiny",
+"gemeente": "Chiny",
+"province_code": "be-wlx",
+"city_code": "becbf",
+"search_aliases": [
+"SUXY",
+"LES BULLES",
+"IZEL",
+"JAMOIGNE",
+"TERMES"
+],
+"lat": 49.73825,
+"lon": 5.3407
+},
+{
+"nis5": "91030",
+"plaats": "Ciney",
+"gemeente": "Ciney",
+"province_code": "be-wna",
+"city_code": "becny",
+"search_aliases": [
+"PESSOUX",
+"SERINCHAMPS",
+"LEIGNON",
+"CHEVETOGNE",
+"CONNEUX",
+"ACHENE",
+"SOVET",
+"BRAIBANT"
+],
+"lat": 50.29649,
+"lon": 5.10087
+},
+{
+"nis5": "61012",
+"plaats": "Clavier",
+"gemeente": "Clavier",
+"province_code": "be-wlg",
+"city_code": "becla",
+"search_aliases": [
+"OCQUIER",
+"BOIS - ET - BORSU",
+"LES AVINS",
+"PAILHE",
+"TERWAGNE"
+],
+"lat": 50.41189,
+"lon": 5.35774
+},
+{
+"nis5": "53082",
+"plaats": "Colfontaine",
+"gemeente": "Colfontaine",
+"province_code": "be-wht",
+"city_code": "becfa",
+"search_aliases": [
+"WASMES",
+"PATURAGES* + PARTIES DE EUGIES",
+"WARQUIGNIES"
+],
+"lat": 50.40566,
+"lon": 3.8514
+},
+{
+"nis5": "62026",
+"plaats": "Comblain-au-Pont",
+"gemeente": "Comblain-au-Pont",
+"province_code": "be-wlg",
+"city_code": "becpn",
+"search_aliases": [
+"COMBLAIN-AU-PONT*+ PARTIE DE ANTHISNES",
+"POULSEUR"
+],
+"lat": 50.4757,
+"lon": 5.57485
+},
+{
+"nis5": "57097",
+"plaats": "Comines-Warneton",
+"gemeente": "Comines-Warneton",
+"province_code": "be-wht",
+"city_code": "becom",
+"search_aliases": [
+"COMINES",
+"BAS-WARNETON",
+"HOUTHEM",
+"WARNETON",
+"PLOEGSTEERT",
+"Komen-Waasten"
+],
+"lat": 50.76874,
+"lon": 2.99976
+},
+{
+"nis5": "52015",
+"plaats": "Courcelles",
+"gemeente": "Courcelles",
+"province_code": "be-wht",
+"city_code": "beccs",
+"search_aliases": [
+"COURCELLES + PARTIE DE ROUX",
+"SOUVRET",
+"TRAZEGNIES",
+"GOUY-LEZ-PIETON"
+],
+"lat": 50.45747,
+"lon": 4.37601
+},
+{
+"nis5": "25023",
+"plaats": "Court-Saint-Etienne",
+"gemeente": "Court-Saint-Etienne",
+"province_code": "be-wbr",
+"city_code": "becet",
+"search_aliases": [],
+"lat": 50.64432,
+"lon": 4.56858
+},
+{
+"nis5": "93014",
+"plaats": "Couvin",
+"gemeente": "Couvin",
+"province_code": "be-wna",
+"city_code": "becuv",
+"search_aliases": [
+"PETIGNY",
+"BRULY",
+"PETITE-CHAPELLE",
+"CUL-DES-SARTS",
+"BRULY-DE-PESCHE",
+"PRESGAUX",
+"GONRIEUX",
+"PESCHE",
+"DAILLY",
+"AUBLAIN",
+"BOUSSU-EN-FAGNE",
+"FRASNES",
+"MARIEMBOURG"
+],
+"lat": 50.05243,
+"lon": 4.49687
+},
+{
+"nis5": "64021",
+"plaats": "Crisnée",
+"gemeente": "Crisnée",
+"province_code": "be-wlg",
+"city_code": "becsi",
+"search_aliases": [],
+"lat": 50.71589,
+"lon": 5.39732
+},
+{
+"nis5": "62027",
+"plaats": "Dalhem",
+"gemeente": "Dalhem",
+"province_code": "be-wlg",
+"city_code": "bedal",
+"search_aliases": [
+"FENEUR",
+"BOMBAYE",
+"BERNEAU",
+"WARSAGE",
+"NEUFCHATEAU",
+"MORTROUX",
+"SAINT-ANDRE"
+],
+"lat": 50.71393,
+"lon": 5.72298
+},
+{
+"nis5": "31006",
+"plaats": "Damme",
+"gemeente": "Damme",
+"province_code": "be-vwv",
+"city_code": "bedmm",
+"search_aliases": [
+"HOEKE - OOSTKERKE",
+"LAPSCHEURE",
+"MOERKERKE",
+"SIJSELE"
+],
+"lat": 51.24547,
+"lon": 3.34102
+},
+{
+"nis5": "84016",
+"plaats": "Daverdisse",
+"gemeente": "Daverdisse",
+"province_code": "be-wlx",
+"city_code": "bedvi",
+"search_aliases": [
+"PORCHERESSE",
+"GEMBES",
+"HAUT-FAYS"
+],
+"lat": 50.02149,
+"lon": 5.11834
+},
+{
+"nis5": "35029",
+"plaats": "De Haan",
+"gemeente": "De Haan",
+"province_code": "be-vwv",
+"city_code": "bedha",
+"search_aliases": [
+"KLEMSKERKE",
+"VLISSEGEM",
+"WENDUINE"
+],
+"lat": 51.27508,
+"lon": 3.03169
+},
+{
+"nis5": "38008",
+"plaats": "De Panne",
+"gemeente": "De Panne",
+"province_code": "be-vwv",
+"city_code": "bedpa",
+"search_aliases": [
+"ADINKERKE",
+"La Panne"
+],
+"lat": 51.09883,
+"lon": 2.59241
+},
+{
+"nis5": "34009",
+"plaats": "Deerlijk",
+"gemeente": "Deerlijk",
+"province_code": "be-vwv",
+"city_code": "bedjk",
+"search_aliases": [],
+"lat": 50.8536,
+"lon": 3.35465
+},
+{
+"nis5": "44083",
+"plaats": "Deinze",
+"gemeente": "Deinze",
+"province_code": "be-vov",
+"city_code": "bedez",
+"search_aliases": [
+"ASTENE",
+"PETEGEM-AAN-DE-LEIE",
+"ZEVEREN",
+"GRAMMENE",
+"GOTTEM",
+"WONTERGEM",
+"VINKT",
+"MEIGEM",
+"BACHTE-MARIA-LEERNE",
+"SINT-MARTENS-LEERNE",
+"NEVELE",
+"POESELE",
+"HANSBEKE",
+"MERENDREE",
+"LANDEGEM",
+"VOSSELARE"
+],
+"lat": 50.98419,
+"lon": 3.52704
+},
+{
+"nis5": "41011",
+"plaats": "Denderleeuw",
+"gemeente": "Denderleeuw",
+"province_code": "be-vov",
+"city_code": "bedrw",
+"search_aliases": [
+"IDDERGEM",
+"WELLE"
+],
+"lat": 50.88345,
+"lon": 4.08164
+},
+{
+"nis5": "42006",
+"plaats": "Dendermonde",
+"gemeente": "Dendermonde",
+"province_code": "be-vov",
+"city_code": "beddr",
+"search_aliases": [
+"APPELS",
+"SINT-GILLIS-BIJ-DENDERMONDE",
+"GREMBERGEN",
+"BAASRODE",
+"OUDEGEM",
+"MESPELARE",
+"SCHOONAARDE",
+"Termonde"
+],
+"lat": 51.03123,
+"lon": 4.09811
+},
+{
+"nis5": "37002",
+"plaats": "Dentergem",
+"gemeente": "Dentergem",
+"province_code": "be-vwv",
+"city_code": "bedte",
+"search_aliases": [
+"MARKEGEM",
+"OESELGEM",
+"WAKKEN"
+],
+"lat": 50.96428,
+"lon": 3.41916
+},
+{
+"nis5": "13006",
+"plaats": "Dessel",
+"gemeente": "Dessel",
+"province_code": "be-van",
+"city_code": "bedse",
+"search_aliases": [],
+"lat": 51.23908,
+"lon": 5.11282
+},
+{
+"nis5": "44013",
+"plaats": "Destelbergen",
+"gemeente": "Destelbergen",
+"province_code": "be-vov",
+"city_code": "bedes",
+"search_aliases": [
+"HEUSDEN"
+],
+"lat": 51.05562,
+"lon": 3.79789
+},
+{
+"nis5": "71011",
+"plaats": "Diepenbeek",
+"gemeente": "Diepenbeek",
+"province_code": "be-vli",
+"city_code": "bedpk",
+"search_aliases": [],
+"lat": 50.90785,
+"lon": 5.42003
+},
+{
+"nis5": "24020",
+"plaats": "Diest",
+"gemeente": "Diest",
+"province_code": "be-vbr",
+"city_code": "bedie",
+"search_aliases": [
+"WEBBEKOM",
+"KAGGEVINNE",
+"MOLENSTEDE",
+"SCHAFFEN",
+"DEURNE"
+],
+"lat": 50.98443,
+"lon": 5.05043
+},
+{
+"nis5": "32003",
+"plaats": "Diksmuide",
+"gemeente": "Diksmuide",
+"province_code": "be-vwv",
+"city_code": "bedik",
+"search_aliases": [
+"ESEN",
+"KAASKERKE",
+"BEERST",
+"KEIEM",
+"LEKE",
+"VLADSLO",
+"WOUMEN",
+"NIEUWKAPELLE",
+"OUDEKAPELLE",
+"SINT-JACOBS-KAPELLE",
+"OOSTKERKE",
+"LAMPERNISSE",
+"PERVIJZE",
+"STUIVEKENSKERKE",
+"Dixmude"
+],
+"lat": 51.03334,
+"lon": 2.86472
+},
+{
+"nis5": "23016",
+"plaats": "Dilbeek",
+"gemeente": "Dilbeek",
+"province_code": "be-vbr",
+"city_code": "bedbk",
+"search_aliases": [
+"SINT ULRIKS - KAPELLE",
+"GROOT - BIJGAARDEN",
+"ITTERBEEK",
+"SCHEPDAAL",
+"SINT - MARTENS - BODEGEM"
+],
+"lat": 50.84807,
+"lon": 4.26626
+},
+{
+"nis5": "72041",
+"plaats": "Dilsen-Stokkem",
+"gemeente": "Dilsen-Stokkem",
+"province_code": "be-vli",
+"city_code": "bedso",
+"search_aliases": [
+"DILSEN",
+"ROTEM",
+"ELEN",
+"STOKKEM",
+"LANKLAAR"
+],
+"lat": 51.03547,
+"lon": 5.72468
+},
+{
+"nis5": "91034",
+"plaats": "Dinant",
+"gemeente": "Dinant",
+"province_code": "be-wna",
+"city_code": "bedia",
+"search_aliases": [
+"LISOGNE",
+"THYNES",
+"SORINNES + PARTIE DE ACHENE",
+"FOY-NOTRE-DAME",
+"FURFOOZ",
+"FALMAGNE",
+"FALMIGNOUL"
+],
+"lat": 50.25918,
+"lon": 4.91306
+},
+{
+"nis5": "63020",
+"plaats": "Dison",
+"gemeente": "Dison",
+"province_code": "be-wlg",
+"city_code": "bedis",
+"search_aliases": [
+"ANDRIMONT"
+],
+"lat": 50.61137,
+"lon": 5.85473
+},
+{
+"nis5": "93018",
+"plaats": "Doische",
+"gemeente": "Doische",
+"province_code": "be-wna",
+"city_code": "bedoi",
+"search_aliases": [
+"VAUCELLES",
+"NIVERLEE",
+"MATAGNE-LA-PETITE",
+"MATAGNE-LA-GRANDE",
+"ROMEREE",
+"GIMNEE",
+"VODELEE",
+"SOULME",
+"GOCHENEE"
+],
+"lat": 50.1316,
+"lon": 4.71413
+},
+{
+"nis5": "64023",
+"plaats": "Donceel",
+"gemeente": "Donceel",
+"province_code": "be-wlg",
+"city_code": "bedce",
+"search_aliases": [
+"LIMONT",
+"JENEFFE",
+"HANEFFE"
+],
+"lat": 50.6479,
+"lon": 5.31994
+},
+{
+"nis5": "53020",
+"plaats": "Dour",
+"gemeente": "Dour",
+"province_code": "be-wht",
+"city_code": "bedou",
+"search_aliases": [
+"BLAUGIES",
+"WIHERIES",
+"ELOUGES"
+],
+"lat": 50.39638,
+"lon": 3.77868
+},
+{
+"nis5": "23098",
+"plaats": "Drogenbos",
+"gemeente": "Drogenbos",
+"province_code": "be-vbr",
+"city_code": "bedrb",
+"search_aliases": [],
+"lat": 50.78653,
+"lon": 4.31735
+},
+{
+"nis5": "12009",
+"plaats": "Duffel",
+"gemeente": "Duffel",
+"province_code": "be-van",
+"city_code": "beduf",
+"search_aliases": [],
+"lat": 51.09572,
+"lon": 4.5062
+},
+{
+"nis5": "83012",
+"plaats": "Durbuy",
+"gemeente": "Durbuy",
+"province_code": "be-wlx",
+"city_code": "beduy",
+"search_aliases": [
+"GRANDHAN",
+"SEPTON",
+"TOHOGNE",
+"BARVAUX",
+"BORLON",
+"BENDE",
+"BOMAL",
+"IZIER",
+"VILLERS-SAINTE-GERTRUDE",
+"HEYD",
+"WERIS"
+],
+"lat": 50.35241,
+"lon": 5.45625
+},
+{
+"nis5": "55050",
+"plaats": "Ecaussinnes",
+"gemeente": "Ecaussinnes",
+"province_code": "be-wht",
+"city_code": "beecs",
+"search_aliases": [
+"ECAUSSINNES-D'ENGHIEN",
+"ECAUSSINNES-LALAING",
+"MARCHE-LEZ-ECAUSSINNES"
+],
+"lat": 50.56968,
+"lon": 4.17529
+},
+{
+"nis5": "11013",
+"plaats": "Edegem",
+"gemeente": "Edegem",
+"province_code": "be-van",
+"city_code": "beegm",
+"search_aliases": [],
+"lat": 51.15481,
+"lon": 4.44583
+},
+{
+"nis5": "43005",
+"plaats": "Eeklo",
+"gemeente": "Eeklo",
+"province_code": "be-vov",
+"city_code": "beeek",
+"search_aliases": [
+"EEKLO* + DEEL ADEGEM"
+],
+"lat": 51.18448,
+"lon": 3.5666
+},
+{
+"nis5": "92035",
+"plaats": "Eghezée",
+"gemeente": "Eghezée",
+"province_code": "be-wna",
+"city_code": "beeze",
+"search_aliases": [
+"LONGCHAMPS",
+"UPIGNY",
+"MEHAIGNE",
+"NOVILLE-SUR-MEHAIGNE",
+"BOLINNE",
+"TAVIERS",
+"BONEFFE",
+"BRANCHON",
+"HANRET",
+"LEUZE",
+"WARET-LA-CHAUSSEE",
+"DHUY",
+"SAINT-GERMAIN",
+"LIERNU",
+"AISCHE-EN-REFAIL"
+],
+"lat": 50.59168,
+"lon": 4.9066
+},
+{
+"nis5": "51017",
+"plaats": "Ellezelles",
+"gemeente": "Ellezelles",
+"province_code": "be-wht",
+"city_code": "beezs",
+"search_aliases": [
+"WODECQ",
+"LAHAMAIDE",
+"Elzele"
+],
+"lat": 50.73398,
+"lon": 3.68
+},
+{
+"nis5": "21009",
+"plaats": "Elsene",
+"gemeente": "Elsene",
+"province_code": "be-bru",
+"city_code": "beese",
+"search_aliases": [
+"IXELLES"
+],
+"lat": 50.83311,
+"lon": 4.36683
+},
+{
+"nis5": "51067",
+"plaats": "Enghien",
+"gemeente": "Enghien",
+"province_code": "be-wht",
+"city_code": "beegi",
+"search_aliases": [
+"MARCQ",
+"PETIT-ENGHIEN",
+"Edingen"
+],
+"lat": 50.69571,
+"lon": 4.04119
+},
+{
+"nis5": "61080",
+"plaats": "Engis",
+"gemeente": "Engis",
+"province_code": "be-wlg",
+"city_code": "beeng",
+"search_aliases": [
+"EHEIN (PARTIE)",
+"CLERMONT-SOUS-HUY",
+"HERMALLE-SOUS-HUY"
+],
+"lat": 50.5825,
+"lon": 5.40402
+},
+{
+"nis5": "83013",
+"plaats": "Erezée",
+"gemeente": "Erezée",
+"province_code": "be-wlx",
+"city_code": "beeez",
+"search_aliases": [
+"AMONINES",
+"SOY",
+"MORMONT"
+],
+"lat": 50.29306,
+"lon": 5.55976
+},
+{
+"nis5": "41082",
+"plaats": "Erpe-Mere",
+"gemeente": "Erpe-Mere",
+"province_code": "be-vov",
+"city_code": "bemer",
+"search_aliases": [
+"MERE",
+"ERPE",
+"AAIGEM",
+"BURST",
+"BAMBRUGGE",
+"OTTERGEM",
+"VLEKKEM",
+"ERONDEGEM"
+],
+"lat": 50.92301,
+"lon": 3.97103
+},
+{
+"nis5": "56022",
+"plaats": "Erquelinnes",
+"gemeente": "Erquelinnes",
+"province_code": "be-wht",
+"city_code": "bereq",
+"search_aliases": [
+"SOLRE-SUR-SAMBRE",
+"HANTES-WIHERIES",
+"MONTIGNIES-SAINT-CHRISTOPHE",
+"BERSILLIES - L'ABBAYE",
+"GRAND-RENG"
+],
+"lat": 50.3101,
+"lon": 4.12187
+},
+{
+"nis5": "62032",
+"plaats": "Esneux",
+"gemeente": "Esneux",
+"province_code": "be-wlg",
+"city_code": "beesx",
+"search_aliases": [
+"ESNEUX* + PARTIE DE DOLEMBREUX",
+"TILFF"
+],
+"lat": 50.53359,
+"lon": 5.56862
+},
+{
+"nis5": "11016",
+"plaats": "Essen",
+"gemeente": "Essen",
+"province_code": "be-van",
+"city_code": "beess",
+"search_aliases": [],
+"lat": 51.46792,
+"lon": 4.46983
+},
+{
+"nis5": "57027",
+"plaats": "Estaimpuis",
+"gemeente": "Estaimpuis",
+"province_code": "be-wht",
+"city_code": "beemp",
+"search_aliases": [
+"EVREGNIES",
+"SAINT-LEGER",
+"ESTAIMBOURG",
+"BAILLEUL",
+"NECHIN",
+"LEERS-NORD"
+],
+"lat": 50.70598,
+"lon": 3.26402
+},
+{
+"nis5": "58003",
+"plaats": "Estinnes",
+"gemeente": "Estinnes",
+"province_code": "be-wht",
+"city_code": "beeti",
+"search_aliases": [
+"ESTINNES-AU-MONT",
+"ESTINNES-AU-VAL",
+"VELLEREILLE-LES-BRAYEUX",
+"PEISSANT",
+"FAUROEULX",
+"CROIX-LEZ-ROUVEROY",
+"ROUVEROY",
+"HAULCHIN",
+"VELLEREILLE-LE-SEC"
+],
+"lat": 50.39767,
+"lon": 4.09758
+},
+{
+"nis5": "85009",
+"plaats": "Etalle",
+"gemeente": "Etalle",
+"province_code": "be-wlx",
+"city_code": "beetl",
+"search_aliases": [
+"VANCE",
+"CHANTEMELLE",
+"BUZENOL",
+"SAINTE-MARIE",
+"VILLERS-SUR-SEMOIS"
+],
+"lat": 49.67291,
+"lon": 5.59844
+},
+{
+"nis5": "21005",
+"plaats": "Etterbeek",
+"gemeente": "Etterbeek",
+"province_code": "be-bru",
+"city_code": "beete",
+"search_aliases": [],
+"lat": 50.83614,
+"lon": 4.38617
+},
+{
+"nis5": "63023",
+"plaats": "Eupen",
+"gemeente": "Eupen",
+"province_code": "be-wlg",
+"city_code": "beeup",
+"search_aliases": [
+"EUPEN*+GEBIETSTEIL RAEREN",
+"KETTENIS"
+],
+"lat": 50.63057,
+"lon": 6.03127
+},
+{
+"nis5": "21006",
+"plaats": "Evere",
+"gemeente": "Evere",
+"province_code": "be-bru",
+"city_code": "beevr",
+"search_aliases": [],
+"lat": 50.87201,
+"lon": 4.40342
+},
+{
+"nis5": "44019",
+"plaats": "Evergem",
+"gemeente": "Evergem",
+"province_code": "be-vov",
+"city_code": "beevm",
+"search_aliases": [
+"SLEIDINGE",
+"ERTVELDE",
+"KLUIZEN"
+],
+"lat": 51.10879,
+"lon": 3.70786
+},
+{
+"nis5": "64076",
+"plaats": "Faimes",
+"gemeente": "Faimes",
+"province_code": "be-wlg",
+"city_code": "befme",
+"search_aliases": [
+"CELLES",
+"BORLEZ",
+"LES WALEFFES",
+"VIEMME",
+"AINEFFE"
+],
+"lat": 50.66522,
+"lon": 5.26274
+},
+{
+"nis5": "52018",
+"plaats": "Farciennes",
+"gemeente": "Farciennes",
+"province_code": "be-wht",
+"city_code": "befcs",
+"search_aliases": [
+"PIRONCHAMPS"
+],
+"lat": 50.43184,
+"lon": 4.54652
+},
+{
+"nis5": "82009",
+"plaats": "Fauvillers",
+"gemeente": "Fauvillers",
+"province_code": "be-wlx",
+"city_code": "befvi",
+"search_aliases": [
+"TINTANGE",
+"HOLLANGE"
+],
+"lat": 49.85093,
+"lon": 5.66503
+},
+{
+"nis5": "92138",
+"plaats": "Fernelmont",
+"gemeente": "Fernelmont",
+"province_code": "be-wna",
+"city_code": "befno",
+"search_aliases": [
+"FORVILLE",
+"BIERWART",
+"PONTILLAS",
+"HINGEON",
+"NOVILLE-LES-BOIS",
+"FRANC-WARET",
+"MARCHOVELETTE",
+"TILLIER",
+"CORTIL-WODON",
+"HEMPTINNE"
+],
+"lat": 50.55528,
+"lon": 4.98289
+},
+{
+"nis5": "61019",
+"plaats": "Ferrières",
+"gemeente": "Ferrières",
+"province_code": "be-wlg",
+"city_code": "befre",
+"search_aliases": [
+"FERRIERES + PARTIE DE HARRE",
+"VIEUXVILLE",
+"MY",
+"XHORIS",
+"WERBOMONT"
+],
+"lat": 50.4002,
+"lon": 5.60639
+},
+{
+"nis5": "64025",
+"plaats": "Fexhe-le-Haut-Clocher",
+"gemeente": "Fexhe-le-Haut-Clocher",
+"province_code": "be-wlg",
+"city_code": "befhc",
+"search_aliases": [
+"FEXHE-LE-HAUT-CLOCHER* + PARTIE DE MOMALLE"
+],
+"lat": 50.66431,
+"lon": 5.39938
+},
+{
+"nis5": "62120",
+"plaats": "Flémalle",
+"gemeente": "Flémalle",
+"province_code": "be-wlg",
+"city_code": "befma",
+"search_aliases": [
+"FLEMALLE-HAUTE & FLEMALLE- GRANDE & PARTIE AWIRS",
+"IVOZ-RAMET",
+"AWIRS & PARTIE HORION-HOZEMONT",
+"PARTIE MONS* & PARTIE HORION- HOZEMONT & DE FLEMALLE-HAUTE"
+],
+"lat": 50.59945,
+"lon": 5.46996
+},
+{
+"nis5": "62038",
+"plaats": "Fléron",
+"gemeente": "Fléron",
+"province_code": "be-wlg",
+"city_code": "befro",
+"search_aliases": [
+"RETINNE",
+"MAGNEE",
+"ROMSEE"
+],
+"lat": 50.61684,
+"lon": 5.68322
+},
+{
+"nis5": "52021",
+"plaats": "Fleurus",
+"gemeente": "Fleurus",
+"province_code": "be-wht",
+"city_code": "befle",
+"search_aliases": [
+"WANFERCEE - BAULET",
+"LAMBUSART",
+"WANGENIES",
+"HEPPIGNIES",
+"SAINT-AMAND",
+"WAGNELEE",
+"BRYE"
+],
+"lat": 50.48294,
+"lon": 4.5497
+},
+{
+"nis5": "51019",
+"plaats": "Flobecq",
+"gemeente": "Flobecq",
+"province_code": "be-wht",
+"city_code": "befbq",
+"search_aliases": [
+"Vloesberg"
+],
+"lat": 50.73717,
+"lon": 3.73787
+},
+{
+"nis5": "92045",
+"plaats": "Floreffe",
+"gemeente": "Floreffe",
+"province_code": "be-wna",
+"city_code": "beflo",
+"search_aliases": [
+"FRANIERE",
+"SOYE",
+"FLORIFFOUX"
+],
+"lat": 50.43669,
+"lon": 4.76004
+},
+{
+"nis5": "93022",
+"plaats": "Florennes",
+"gemeente": "Florennes",
+"province_code": "be-wna",
+"city_code": "beflr",
+"search_aliases": [
+"CORENNE",
+"FLAVION",
+"MORVILLE",
+"ROSEE",
+"HEMPTINNE",
+"SAINT-AUBIN",
+"MORIALME + PARTIE D'ORET",
+"THY-LE-BAUDUIN",
+"HANZINELLE",
+"HANZINNE"
+],
+"lat": 50.25142,
+"lon": 4.60302
+},
+{
+"nis5": "85011",
+"plaats": "Florenville",
+"gemeente": "Florenville",
+"province_code": "be-wlx",
+"city_code": "befri",
+"search_aliases": [
+"VILLERS-DEVANT-ORVAL",
+"CHASSEPIERRE",
+"LACUISINE",
+"FONTENOILLE",
+"SAINTE-CECILE",
+"MUNO"
+],
+"lat": 49.69932,
+"lon": 5.31005
+},
+{
+"nis5": "52022",
+"plaats": "Fontaine-l’Evêque",
+"gemeente": "Fontaine-l’Evêque",
+"province_code": "be-wht",
+"city_code": "befeq",
+"search_aliases": [
+"FORCHIES-LA-MARCHE",
+"LEERNES"
+],
+"lat": 50.4107,
+"lon": 4.32476
+},
+{
+"nis5": "92048",
+"plaats": "Fosses-la-Ville",
+"gemeente": "Fosses-la-Ville",
+"province_code": "be-wna",
+"city_code": "befsv",
+"search_aliases": [
+"VITRIVAL",
+"SART-EUSTACHE",
+"LE ROUX + PARTIE DE METTET",
+"AISEMONT",
+"SART-SAINT-LAURENT"
+],
+"lat": 50.39595,
+"lon": 4.69789
+},
+{
+"nis5": "53028",
+"plaats": "Frameries",
+"gemeente": "Frameries",
+"province_code": "be-wht",
+"city_code": "befes",
+"search_aliases": [
+"NOIRCHAIN",
+"LA BOUVERIE",
+"EUGIES* + PARTIE DE PATURAGES",
+"SARS-LA-BRUYERE"
+],
+"lat": 50.40965,
+"lon": 3.8933
+},
+{
+"nis5": "51065",
+"plaats": "Frasnes-lez-Anvaing",
+"gemeente": "Frasnes-lez-Anvaing",
+"province_code": "be-wht",
+"city_code": "befrs",
+"search_aliases": [
+"FRASNES - LEZ - BUISSENAL",
+"OEUDEGHIEN",
+"BUISSENAL",
+"MOUSTIER",
+"HACQUEGNIES",
+"HERQUEGIES",
+"MONTROEUL-AU-BOIS",
+"FOREST",
+"ANVAING",
+"CORDES",
+"ARC - AINIERES",
+"WATTRIPONT",
+"DERGNEAU",
+"SAINT - SAUVEUR"
+],
+"lat": 50.66672,
+"lon": 3.61844
+},
+{
+"nis5": "56029",
+"plaats": "Froidchapelle",
+"gemeente": "Froidchapelle",
+"province_code": "be-wht",
+"city_code": "befrd",
+"search_aliases": [
+"VERGNIES+PARTIE DE BARBENCON",
+"ERPION",
+"BOUSSU-LEZ-WALCOURT"
+],
+"lat": 50.15116,
+"lon": 4.32691
+},
+{
+"nis5": "21008",
+"plaats": "Ganshoren",
+"gemeente": "Ganshoren",
+"province_code": "be-bru",
+"city_code": "begho",
+"search_aliases": [],
+"lat": 50.87033,
+"lon": 4.3078
+},
+{
+"nis5": "44020",
+"plaats": "Gavere",
+"gemeente": "Gavere",
+"province_code": "be-vov",
+"city_code": "begvr",
+"search_aliases": [
+"SEMMERZAKE",
+"VURSTE",
+"BAAIGEM",
+"DIKKELVENNE",
+"ASPER"
+],
+"lat": 50.92923,
+"lon": 3.66142
+},
+{
+"nis5": "91054",
+"plaats": "Gedinne",
+"gemeente": "Gedinne",
+"province_code": "be-wna",
+"city_code": "beged",
+"search_aliases": [
+"LOUETTE-SAINT-DENIS",
+"HOUDREMONT",
+"LOUETTE-SAINT-PIERRE",
+"RIENNE",
+"WILLERZIE",
+"BOURSEIGNE-NEUVE",
+"BOURSEIGNE-VIEILLE",
+"VENCIMONT",
+"SART-CUSTINNE",
+"PATIGNIES",
+"MALVOISIN"
+],
+"lat": 49.97927,
+"lon": 4.9389
+},
+{
+"nis5": "13008",
+"plaats": "Geel",
+"gemeente": "Geel",
+"province_code": "be-van",
+"city_code": "begel",
+"search_aliases": [],
+"lat": 51.16108,
+"lon": 4.99032
+},
+{
+"nis5": "64029",
+"plaats": "Geer",
+"gemeente": "Geer",
+"province_code": "be-wlg",
+"city_code": "begee",
+"search_aliases": [
+"BOELHE + PARTIE DE TROGNEE",
+"HOLLOGNE - SUR - GEER",
+"DARION",
+"OMAL",
+"LIGNEY",
+"LENS-SAINT-SERVAIS"
+],
+"lat": 50.66849,
+"lon": 5.17105
+},
+{
+"nis5": "24028",
+"plaats": "Geetbets",
+"gemeente": "Geetbets",
+"province_code": "be-vbr",
+"city_code": "begbe",
+"search_aliases": [
+"RUMMEN",
+"GRAZEN"
+],
+"lat": 50.89179,
+"lon": 5.11447
+},
+{
+"nis5": "92142",
+"plaats": "Gembloux",
+"gemeente": "Gembloux",
+"province_code": "be-wna",
+"city_code": "begem",
+"search_aliases": [
+"GRAND-LEEZ + PARTIE D'AISCHE-EN-REFAIL",
+"BEUZET",
+"ISNES",
+"BOSSIERE",
+"MAZY",
+"BOTHEY",
+"CORROY-LE-CHATEAU"
+],
+"lat": 50.55973,
+"lon": 4.69431
+},
+{
+"nis5": "25031",
+"plaats": "Genappe",
+"gemeente": "Genappe",
+"province_code": "be-wbr",
+"city_code": "begna",
+"search_aliases": [
+"BAISY-THY",
+"LOUPOIGNE",
+"HOUTAIN-LE-VAL",
+"VIEUX-GENAPPE",
+"GLABAIS",
+"WAYS",
+"BOUSVAL",
+"Genepiën"
+],
+"lat": 50.61087,
+"lon": 4.45107
+},
+{
+"nis5": "71016",
+"plaats": "Genk",
+"gemeente": "Genk",
+"province_code": "be-vli",
+"city_code": "begnk",
+"search_aliases": [],
+"lat": 50.96549,
+"lon": 5.50015
+},
+{
+"nis5": "44021",
+"plaats": "Gent",
+"gemeente": "Gent",
+"province_code": "be-vov",
+"city_code": "begne",
+"search_aliases": [
+"OOSTAKKER",
+"DESTELDONK",
+"SINT-KRUIS-WINKEL",
+"MENDONK",
+"SINT-AMANDSBERG",
+"GENTBRUGGE",
+"LEDEBERG",
+"ZWIJNAARDE",
+"SINT-DENIJS-WESTREM",
+"AFSNEE",
+"DRONGEN",
+"MARIAKERKE",
+"WONDELGEM",
+"Gand"
+],
+"lat": 51.05383,
+"lon": 3.72501
+},
+{
+"nis5": "41018",
+"plaats": "Geraardsbergen",
+"gemeente": "Geraardsbergen",
+"province_code": "be-vov",
+"city_code": "begea",
+"search_aliases": [
+"NEDERBOELARE",
+"ONKERZELE",
+"OVERBOELARE",
+"GOEFERDINGE",
+"ZARLARDINGE",
+"SCHENDELBEKE",
+"OPHASSELT",
+"SMEEREBBE-VLOERZEGEM",
+"IDEGEM",
+"GRIMMINGE",
+"ZANDBERGEN",
+"NIEUWENHOVE",
+"WAARBEKE",
+"MOERBEKE",
+"VIANE",
+"Grammont"
+],
+"lat": 50.77158,
+"lon": 3.88273
+},
+{
+"nis5": "52025",
+"plaats": "Gerpinnes",
+"gemeente": "Gerpinnes",
+"province_code": "be-wht",
+"city_code": "begpi",
+"search_aliases": [
+"LOVERVAL",
+"JONCRET",
+"ACOZ",
+"VILLERS-POTERIE",
+"GOUGNIES"
+],
+"lat": 50.33782,
+"lon": 4.52768
+},
+{
+"nis5": "92054",
+"plaats": "Gesves",
+"gemeente": "Gesves",
+"province_code": "be-wna",
+"city_code": "begve",
+"search_aliases": [
+"FAULX-LES-TOMBES",
+"MOZET",
+"HALTINNE",
+"SOREE"
+],
+"lat": 50.42729,
+"lon": 5.01914
+},
+{
+"nis5": "71017",
+"plaats": "Gingelom",
+"gemeente": "Gingelom",
+"province_code": "be-vli",
+"city_code": "beglo",
+"search_aliases": [
+"NIEL-BIJ-SINT-TRUIDEN",
+"MUIZEN",
+"BUVINGEN",
+"BORLO",
+"MIELEN-BOVEN-AALST",
+"BOEKHOUT",
+"JEUK",
+"MONTENAKEN",
+"KORTIJS",
+"VORSEN"
+],
+"lat": 50.75003,
+"lon": 5.13321
+},
+{
+"nis5": "35005",
+"plaats": "Gistel",
+"gemeente": "Gistel",
+"province_code": "be-vwv",
+"city_code": "begis",
+"search_aliases": [
+"MOERE",
+"ZEVEKOTE",
+"SNAASKERKE"
+],
+"lat": 51.15428,
+"lon": 2.96154
+},
+{
+"nis5": "24137",
+"plaats": "Glabbeek",
+"gemeente": "Glabbeek",
+"province_code": "be-vbr",
+"city_code": "begbk",
+"search_aliases": [
+"GLABBEEK-ZUURBEMDE",
+"ATTENRODE",
+"BUNSBEEK",
+"KAPELLEN"
+],
+"lat": 50.87241,
+"lon": 4.95122
+},
+{
+"nis5": "82037",
+"plaats": "Gouvy",
+"gemeente": "Gouvy",
+"province_code": "be-wlx",
+"city_code": "begvy",
+"search_aliases": [
+"BOVIGNY",
+"BEHO",
+"LIMERLE",
+"CHERAIN",
+"MONTLEBAN"
+],
+"lat": 50.18574,
+"lon": 5.9428
+},
+{
+"nis5": "62118",
+"plaats": "Grâce-Hollogne",
+"gemeente": "Grâce-Hollogne",
+"province_code": "be-wlg",
+"city_code": "beghe",
+"search_aliases": [
+"GRACE-BERLEUR*+PART. DE LONCIN",
+"HOLLOGNE-AUX-PIERRES",
+"MONS-LEZ-LIEGE (PARTIE)",
+"HORION-HOZEMONT",
+"VELROUX + PARTIE DE FEXHE- LE-HAUT-CLOCHER",
+"BIERSET* + PARTIE DE AWANS"
+],
+"lat": 50.6323,
+"lon": 5.47684
+},
+{
+"nis5": "25037",
+"plaats": "Grez-Doiceau",
+"gemeente": "Grez-Doiceau",
+"province_code": "be-wbr",
+"city_code": "begdu",
+"search_aliases": [
+"ARCHENNES",
+"BIEZ",
+"BOSSUT-GOTTECHAIN",
+"NETHEN",
+"Graven"
+],
+"lat": 50.73862,
+"lon": 4.69623
+},
+{
+"nis5": "23025",
+"plaats": "Grimbergen",
+"gemeente": "Grimbergen",
+"province_code": "be-vbr",
+"city_code": "begrb",
+"search_aliases": [
+"STROMBEEK - BEVER",
+"BEIGEM",
+"HUMBEEK"
+],
+"lat": 50.93246,
+"lon": 4.37179
+},
+{
+"nis5": "13010",
+"plaats": "Grobbendonk",
+"gemeente": "Grobbendonk",
+"province_code": "be-van",
+"city_code": "begbb",
+"search_aliases": [
+"BOUWEL"
+],
+"lat": 51.19199,
+"lon": 4.7385
+},
+{
+"nis5": "24033",
+"plaats": "Haacht",
+"gemeente": "Haacht",
+"province_code": "be-vbr",
+"city_code": "behac",
+"search_aliases": [
+"TILDONK + DEEL VAN HERENT + DEEL VAN WERCHTER",
+"WESPELAAR"
+],
+"lat": 50.97695,
+"lon": 4.63831
+},
+{
+"nis5": "41024",
+"plaats": "Haaltert",
+"gemeente": "Haaltert",
+"province_code": "be-vov",
+"city_code": "behat",
+"search_aliases": [
+"DENDERHOUTEM",
+"KERKSKEN",
+"HELDERGEM"
+],
+"lat": 50.90225,
+"lon": 4.00577
+},
+{
+"nis5": "85046",
+"plaats": "Habay",
+"gemeente": "Habay",
+"province_code": "be-wlx",
+"city_code": "behln",
+"search_aliases": [
+"HABAY-LA-NEUVE",
+"HACHY",
+"HABAY-LA-VIEILLE",
+"HOUDEMONT",
+"RULLES + PARTIE VILLERS- SUR-SEMOIS",
+"ANLIER"
+],
+"lat": 49.72284,
+"lon": 5.62251
+},
+{
+"nis5": "71020",
+"plaats": "Halen",
+"gemeente": "Halen",
+"province_code": "be-vli",
+"city_code": "behla",
+"search_aliases": [
+"LOKSBERGEN",
+"ZELEM"
+],
+"lat": 50.94794,
+"lon": 5.11425
+},
+{
+"nis5": "23027",
+"plaats": "Halle",
+"gemeente": "Halle",
+"province_code": "be-vbr",
+"city_code": "behll",
+"search_aliases": [
+"BUIZINGEN",
+"LEMBEEK",
+"Hal"
+],
+"lat": 50.73605,
+"lon": 4.23743
+},
+{
+"nis5": "56086",
+"plaats": "Ham-sur-Heure-Nalinnes",
+"gemeente": "Ham-sur-Heure-Nalinnes",
+"province_code": "be-wht",
+"city_code": "behhn",
+"search_aliases": [
+"HAM-SUR-HEURE",
+"NALINNES",
+"COUR-SUR-HEURE",
+"MARBAIX",
+"JAMIOULX"
+],
+"lat": 50.31716,
+"lon": 4.38032
+},
+{
+"nis5": "42008",
+"plaats": "Hamme",
+"gemeente": "Hamme",
+"province_code": "be-vov",
+"city_code": "behme",
+"search_aliases": [
+"MOERZEKE"
+],
+"lat": 51.09776,
+"lon": 4.13772
+},
+{
+"nis5": "61024",
+"plaats": "Hamoir",
+"gemeente": "Hamoir",
+"province_code": "be-wlg",
+"city_code": "behmo",
+"search_aliases": [
+"COMBLAIN-FAIRON",
+"FILOT"
+],
+"lat": 50.42541,
+"lon": 5.53261
+},
+{
+"nis5": "91059",
+"plaats": "Hamois",
+"gemeente": "Hamois",
+"province_code": "be-wna",
+"city_code": "behmi",
+"search_aliases": [
+"ACHET",
+"MOHIVILLE",
+"SCY",
+"EMPTINNE",
+"NATOYE",
+"SCHALTIN"
+],
+"lat": 50.34087,
+"lon": 5.15945
+},
+{
+"nis5": "72037",
+"plaats": "Hamont-Achel",
+"gemeente": "Hamont-Achel",
+"province_code": "be-vli",
+"city_code": "behal",
+"search_aliases": [
+"HAMONT",
+"ACHEL"
+],
+"lat": 51.25484,
+"lon": 5.48022
+},
+{
+"nis5": "64034",
+"plaats": "Hannut",
+"gemeente": "Hannut",
+"province_code": "be-wlg",
+"city_code": "behnu",
+"search_aliases": [
+"AVERNAS-LE-BAUDUIN",
+"BERTREE",
+"CRAS-AVERNAS",
+"POUCET",
+"ABOLENS",
+"BLEHEN",
+"LENS-SAINT-REMY",
+"VILLERS-LE-PEUPLIER",
+"CREHEN",
+"TROGNEE",
+"AVIN",
+"MOXHE",
+"THISNES",
+"MERDORP",
+"GRAND-HALLET",
+"Hannuit"
+],
+"lat": 50.67246,
+"lon": 5.07799
+},
+{
+"nis5": "34013",
+"plaats": "Harelbeke",
+"gemeente": "Harelbeke",
+"province_code": "be-vwv",
+"city_code": "behej",
+"search_aliases": [
+"BAVIKHOVE",
+"HULSTE"
+],
+"lat": 50.85751,
+"lon": 3.31137
+},
+{
+"nis5": "71072",
+"plaats": "Hasselt",
+"gemeente": "Hasselt",
+"province_code": "be-vli",
+"city_code": "behss",
+"search_aliases": [
+"WIMMERTINGEN",
+"SINT-LAMBRECHTS-HERK",
+"KURINGEN",
+"STOKROOIE",
+"KERMT",
+"SPALBEEK",
+"STEVOORT",
+"KORTESSEM",
+"WINTERSHOVEN",
+"VLIERMAALROOT",
+"VLIERMAAL",
+"GUIGOVEN"
+],
+"lat": 50.93037,
+"lon": 5.3378
+},
+{
+"nis5": "91142",
+"plaats": "Hastière",
+"gemeente": "Hastière",
+"province_code": "be-wna",
+"city_code": "behpd",
+"search_aliases": [
+"HASTIERE-LAVAUX",
+"HASTIERE-PAR-DELA",
+"WAULSORT",
+"BLAIMONT",
+"HEER",
+"AGIMONT",
+"HERMETON-SUR-MEUSE"
+],
+"lat": 50.21734,
+"lon": 4.82588
+},
+{
+"nis5": "91064",
+"plaats": "Havelange",
+"gemeente": "Havelange",
+"province_code": "be-wna",
+"city_code": "behva",
+"search_aliases": [
+"VERLEE",
+"MAFFE",
+"MEAN",
+"BARVAUX-CONDROZ",
+"PORCHERESSE",
+"JENEFFE",
+"MIECRET",
+"FLOSTOY"
+],
+"lat": 50.38709,
+"lon": 5.23958
+},
+{
+"nis5": "72038",
+"plaats": "Hechtel-Eksel",
+"gemeente": "Hechtel-Eksel",
+"province_code": "be-vli",
+"city_code": "beekl",
+"search_aliases": [
+"HECHTEL + DEEL HELCHTEREN",
+"EKSEL+ DEEL VAN OVERPELT"
+],
+"lat": 51.12367,
+"lon": 5.36386
+},
+{
+"nis5": "73022",
+"plaats": "Heers",
+"gemeente": "Heers",
+"province_code": "be-vli",
+"city_code": "behse",
+"search_aliases": [
+"BATSHEERS",
+"OPHEERS",
+"VEULEN",
+"GUTSCHOVEN",
+"METTEKOVEN",
+"KLEIN-GELMEN",
+"HEKS",
+"HORPMAAL",
+"VECHMAAL",
+"MECHELEN-BOVELINGEN",
+"RUKKELINGEN-LOON"
+],
+"lat": 50.751,
+"lon": 5.30175
+},
+{
+"nis5": "12014",
+"plaats": "Heist-op-den-Berg",
+"gemeente": "Heist-op-den-Berg",
+"province_code": "be-van",
+"city_code": "behpg",
+"search_aliases": [
+"HALLAAR",
+"ITEGEM",
+"WIEKEVORST",
+"BOOISCHOT",
+"SCHRIEK"
+],
+"lat": 51.07599,
+"lon": 4.72868
+},
+{
+"nis5": "25118",
+"plaats": "Hélécine",
+"gemeente": "Hélécine",
+"province_code": "be-wbr",
+"city_code": "behci",
+"search_aliases": [
+"NEERHEYLISSEM",
+"OPHEYLISSEM",
+"LINSMEAU"
+],
+"lat": 50.7514,
+"lon": 4.98224
+},
+{
+"nis5": "11018",
+"plaats": "Hemiksem",
+"gemeente": "Hemiksem",
+"province_code": "be-van",
+"city_code": "behex",
+"search_aliases": [],
+"lat": 51.14302,
+"lon": 4.34098
+},
+{
+"nis5": "53039",
+"plaats": "Hensies",
+"gemeente": "Hensies",
+"province_code": "be-wht",
+"city_code": "behns",
+"search_aliases": [
+"MONTROEUL-SUR-HAINE",
+"THULIN",
+"HAININ"
+],
+"lat": 50.4326,
+"lon": 3.68476
+},
+{
+"nis5": "84029",
+"plaats": "Herbeumont",
+"gemeente": "Herbeumont",
+"province_code": "be-wlx",
+"city_code": "behbo",
+"search_aliases": [
+"SAINT-MEDARD",
+"STRAIMONT"
+],
+"lat": 49.78154,
+"lon": 5.23777
+},
+{
+"nis5": "24038",
+"plaats": "Herent",
+"gemeente": "Herent",
+"province_code": "be-vbr",
+"city_code": "behet",
+"search_aliases": [
+"WINKSELE",
+"VELTEM-BEISEM"
+],
+"lat": 50.90698,
+"lon": 4.67381
+},
+{
+"nis5": "13011",
+"plaats": "Herentals",
+"gemeente": "Herentals",
+"province_code": "be-van",
+"city_code": "beher",
+"search_aliases": [
+"NOORDERWIJK",
+"MORKHOVEN"
+],
+"lat": 51.17654,
+"lon": 4.83626
+},
+{
+"nis5": "13012",
+"plaats": "Herenthout",
+"gemeente": "Herenthout",
+"province_code": "be-van",
+"city_code": "behro",
+"search_aliases": [],
+"lat": 51.13924,
+"lon": 4.7544
+},
+{
+"nis5": "71024",
+"plaats": "Herk-de-Stad",
+"gemeente": "Herk-de-Stad",
+"province_code": "be-vli",
+"city_code": "behka",
+"search_aliases": [
+"DONK",
+"SCHULEN",
+"BERBROEK",
+"Herck-la-Ville"
+],
+"lat": 50.9407,
+"lon": 5.16597
+},
+{
+"nis5": "61028",
+"plaats": "Héron",
+"gemeente": "Héron",
+"province_code": "be-wlg",
+"city_code": "behno",
+"search_aliases": [
+"LAVOIR",
+"COUTHUIN",
+"WARET-L'EVEQUE + PARTIE DE LANDENNE"
+],
+"lat": 50.55082,
+"lon": 5.09718
+},
+{
+"nis5": "13013",
+"plaats": "Herselt",
+"gemeente": "Herselt",
+"province_code": "be-van",
+"city_code": "behes",
+"search_aliases": [
+"RAMSEL"
+],
+"lat": 51.0535,
+"lon": 4.88326
+},
+{
+"nis5": "62051",
+"plaats": "Herstal",
+"gemeente": "Herstal",
+"province_code": "be-wlg",
+"city_code": "behrs",
+"search_aliases": [
+"VOTTEM",
+"LIERS",
+"MILMORT"
+],
+"lat": 50.66504,
+"lon": 5.62998
+},
+{
+"nis5": "73028",
+"plaats": "Herstappe",
+"gemeente": "Herstappe",
+"province_code": "be-vli",
+"city_code": "behtp",
+"search_aliases": [],
+"lat": 50.72738,
+"lon": 5.42609
+},
+{
+"nis5": "63035",
+"plaats": "Herve",
+"gemeente": "Herve",
+"province_code": "be-wlg",
+"city_code": "behrv",
+"search_aliases": [
+"CHARNEUX",
+"BATTICE",
+"CHAINEUX",
+"GRAND-RECHAIN",
+"XHENDELESSE",
+"BOLLAND",
+"JULEMONT"
+],
+"lat": 50.63916,
+"lon": 5.7931
+},
+{
+"nis5": "41027",
+"plaats": "Herzele",
+"gemeente": "Herzele",
+"province_code": "be-vov",
+"city_code": "behez",
+"search_aliases": [
+"HILLEGEM",
+"BORSBEKE",
+"RESSEGEM",
+"WOUBRECHTEGEM",
+"SINT-ANTELINKS",
+"STEENHUIZE-WIJNHUIZE",
+"SINT-LIEVENS-ESSE"
+],
+"lat": 50.8848,
+"lon": 3.89356
+},
+{
+"nis5": "71070",
+"plaats": "Heusden-Zolder",
+"gemeente": "Heusden-Zolder",
+"province_code": "be-vli",
+"city_code": "behzo",
+"search_aliases": [
+"HEUSDEN",
+"ZOLDER"
+],
+"lat": 51.03276,
+"lon": 5.27971
+},
+{
+"nis5": "33039",
+"plaats": "Heuvelland",
+"gemeente": "Heuvelland",
+"province_code": "be-vwv",
+"city_code": "behvl",
+"search_aliases": [
+"KEMMEL",
+"WIJTSCHATE",
+"WULVERGEM",
+"NIEUWKERKE",
+"DRANOUTER",
+"LOKER",
+"WESTOUTER",
+"DEEL RENINGELST"
+],
+"lat": 50.78569,
+"lon": 2.88262
+},
+{
+"nis5": "24041",
+"plaats": "Hoegaarden",
+"gemeente": "Hoegaarden",
+"province_code": "be-vbr",
+"city_code": "behgd",
+"search_aliases": [
+"MELDERT",
+"OUTGAARDEN"
+],
+"lat": 50.77419,
+"lon": 4.88703
+},
+{
+"nis5": "23033",
+"plaats": "Hoeilaart",
+"gemeente": "Hoeilaart",
+"province_code": "be-vbr",
+"city_code": "behoi",
+"search_aliases": [],
+"lat": 50.76748,
+"lon": 4.47441
+},
+{
+"nis5": "24043",
+"plaats": "Holsbeek",
+"gemeente": "Holsbeek",
+"province_code": "be-vbr",
+"city_code": "behsk",
+"search_aliases": [
+"KORTRIJK-DUTSEL",
+"NIEUWRODE",
+"SINT-PIETERS-RODE"
+],
+"lat": 50.92159,
+"lon": 4.75706
+},
+{
+"nis5": "53083",
+"plaats": "Honnelles",
+"gemeente": "Honnelles",
+"province_code": "be-wht",
+"city_code": "behon",
+"search_aliases": [
+"ROISIN",
+"ANGREAU",
+"ANGRE",
+"MARCHIPONT",
+"ONNEZIES",
+"MONTIGNIES-SUR-ROC+ PARTIES DE AUDREGNIES ET DE WIHERIES",
+"AUTREPPE",
+"FAYT-LE-FRANC",
+"ATHIS",
+"ERQUENNES"
+],
+"lat": 50.35209,
+"lon": 3.73102
+},
+{
+"nis5": "36006",
+"plaats": "Hooglede",
+"gemeente": "Hooglede",
+"province_code": "be-vwv",
+"city_code": "behhg",
+"search_aliases": [
+"GITS"
+],
+"lat": 50.99689,
+"lon": 3.09562
+},
+{
+"nis5": "13014",
+"plaats": "Hoogstraten",
+"gemeente": "Hoogstraten",
+"province_code": "be-van",
+"city_code": "behoo",
+"search_aliases": [
+"MINDERHOUT",
+"MEER",
+"MEERLE",
+"WORTEL"
+],
+"lat": 51.40129,
+"lon": 4.76169
+},
+{
+"nis5": "45062",
+"plaats": "Horebeke",
+"gemeente": "Horebeke",
+"province_code": "be-vov",
+"city_code": "behor",
+"search_aliases": [
+"SINT-MARIA-HOREBEKE",
+"SINT-KORNELIS-HOREBEKE"
+],
+"lat": 50.83563,
+"lon": 3.69918
+},
+{
+"nis5": "83028",
+"plaats": "Hotton",
+"gemeente": "Hotton",
+"province_code": "be-wlx",
+"city_code": "behot",
+"search_aliases": [
+"HOTTON + PARTIE DE SOY",
+"HAMPTEAU",
+"MARENNE",
+"FRONVILLE"
+],
+"lat": 50.2688,
+"lon": 5.44633
+},
+{
+"nis5": "82014",
+"plaats": "Houffalize",
+"gemeente": "Houffalize",
+"province_code": "be-wlx",
+"city_code": "behfa",
+"search_aliases": [
+"MABOMPRE",
+"NADRIN",
+"WIBRIN",
+"TAILLES",
+"MONT",
+"TAVIGNY"
+],
+"lat": 50.13238,
+"lon": 5.78869
+},
+{
+"nis5": "72039",
+"plaats": "Houthalen-Helchteren",
+"gemeente": "Houthalen-Helchteren",
+"province_code": "be-vli",
+"city_code": "behth",
+"search_aliases": [
+"HOUTHALEN",
+"HELCHTEREN"
+],
+"lat": 51.0567,
+"lon": 5.38306
+},
+{
+"nis5": "32006",
+"plaats": "Houthulst",
+"gemeente": "Houthulst",
+"province_code": "be-vwv",
+"city_code": "behhu",
+"search_aliases": [
+"MERKEM",
+"DEEL WOUMEN - AFDELING 3",
+"KLERKEN"
+],
+"lat": 50.97742,
+"lon": 2.95244
+},
+{
+"nis5": "91072",
+"plaats": "Houyet",
+"gemeente": "Houyet",
+"province_code": "be-wna",
+"city_code": "behye",
+"search_aliases": [
+"HOUR",
+"MESNIL-EGLISE",
+"FINNEVAUX",
+"MESNIL-SAINT-BLAISE",
+"HULSONNIAUX",
+"CELLES",
+"CUSTINNE",
+"CIERGNON",
+"WANLIN"
+],
+"lat": 50.18686,
+"lon": 5.0067
+},
+{
+"nis5": "11021",
+"plaats": "Hove",
+"gemeente": "Hove",
+"province_code": "be-van",
+"city_code": "behov",
+"search_aliases": [],
+"lat": 51.14861,
+"lon": 4.47739
+},
+{
+"nis5": "24045",
+"plaats": "Huldenberg",
+"gemeente": "Huldenberg",
+"province_code": "be-vbr",
+"city_code": "behdg",
+"search_aliases": [
+"LOONBEEK",
+"NEERIJSE",
+"SINT-AGATHA-RODE",
+"OTTENBURG"
+],
+"lat": 50.78927,
+"lon": 4.5834
+},
+{
+"nis5": "13016",
+"plaats": "Hulshout",
+"gemeente": "Hulshout",
+"province_code": "be-van",
+"city_code": "behht",
+"search_aliases": [
+"WESTMEERBEEK",
+"HOUTVENNE"
+],
+"lat": 51.07539,
+"lon": 4.78855
+},
+{
+"nis5": "61031",
+"plaats": "Huy",
+"gemeente": "Huy",
+"province_code": "be-wlg",
+"city_code": "behuy",
+"search_aliases": [
+"BEN-AHIN + PARTIE DE MARCHIN",
+"TIHANGE + PARTIE DE STREE ET DE VIERSET-BARSE",
+"Hoei"
+],
+"lat": 50.51809,
+"lon": 5.24081
+},
+{
+"nis5": "35006",
+"plaats": "Ichtegem",
+"gemeente": "Ichtegem",
+"province_code": "be-vwv",
+"city_code": "beihe",
+"search_aliases": [
+"EERNEGEM",
+"BEKEGEM"
+],
+"lat": 51.09253,
+"lon": 3.01027
+},
+{
+"nis5": "33011",
+"plaats": "Ieper",
+"gemeente": "Ieper",
+"province_code": "be-vwv",
+"city_code": "beipr",
+"search_aliases": [
+"Ypern",
+"BRIELEN",
+"SINT-JAN",
+"BOEZINGE",
+"ZUIDSCHOTE",
+"ELVERDINGE",
+"VLAMERTINGE",
+"DIKKEBUS",
+"VOORMEZELE",
+"HOLLEBEKE",
+"ZILLEBEKE",
+"Ypres"
+],
+"lat": 50.85219,
+"lon": 2.8846
+},
+{
+"nis5": "25043",
+"plaats": "Incourt",
+"gemeente": "Incourt",
+"province_code": "be-wbr",
+"city_code": "beico",
+"search_aliases": [
+"GLIMES",
+"OPPREBAIS",
+"ROUX-MIROIR",
+"PIETREBAIS & PART DONGELBERG"
+],
+"lat": 50.6918,
+"lon": 4.79894
+},
+{
+"nis5": "36007",
+"plaats": "Ingelmunster",
+"gemeente": "Ingelmunster",
+"province_code": "be-vwv",
+"city_code": "beige",
+"search_aliases": [],
+"lat": 50.92028,
+"lon": 3.255
+},
+{
+"nis5": "25044",
+"plaats": "Ittre",
+"gemeente": "Ittre",
+"province_code": "be-wbr",
+"city_code": "beitr",
+"search_aliases": [
+"HAUT-ITTRE",
+"VIRGINAL-SAMME",
+"Itter"
+],
+"lat": 50.6502,
+"lon": 4.26371
+},
+{
+"nis5": "36008",
+"plaats": "Izegem",
+"gemeente": "Izegem",
+"province_code": "be-vwv",
+"city_code": "beizg",
+"search_aliases": [
+"KACHTEM"
+],
+"lat": 50.91983,
+"lon": 3.21543
+},
+{
+"nis5": "31012",
+"plaats": "Jabbeke",
+"gemeente": "Jabbeke",
+"province_code": "be-vwv",
+"city_code": "bejbe",
+"search_aliases": [
+"ZERKEGEM",
+"STALHILLE",
+"VARSENARE",
+"SNELLEGEM"
+],
+"lat": 51.1823,
+"lon": 3.09346
+},
+{
+"nis5": "63038",
+"plaats": "Jalhay",
+"gemeente": "Jalhay",
+"province_code": "be-wlg",
+"city_code": "bejhy",
+"search_aliases": [
+"SART"
+],
+"lat": 50.55925,
+"lon": 5.96475
+},
+{
+"nis5": "92140",
+"plaats": "Jemeppe-sur-Sambre",
+"gemeente": "Jemeppe-sur-Sambre",
+"province_code": "be-wna",
+"city_code": "bejem",
+"search_aliases": [
+"JEMEPPE",
+"BALATRE",
+"SAINT-MARTIN",
+"ONOZ",
+"SPY",
+"MOUSTIER",
+"MORNIMONT",
+"HAM-SUR-SAMBRE"
+],
+"lat": 50.46564,
+"lon": 4.66868
+},
+{
+"nis5": "21010",
+"plaats": "Jette",
+"gemeente": "Jette",
+"province_code": "be-bru",
+"city_code": "bejet",
+"search_aliases": [],
+"lat": 50.87596,
+"lon": 4.32457
+},
+{
+"nis5": "25048",
+"plaats": "Jodoigne",
+"gemeente": "Jodoigne",
+"province_code": "be-wbr",
+"city_code": "bejdo",
+"search_aliases": [
+"JODOIGNE-SOUVERAINE",
+"JAUCHELETTE",
+"DONGELBERG",
+"LATHUY",
+"MELIN",
+"SAINT-REMY-GEEST",
+"ZETRUD-LUMAY",
+"SAINT-JEAN-GEEST",
+"PIETRAIN",
+"Geldenaken"
+],
+"lat": 50.72418,
+"lon": 4.868
+},
+{
+"nis5": "62060",
+"plaats": "Juprelle",
+"gemeente": "Juprelle",
+"province_code": "be-wlg",
+"city_code": "bejpe",
+"search_aliases": [
+"JUPRELLE + PARTIE DE ALLEUR",
+"SLINS",
+"FEXHE-SLINS + PARTIE DE LIERS",
+"VILLERS-SAINT-SIMEON",
+"VOROUX-LEZ-LIERS",
+"LANTIN",
+"WIHOGNE",
+"PAIFVE"
+],
+"lat": 50.71124,
+"lon": 5.52659
+},
+{
+"nis5": "53044",
+"plaats": "Jurbise",
+"gemeente": "Jurbise",
+"province_code": "be-wht",
+"city_code": "bejbi",
+"search_aliases": [
+"MASNUY-SAINT-JEAN",
+"MASNUY-SAINT-PIERRE",
+"ERBISOEUL",
+"HERCHIES",
+"ERBAUT",
+"Jurbeke"
+],
+"lat": 50.53251,
+"lon": 3.91132
+},
+{
+"nis5": "11022",
+"plaats": "Kalmthout",
+"gemeente": "Kalmthout",
+"province_code": "be-van",
+"city_code": "bektt",
+"search_aliases": [
+"KALMTHOUT* & DEEL WUUSTWEZEL"
+],
+"lat": 51.38327,
+"lon": 4.47633
+},
+{
+"nis5": "23038",
+"plaats": "Kampenhout",
+"gemeente": "Kampenhout",
+"province_code": "be-vbr",
+"city_code": "bekmh",
+"search_aliases": [
+"BUKEN",
+"NEDEROKKERZEEL",
+"BERG"
+],
+"lat": 50.94133,
+"lon": 4.54957
+},
+{
+"nis5": "23039",
+"plaats": "Kapelle-op-den-Bos",
+"gemeente": "Kapelle-op-den-Bos",
+"province_code": "be-vbr",
+"city_code": "bekpb",
+"search_aliases": [
+"NIEUWENRODE",
+"RAMSDONK"
+],
+"lat": 51.01319,
+"lon": 4.35997
+},
+{
+"nis5": "11023",
+"plaats": "Kapellen",
+"gemeente": "Kapellen",
+"province_code": "be-van",
+"city_code": "bekpn",
+"search_aliases": [
+"ZUID - KAPELLEN"
+],
+"lat": 51.31495,
+"lon": 4.42954
+},
+{
+"nis5": "43007",
+"plaats": "Kaprijke",
+"gemeente": "Kaprijke",
+"province_code": "be-vov",
+"city_code": "bekri",
+"search_aliases": [
+"LEMBEKE"
+],
+"lat": 51.21851,
+"lon": 3.61908
+},
+{
+"nis5": "13017",
+"plaats": "Kasterlee",
+"gemeente": "Kasterlee",
+"province_code": "be-van",
+"city_code": "bekse",
+"search_aliases": [
+"LICHTAART",
+"TIELEN"
+],
+"lat": 51.24079,
+"lon": 4.96781
+},
+{
+"nis5": "24048",
+"plaats": "Keerbergen",
+"gemeente": "Keerbergen",
+"province_code": "be-vbr",
+"city_code": "bekao",
+"search_aliases": [],
+"lat": 51.00375,
+"lon": 4.62907
+},
+{
+"nis5": "72018",
+"plaats": "Kinrooi",
+"gemeente": "Kinrooi",
+"province_code": "be-vli",
+"city_code": "bekro",
+"search_aliases": [
+"MOLENBEERSEL",
+"KESSENICH",
+"OPHOVEN"
+],
+"lat": 51.14497,
+"lon": 5.7414
+},
+{
+"nis5": "45060",
+"plaats": "Kluisbergen",
+"gemeente": "Kluisbergen",
+"province_code": "be-vov",
+"city_code": "beksr",
+"search_aliases": [
+"RUIEN + DEEL VAN AVELGEM EN WAARMAARDE",
+"BERCHEM*+ DEEL VAN KERKOVE EN WORTEGEM-PETEGEM",
+"KWAREMONT",
+"ZULZEKE"
+],
+"lat": 50.77397,
+"lon": 3.48601
+},
+{
+"nis5": "31043",
+"plaats": "Knokke-Heist",
+"gemeente": "Knokke-Heist",
+"province_code": "be-vwv",
+"city_code": "bekhi",
+"search_aliases": [
+"KNOKKE",
+"HEIST",
+"RAMSKAPELLE",
+"WESTKAPELLE"
+],
+"lat": 51.34339,
+"lon": 3.28847
+},
+{
+"nis5": "32010",
+"plaats": "Koekelare",
+"gemeente": "Koekelare",
+"province_code": "be-vwv",
+"city_code": "bekee",
+"search_aliases": [
+"BOVEKERKE",
+"ZANDE"
+],
+"lat": 51.09033,
+"lon": 2.97848
+},
+{
+"nis5": "21011",
+"plaats": "Koekelberg",
+"gemeente": "Koekelberg",
+"province_code": "be-bru",
+"city_code": "bekoe",
+"search_aliases": [],
+"lat": 50.8606,
+"lon": 4.33155
+},
+{
+"nis5": "38014",
+"plaats": "Koksijde",
+"gemeente": "Koksijde",
+"province_code": "be-vwv",
+"city_code": "bekks",
+"search_aliases": [
+"OOSTDUINKERKE",
+"WULPEN"
+],
+"lat": 51.11877,
+"lon": 2.63493
+},
+{
+"nis5": "11024",
+"plaats": "Kontich",
+"gemeente": "Kontich",
+"province_code": "be-van",
+"city_code": "bekon",
+"search_aliases": [
+"WAARLOOS"
+],
+"lat": 51.13533,
+"lon": 4.44548
+},
+{
+"nis5": "32011",
+"plaats": "Kortemark",
+"gemeente": "Kortemark",
+"province_code": "be-vwv",
+"city_code": "bektk",
+"search_aliases": [
+"HANDZAME",
+"WERKEN",
+"ZARREN"
+],
+"lat": 51.02853,
+"lon": 3.04411
+},
+{
+"nis5": "24054",
+"plaats": "Kortenaken",
+"gemeente": "Kortenaken",
+"province_code": "be-vbr",
+"city_code": "bekna",
+"search_aliases": [
+"RANSBERG",
+"HOELEDEN",
+"KERSBEEK-MISKOM",
+"WAANRODE"
+],
+"lat": 50.89569,
+"lon": 5.01224
+},
+{
+"nis5": "24055",
+"plaats": "Kortenberg",
+"gemeente": "Kortenberg",
+"province_code": "be-vbr",
+"city_code": "bektb",
+"search_aliases": [
+"ERPS-KWERPS",
+"MEERBEEK",
+"EVERBERG"
+],
+"lat": 50.88587,
+"lon": 4.53907
+},
+{
+"nis5": "34022",
+"plaats": "Kortrijk",
+"gemeente": "Kortrijk",
+"province_code": "be-vwv",
+"city_code": "bekjk",
+"search_aliases": [
+"HEULE",
+"BISSEGEM",
+"MARKE",
+"AALBEKE",
+"ROLLEGEM",
+"BELLEGEM",
+"KOOIGEM",
+"Courtrai"
+],
+"lat": 50.82764,
+"lon": 3.26599
+},
+{
+"nis5": "23099",
+"plaats": "Kraainem",
+"gemeente": "Kraainem",
+"province_code": "be-vbr",
+"city_code": "bekra",
+"search_aliases": [],
+"lat": 50.86096,
+"lon": 4.46626
+},
+{
+"nis5": "45068",
+"plaats": "Kruisem",
+"gemeente": "Kruisem",
+"province_code": "be-vov",
+"city_code": "bekrs",
+"search_aliases": [
+"KRUISHOUTEM",
+"DEEL HUISE",
+"WANNEGEM-LEDE",
+"NOKERE",
+"ZINGEM*+DEEL DIKKELVENNE EN NEDERZWALM-HERMELGEM",
+"OUWEGEM",
+"HUISE"
+],
+"lat": 50.90393,
+"lon": 3.65379
+},
+{
+"nis5": "34023",
+"plaats": "Kuurne",
+"gemeente": "Kuurne",
+"province_code": "be-vwv",
+"city_code": "bekuu",
+"search_aliases": [],
+"lat": 50.85229,
+"lon": 3.28647
+},
+{
+"nis5": "92141",
+"plaats": "La Bruyère",
+"gemeente": "La Bruyère",
+"province_code": "be-wna",
+"city_code": "belby",
+"search_aliases": [
+"EMINES",
+"RHISNES",
+"BOVESSE",
+"SAINT-DENIS",
+"MEUX",
+"VILLERS-LEZ-HEEST",
+"WARISOULX"
+],
+"lat": 50.53348,
+"lon": 4.80971
+},
+{
+"nis5": "63040",
+"plaats": "La Calamine",
+"gemeente": "La Calamine",
+"province_code": "be-wlg",
+"city_code": "belap",
+"search_aliases": [
+"KELMIS",
+"NEU MORESNET",
+"HERGENRATH"
+],
+"lat": 50.7155,
+"lon": 6.01334
+},
+{
+"nis5": "25050",
+"plaats": "La Hulpe",
+"gemeente": "La Hulpe",
+"province_code": "be-wbr",
+"city_code": "belhl",
+"search_aliases": [
+"Terhulpen"
+],
+"lat": 50.73137,
+"lon": 4.4894
+},
+{
+"nis5": "58001",
+"plaats": "La Louvière",
+"gemeente": "La Louvière",
+"province_code": "be-wht",
+"city_code": "bello",
+"search_aliases": [
+"HAINE-SAINT-PIERRE",
+"HAINE-SAINT-PAUL",
+"SAINT-VAAST",
+"TRIVIERES",
+"MAURAGE",
+"BOUSSOIT",
+"STREPY-BRACQUEGNIES",
+"HOUDENG-AIMERIES",
+"HOUDENG-GOEGNIES",
+"PARTIE DE FAMILLEUREUX"
+],
+"lat": 50.47936,
+"lon": 4.18563
+},
+{
+"nis5": "83031",
+"plaats": "La Roche-en-Ardenne",
+"gemeente": "La Roche-en-Ardenne",
+"province_code": "be-wlx",
+"city_code": "berar",
+"search_aliases": [
+"LA ROCHE-EN-ARDENNE + PARTIE DE MARCOURT",
+"SAMREE",
+"ORTHO",
+"HIVES",
+"BEAUSAINT",
+"HALLEUX"
+],
+"lat": 50.18156,
+"lon": 5.57595
+},
+{
+"nis5": "13053",
+"plaats": "Laakdal",
+"gemeente": "Laakdal",
+"province_code": "be-van",
+"city_code": "belda",
+"search_aliases": [
+"VEERLE",
+"VARENDONK",
+"EINDHOUT",
+"VORST"
+],
+"lat": 51.08046,
+"lon": 5.02014
+},
+{
+"nis5": "42010",
+"plaats": "Laarne",
+"gemeente": "Laarne",
+"province_code": "be-vov",
+"city_code": "belaa",
+"search_aliases": [
+"KALKEN"
+],
+"lat": 51.02966,
+"lon": 3.85047
+},
+{
+"nis5": "73042",
+"plaats": "Lanaken",
+"gemeente": "Lanaken",
+"province_code": "be-vli",
+"city_code": "belan",
+"search_aliases": [
+"REKEM",
+"NEERHAREN",
+"VELDWEZELT",
+"GELLIK"
+],
+"lat": 50.88928,
+"lon": 5.65132
+},
+{
+"nis5": "24059",
+"plaats": "Landen",
+"gemeente": "Landen",
+"province_code": "be-vbr",
+"city_code": "belad",
+"search_aliases": [
+"RUMSDORP",
+"WALSHOUTEM",
+"WEZEREN",
+"WAASMONT",
+"WALSBETS",
+"NEERWINDEN",
+"WANGE",
+"ELIKSEM",
+"EZEMAAL",
+"LAAR",
+"OVERWINDEN",
+"ATTENHOVEN",
+"NEERLANDEN"
+],
+"lat": 50.75301,
+"lon": 5.08132
+},
+{
+"nis5": "33040",
+"plaats": "Langemark-Poelkapelle",
+"gemeente": "Langemark-Poelkapelle",
+"province_code": "be-vwv",
+"city_code": "belpo",
+"search_aliases": [
+"LANGEMARK",
+"BIKSCHOTE",
+"POELKAPELLE"
+],
+"lat": 50.91795,
+"lon": 2.95721
+},
+{
+"nis5": "25119",
+"plaats": "Lasne",
+"gemeente": "Lasne",
+"province_code": "be-wbr",
+"city_code": "belas",
+"search_aliases": [
+"LASNE-CHAPELLE-SAINT-LAMBERT",
+"COUTURE-SAINT-GERMAIN",
+"MARANSART",
+"OHAIN",
+"PLANCENOIT"
+],
+"lat": 50.686,
+"lon": 4.48442
+},
+{
+"nis5": "55035",
+"plaats": "Le Roeulx",
+"gemeente": "Le Roeulx",
+"province_code": "be-wht",
+"city_code": "berou",
+"search_aliases": [
+"MIGNAULT",
+"THIEU",
+"VILLE-SUR-HAINE"
+],
+"lat": 50.50168,
+"lon": 4.10886
+},
+{
+"nis5": "42011",
+"plaats": "Lebbeke",
+"gemeente": "Lebbeke",
+"province_code": "be-vov",
+"city_code": "beleb",
+"search_aliases": [
+"WIEZE",
+"DENDERBELLE"
+],
+"lat": 51.0004,
+"lon": 4.13077
+},
+{
+"nis5": "41034",
+"plaats": "Lede",
+"gemeente": "Lede",
+"province_code": "be-vov",
+"city_code": "beled",
+"search_aliases": [
+"WANZELE",
+"IMPE + DEEL VLIERZELE",
+"SMETLEDE",
+"OORDEGEM"
+],
+"lat": 50.96626,
+"lon": 3.97755
+},
+{
+"nis5": "36010",
+"plaats": "Ledegem",
+"gemeente": "Ledegem",
+"province_code": "be-vwv",
+"city_code": "beleg",
+"search_aliases": [
+"ROLLEGEM KAPELLE",
+"SINT-ELOOIS-WINKEL"
+],
+"lat": 50.85306,
+"lon": 3.12609
+},
+{
+"nis5": "84033",
+"plaats": "Léglise",
+"gemeente": "Léglise",
+"province_code": "be-wlx",
+"city_code": "belgi",
+"search_aliases": [
+"LEGLISE + PARTIE D'ANLIER",
+"EBLY",
+"WITRY",
+"MELLIER",
+"ASSENOIS"
+],
+"lat": 49.80009,
+"lon": 5.53818
+},
+{
+"nis5": "34025",
+"plaats": "Lendelede",
+"gemeente": "Lendelede",
+"province_code": "be-vwv",
+"city_code": "belnd",
+"search_aliases": [],
+"lat": 50.88636,
+"lon": 3.23804
+},
+{
+"nis5": "23104",
+"plaats": "Lennik",
+"gemeente": "Lennik",
+"province_code": "be-vbr",
+"city_code": "belik",
+"search_aliases": [
+"SINT-KWINTENS-LENNIK",
+"SINT-MARTENS-LENNIK",
+"GAASBEEK"
+],
+"lat": 50.81219,
+"lon": 4.16613
+},
+{
+"nis5": "53046",
+"plaats": "Lens",
+"gemeente": "Lens",
+"province_code": "be-wht",
+"city_code": "belns",
+"search_aliases": [
+"BAUFFE",
+"MONTIGNIES-LEZ-LENS",
+"CAMBRON-SAINT-VINCENT",
+"LOMBISE"
+],
+"lat": 50.55708,
+"lon": 3.90055
+},
+{
+"nis5": "71034",
+"plaats": "Leopoldsburg",
+"gemeente": "Leopoldsburg",
+"province_code": "be-vli",
+"city_code": "belpg",
+"search_aliases": [
+"HEPPEN",
+"Bourg-Léopold"
+],
+"lat": 51.1193,
+"lon": 5.2627
+},
+{
+"nis5": "52075",
+"plaats": "Les Bons Villers",
+"gemeente": "Les Bons Villers",
+"province_code": "be-wht",
+"city_code": "bebov",
+"search_aliases": [
+"MELLET",
+"WAYAUX",
+"VILLERS-PERWIN",
+"FRASNES-LEZ-GOSSELIES",
+"REVES"
+],
+"lat": 50.52264,
+"lon": 4.47635
+},
+{
+"nis5": "51069",
+"plaats": "Lessines",
+"gemeente": "Lessines",
+"province_code": "be-wht",
+"city_code": "beles",
+"search_aliases": [
+"DEUX-ACREN",
+"BOIS-DE-LESSINES",
+"OLLIGNIES",
+"PAPIGNIES",
+"OGY",
+"GHOY",
+"Lessen"
+],
+"lat": 50.7123,
+"lon": 3.83011
+},
+{
+"nis5": "24062",
+"plaats": "Leuven",
+"gemeente": "Leuven",
+"province_code": "be-vbr",
+"city_code": "beleu",
+"search_aliases": [
+"Löwen",
+"WILSELE",
+"KESSEL-LO",
+"HEVERLEE",
+"WIJGMAAL",
+"Louvain"
+],
+"lat": 50.8792,
+"lon": 4.70117
+},
+{
+"nis5": "57094",
+"plaats": "Leuze-en-Hainaut",
+"gemeente": "Leuze-en-Hainaut",
+"province_code": "be-wht",
+"city_code": "belht",
+"search_aliases": [
+"LEUZE",
+"GRANDMETZ",
+"CHAPELLE-A-WATTINES",
+"CHAPELLE-A-OIE",
+"BLICQUY",
+"TOURPES",
+"WILLAUPUIS",
+"PIPAIX",
+"GALLAIX",
+"THIEULAIN"
+],
+"lat": 50.60053,
+"lon": 3.62145
+},
+{
+"nis5": "84035",
+"plaats": "Libin",
+"gemeente": "Libin",
+"province_code": "be-wlx",
+"city_code": "belbn",
+"search_aliases": [
+"VILLANCE",
+"SMUID",
+"OCHAMPS",
+"ANLOY",
+"TRANSINNE",
+"REDU"
+],
+"lat": 49.98095,
+"lon": 5.2569
+},
+{
+"nis5": "84077",
+"plaats": "Libramont-Chevigny",
+"gemeente": "Libramont-Chevigny",
+"province_code": "be-wlx",
+"city_code": "belib",
+"search_aliases": [
+"LIBRAMONT",
+"BRAS",
+"SAINT-PIERRE",
+"RECOGNE",
+"FREUX",
+"SAINTE-MARIE-CHEVIGNY",
+"MOIRCY",
+"REMAGNE"
+],
+"lat": 49.91563,
+"lon": 5.3762
+},
+{
+"nis5": "36011",
+"plaats": "Lichtervelde",
+"gemeente": "Lichtervelde",
+"province_code": "be-vwv",
+"city_code": "belic",
+"search_aliases": [],
+"lat": 51.02741,
+"lon": 3.14022
+},
+{
+"nis5": "23044",
+"plaats": "Liedekerke",
+"gemeente": "Liedekerke",
+"province_code": "be-vbr",
+"city_code": "beldk",
+"search_aliases": [],
+"lat": 50.87113,
+"lon": 4.08608
+},
+{
+"nis5": "62063",
+"plaats": "Liège",
+"gemeente": "Liège",
+"province_code": "be-wlg",
+"city_code": "belgg",
+"search_aliases": [
+"LIEGE(MEUSE NORD) + PARTIE DE HERSTAL,SAINT-NICOLAS,VOTTEM",
+"Lüttich",
+"LIEGE(MEUSE SUD)",
+"WANDRE",
+"JUPILLE-SUR-MEUSE",
+"BRESSOUX",
+"GRIVEGNEE",
+"CHENEE",
+"ANGLEUR + PARTIE DE OUGREE + PARTIE DE TILFF ET DE EMBOURG",
+"PARTIE DE OUGREE",
+"GLAIN & PARTIE ANS",
+"ROCOURT + PARTIE DE VOROUX-LEZ-LIERS",
+"PARTIE ANS",
+"Luik"
+],
+"lat": 50.64509,
+"lon": 5.57361
+},
+{
+"nis5": "12021",
+"plaats": "Lier",
+"gemeente": "Lier",
+"province_code": "be-van",
+"city_code": "belie",
+"search_aliases": [
+"KONINGSHOOIKT",
+"Lierre"
+],
+"lat": 51.13107,
+"lon": 4.56965
+},
+{
+"nis5": "45063",
+"plaats": "Lierde",
+"gemeente": "Lierde",
+"province_code": "be-vov",
+"city_code": "besmi",
+"search_aliases": [
+"SINT-MARIA-LIERDE",
+"HEMELVEERDEGEM",
+"DEFTINGE",
+"SINT-MARTENS-LIERDE"
+],
+"lat": 50.80349,
+"lon": 3.82621
+},
+{
+"nis5": "63045",
+"plaats": "Lierneux",
+"gemeente": "Lierneux",
+"province_code": "be-wlg",
+"city_code": "belnx",
+"search_aliases": [
+"BRA",
+"ARBREFONTAINE"
+],
+"lat": 50.28581,
+"lon": 5.79216
+},
+{
+"nis5": "44085",
+"plaats": "Lievegem",
+"gemeente": "Lievegem",
+"province_code": "be-vov",
+"city_code": "beliv",
+"search_aliases": [
+"LOVENDEGEM",
+"VINDERHOUTE",
+"WAARSCHOOT",
+"ZOMERGEM",
+"RONSELE",
+"OOSTWINKEL"
+],
+"lat": 51.1184,
+"lon": 3.5596
+},
+{
+"nis5": "13019",
+"plaats": "Lille",
+"gemeente": "Lille",
+"province_code": "be-van",
+"city_code": "belle",
+"search_aliases": [
+"WECHELDERZANDE",
+"GIERLE + DEEL VAN VOSSELAAR",
+"POEDERLEE"
+],
+"lat": 51.23822,
+"lon": 4.82424
+},
+{
+"nis5": "63046",
+"plaats": "Limbourg",
+"gemeente": "Limbourg",
+"province_code": "be-wlg",
+"city_code": "belim",
+"search_aliases": [
+"BILSTAIN",
+"GOE",
+"Limburg"
+],
+"lat": 50.61228,
+"lon": 5.9403
+},
+{
+"nis5": "64047",
+"plaats": "Lincent",
+"gemeente": "Lincent",
+"province_code": "be-wlg",
+"city_code": "belce",
+"search_aliases": [
+"PELLAINES",
+"RACOUR",
+"Lijsem"
+],
+"lat": 50.71161,
+"lon": 5.03182
+},
+{
+"nis5": "23100",
+"plaats": "Linkebeek",
+"gemeente": "Linkebeek",
+"province_code": "be-vbr",
+"city_code": "belkk",
+"search_aliases": [],
+"lat": 50.7732,
+"lon": 4.336
+},
+{
+"nis5": "11025",
+"plaats": "Lint",
+"gemeente": "Lint",
+"province_code": "be-van",
+"city_code": "belni",
+"search_aliases": [],
+"lat": 51.12683,
+"lon": 4.49222
+},
+{
+"nis5": "24133",
+"plaats": "Linter",
+"gemeente": "Linter",
+"province_code": "be-vbr",
+"city_code": "belin",
+"search_aliases": [
+"DRIESLINTER",
+"NEERLINTER",
+"ORSMAAL-GUSSENHOVEN",
+"MELKWEZER",
+"NEERHESPEN",
+"OVERHESPEN",
+"WOMMERSOM"
+],
+"lat": 50.82316,
+"lon": 5.05875
+},
+{
+"nis5": "32030",
+"plaats": "Lo-Reninge",
+"gemeente": "Lo-Reninge",
+"province_code": "be-vwv",
+"city_code": "belri",
+"search_aliases": [
+"LO",
+"POLLINKHOVE",
+"RENINGE",
+"NOORDSCHOTE"
+],
+"lat": 50.97995,
+"lon": 2.74922
+},
+{
+"nis5": "56044",
+"plaats": "Lobbes",
+"gemeente": "Lobbes",
+"province_code": "be-wht",
+"city_code": "belbs",
+"search_aliases": [
+"SARS-LA-BUISSIERE",
+"BIENNE-LEZ-HAPPART",
+"MONT-SAINTE-GENEVIEVE"
+],
+"lat": 50.34602,
+"lon": 4.26549
+},
+{
+"nis5": "44087",
+"plaats": "Lochristi",
+"gemeente": "Lochristi",
+"province_code": "be-vov",
+"city_code": "beloh",
+"search_aliases": [
+"ZAFFELARE",
+"ZEVENEKEN",
+"BEERVELDE",
+"WACHTEBEKE"
+],
+"lat": 51.09689,
+"lon": 3.8356
+},
+{
+"nis5": "46029",
+"plaats": "Lokeren",
+"gemeente": "Lokeren",
+"province_code": "be-vov",
+"city_code": "belok",
+"search_aliases": [
+"MOERBEKE",
+"EKSAARDE",
+"DAKNAM"
+],
+"lat": 51.10445,
+"lon": 3.98987
+},
+{
+"nis5": "72020",
+"plaats": "Lommel",
+"gemeente": "Lommel",
+"province_code": "be-vli",
+"city_code": "belml",
+"search_aliases": [],
+"lat": 51.23057,
+"lon": 5.30769
+},
+{
+"nis5": "23045",
+"plaats": "Londerzeel",
+"gemeente": "Londerzeel",
+"province_code": "be-vbr",
+"city_code": "belnz",
+"search_aliases": [
+"MALDEREN",
+"STEENHUFFEL"
+],
+"lat": 51.00212,
+"lon": 4.3028
+},
+{
+"nis5": "63048",
+"plaats": "Lontzen",
+"gemeente": "Lontzen",
+"province_code": "be-wlg",
+"city_code": "beltz",
+"search_aliases": [
+"LONTZEN GEBIETSTEIL KETTENIS",
+"WALHORN"
+],
+"lat": 50.68047,
+"lon": 6.00721
+},
+{
+"nis5": "24066",
+"plaats": "Lubbeek",
+"gemeente": "Lubbeek",
+"province_code": "be-vbr",
+"city_code": "belbk",
+"search_aliases": [
+"BINKOM",
+"PELLENBERG",
+"LINDEN"
+],
+"lat": 50.88157,
+"lon": 4.8416
+},
+{
+"nis5": "71037",
+"plaats": "Lummen",
+"gemeente": "Lummen",
+"province_code": "be-vli",
+"city_code": "belum",
+"search_aliases": [
+"LINKHOUT",
+"MELDERT"
+],
+"lat": 50.98622,
+"lon": 5.19186
+},
+{
+"nis5": "45064",
+"plaats": "Maarkedal",
+"gemeente": "Maarkedal",
+"province_code": "be-vov",
+"city_code": "bemak",
+"search_aliases": [
+"ETIKHOVE",
+"NUKERKE*+DEEL VAN KLUISBERGEN",
+"MAARKE-KERKEM",
+"SCHORISSE"
+],
+"lat": 50.80722,
+"lon": 3.64893
+},
+{
+"nis5": "72021",
+"plaats": "Maaseik",
+"gemeente": "Maaseik",
+"province_code": "be-vli",
+"city_code": "bemsk",
+"search_aliases": [
+"NEEROETEREN",
+"OPOETEREN"
+],
+"lat": 51.09472,
+"lon": 5.79173
+},
+{
+"nis5": "73107",
+"plaats": "Maasmechelen",
+"gemeente": "Maasmechelen",
+"province_code": "be-vli",
+"city_code": "bemmn",
+"search_aliases": [
+"MECHELEN-AAN-DE-MAAS",
+"BOORSEM",
+"OPGRIMBIE",
+"VUCHT",
+"EISDEN",
+"LEUT",
+"MEESWIJK",
+"UIKHOVEN"
+],
+"lat": 50.96342,
+"lon": 5.69602
+},
+{
+"nis5": "23047",
+"plaats": "Machelen",
+"gemeente": "Machelen",
+"province_code": "be-vbr",
+"city_code": "bemac",
+"search_aliases": [
+"DIEGEM"
+],
+"lat": 50.91267,
+"lon": 4.4329
+},
+{
+"nis5": "43010",
+"plaats": "Maldegem",
+"gemeente": "Maldegem",
+"province_code": "be-vov",
+"city_code": "bemlg",
+"search_aliases": [
+"MIDDELBURG",
+"ADEGEM"
+],
+"lat": 51.20889,
+"lon": 3.44522
+},
+{
+"nis5": "11057",
+"plaats": "Malle",
+"gemeente": "Malle",
+"province_code": "be-van",
+"city_code": "bemal",
+"search_aliases": [
+"OOSTMALLE",
+"WESTMALLE"
+],
+"lat": 51.29685,
+"lon": 4.69377
+},
+{
+"nis5": "63049",
+"plaats": "Malmedy",
+"gemeente": "Malmedy",
+"province_code": "be-wlg",
+"city_code": "bembw",
+"search_aliases": [
+"BEVERCE",
+"BELLEVAUX-LIGNEUVILLE"
+],
+"lat": 50.42653,
+"lon": 6.02761
+},
+{
+"nis5": "55086",
+"plaats": "Manage",
+"gemeente": "Manage",
+"province_code": "be-wht",
+"city_code": "beman",
+"search_aliases": [
+"BOIS-D'HAINE",
+"FAYT-LEZ-MANAGE",
+"LA HESTRE",
+"BELLECOURT"
+],
+"lat": 50.50402,
+"lon": 4.23556
+},
+{
+"nis5": "83055",
+"plaats": "Manhay",
+"gemeente": "Manhay",
+"province_code": "be-wlx",
+"city_code": "bemhy",
+"search_aliases": [
+"GRANDMENIL",
+"HARRE",
+"VAUX-CHAVANNE + PARTIE DE BRA",
+"MALEMPRE",
+"ODEIGNE",
+"DOCHAMPS"
+],
+"lat": 50.29305,
+"lon": 5.67615
+},
+{
+"nis5": "83034",
+"plaats": "Marche-en-Famenne",
+"gemeente": "Marche-en-Famenne",
+"province_code": "be-wlx",
+"city_code": "bemef",
+"search_aliases": [
+"MARCHE-EN-FAMENNE +PARTIE DE BAILLONVILLE ET NOISEUX",
+"WAHA + PARTIE DE MARENNE",
+"AYE",
+"HARGIMONT",
+"ON",
+"HUMAIN",
+"ROY"
+],
+"lat": 50.22709,
+"lon": 5.34196
+},
+{
+"nis5": "61039",
+"plaats": "Marchin",
+"gemeente": "Marchin",
+"province_code": "be-wlg",
+"city_code": "bemci",
+"search_aliases": [
+"VYLE-ET-THAROUL"
+],
+"lat": 50.48021,
+"lon": 5.22634
+},
+{
+"nis5": "81013",
+"plaats": "Martelange",
+"gemeente": "Martelange",
+"province_code": "be-wlx",
+"city_code": "bemta",
+"search_aliases": [
+"MARTELANGE + PARTIE D'ANLIER"
+],
+"lat": 49.83133,
+"lon": 5.73764
+},
+{
+"nis5": "12025",
+"plaats": "Mechelen",
+"gemeente": "Mechelen",
+"province_code": "be-van",
+"city_code": "beech",
+"search_aliases": [
+"HOMBEEK",
+"LEEST",
+"HEFFEN",
+"WALEM",
+"MUIZEN",
+"Malines"
+],
+"lat": 51.02814,
+"lon": 4.48035
+},
+{
+"nis5": "13021",
+"plaats": "Meerhout",
+"gemeente": "Meerhout",
+"province_code": "be-van",
+"city_code": "bemeh",
+"search_aliases": [],
+"lat": 51.13174,
+"lon": 5.07724
+},
+{
+"nis5": "23050",
+"plaats": "Meise",
+"gemeente": "Meise",
+"province_code": "be-vbr",
+"city_code": "bemis",
+"search_aliases": [
+"WOLVERTEM"
+],
+"lat": 50.93416,
+"lon": 4.32873
+},
+{
+"nis5": "85024",
+"plaats": "Meix-devant-Virton",
+"gemeente": "Meix-devant-Virton",
+"province_code": "be-wlx",
+"city_code": "bemdv",
+"search_aliases": [
+"ROBELMONT",
+"VILLERS-LA-LOUE",
+"SOMMETHONNE",
+"GEROUVILLE"
+],
+"lat": 49.60559,
+"lon": 5.48162
+},
+{
+"nis5": "34027",
+"plaats": "Menen",
+"gemeente": "Menen",
+"province_code": "be-vwv",
+"city_code": "bemen",
+"search_aliases": [
+"LAUWE",
+"REKKEM",
+"Menin"
+],
+"lat": 50.796,
+"lon": 3.12089
+},
+{
+"nis5": "56049",
+"plaats": "Merbes-le-Château",
+"gemeente": "Merbes-le-Château",
+"province_code": "be-wht",
+"city_code": "bemca",
+"search_aliases": [
+"MERBES-SAINTE-MARIE",
+"LABUISSIERE",
+"FONTAINE-VALMONT"
+],
+"lat": 50.3234,
+"lon": 4.16448
+},
+{
+"nis5": "23052",
+"plaats": "Merchtem",
+"gemeente": "Merchtem",
+"province_code": "be-vbr",
+"city_code": "bemec",
+"search_aliases": [
+"BRUSSEGEM",
+"HAMME"
+],
+"lat": 50.95936,
+"lon": 4.23357
+},
+{
+"nis5": "44088",
+"plaats": "Merelbeke-Melle",
+"gemeente": "Merelbeke-Melle",
+"province_code": "be-vov",
+"city_code": "bemrl",
+"search_aliases": [
+"MELLE",
+"GONTRODE",
+"MERELBEKE",
+"LEMBERGE",
+"BOTTELARE",
+"MUNTE",
+"SCHELDERODE",
+"MELSEN"
+],
+"lat": 50.99429,
+"lon": 3.74591
+},
+{
+"nis5": "13023",
+"plaats": "Merksplas",
+"gemeente": "Merksplas",
+"province_code": "be-van",
+"city_code": "bemps",
+"search_aliases": [
+"MERKSPLAS + DEEL RIJKEVORSEL"
+],
+"lat": 51.35799,
+"lon": 4.86274
+},
+{
+"nis5": "33016",
+"plaats": "Mesen",
+"gemeente": "Mesen",
+"province_code": "be-vwv",
+"city_code": "bemse",
+"search_aliases": [
+"Messines"
+],
+"lat": 50.76542,
+"lon": 2.89845
+},
+{
+"nis5": "81015",
+"plaats": "Messancy",
+"gemeente": "Messancy",
+"province_code": "be-wlx",
+"city_code": "bemes",
+"search_aliases": [
+"SELANGE",
+"HABERGY",
+"WOLKRANGE",
+"HONDELANGE"
+],
+"lat": 49.59499,
+"lon": 5.81457
+},
+{
+"nis5": "92087",
+"plaats": "Mettet",
+"gemeente": "Mettet",
+"province_code": "be-wna",
+"city_code": "bemte",
+"search_aliases": [
+"SAINT-GERARD",
+"GRAUX",
+"FURNAUX",
+"ERMETON-SUR-BIERT",
+"BIESMEREE",
+"STAVE",
+"ORET",
+"BIESME"
+],
+"lat": 50.32121,
+"lon": 4.65849
+},
+{
+"nis5": "35011",
+"plaats": "Middelkerke",
+"gemeente": "Middelkerke",
+"province_code": "be-vwv",
+"city_code": "bemik",
+"search_aliases": [
+"WILSKERKE",
+"LEFFINGE",
+"SINT-PIETERS-KAPELLE",
+"SCHORE",
+"MANNEKENSVERE",
+"SLIJPE",
+"WESTENDE",
+"LOMBARDSIJDE"
+],
+"lat": 51.18648,
+"lon": 2.82297
+},
+{
+"nis5": "61041",
+"plaats": "Modave",
+"gemeente": "Modave",
+"province_code": "be-wlg",
+"city_code": "bemod",
+"search_aliases": [
+"VIERSET-BARSE",
+"STREE",
+"OUTRELOUXHE + PARTIE DE OMBRET-RAWSA"
+],
+"lat": 50.44161,
+"lon": 5.30179
+},
+{
+"nis5": "13025",
+"plaats": "Mol",
+"gemeente": "Mol",
+"province_code": "be-van",
+"city_code": "bemlo",
+"search_aliases": [],
+"lat": 51.18404,
+"lon": 5.11553
+},
+{
+"nis5": "56051",
+"plaats": "Momignies",
+"gemeente": "Momignies",
+"province_code": "be-wht",
+"city_code": "bemom",
+"search_aliases": [
+"MACON",
+"MONCEAU-IMBRECHIES",
+"SELOIGNES",
+"FORGE-PHILIPPE",
+"MACQUENOISE",
+"BEAUWELZ"
+],
+"lat": 50.01582,
+"lon": 4.25573
+},
+{
+"nis5": "53053",
+"plaats": "Mons",
+"gemeente": "Mons",
+"province_code": "be-wht",
+"city_code": "bemqs",
+"search_aliases": [
+"HYON",
+"CUESMES",
+"GHLIN (+PART DE BAUDOUR 1971)",
+"NIMY",
+"OBOURG",
+"MAISIERES + PARTIE DE CASTEAU, DE MASNUY - SAINT-JEAN",
+"HAVRE+PARIE DE VILLE-SUR-HAINE",
+"SAINT-SYMPHORIEN",
+"VILLERS-SAINT-GHISLAIN",
+"HARMIGNIES",
+"HARVENG",
+"NOUVELLES",
+"SPIENNES",
+"MESVIN",
+"CIPLY",
+"JEMAPPES",
+"FLENU",
+"Bergen"
+],
+"lat": 50.45496,
+"lon": 3.95196
+},
+{
+"nis5": "57095",
+"plaats": "Mont-de-l’Enclus",
+"gemeente": "Mont-de-l’Enclus",
+"province_code": "be-wht",
+"city_code": "bemdl",
+"search_aliases": [
+"AMOUGIES",
+"RUSSEIGNIES",
+"ANSEROEUL",
+"ORROIR"
+],
+"lat": 50.74476,
+"lon": 3.53095
+},
+{
+"nis5": "25068",
+"plaats": "Mont-Saint-Guibert",
+"gemeente": "Mont-Saint-Guibert",
+"province_code": "be-wbr",
+"city_code": "bemsu",
+"search_aliases": [
+"CORBAIS",
+"HEVILLERS"
+],
+"lat": 50.63656,
+"lon": 4.6127
+},
+{
+"nis5": "52048",
+"plaats": "Montigny-le-Tilleul",
+"gemeente": "Montigny-le-Tilleul",
+"province_code": "be-wht",
+"city_code": "bemzl",
+"search_aliases": [
+"LANDELIES"
+],
+"lat": 50.3789,
+"lon": 4.37934
+},
+{
+"nis5": "36012",
+"plaats": "Moorslede",
+"gemeente": "Moorslede",
+"province_code": "be-vwv",
+"city_code": "bemrs",
+"search_aliases": [
+"DADIZELE"
+],
+"lat": 50.8914,
+"lon": 3.06303
+},
+{
+"nis5": "58004",
+"plaats": "Morlanwelz",
+"gemeente": "Morlanwelz",
+"province_code": "be-wht",
+"city_code": "bemlw",
+"search_aliases": [
+"MORLANWELZ-MARIEMONT",
+"CARNIERES",
+"MONT-SAINTE-ALDEGONDE"
+],
+"lat": 50.45507,
+"lon": 4.24254
+},
+{
+"nis5": "11029",
+"plaats": "Mortsel",
+"gemeente": "Mortsel",
+"province_code": "be-van",
+"city_code": "bemor",
+"search_aliases": [],
+"lat": 51.17041,
+"lon": 4.4567
+},
+{
+"nis5": "57096",
+"plaats": "Mouscron",
+"gemeente": "Mouscron",
+"province_code": "be-wht",
+"city_code": "bemos",
+"search_aliases": [
+"LUINGNE",
+"HERSEAUX",
+"DOTTIGNIES",
+"Moeskroen"
+],
+"lat": 50.74367,
+"lon": 3.21427
+},
+{
+"nis5": "85026",
+"plaats": "Musson",
+"gemeente": "Musson",
+"province_code": "be-wlx",
+"city_code": "bemsl",
+"search_aliases": [
+"MUSSY-LA-VILLE+PARTIE DE BLEID"
+],
+"lat": 49.55808,
+"lon": 5.70588
+},
+{
+"nis5": "92094",
+"plaats": "Namur",
+"gemeente": "Namur",
+"province_code": "be-wna",
+"city_code": "benam",
+"search_aliases": [
+"JAMBES",
+"WEPION",
+"MALONNE",
+"FLAWINNE",
+"TEMPLOUX",
+"SUARLEE + PARTIE DE RHISNES",
+"BELGRADE",
+"SAINT-SERVAIS",
+"BOUGE",
+"VEDRIN - DAUSSOULX",
+"SAINT-MARC",
+"CHAMPION - COGNELEE",
+"BONINNE - GELBRESSEE",
+"BEEZ",
+"MARCHE-LES-DAMES",
+"LIVES-SUR-MEUSE",
+"LOYERS",
+"WIERDE",
+"NANINNE",
+"DAVE",
+"ERPENT",
+"Namen"
+],
+"lat": 50.46653,
+"lon": 4.86619
+},
+{
+"nis5": "61043",
+"plaats": "Nandrin",
+"gemeente": "Nandrin",
+"province_code": "be-wlg",
+"city_code": "bendi",
+"search_aliases": [
+"VILLERS-LE-TEMPLE",
+"YERNEE-FRAINEUX+PARTIE DE ABEE",
+"SAINT-SEVERIN"
+],
+"lat": 50.50634,
+"lon": 5.41934
+},
+{
+"nis5": "83040",
+"plaats": "Nassogne",
+"gemeente": "Nassogne",
+"province_code": "be-wlx",
+"city_code": "benso",
+"search_aliases": [
+"MASBOURG",
+"AMBLY",
+"HARSIN",
+"GRUNE",
+"LESTERNY",
+"FORRIERES",
+"BANDE"
+],
+"lat": 50.12874,
+"lon": 5.3419
+},
+{
+"nis5": "44086",
+"plaats": "Nazareth-De Pinte",
+"gemeente": "Nazareth-De Pinte",
+"province_code": "be-vov",
+"city_code": "benzh",
+"search_aliases": [
+"DE PINTE",
+"ZEVERGEM",
+"NAZARETH",
+"EKE"
+],
+"lat": 50.9598,
+"lon": 3.59632
+},
+{
+"nis5": "84043",
+"plaats": "Neufchâteau",
+"gemeente": "Neufchâteau",
+"province_code": "be-wlx",
+"city_code": "benca",
+"search_aliases": [
+"LONGLIER",
+"HAMIPRE + PARTIE D'ASSENOIS",
+"GRAPFONTAINE",
+"TOURNAY",
+"GRANDVOIR"
+],
+"lat": 49.84047,
+"lon": 5.43553
+},
+{
+"nis5": "62121",
+"plaats": "Neupré",
+"gemeente": "Neupré",
+"province_code": "be-wlg",
+"city_code": "benpe",
+"search_aliases": [
+"NEUVILLE-EN-CONDROZ",
+"PLAINEVAUX+PARTIE DE SERAING",
+"ROTHEUX-RIMIERE",
+"EHEIN"
+],
+"lat": 50.54318,
+"lon": 5.49011
+},
+{
+"nis5": "11030",
+"plaats": "Niel",
+"gemeente": "Niel",
+"province_code": "be-van",
+"city_code": "benil",
+"search_aliases": [],
+"lat": 51.10986,
+"lon": 4.33034
+},
+{
+"nis5": "71045",
+"plaats": "Nieuwerkerken",
+"gemeente": "Nieuwerkerken",
+"province_code": "be-vli",
+"city_code": "benwe",
+"search_aliases": [
+"BINDERVELD",
+"WIJER",
+"KOZEN"
+],
+"lat": 50.86516,
+"lon": 5.19385
+},
+{
+"nis5": "38016",
+"plaats": "Nieuwpoort",
+"gemeente": "Nieuwpoort",
+"province_code": "be-vwv",
+"city_code": "benie",
+"search_aliases": [
+"SINT-JORIS",
+"RAMSKAPELLE",
+"Nieuport"
+],
+"lat": 51.12943,
+"lon": 2.75167
+},
+{
+"nis5": "12026",
+"plaats": "Nijlen",
+"gemeente": "Nijlen",
+"province_code": "be-van",
+"city_code": "benyl",
+"search_aliases": [
+"BEVEL",
+"KESSEL"
+],
+"lat": 51.161,
+"lon": 4.67029
+},
+{
+"nis5": "41048",
+"plaats": "Ninove",
+"gemeente": "Ninove",
+"province_code": "be-vov",
+"city_code": "bennv",
+"search_aliases": [
+"OKEGEM",
+"MEERBEKE",
+"NEIGEM",
+"LIEFERINGE",
+"DENDERWINDEKE",
+"POLLARE",
+"APPELTERRE-EICHEM",
+"VOORDE",
+"ASPELARE",
+"NEDERHASSELT",
+"OUTER"
+],
+"lat": 50.83536,
+"lon": 4.02424
+},
+{
+"nis5": "25072",
+"plaats": "Nivelles",
+"gemeente": "Nivelles",
+"province_code": "be-wbr",
+"city_code": "beniv",
+"search_aliases": [
+"BAULERS",
+"THINES",
+"MONSTREUX",
+"BORNIVAL",
+"Nijvel"
+],
+"lat": 50.59769,
+"lon": 4.32359
+},
+{
+"nis5": "92097",
+"plaats": "Ohey",
+"gemeente": "Ohey",
+"province_code": "be-wna",
+"city_code": "beohy",
+"search_aliases": [
+"HAILLOT",
+"PERWEZ",
+"GOESNES",
+"JALLET",
+"EVELETTE"
+],
+"lat": 50.43591,
+"lon": 5.12384
+},
+{
+"nis5": "13029",
+"plaats": "Olen",
+"gemeente": "Olen",
+"province_code": "be-van",
+"city_code": "beoln",
+"search_aliases": [],
+"lat": 51.14386,
+"lon": 4.85973
+},
+{
+"nis5": "63057",
+"plaats": "Olne",
+"gemeente": "Olne",
+"province_code": "be-wlg",
+"city_code": "beone",
+"search_aliases": [],
+"lat": 50.59012,
+"lon": 5.74799
+},
+{
+"nis5": "91103",
+"plaats": "Onhaye",
+"gemeente": "Onhaye",
+"province_code": "be-wna",
+"city_code": "beoay",
+"search_aliases": [
+"GERIN",
+"ANTHEE",
+"SERVILLE",
+"FALAEN",
+"SOMMIERE",
+"WEILLEN"
+],
+"lat": 50.24357,
+"lon": 4.84086
+},
+{
+"nis5": "35013",
+"plaats": "Oostende",
+"gemeente": "Oostende",
+"province_code": "be-vwv",
+"city_code": "beost",
+"search_aliases": [
+"ZANDVOORDE",
+"STENE",
+"Ostende"
+],
+"lat": 51.22586,
+"lon": 2.9195
+},
+{
+"nis5": "44052",
+"plaats": "Oosterzele",
+"gemeente": "Oosterzele",
+"province_code": "be-vov",
+"city_code": "beoze",
+"search_aliases": [
+"BALEGEM",
+"SCHELDEWINDEKE",
+"MOORTSELE",
+"LANDSKOUTER",
+"GIJZENZELE"
+],
+"lat": 50.94564,
+"lon": 3.80327
+},
+{
+"nis5": "31022",
+"plaats": "Oostkamp",
+"gemeente": "Oostkamp",
+"province_code": "be-vwv",
+"city_code": "beokp",
+"search_aliases": [
+"HERTSBERGE",
+"RUDDERVOORDE",
+"WAARDAMME"
+],
+"lat": 51.1532,
+"lon": 3.23445
+},
+{
+"nis5": "37010",
+"plaats": "Oostrozebeke",
+"gemeente": "Oostrozebeke",
+"province_code": "be-vwv",
+"city_code": "beosr",
+"search_aliases": [],
+"lat": 50.9204,
+"lon": 3.33469
+},
+{
+"nis5": "23060",
+"plaats": "Opwijk",
+"gemeente": "Opwijk",
+"province_code": "be-vbr",
+"city_code": "beoij",
+"search_aliases": [
+"MAZENZELE"
+],
+"lat": 50.96905,
+"lon": 4.18967
+},
+{
+"nis5": "64056",
+"plaats": "Oreye",
+"gemeente": "Oreye",
+"province_code": "be-wlg",
+"city_code": "beoye",
+"search_aliases": [
+"Oerle"
+],
+"lat": 50.72917,
+"lon": 5.35307
+},
+{
+"nis5": "25120",
+"plaats": "Orp-Jauche",
+"gemeente": "Orp-Jauche",
+"province_code": "be-wbr",
+"city_code": "beoja",
+"search_aliases": [
+"ORP-LE-GRAND",
+"JANDRAIN-JANDRENOUILLE",
+"JAUCHE",
+"FOLX-LES-CAVES",
+"ENINES",
+"MARILLES",
+"NODUWEZ"
+],
+"lat": 50.70007,
+"lon": 4.98922
+},
+{
+"nis5": "25121",
+"plaats": "Ottignies-Louvain-la-Neuve",
+"gemeente": "Ottignies-Louvain-la-Neuve",
+"province_code": "be-wbr",
+"city_code": "beoti",
+"search_aliases": [
+"OTTIGNIES",
+"CEROUX-MOUSTY",
+"LIMELETTE",
+"PARTIE DE LIMAL, DE CORROY- LE-GRAND, DE WAVRE"
+],
+"lat": 50.66542,
+"lon": 4.56741
+},
+{
+"nis5": "24086",
+"plaats": "Oud-Heverlee",
+"gemeente": "Oud-Heverlee",
+"province_code": "be-vbr",
+"city_code": "beohe",
+"search_aliases": [
+"VAALBEEK",
+"BLANDEN",
+"HAASRODE",
+"SINT-JORIS-WEERT"
+],
+"lat": 50.83763,
+"lon": 4.66293
+},
+{
+"nis5": "13031",
+"plaats": "Oud-Turnhout",
+"gemeente": "Oud-Turnhout",
+"province_code": "be-van",
+"city_code": "beoth",
+"search_aliases": [],
+"lat": 51.31783,
+"lon": 4.98171
+},
+{
+"nis5": "45035",
+"plaats": "Oudenaarde",
+"gemeente": "Oudenaarde",
+"province_code": "be-vov",
+"city_code": "beoud",
+"search_aliases": [
+"OUDENAARDE*+DEEL OOIKE",
+"HEURNE",
+"WELDEN",
+"MATER",
+"MELDEN*+DEEL WORTEGEM-PETEGEM",
+"MULLEM",
+"Audenarde"
+],
+"lat": 50.84337,
+"lon": 3.60414
+},
+{
+"nis5": "35014",
+"plaats": "Oudenburg",
+"gemeente": "Oudenburg",
+"province_code": "be-vwv",
+"city_code": "beobg",
+"search_aliases": [
+"ETTELGEM",
+"ROKSEM",
+"WESTKERKE"
+],
+"lat": 51.18419,
+"lon": 3.00494
+},
+{
+"nis5": "21002",
+"plaats": "Oudergem",
+"gemeente": "Oudergem",
+"province_code": "be-bru",
+"city_code": "beode",
+"search_aliases": [
+"AUDERGHEM"
+],
+"lat": 50.81717,
+"lon": 4.42709
+},
+{
+"nis5": "72042",
+"plaats": "Oudsbergen",
+"gemeente": "Oudsbergen",
+"province_code": "be-vli",
+"city_code": "beodg",
+"search_aliases": [
+"OPGLABBEEK",
+"MEEUWEN",
+"WIJSHAGEN",
+"ELLIKOM",
+"GRUITRODE",
+"NEERGLABBEEK"
+],
+"lat": 51.08935,
+"lon": 5.58895
+},
+{
+"nis5": "61048",
+"plaats": "Ouffet",
+"gemeente": "Ouffet",
+"province_code": "be-wlg",
+"city_code": "beouf",
+"search_aliases": [
+"WARZEE",
+"ELLEMELLE"
+],
+"lat": 50.43773,
+"lon": 5.46533
+},
+{
+"nis5": "62079",
+"plaats": "Oupeye",
+"gemeente": "Oupeye",
+"province_code": "be-wlg",
+"city_code": "beopy",
+"search_aliases": [
+"OUPEYE*+PARTIE DE CHERATTE, HERSTAL ET WANDRE",
+"HACCOURT",
+"HERMALLE-SOUS-ARGENTEAU",
+"VIVEGNIS + PARTIE DE HERSTAL, WANDRE ET CHERATTE",
+"HERMEE",
+"HOUTAIN-SAINT-SIMEON",
+"HEURE-LE-ROMAIN"
+],
+"lat": 50.70919,
+"lon": 5.64507
+},
+{
+"nis5": "23062",
+"plaats": "Overijse",
+"gemeente": "Overijse",
+"province_code": "be-vbr",
+"city_code": "beovr",
+"search_aliases": [],
+"lat": 50.77016,
+"lon": 4.53518
+},
+{
+"nis5": "23106",
+"plaats": "Pajottegem",
+"gemeente": "Pajottegem",
+"province_code": "be-vbr",
+"city_code": "bepjt",
+"search_aliases": [
+"GALMAARDEN",
+"VOLLEZELE",
+"TOLLEMBEEK",
+"GOOIK",
+"LEERBEEK",
+"OETINGEN",
+"KESTER",
+"HERNE",
+"HERFELINGEN",
+"SINT-PIETERS-KAPELLE"
+],
+"lat": 50.76088,
+"lon": 4.02474
+},
+{
+"nis5": "84050",
+"plaats": "Paliseul",
+"gemeente": "Paliseul",
+"province_code": "be-wlx",
+"city_code": "bepli",
+"search_aliases": [
+"OPONT",
+"FRAMONT",
+"OFFAGNE",
+"FAYS-LES-VENEURS",
+"NOLLEVAUX",
+"CARLSBOURG",
+"MAISSIN"
+],
+"lat": 49.90353,
+"lon": 5.1349
+},
+{
+"nis5": "57062",
+"plaats": "Pecq",
+"gemeente": "Pecq",
+"province_code": "be-wht",
+"city_code": "bepcq",
+"search_aliases": [
+"WARCOING",
+"HERINNES",
+"OBIGIES",
+"ESQUELMES"
+],
+"lat": 50.68562,
+"lon": 3.34075
+},
+{
+"nis5": "72030",
+"plaats": "Peer",
+"gemeente": "Peer",
+"province_code": "be-vli",
+"city_code": "bepee",
+"search_aliases": [
+"KLEINE-BROGEL",
+"GROTE-BROGEL",
+"WIJCHMAAL"
+],
+"lat": 51.13191,
+"lon": 5.45463
+},
+{
+"nis5": "72043",
+"plaats": "Pelt",
+"gemeente": "Pelt",
+"province_code": "be-vli",
+"city_code": "benrp",
+"search_aliases": [
+"NEERPELT",
+"SINT-HUIBRECHTS-LILLE",
+"OVERPELT"
+],
+"lat": 51.22897,
+"lon": 5.43144
+},
+{
+"nis5": "23064",
+"plaats": "Pepingen",
+"gemeente": "Pepingen",
+"province_code": "be-vbr",
+"city_code": "bepin",
+"search_aliases": [
+"ELINGEN",
+"BEERT",
+"BELLINGEN",
+"BOGAARDEN",
+"HEIKRUIS"
+],
+"lat": 50.74087,
+"lon": 4.15476
+},
+{
+"nis5": "63058",
+"plaats": "Pepinster",
+"gemeente": "Pepinster",
+"province_code": "be-wlg",
+"city_code": "bepep",
+"search_aliases": [
+"SOIRON",
+"WEGNEZ"
+],
+"lat": 50.56752,
+"lon": 5.80371
+},
+{
+"nis5": "57064",
+"plaats": "Péruwelz",
+"gemeente": "Péruwelz",
+"province_code": "be-wht",
+"city_code": "bepwz",
+"search_aliases": [
+"WIERS",
+"CALLENELLE",
+"BRASMENIL",
+"WASMES-AUDEMEZ-BRIFFOEIL",
+"BAUGNIES",
+"BRAFFE",
+"BURY",
+"ROUCOURT",
+"BON-SECOURS"
+],
+"lat": 50.50799,
+"lon": 3.59088
+},
+{
+"nis5": "25084",
+"plaats": "Perwez",
+"gemeente": "Perwez",
+"province_code": "be-wbr",
+"city_code": "beprw",
+"search_aliases": [
+"THOREMBAIS-SAINT-TROND",
+"ORBAIS",
+"MALEVES-SAINTE-MARIE-WASTINES",
+"THOREMBAIS-LES BEGUINES",
+"Perwijs"
+],
+"lat": 50.62345,
+"lon": 4.81347
+},
+{
+"nis5": "93056",
+"plaats": "Philippeville",
+"gemeente": "Philippeville",
+"province_code": "be-wna",
+"city_code": "bephi",
+"search_aliases": [
+"VODECEE",
+"VILLERS-LE-GAMBON",
+"FRANCHIMONT",
+"SURICE",
+"OMEZEE",
+"ROMEDENNE",
+"MERLEMONT",
+"SART-EN-FAGNE",
+"VILLERS-EN-FAGNE",
+"FAGNOLLE + PARTIE DE DOURBES",
+"ROLY",
+"SAUTOUR",
+"SAMART",
+"NEUVILLE",
+"JAMIOLLE",
+"JAMAGNE"
+],
+"lat": 50.19627,
+"lon": 4.54361
+},
+{
+"nis5": "37011",
+"plaats": "Pittem",
+"gemeente": "Pittem",
+"province_code": "be-vwv",
+"city_code": "beptt",
+"search_aliases": [
+"EGEM"
+],
+"lat": 50.99519,
+"lon": 3.26677
+},
+{
+"nis5": "63088",
+"plaats": "Plombières",
+"gemeente": "Plombières",
+"province_code": "be-wlg",
+"city_code": "bepbi",
+"search_aliases": [
+"GEMMENICH",
+"MORESNET",
+"MONTZEN",
+"HOMBOURG",
+"SIPPENAEKEN"
+],
+"lat": 50.73773,
+"lon": 5.96111
+},
+{
+"nis5": "52055",
+"plaats": "Pont-à-Celles",
+"gemeente": "Pont-à-Celles",
+"province_code": "be-wht",
+"city_code": "bepcl",
+"search_aliases": [
+"OBAIX",
+"BUZET",
+"LUTTRE",
+"THIMEON",
+"VIESVILLE"
+],
+"lat": 50.51226,
+"lon": 4.36174
+},
+{
+"nis5": "33021",
+"plaats": "Poperinge",
+"gemeente": "Poperinge",
+"province_code": "be-vwv",
+"city_code": "bepop",
+"search_aliases": [
+"RENINGELST",
+"KROMBEKE",
+"PROVEN",
+"ROESBRUGGE-HARINGE",
+"WATOU"
+],
+"lat": 50.85566,
+"lon": 2.7265
+},
+{
+"nis5": "92101",
+"plaats": "Profondeville",
+"gemeente": "Profondeville",
+"province_code": "be-wna",
+"city_code": "bepfe",
+"search_aliases": [
+"LUSTIN",
+"RIVIERE",
+"ARBRE",
+"LESVE",
+"BOIS-DE-VILLERS + PARTIE DE FLOREFFE"
+],
+"lat": 50.3762,
+"lon": 4.8675
+},
+{
+"nis5": "12029",
+"plaats": "Putte",
+"gemeente": "Putte",
+"province_code": "be-van",
+"city_code": "beput",
+"search_aliases": [
+"BEERZEL"
+],
+"lat": 51.05708,
+"lon": 4.63105
+},
+{
+"nis5": "12041",
+"plaats": "Puurs-Sint-Amands",
+"gemeente": "Puurs-Sint-Amands",
+"province_code": "be-van",
+"city_code": "bepuu",
+"search_aliases": [
+"PUURS",
+"RUISBROEK",
+"BREENDONK",
+"LIEZELE",
+"SINT-AMANDS",
+"OPPUURS",
+"LIPPELO"
+],
+"lat": 51.05957,
+"lon": 4.28089
+},
+{
+"nis5": "53065",
+"plaats": "Quaregnon",
+"gemeente": "Quaregnon",
+"province_code": "be-wht",
+"city_code": "beqro",
+"search_aliases": [
+"WASMUEL"
+],
+"lat": 50.44216,
+"lon": 3.86373
+},
+{
+"nis5": "53084",
+"plaats": "Quévy",
+"gemeente": "Quévy",
+"province_code": "be-wht",
+"city_code": "beqvy",
+"search_aliases": [
+"QUEVY-LE-PETIT",
+"QUEVY-LE-GRAND",
+"HAVAY",
+"GIVRY",
+"GOEGNIES-CHAUSSEE",
+"AULNOIS",
+"BLAREGNIES",
+"GENLY",
+"BOUGNIES",
+"ASQUILLIES"
+],
+"lat": 50.36672,
+"lon": 3.9439
+},
+{
+"nis5": "53068",
+"plaats": "Quiévrain",
+"gemeente": "Quiévrain",
+"province_code": "be-wht",
+"city_code": "beqva",
+"search_aliases": [
+"BAISIEUX",
+"AUDREGNIES"
+],
+"lat": 50.40588,
+"lon": 3.68238
+},
+{
+"nis5": "63061",
+"plaats": "Raeren",
+"gemeente": "Raeren",
+"province_code": "be-wlg",
+"city_code": "berae",
+"search_aliases": [
+"RAEREN*+ENCLAVE WALHORN + GEBIETSTEIL EUPEN",
+"EYNATTEN",
+"HAUSET"
+],
+"lat": 50.67613,
+"lon": 6.11084
+},
+{
+"nis5": "25122",
+"plaats": "Ramillies",
+"gemeente": "Ramillies",
+"province_code": "be-wbr",
+"city_code": "bermi",
+"search_aliases": [
+"RAMILLIES-OFFUS",
+"GRAND-ROSIERE-HOTTOMONT",
+"GEEST-GEROMPONT-PETIT-ROSIERE",
+"MONT-SAINT-ANDRE",
+"BOMAL",
+"AUTRE-EGLISE",
+"HUPPAYE"
+],
+"lat": 50.63669,
+"lon": 4.9149
+},
+{
+"nis5": "11035",
+"plaats": "Ranst",
+"gemeente": "Ranst",
+"province_code": "be-van",
+"city_code": "beras",
+"search_aliases": [
+"OELEGEM",
+"BROECHEM",
+"EMBLEM"
+],
+"lat": 51.1897,
+"lon": 4.5633
+},
+{
+"nis5": "13035",
+"plaats": "Ravels",
+"gemeente": "Ravels",
+"province_code": "be-van",
+"city_code": "bervs",
+"search_aliases": [
+"WEELDE",
+"POPPEL"
+],
+"lat": 51.3717,
+"lon": 4.99556
+},
+{
+"nis5": "25123",
+"plaats": "Rebecq",
+"gemeente": "Rebecq",
+"province_code": "be-wbr",
+"city_code": "berbq",
+"search_aliases": [
+"REBECQ-ROGNON",
+"BIERGHES",
+"QUENAST",
+"PARTIES DE SAINTES"
+],
+"lat": 50.66312,
+"lon": 4.13278
+},
+{
+"nis5": "64063",
+"plaats": "Remicourt",
+"gemeente": "Remicourt",
+"province_code": "be-wlg",
+"city_code": "bercu",
+"search_aliases": [
+"LAMINE",
+"POUSSET",
+"HODEIGE",
+"MOMALLE"
+],
+"lat": 50.67849,
+"lon": 5.31997
+},
+{
+"nis5": "83044",
+"plaats": "Rendeux",
+"gemeente": "Rendeux",
+"province_code": "be-wlx",
+"city_code": "beren",
+"search_aliases": [
+"BEFFE",
+"MARCOURT",
+"HODISTER"
+],
+"lat": 50.23327,
+"lon": 5.50402
+},
+{
+"nis5": "13036",
+"plaats": "Retie",
+"gemeente": "Retie",
+"province_code": "be-van",
+"city_code": "berti",
+"search_aliases": [],
+"lat": 51.26759,
+"lon": 5.08439
+},
+{
+"nis5": "73066",
+"plaats": "Riemst",
+"gemeente": "Riemst",
+"province_code": "be-vli",
+"city_code": "beris",
+"search_aliases": [
+"HERDEREN",
+"VLIJTINGEN",
+"VROENHOVEN",
+"KANNE",
+"ZICHEN-ZUSSEN-BOLDER",
+"VAL-MEER",
+"MILLEN",
+"GENOELSELDEREN",
+"MEMBRUGGEN"
+],
+"lat": 50.81158,
+"lon": 5.59787
+},
+{
+"nis5": "13037",
+"plaats": "Rijkevorsel",
+"gemeente": "Rijkevorsel",
+"province_code": "be-van",
+"city_code": "berij",
+"search_aliases": [],
+"lat": 51.35037,
+"lon": 4.75851
+},
+{
+"nis5": "25091",
+"plaats": "Rixensart",
+"gemeente": "Rixensart",
+"province_code": "be-wbr",
+"city_code": "berix",
+"search_aliases": [
+"GENVAL",
+"ROSIERES"
+],
+"lat": 50.71226,
+"lon": 4.52162
+},
+{
+"nis5": "91114",
+"plaats": "Rochefort",
+"gemeente": "Rochefort",
+"province_code": "be-wna",
+"city_code": "beroc",
+"search_aliases": [
+"JEMELLE",
+"WAVREILLE+PARTIE DE RESTEIGNE",
+"HAN-SUR-LESSE",
+"EPRAVE",
+"LESSIVE",
+"AVE-ET-AUFFE",
+"LAVAUX-SAINTE-ANNE",
+"VILLERS-SUR-LESSE",
+"MONT-GAUTHIER",
+"BUISSONVILLE+PARTIE DE HUMAIN"
+],
+"lat": 50.15885,
+"lon": 5.22334
+},
+{
+"nis5": "36015",
+"plaats": "Roeselare",
+"gemeente": "Roeselare",
+"province_code": "be-vwv",
+"city_code": "beroe",
+"search_aliases": [
+"BEVEREN",
+"OEKENE",
+"RUMBEKE",
+"Roulers"
+],
+"lat": 50.94495,
+"lon": 3.12439
+},
+{
+"nis5": "45041",
+"plaats": "Ronse",
+"gemeente": "Ronse",
+"province_code": "be-vov",
+"city_code": "beron",
+"search_aliases": [
+"Renaix"
+],
+"lat": 50.74755,
+"lon": 3.60209
+},
+{
+"nis5": "23097",
+"plaats": "Roosdaal",
+"gemeente": "Roosdaal",
+"province_code": "be-vbr",
+"city_code": "berdl",
+"search_aliases": [
+"BORCHTLOMBEEK",
+"PAMEL",
+"STRIJTEM",
+"ONZE-LIEVE-VROUW-LOMBEEK"
+],
+"lat": 50.84055,
+"lon": 4.11457
+},
+{
+"nis5": "24094",
+"plaats": "Rotselaar",
+"gemeente": "Rotselaar",
+"province_code": "be-vbr",
+"city_code": "berba",
+"search_aliases": [
+"WERCHTER",
+"WEZEMAAL"
+],
+"lat": 50.95147,
+"lon": 4.70941
+},
+{
+"nis5": "85047",
+"plaats": "Rouvroy",
+"gemeente": "Rouvroy",
+"province_code": "be-wlx",
+"city_code": "bervy",
+"search_aliases": [
+"DAMPICOURT",
+"HARNONCOURT",
+"LAMORTEAU",
+"TORGNY"
+],
+"lat": 49.53907,
+"lon": 5.48971
+},
+{
+"nis5": "57072",
+"plaats": "Rumes",
+"gemeente": "Rumes",
+"province_code": "be-wht",
+"city_code": "berms",
+"search_aliases": [
+"TAINTIGNIES",
+"LA GLANERIE"
+],
+"lat": 50.55577,
+"lon": 3.30393
+},
+{
+"nis5": "11037",
+"plaats": "Rumst",
+"gemeente": "Rumst",
+"province_code": "be-van",
+"city_code": "berus",
+"search_aliases": [
+"TERHAGEN",
+"REET"
+],
+"lat": 51.07929,
+"lon": 4.42405
+},
+{
+"nis5": "64065",
+"plaats": "Saint-Georges-sur-Meuse",
+"gemeente": "Saint-Georges-sur-Meuse",
+"province_code": "be-wlg",
+"city_code": "begsm",
+"search_aliases": [
+"SAINT-GEORGES-SUR-MEUSE+PARTIE DE HERMALLE-SOUS-HUY"
+],
+"lat": 50.60007,
+"lon": 5.35843
+},
+{
+"nis5": "53070",
+"plaats": "Saint-Ghislain",
+"gemeente": "Saint-Ghislain",
+"province_code": "be-wht",
+"city_code": "beghi",
+"search_aliases": [
+"BAUDOUR",
+"TERTRE",
+"VILLEROT",
+"HAUTRAGE",
+"SIRAULT",
+"NEUFMAISON"
+],
+"lat": 50.44775,
+"lon": 3.81952
+},
+{
+"nis5": "84059",
+"plaats": "Saint-Hubert",
+"gemeente": "Saint-Hubert",
+"province_code": "be-wlx",
+"city_code": "beshu",
+"search_aliases": [
+"VESQUEVILLE",
+"HATRIVAL + PARTIE DE LIBIN ET SMUID",
+"ARVILLE",
+"AWENNE",
+"MIRWART"
+],
+"lat": 50.02514,
+"lon": 5.37386
+},
+{
+"nis5": "85034",
+"plaats": "Saint-Léger",
+"gemeente": "Saint-Léger",
+"province_code": "be-wlx",
+"city_code": "beslg",
+"search_aliases": [
+"CHATILLON",
+"MEIX-LE-TIGE"
+],
+"lat": 49.61344,
+"lon": 5.65696
+},
+{
+"nis5": "62093",
+"plaats": "Saint-Nicolas",
+"gemeente": "Saint-Nicolas",
+"province_code": "be-wlg",
+"city_code": "besno",
+"search_aliases": [
+"TILLEUR",
+"MONTEGNEE"
+],
+"lat": 50.63167,
+"lon": 5.53763
+},
+{
+"nis5": "63067",
+"plaats": "Saint-Vith",
+"gemeente": "Saint-Vith",
+"province_code": "be-wlg",
+"city_code": "besvh",
+"search_aliases": [
+"SANKT-VITH",
+"MEYERODE (GEBIETSTEIL)",
+"SCHONBERG",
+"LOMMERSWEILER",
+"CROMBACH",
+"RECHT"
+],
+"lat": 50.28039,
+"lon": 6.1259
+},
+{
+"nis5": "82038",
+"plaats": "Sainte-Ode",
+"gemeente": "Sainte-Ode",
+"province_code": "be-wlx",
+"city_code": "besod",
+"search_aliases": [
+"TILLET",
+"AMBERLOUP",
+"LAVACHERIE+PARTIE DE FLAMIERGE"
+],
+"lat": 50.03629,
+"lon": 5.52451
+},
+{
+"nis5": "92137",
+"plaats": "Sambreville",
+"gemeente": "Sambreville",
+"province_code": "be-wna",
+"city_code": "besav",
+"search_aliases": [
+"AUVELAIS",
+"ARSIMONT",
+"FALISOLLE",
+"TAMINES",
+"MOIGNELEE",
+"VELAINE*+PARTIE DE BOIGNEE",
+"KEUMIEE"
+],
+"lat": 50.44906,
+"lon": 4.61082
+},
+{
+"nis5": "21015",
+"plaats": "Schaarbeek",
+"gemeente": "Schaarbeek",
+"province_code": "be-bru",
+"city_code": "besbk",
+"search_aliases": [
+"SCHAERBEEK"
+],
+"lat": 50.8676,
+"lon": 4.37371
+},
+{
+"nis5": "11038",
+"plaats": "Schelle",
+"gemeente": "Schelle",
+"province_code": "be-van",
+"city_code": "beshl",
+"search_aliases": [],
+"lat": 51.12456,
+"lon": 4.33619
+},
+{
+"nis5": "24134",
+"plaats": "Scherpenheuvel-Zichem",
+"gemeente": "Scherpenheuvel-Zichem",
+"province_code": "be-vbr",
+"city_code": "bezic",
+"search_aliases": [
+"SCHERPENHEUVEL",
+"ZICHEM",
+"MESSELBROEK",
+"TESTELT",
+"AVERBODE",
+"Montaigu-Zichem"
+],
+"lat": 51.00142,
+"lon": 4.9857
+},
+{
+"nis5": "11039",
+"plaats": "Schilde",
+"gemeente": "Schilde",
+"province_code": "be-van",
+"city_code": "besce",
+"search_aliases": [
+"'S-GRAVENWEZEL"
+],
+"lat": 51.23887,
+"lon": 4.58149
+},
+{
+"nis5": "11040",
+"plaats": "Schoten",
+"gemeente": "Schoten",
+"province_code": "be-van",
+"city_code": "besct",
+"search_aliases": [],
+"lat": 51.25163,
+"lon": 4.49804
+},
+{
+"nis5": "55085",
+"plaats": "Seneffe",
+"gemeente": "Seneffe",
+"province_code": "be-wht",
+"city_code": "besen",
+"search_aliases": [
+"FELUY",
+"ARQUENNES",
+"PETIT-ROEULX-LES-NIVELLES",
+"FAMILLEUREUX"
+],
+"lat": 50.52926,
+"lon": 4.2567
+},
+{
+"nis5": "62096",
+"plaats": "Seraing",
+"gemeente": "Seraing",
+"province_code": "be-wlg",
+"city_code": "bezer",
+"search_aliases": [
+"JEMEPPE",
+"OUGREE",
+"BONCELLES"
+],
+"lat": 50.61524,
+"lon": 5.50894
+},
+{
+"nis5": "51068",
+"plaats": "Silly",
+"gemeente": "Silly",
+"province_code": "be-wht",
+"city_code": "besiy",
+"search_aliases": [
+"HELLEBECQ",
+"BASSILLY",
+"HOVES",
+"GRATY",
+"THORICOURT",
+"FOULENG",
+"GONDREGNIES",
+"Opzullik"
+],
+"lat": 50.64845,
+"lon": 3.92359
+},
+{
+"nis5": "21003",
+"plaats": "Sint-Agatha-Berchem",
+"gemeente": "Sint-Agatha-Berchem",
+"province_code": "be-bru",
+"city_code": "bebsa",
+"search_aliases": [
+"BERCHEM-SAINTE-AGATHE"
+],
+"lat": 50.86492,
+"lon": 4.29467
+},
+{
+"nis5": "23101",
+"plaats": "Sint-Genesius-Rode",
+"gemeente": "Sint-Genesius-Rode",
+"province_code": "be-vbr",
+"city_code": "besgr",
+"search_aliases": [
+"Rhode-Saint-Genèse"
+],
+"lat": 50.74503,
+"lon": 4.34637
+},
+{
+"nis5": "21013",
+"plaats": "Sint-Gillis",
+"gemeente": "Sint-Gillis",
+"province_code": "be-bru",
+"city_code": "besgi",
+"search_aliases": [
+"SAINT-GILLES"
+],
+"lat": 50.825,
+"lon": 4.34548
+},
+{
+"nis5": "46020",
+"plaats": "Sint-Gillis-Waas",
+"gemeente": "Sint-Gillis-Waas",
+"province_code": "be-vov",
+"city_code": "besgw",
+"search_aliases": [
+"DE KLINGE",
+"MEERDONK",
+"SINT-PAUWELS"
+],
+"lat": 51.21799,
+"lon": 4.12861
+},
+{
+"nis5": "21012",
+"plaats": "Sint-Jans-Molenbeek",
+"gemeente": "Sint-Jans-Molenbeek",
+"province_code": "be-bru",
+"city_code": "bemsj",
+"search_aliases": [
+"MOLENBEEK-SAINT-JEAN"
+],
+"lat": 50.8546,
+"lon": 4.33864
+},
+{
+"nis5": "21014",
+"plaats": "Sint-Joost-ten-Node",
+"gemeente": "Sint-Joost-ten-Node",
+"province_code": "be-bru",
+"city_code": "besjn",
+"search_aliases": [
+"SAINT-JOSSE-TEN-NOODE"
+],
+"lat": 50.84984,
+"lon": 4.37459
+},
+{
+"nis5": "12035",
+"plaats": "Sint-Katelijne-Waver",
+"gemeente": "Sint-Katelijne-Waver",
+"province_code": "be-van",
+"city_code": "bessl",
+"search_aliases": [
+"ONZE-LIEVE-VROUW-WAVER"
+],
+"lat": 51.06995,
+"lon": 4.53224
+},
+{
+"nis5": "21018",
+"plaats": "Sint-Lambrechts-Woluwe",
+"gemeente": "Sint-Lambrechts-Woluwe",
+"province_code": "be-bru",
+"city_code": "beslw",
+"search_aliases": [
+"WOLUWE-SAINT-LAMBERT"
+],
+"lat": 50.84304,
+"lon": 4.42567
+},
+{
+"nis5": "43014",
+"plaats": "Sint-Laureins",
+"gemeente": "Sint-Laureins",
+"province_code": "be-vov",
+"city_code": "beslu",
+"search_aliases": [
+"SINT-MARGRIETE",
+"SINT-JAN-IN-EREMO",
+"WATERLAND-OUDEMAN",
+"WATERVLIET"
+],
+"lat": 51.2417,
+"lon": 3.52384
+},
+{
+"nis5": "41063",
+"plaats": "Sint-Lievens-Houtem",
+"gemeente": "Sint-Lievens-Houtem",
+"province_code": "be-vov",
+"city_code": "beslh",
+"search_aliases": [
+"BAVEGEM",
+"LETTERHOUTEM",
+"VLIERZELE",
+"ZONNEGEM"
+],
+"lat": 50.92049,
+"lon": 3.85892
+},
+{
+"nis5": "44064",
+"plaats": "Sint-Martens-Latem",
+"gemeente": "Sint-Martens-Latem",
+"province_code": "be-vov",
+"city_code": "besml",
+"search_aliases": [
+"DEURLE"
+],
+"lat": 51.02097,
+"lon": 3.63975
+},
+{
+"nis5": "46021",
+"plaats": "Sint-Niklaas",
+"gemeente": "Sint-Niklaas",
+"province_code": "be-vov",
+"city_code": "besnk",
+"search_aliases": [
+"NIEUWKERKEN-WAAS",
+"BELSELE",
+"SINAAI",
+"Saint-Nicolas"
+],
+"lat": 51.16467,
+"lon": 4.13951
+},
+{
+"nis5": "23077",
+"plaats": "Sint-Pieters-Leeuw",
+"gemeente": "Sint-Pieters-Leeuw",
+"province_code": "be-vbr",
+"city_code": "bevgw",
+"search_aliases": [
+"OUDENAKEN",
+"SINT-LAUREINS-BERCHEM",
+"VLEZENBEEK",
+"RUISBROEK"
+],
+"lat": 50.78003,
+"lon": 4.24436
+},
+{
+"nis5": "21019",
+"plaats": "Sint-Pieters-Woluwe",
+"gemeente": "Sint-Pieters-Woluwe",
+"province_code": "be-bru",
+"city_code": "bespo",
+"search_aliases": [
+"WOLUWE-SAINT-PIERRE"
+],
+"lat": 50.83703,
+"lon": 4.42746
+},
+{
+"nis5": "71053",
+"plaats": "Sint-Truiden",
+"gemeente": "Sint-Truiden",
+"province_code": "be-vli",
+"city_code": "bestr",
+"search_aliases": [
+"BRUSTEM",
+"HALMAAL",
+"WILDEREN",
+"DURAS",
+"GORSEM",
+"RUNKELEN",
+"ZEPPEREN",
+"ORDINGEN",
+"GROOT-GELMEN",
+"ENGELMANSHOVEN",
+"GELINDEN",
+"AALST",
+"KERKOM",
+"VELM",
+"Saint-Trond"
+],
+"lat": 50.81528,
+"lon": 5.18589
+},
+{
+"nis5": "56088",
+"plaats": "Sivry-Rance",
+"gemeente": "Sivry-Rance",
+"province_code": "be-wht",
+"city_code": "besyr",
+"search_aliases": [
+"SIVRY",
+"GRANDRIEU",
+"SAUTIN + PARTIE SOLRE-ST-GERY",
+"RANCE",
+"MONTBLIART"
+],
+"lat": 50.164,
+"lon": 4.19
+},
+{
+"nis5": "55040",
+"plaats": "Soignies",
+"gemeente": "Soignies",
+"province_code": "be-wht",
+"city_code": "besoi",
+"search_aliases": [
+"NAAST",
+"THIEUSIES",
+"CASTEAU",
+"NEUFVILLES",
+"CHAUSSEE-NOTRE-DAME-LOUVIGNIES",
+"HORRUES",
+"Zinnik"
+],
+"lat": 50.5792,
+"lon": 4.06856
+},
+{
+"nis5": "92114",
+"plaats": "Sombreffe",
+"gemeente": "Sombreffe",
+"province_code": "be-wna",
+"city_code": "besbf",
+"search_aliases": [
+"TONGRINNE",
+"BOIGNEE*+ PARTIE DE KEUMIEE ET DE VELAINE",
+"LIGNY"
+],
+"lat": 50.52254,
+"lon": 4.59919
+},
+{
+"nis5": "91120",
+"plaats": "Somme-Leuze",
+"gemeente": "Somme-Leuze",
+"province_code": "be-wna",
+"city_code": "besuz",
+"search_aliases": [
+"SOMME-LEUZE + PARTIE DE GRANDHAN ET DE MAFFE",
+"NOISEUX",
+"BAILLONVILLE",
+"WAILLET",
+"HOGNE",
+"SINSIN",
+"NETTINNE",
+"HEURE",
+"BONSIN"
+],
+"lat": 50.29829,
+"lon": 5.37246
+},
+{
+"nis5": "62099",
+"plaats": "Soumagne",
+"gemeente": "Soumagne",
+"province_code": "be-wlg",
+"city_code": "besou",
+"search_aliases": [
+"AYENEUX",
+"MICHEROUX",
+"MELEN",
+"CEREXHE-HEUSEUX",
+"EVEGNEE-TIGNEE"
+],
+"lat": 50.63306,
+"lon": 5.73179
+},
+{
+"nis5": "63072",
+"plaats": "Spa",
+"gemeente": "Spa",
+"province_code": "be-wlg",
+"city_code": "bespa",
+"search_aliases": [
+"SPA + PARTIE DE SART, DE THEUX"
+],
+"lat": 50.49207,
+"lon": 5.86276
+},
+{
+"nis5": "34043",
+"plaats": "Spiere-Helkijn",
+"gemeente": "Spiere-Helkijn",
+"province_code": "be-vwv",
+"city_code": "bespi",
+"search_aliases": [
+"SPIERE",
+"HELKIJN",
+"Espierres-Helchin"
+],
+"lat": 50.72997,
+"lon": 3.38316
+},
+{
+"nis5": "62100",
+"plaats": "Sprimont",
+"gemeente": "Sprimont",
+"province_code": "be-wlg",
+"city_code": "besmo",
+"search_aliases": [
+"SPRIMONT + PARTIE DE COMBLAIN-AU-PONT",
+"LOUVEIGNE",
+"ROUVREUX",
+"DOLEMBREUX",
+"GOMZE-ANDOUMONT"
+],
+"lat": 50.50553,
+"lon": 5.66172
+},
+{
+"nis5": "11044",
+"plaats": "Stabroek",
+"gemeente": "Stabroek",
+"province_code": "be-van",
+"city_code": "besta",
+"search_aliases": [
+"HOEVENEN"
+],
+"lat": 51.33265,
+"lon": 4.36807
+},
+{
+"nis5": "36019",
+"plaats": "Staden",
+"gemeente": "Staden",
+"province_code": "be-vwv",
+"city_code": "bestd",
+"search_aliases": [
+"OOSTNIEUWKERKE",
+"WESTROZEBEKE"
+],
+"lat": 50.97471,
+"lon": 3.01457
+},
+{
+"nis5": "63073",
+"plaats": "Stavelot",
+"gemeente": "Stavelot",
+"province_code": "be-wlg",
+"city_code": "beslt",
+"search_aliases": [
+"FRANCORCHAMPS"
+],
+"lat": 50.39424,
+"lon": 5.93103
+},
+{
+"nis5": "23081",
+"plaats": "Steenokkerzeel",
+"gemeente": "Steenokkerzeel",
+"province_code": "be-vbr",
+"city_code": "beskk",
+"search_aliases": [
+"MELSBROEK",
+"PERK"
+],
+"lat": 50.90935,
+"lon": 4.51105
+},
+{
+"nis5": "46024",
+"plaats": "Stekene",
+"gemeente": "Stekene",
+"province_code": "be-vov",
+"city_code": "bestk",
+"search_aliases": [
+"KEMZEKE"
+],
+"lat": 51.20623,
+"lon": 4.03969
+},
+{
+"nis5": "63075",
+"plaats": "Stoumont",
+"gemeente": "Stoumont",
+"province_code": "be-wlg",
+"city_code": "bestu",
+"search_aliases": [
+"LA GLEIZE",
+"RAHIER",
+"CHEVRON",
+"LORCE"
+],
+"lat": 50.40695,
+"lon": 5.80836
+},
+{
+"nis5": "84068",
+"plaats": "Tellin",
+"gemeente": "Tellin",
+"province_code": "be-wlx",
+"city_code": "betli",
+"search_aliases": [
+"BURE",
+"RESTEIGNE",
+"GRUPONT"
+],
+"lat": 50.08102,
+"lon": 5.21684
+},
+{
+"nis5": "46025",
+"plaats": "Temse",
+"gemeente": "Temse",
+"province_code": "be-vov",
+"city_code": "betse",
+"search_aliases": [
+"STEENDORP",
+"TIELRODE",
+"ELVERSELE",
+"Tamise"
+],
+"lat": 51.12536,
+"lon": 4.21333
+},
+{
+"nis5": "83049",
+"plaats": "Tenneville",
+"gemeente": "Tenneville",
+"province_code": "be-wlx",
+"city_code": "betvl",
+"search_aliases": [
+"TENNEVILLE+PARTIE DE FLAMIERGE",
+"CHAMPLON",
+"ERNEUVILLE"
+],
+"lat": 50.09126,
+"lon": 5.52409
+},
+{
+"nis5": "23086",
+"plaats": "Ternat",
+"gemeente": "Ternat",
+"province_code": "be-vbr",
+"city_code": "beter",
+"search_aliases": [
+"WAMBEEK",
+"SINT-KATHERINA-LOMBEEK"
+],
+"lat": 50.87134,
+"lon": 4.1757
+},
+{
+"nis5": "24104",
+"plaats": "Tervuren",
+"gemeente": "Tervuren",
+"province_code": "be-vbr",
+"city_code": "beten",
+"search_aliases": [
+"VOSSEM",
+"DUISBURG"
+],
+"lat": 50.82419,
+"lon": 4.51388
+},
+{
+"nis5": "71071",
+"plaats": "Tessenderlo-Ham",
+"gemeente": "Tessenderlo-Ham",
+"province_code": "be-vli",
+"city_code": "betes",
+"search_aliases": [
+"TESSENDERLO",
+"OOSTHAM",
+"KWAADMECHELEN"
+],
+"lat": 51.06762,
+"lon": 5.08786
+},
+{
+"nis5": "63076",
+"plaats": "Theux",
+"gemeente": "Theux",
+"province_code": "be-wlg",
+"city_code": "betap",
+"search_aliases": [
+"POLLEUR",
+"LA REID"
+],
+"lat": 50.53492,
+"lon": 5.81329
+},
+{
+"nis5": "63089",
+"plaats": "Thimister-Clermont",
+"gemeente": "Thimister-Clermont",
+"province_code": "be-wlg",
+"city_code": "betcl",
+"search_aliases": [
+"THIMISTER",
+"CLERMONT"
+],
+"lat": 50.65897,
+"lon": 5.88367
+},
+{
+"nis5": "56078",
+"plaats": "Thuin",
+"gemeente": "Thuin",
+"province_code": "be-wht",
+"city_code": "bethu",
+"search_aliases": [
+"GOZEE",
+"BIESME-SOUS-THUIN",
+"THUILLIES",
+"DONSTIENNES",
+"RAGNIES",
+"LEERS-ET-FOSTEAU",
+"BIERCEE"
+],
+"lat": 50.33974,
+"lon": 4.28705
+},
+{
+"nis5": "37022",
+"plaats": "Tielt",
+"gemeente": "Tielt",
+"province_code": "be-vwv",
+"city_code": "betlt",
+"search_aliases": [
+"MEULEBEKE",
+"SCHUIFERSKAPELLE",
+"KANEGEM",
+"AARSELE"
+],
+"lat": 51.00029,
+"lon": 3.32734
+},
+{
+"nis5": "24135",
+"plaats": "Tielt-Winge",
+"gemeente": "Tielt-Winge",
+"province_code": "be-vbr",
+"city_code": "betwi",
+"search_aliases": [
+"TIELT",
+"MEENSEL-KIEZEGEM",
+"SINT-JORIS-WINGE",
+"HOUWAART"
+],
+"lat": 50.94063,
+"lon": 4.90207
+},
+{
+"nis5": "24107",
+"plaats": "Tienen",
+"gemeente": "Tienen",
+"province_code": "be-vbr",
+"city_code": "betie",
+"search_aliases": [
+"OORBEEK",
+"BOST",
+"KUMTICH",
+"VISSENAKEN",
+"SINT-MARGRIETE-HOUTEM",
+"OPLINTER",
+"HAKENDOVER",
+"GOETSENHOVEN",
+"Tirlemont"
+],
+"lat": 50.80748,
+"lon": 4.93718
+},
+{
+"nis5": "61081",
+"plaats": "Tinlot",
+"gemeente": "Tinlot",
+"province_code": "be-wlg",
+"city_code": "betlo",
+"search_aliases": [
+"SOHEIT-TINLOT",
+"RAMELOT",
+"ABEE",
+"FRAITURE",
+"SENY"
+],
+"lat": 50.47774,
+"lon": 5.3787
+},
+{
+"nis5": "85039",
+"plaats": "Tintigny",
+"gemeente": "Tintigny",
+"province_code": "be-wlx",
+"city_code": "betty",
+"search_aliases": [
+"BELLEFONTAINE",
+"SAINT-VINCENT",
+"ROSSIGNOL"
+],
+"lat": 49.6821,
+"lon": 5.51852
+},
+{
+"nis5": "73111",
+"plaats": "Tongeren-Borgloon",
+"gemeente": "Tongeren-Borgloon",
+"province_code": "be-vli",
+"city_code": "beton",
+"search_aliases": [
+"BORGLOON",
+"TONGEREN",
+"Tongres-Looz"
+],
+"lat": 50.78063,
+"lon": 5.46392
+},
+{
+"nis5": "31033",
+"plaats": "Torhout",
+"gemeente": "Torhout",
+"province_code": "be-vwv",
+"city_code": "betrt",
+"search_aliases": [
+"WIJNENDALE - DEEL AARTRIJKE + ICHTEGEM"
+],
+"lat": 51.06478,
+"lon": 3.10164
+},
+{
+"nis5": "57081",
+"plaats": "Tournai",
+"gemeente": "Tournai",
+"province_code": "be-wht",
+"city_code": "betrn",
+"search_aliases": [
+"WARCHIN",
+"CHERCQ",
+"HAVINNES",
+"MELLES - QUARTES",
+"BECLERS - THIMOUGIES",
+"BARRY - MAULDE",
+"VEZON",
+"GAURAIN-RAMECROIX",
+"VAULX",
+"SAINT-MAUR - ERE",
+"WILLEMEAU - FROIDMONT",
+"ESPLECHIN",
+"ORCQ - MARQUAIN - LAMAIN",
+"BLANDAIN - HERTAIN",
+"TEMPLEUVE",
+"RAMEGNIES-CHIN",
+"FROYENNES",
+"KAIN - MONT-SAINT-AUBERT",
+"RUMILLIES - MOURCOURT",
+"Doornik"
+],
+"lat": 50.60565,
+"lon": 3.38782
+},
+{
+"nis5": "24109",
+"plaats": "Tremelo",
+"gemeente": "Tremelo",
+"province_code": "be-vbr",
+"city_code": "betmo",
+"search_aliases": [
+"BAAL"
+],
+"lat": 50.9919,
+"lon": 4.70406
+},
+{
+"nis5": "63086",
+"plaats": "Trois-Ponts",
+"gemeente": "Trois-Ponts",
+"province_code": "be-wlg",
+"city_code": "betpo",
+"search_aliases": [
+"TROIS-PONTS FOSSE",
+"TROIS-PONTS WANNE + PARTIE DE STAVELOT",
+"BASSE-BODEUX"
+],
+"lat": 50.37268,
+"lon": 5.8703
+},
+{
+"nis5": "62122",
+"plaats": "Trooz",
+"gemeente": "Trooz",
+"province_code": "be-wlg",
+"city_code": "betro",
+"search_aliases": [
+"FORET",
+"FRAIPONT",
+"NESSONVAUX"
+],
+"lat": 50.57281,
+"lon": 5.68837
+},
+{
+"nis5": "25105",
+"plaats": "Tubize",
+"gemeente": "Tubize",
+"province_code": "be-wbr",
+"city_code": "betbz",
+"search_aliases": [
+"OISQUERCQ & PARTIE DE VIRGINAL-SAMME",
+"CLABECQ",
+"SAINTES",
+"Tubeke"
+],
+"lat": 50.69302,
+"lon": 4.2047
+},
+{
+"nis5": "13040",
+"plaats": "Turnhout",
+"gemeente": "Turnhout",
+"province_code": "be-van",
+"city_code": "betur",
+"search_aliases": [],
+"lat": 51.32338,
+"lon": 4.94846
+},
+{
+"nis5": "21016",
+"plaats": "Ukkel",
+"gemeente": "Ukkel",
+"province_code": "be-bru",
+"city_code": "beuke",
+"search_aliases": [
+"UCCLE"
+],
+"lat": 50.80354,
+"lon": 4.33384
+},
+{
+"nis5": "82036",
+"plaats": "Vaux-sur-Sûre",
+"gemeente": "Vaux-sur-Sûre",
+"province_code": "be-wlx",
+"city_code": "bevsu",
+"search_aliases": [
+"VAUX-LEZ-ROSIERES",
+"NIVES",
+"MORHET",
+"HOMPRE",
+"SIBRET",
+"JUSERET"
+],
+"lat": 49.93484,
+"lon": 5.64088
+},
+{
+"nis5": "61063",
+"plaats": "Verlaine",
+"gemeente": "Verlaine",
+"province_code": "be-wlg",
+"city_code": "bevla",
+"search_aliases": [
+"JEHAY-BODEGNEE (PARTIE)",
+"CHAPON-SERAING",
+"SERAING-LE-CHATEAU"
+],
+"lat": 50.60751,
+"lon": 5.31844
+},
+{
+"nis5": "63079",
+"plaats": "Verviers",
+"gemeente": "Verviers",
+"province_code": "be-wlg",
+"city_code": "bever",
+"search_aliases": [
+"STEMBERT",
+"HEUSY",
+"POLLEUR (PARTIE)+THEUX(PARTIE)",
+"ENSIVAL",
+"LAMBERMONT",
+"PETIT-RECHAIN"
+],
+"lat": 50.59324,
+"lon": 5.86783
+},
+{
+"nis5": "38025",
+"plaats": "Veurne",
+"gemeente": "Veurne",
+"province_code": "be-vwv",
+"city_code": "beveu",
+"search_aliases": [
+"BOOITSHOEKE",
+"AVEKAPELLE",
+"EGGEWAARTSKAPELLE",
+"ZOUTENAAIE",
+"STEENKERKE",
+"BULSKAMP",
+"WULVERINGEN - VINKEM",
+"HOUTEM",
+"DE MOEREN",
+"Furnes"
+],
+"lat": 51.07243,
+"lon": 2.66213
+},
+{
+"nis5": "82032",
+"plaats": "Vielsalm",
+"gemeente": "Vielsalm",
+"province_code": "be-wlx",
+"city_code": "bevsm",
+"search_aliases": [
+"VIELSALM+PART D'ARBREFONTAINE",
+"PETIT-THIER + PARTIE DE BEHO",
+"BIHAIN + PARTIE DE LIERNEUX",
+"GRAND-HALLEUX"
+],
+"lat": 50.28422,
+"lon": 5.91628
+},
+{
+"nis5": "25107",
+"plaats": "Villers-la-Ville",
+"gemeente": "Villers-la-Ville",
+"province_code": "be-wbr",
+"city_code": "bevlv",
+"search_aliases": [
+"TILLY",
+"MELLERY & PARTIE DE GENTINNES",
+"MARBAIS",
+"SART-DAMES-AVELINES"
+],
+"lat": 50.57273,
+"lon": 4.53427
+},
+{
+"nis5": "61068",
+"plaats": "Villers-Le-Bouillet",
+"gemeente": "Villers-Le-Bouillet",
+"province_code": "be-wlg",
+"city_code": "bevbo",
+"search_aliases": [
+"WARNANT-DREYE",
+"VIEUX-WALEFFE",
+"VAUX-ET-BORSET",
+"FIZE-FONTAINE"
+],
+"lat": 50.57537,
+"lon": 5.26071
+},
+{
+"nis5": "23088",
+"plaats": "Vilvoorde",
+"gemeente": "Vilvoorde",
+"province_code": "be-vbr",
+"city_code": "bevil",
+"search_aliases": [
+"PEUTIE",
+"Vilvorde"
+],
+"lat": 50.92871,
+"lon": 4.42313
+},
+{
+"nis5": "93090",
+"plaats": "Viroinval",
+"gemeente": "Viroinval",
+"province_code": "be-wna",
+"city_code": "bevro",
+"search_aliases": [
+"OLLOY-SUR-VIROIN",
+"VIERVES-SUR-VIROIN",
+"TREIGNES",
+"MAZEE",
+"LE MESNIL",
+"OIGNIES-EN-THIERACHE",
+"NISMES",
+"DOURBES"
+],
+"lat": 50.07384,
+"lon": 4.60704
+},
+{
+"nis5": "85045",
+"plaats": "Virton",
+"gemeente": "Virton",
+"province_code": "be-wlx",
+"city_code": "bevir",
+"search_aliases": [
+"ETHE",
+"LATOUR",
+"ST-MARD + PARTIE DE DAMPICOURT",
+"RUETTE",
+"BLEID"
+],
+"lat": 49.56773,
+"lon": 5.53296
+},
+{
+"nis5": "62108",
+"plaats": "Visé",
+"gemeente": "Visé",
+"province_code": "be-wlg",
+"city_code": "bevis",
+"search_aliases": [
+"VISE + PARTIE DE BOMBAYE,HAC- COURT, HERMALLE-SS-ARGENTEAU",
+"RICHELLE",
+"ARGENTEAU",
+"CHERATTE* + PARTIE DE HERSTAL, WANDRE",
+"LIXHE",
+"LANAYE",
+"Wezet"
+],
+"lat": 50.73478,
+"lon": 5.69364
+},
+{
+"nis5": "33041",
+"plaats": "Vleteren",
+"gemeente": "Vleteren",
+"province_code": "be-vwv",
+"city_code": "bevle",
+"search_aliases": [
+"OOSTVLETEREN",
+"WESTVLETEREN",
+"WOESTEN"
+],
+"lat": 50.90042,
+"lon": 2.79038
+},
+{
+"nis5": "73109",
+"plaats": "Voeren",
+"gemeente": "Voeren",
+"province_code": "be-vli",
+"city_code": "bevoe",
+"search_aliases": [
+"'S-GRAVENVOEREN",
+"SINT-MARTENS-VOEREN",
+"TEUVEN",
+"REMERSDAAL",
+"SINT-PIETERS-VOEREN",
+"MOELINGEN",
+"Fourons"
+],
+"lat": 50.7574,
+"lon": 5.71636
+},
+{
+"nis5": "13044",
+"plaats": "Vorselaar",
+"gemeente": "Vorselaar",
+"province_code": "be-van",
+"city_code": "bevol",
+"search_aliases": [],
+"lat": 51.20234,
+"lon": 4.76948
+},
+{
+"nis5": "21007",
+"plaats": "Vorst",
+"gemeente": "Vorst",
+"province_code": "be-bru",
+"city_code": "bevos",
+"search_aliases": [
+"FOREST"
+],
+"lat": 50.81179,
+"lon": 4.31812
+},
+{
+"nis5": "13046",
+"plaats": "Vosselaar",
+"gemeente": "Vosselaar",
+"province_code": "be-van",
+"city_code": "bevor",
+"search_aliases": [],
+"lat": 51.31292,
+"lon": 4.8878
+},
+{
+"nis5": "91143",
+"plaats": "Vresse-sur-Semois",
+"gemeente": "Vresse-sur-Semois",
+"province_code": "be-wna",
+"city_code": "bevso",
+"search_aliases": [
+"VRESSE",
+"ALLE",
+"SUGNY",
+"BOHAN",
+"ORCHIMONT + PARTIE DE DE LOUETTE-SAINT-DENIS",
+"NAFRAITURE"
+],
+"lat": 49.87298,
+"lon": 4.93406
+},
+{
+"nis5": "42023",
+"plaats": "Waasmunster",
+"gemeente": "Waasmunster",
+"province_code": "be-vov",
+"city_code": "bewaa",
+"search_aliases": [],
+"lat": 51.10971,
+"lon": 4.08422
+},
+{
+"nis5": "63080",
+"plaats": "Waimes",
+"gemeente": "Waimes",
+"province_code": "be-wlg",
+"city_code": "bewim",
+"search_aliases": [
+"ROBERTVILLE",
+"FAYMONVILLE",
+"Weismes"
+],
+"lat": 50.41491,
+"lon": 6.11175
+},
+{
+"nis5": "93088",
+"plaats": "Walcourt",
+"gemeente": "Walcourt",
+"province_code": "be-wna",
+"city_code": "bewco",
+"search_aliases": [
+"WALCOURT +PARTIE DE SILENRIEUX",
+"PRY",
+"FONTENELLE",
+"CASTILLON",
+"CLERMONT",
+"ROGNEE",
+"BERZEE",
+"THY-LE-CHATEAU",
+"GOURDINNE",
+"SOMZEE",
+"TARCIENNE",
+"LANEFFE",
+"CHASTRES",
+"FRAIRE",
+"YVES-GOMEZEE",
+"VOGENEE"
+],
+"lat": 50.2514,
+"lon": 4.43141
+},
+{
+"nis5": "25124",
+"plaats": "Walhain",
+"gemeente": "Walhain",
+"province_code": "be-wbr",
+"city_code": "bewha",
+"search_aliases": [
+"WALHAIN-SAINT-PAUL",
+"NIL-SAINT-VINCENT-SAINT-MARTIN",
+"TOURINNES-SAINT-LAMBERT"
+],
+"lat": 50.61801,
+"lon": 4.69534
+},
+{
+"nis5": "61072",
+"plaats": "Wanze",
+"gemeente": "Wanze",
+"province_code": "be-wlg",
+"city_code": "bewan",
+"search_aliases": [
+"BAS-OHA",
+"MOHA",
+"HUCCORGNE + PARTIE DE COUTHUIN ET DE LAVOIR",
+"VINALMONT",
+"ANTHEIT"
+],
+"lat": 50.53686,
+"lon": 5.21439
+},
+{
+"nis5": "34040",
+"plaats": "Waregem",
+"gemeente": "Waregem",
+"province_code": "be-vwv",
+"city_code": "bewar",
+"search_aliases": [
+"DESSELGEM",
+"BEVEREN-LEIE",
+"SINT-ELOOIS-VIJVE"
+],
+"lat": 50.88682,
+"lon": 3.43236
+},
+{
+"nis5": "64074",
+"plaats": "Waremme",
+"gemeente": "Waremme",
+"province_code": "be-wlg",
+"city_code": "bewre",
+"search_aliases": [
+"OLEYE",
+"LANTREMANGE",
+"BLERET",
+"BOVENISTIER",
+"GRAND-AXHE",
+"BETTINCOURT",
+"Borgworm"
+],
+"lat": 50.69769,
+"lon": 5.25462
+},
+{
+"nis5": "64075",
+"plaats": "Wasseiges",
+"gemeente": "Wasseiges",
+"province_code": "be-wlg",
+"city_code": "bewsi",
+"search_aliases": [
+"WASSEIGE",
+"AMBRESIN",
+"MEEFFE",
+"ACOSSE"
+],
+"lat": 50.62101,
+"lon": 5.00691
+},
+{
+"nis5": "25110",
+"plaats": "Waterloo",
+"gemeente": "Waterloo",
+"province_code": "be-wbr",
+"city_code": "bewal",
+"search_aliases": [
+"WATERLOO + PARTIE DE BRAINE-L'ALLEUD, DE OHAIN"
+],
+"lat": 50.71754,
+"lon": 4.39776
+},
+{
+"nis5": "21017",
+"plaats": "Watermaal-Bosvoorde",
+"gemeente": "Watermaal-Bosvoorde",
+"province_code": "be-bru",
+"city_code": "bewbv",
+"search_aliases": [
+"WATERMAEL-BOITSFORT"
+],
+"lat": 50.79811,
+"lon": 4.41764
+},
+{
+"nis5": "25112",
+"plaats": "Wavre",
+"gemeente": "Wavre",
+"province_code": "be-wbr",
+"city_code": "bewvr",
+"search_aliases": [
+"BIERGES",
+"LIMAL",
+"Waver"
+],
+"lat": 50.71697,
+"lon": 4.61042
+},
+{
+"nis5": "63084",
+"plaats": "Welkenraedt",
+"gemeente": "Welkenraedt",
+"province_code": "be-wlg",
+"city_code": "bewkd",
+"search_aliases": [
+"WELKENRAEDT*+ PARTIE DE BAELEN",
+"HENRI-CHAPELLE+PART. DE BAELEN"
+],
+"lat": 50.66078,
+"lon": 5.97328
+},
+{
+"nis5": "73098",
+"plaats": "Wellen",
+"gemeente": "Wellen",
+"province_code": "be-vli",
+"city_code": "bewel",
+"search_aliases": [
+"HERTEN",
+"BERLINGEN",
+"ULBEEK"
+],
+"lat": 50.84149,
+"lon": 5.33709
+},
+{
+"nis5": "84075",
+"plaats": "Wellin",
+"gemeente": "Wellin",
+"province_code": "be-wlx",
+"city_code": "bewin",
+"search_aliases": [
+"HALMA",
+"LOMPREZ",
+"SOHIER",
+"CHANLY"
+],
+"lat": 50.0823,
+"lon": 5.11467
+},
+{
+"nis5": "23102",
+"plaats": "Wemmel",
+"gemeente": "Wemmel",
+"province_code": "be-vbr",
+"city_code": "bewml",
+"search_aliases": [],
+"lat": 50.90877,
+"lon": 4.30346
+},
+{
+"nis5": "33029",
+"plaats": "Wervik",
+"gemeente": "Wervik",
+"province_code": "be-vwv",
+"city_code": "bewer",
+"search_aliases": [
+"GELUWE"
+],
+"lat": 50.77822,
+"lon": 3.04397
+},
+{
+"nis5": "13049",
+"plaats": "Westerlo",
+"gemeente": "Westerlo",
+"province_code": "be-van",
+"city_code": "bewes",
+"search_aliases": [
+"TONGERLO",
+"ZOERLE-PARWIJS",
+"OEVEL"
+],
+"lat": 51.08669,
+"lon": 4.91687
+},
+{
+"nis5": "42025",
+"plaats": "Wetteren",
+"gemeente": "Wetteren",
+"province_code": "be-vov",
+"city_code": "bewet",
+"search_aliases": [
+"MASSEMEN",
+"WESTREM"
+],
+"lat": 51.00688,
+"lon": 3.88555
+},
+{
+"nis5": "34041",
+"plaats": "Wevelgem",
+"gemeente": "Wevelgem",
+"province_code": "be-vwv",
+"city_code": "bewev",
+"search_aliases": [
+"GULLEGEM",
+"MOORSELE"
+],
+"lat": 50.80896,
+"lon": 3.1841
+},
+{
+"nis5": "23103",
+"plaats": "Wezembeek-Oppem",
+"gemeente": "Wezembeek-Oppem",
+"province_code": "be-vbr",
+"city_code": "bewko",
+"search_aliases": [],
+"lat": 50.84072,
+"lon": 4.49255
+},
+{
+"nis5": "42026",
+"plaats": "Wichelen",
+"gemeente": "Wichelen",
+"province_code": "be-vov",
+"city_code": "bewih",
+"search_aliases": [
+"SERSKAMP",
+"SCHELLEBELLE"
+],
+"lat": 51.00608,
+"lon": 3.97425
+},
+{
+"nis5": "37017",
+"plaats": "Wielsbeke",
+"gemeente": "Wielsbeke",
+"province_code": "be-vwv",
+"city_code": "bewik",
+"search_aliases": [
+"SINT-BAAFS-VIJVE",
+"OOIGEM"
+],
+"lat": 50.90948,
+"lon": 3.36998
+},
+{
+"nis5": "11050",
+"plaats": "Wijnegem",
+"gemeente": "Wijnegem",
+"province_code": "be-van",
+"city_code": "bewjg",
+"search_aliases": [],
+"lat": 51.22708,
+"lon": 4.52253
+},
+{
+"nis5": "12040",
+"plaats": "Willebroek",
+"gemeente": "Willebroek",
+"province_code": "be-van",
+"city_code": "bewlb",
+"search_aliases": [
+"WILLEBROEK* & DEEL BREENDONK EN RUISBROEK",
+"HEINDONK",
+"BLAASVELD",
+"TISSELT* + DEEL BREENDONK"
+],
+"lat": 51.06068,
+"lon": 4.35889
+},
+{
+"nis5": "37021",
+"plaats": "Wingene",
+"gemeente": "Wingene",
+"province_code": "be-vwv",
+"city_code": "bewee",
+"search_aliases": [
+"RUISELEDE",
+"ZWEVEZELE"
+],
+"lat": 51.05817,
+"lon": 3.27797
+},
+{
+"nis5": "11052",
+"plaats": "Wommelgem",
+"gemeente": "Wommelgem",
+"province_code": "be-van",
+"city_code": "bewmm",
+"search_aliases": [],
+"lat": 51.2031,
+"lon": 4.5238
+},
+{
+"nis5": "45061",
+"plaats": "Wortegem-Petegem",
+"gemeente": "Wortegem-Petegem",
+"province_code": "be-vov",
+"city_code": "bepge",
+"search_aliases": [
+"PETEGEM-AAN-DE-SCHELDE* + DEEL VAN OUDENAARDE",
+"WORTEGEM",
+"MOREGEM + OOIKE",
+"ELSEGEM*+DEEL VAN KLUISBERGEN"
+],
+"lat": 50.85338,
+"lon": 3.51011
+},
+{
+"nis5": "11053",
+"plaats": "Wuustwezel",
+"gemeente": "Wuustwezel",
+"province_code": "be-van",
+"city_code": "bewuu",
+"search_aliases": [
+"LOENHOUT"
+],
+"lat": 51.39202,
+"lon": 4.59909
+},
+{
+"nis5": "91141",
+"plaats": "Yvoir",
+"gemeente": "Yvoir",
+"province_code": "be-wna",
+"city_code": "beyvo",
+"search_aliases": [
+"GODINNE",
+"DURNAL",
+"SPONTIN",
+"DORINNE",
+"PURNODE"
+],
+"lat": 50.32604,
+"lon": 4.87782
+},
+{
+"nis5": "11054",
+"plaats": "Zandhoven",
+"gemeente": "Zandhoven",
+"province_code": "be-van",
+"city_code": "bezan",
+"search_aliases": [
+"VIERSEL",
+"PULDERBOS",
+"PULLE",
+"MASSENHOVEN"
+],
+"lat": 51.21479,
+"lon": 4.65951
+},
+{
+"nis5": "23094",
+"plaats": "Zaventem",
+"gemeente": "Zaventem",
+"province_code": "be-vbr",
+"city_code": "bezav",
+"search_aliases": [
+"NOSSEGEM",
+"STERREBEEK",
+"SINT-STEVENS-WOLUWE"
+],
+"lat": 50.88062,
+"lon": 4.473
+},
+{
+"nis5": "31040",
+"plaats": "Zedelgem",
+"gemeente": "Zedelgem",
+"province_code": "be-vwv",
+"city_code": "bezed",
+"search_aliases": [
+"LOPPEM",
+"VELDEGEM",
+"AARTRIJKE"
+],
+"lat": 51.13897,
+"lon": 3.13956
+},
+{
+"nis5": "42028",
+"plaats": "Zele",
+"gemeente": "Zele",
+"province_code": "be-vov",
+"city_code": "bezle",
+"search_aliases": [
+"ZELE*+DEEL LOKEREN"
+],
+"lat": 51.06836,
+"lon": 4.03859
+},
+{
+"nis5": "43018",
+"plaats": "Zelzate",
+"gemeente": "Zelzate",
+"province_code": "be-vov",
+"city_code": "bezel",
+"search_aliases": [],
+"lat": 51.2,
+"lon": 3.8105
+},
+{
+"nis5": "23096",
+"plaats": "Zemst",
+"gemeente": "Zemst",
+"province_code": "be-vbr",
+"city_code": "bezet",
+"search_aliases": [
+"HOFSTADE",
+"WEERDE",
+"ELEWIJT",
+"EPPEGEM"
+],
+"lat": 50.98422,
+"lon": 4.46508
+},
+{
+"nis5": "11055",
+"plaats": "Zoersel",
+"gemeente": "Zoersel",
+"province_code": "be-van",
+"city_code": "beobl",
+"search_aliases": [
+"ZOERSEL & DEEL BRECHT",
+"HALLE"
+],
+"lat": 51.27167,
+"lon": 4.71326
+},
+{
+"nis5": "71066",
+"plaats": "Zonhoven",
+"gemeente": "Zonhoven",
+"province_code": "be-vli",
+"city_code": "bezhv",
+"search_aliases": [],
+"lat": 50.99098,
+"lon": 5.36777
+},
+{
+"nis5": "33037",
+"plaats": "Zonnebeke",
+"gemeente": "Zonnebeke",
+"province_code": "be-vwv",
+"city_code": "bezob",
+"search_aliases": [
+"PASSENDALE",
+"BESELARE",
+"GELUVELD",
+"ZANDVOORDE"
+],
+"lat": 50.87319,
+"lon": 2.98747
+},
+{
+"nis5": "41081",
+"plaats": "Zottegem",
+"gemeente": "Zottegem",
+"province_code": "be-vov",
+"city_code": "bezot",
+"search_aliases": [
+"ELENE",
+"OOMBERGEN",
+"LEEUWERGEM",
+"GROTENBERGE",
+"GODVEERDEGEM",
+"ERWETEGEM",
+"SINT-GORIKS-OUDENHOVE",
+"STRIJPEN",
+"VELZEKE-RUDDERSHOVE",
+"SINT-MARIA-OUDENHOVE"
+],
+"lat": 50.86946,
+"lon": 3.80925
+},
+{
+"nis5": "24130",
+"plaats": "Zoutleeuw",
+"gemeente": "Zoutleeuw",
+"province_code": "be-vbr",
+"city_code": "bezou",
+"search_aliases": [
+"HELEN-BOS",
+"HALLE-BOOIENHOVEN",
+"DORMAAL",
+"BUDINGEN",
+"Léau"
+],
+"lat": 50.8332,
+"lon": 5.1031
+},
+{
+"nis5": "31042",
+"plaats": "Zuienkerke",
+"gemeente": "Zuienkerke",
+"province_code": "be-vwv",
+"city_code": "bezke",
+"search_aliases": [
+"MEETKERKE",
+"HOUTAVE",
+"NIEUWMUNSTER"
+],
+"lat": 51.26525,
+"lon": 3.15626
+},
+{
+"nis5": "44081",
+"plaats": "Zulte",
+"gemeente": "Zulte",
+"province_code": "be-vov",
+"city_code": "bezul",
+"search_aliases": [
+"OLSENE",
+"MACHELEN"
+],
+"lat": 50.92066,
+"lon": 3.44856
+},
+{
+"nis5": "71067",
+"plaats": "Zutendaal",
+"gemeente": "Zutendaal",
+"province_code": "be-vli",
+"city_code": "beztl",
+"search_aliases": [],
+"lat": 50.9319,
+"lon": 5.57255
+},
+{
+"nis5": "45065",
+"plaats": "Zwalm",
+"gemeente": "Zwalm",
+"province_code": "be-vov",
+"city_code": "bezwa",
+"search_aliases": [
+"MUNKZWALM",
+"PAULATEM",
+"SINT-MARIA-LATEM",
+"MEILEGEM",
+"BEERLEGEM",
+"DIKKELE",
+"HUNDELGEM",
+"ROBORST",
+"ROZEBEKE",
+"SINT-BLASIUS-BOEKEL",
+"SINT-DENIJS-BOEKEL",
+"NEDERZWALM-HERMELGEM",
+"Zwalin"
+],
+"lat": 50.87768,
+"lon": 3.73274
+},
+{
+"nis5": "34042",
+"plaats": "Zwevegem",
+"gemeente": "Zwevegem",
+"province_code": "be-vwv",
+"city_code": "bezwe",
+"search_aliases": [
+"OTEGEM",
+"HEESTERT",
+"MOEN",
+"SINT-DENIJS"
+],
+"lat": 50.76858,
+"lon": 3.39756
+}
+]

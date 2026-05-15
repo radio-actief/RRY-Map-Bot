@@ -6,7 +6,7 @@ Handles SQLite database initialization, schema creation, and connection manageme
 import sqlite3
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 from pathlib import Path
 import sys
@@ -68,7 +68,6 @@ def init_database() -> None:
                 updated_by VARCHAR(64),
                 discord_owner_id VARCHAR(20),
                 discord_owner_name VARCHAR(100),
-                discord_updated_date TEXT,
                 synced_from_official INTEGER DEFAULT 0,  -- BOOLEAN as INTEGER
                 last_sync_date TEXT,
                 is_active INTEGER DEFAULT 1,  -- BOOLEAN as INTEGER (1 = TRUE, 0 = FALSE)
@@ -152,7 +151,51 @@ def init_database() -> None:
             CREATE INDEX IF NOT EXISTS idx_node_changes_change_type 
             ON node_changes(change_type)
         """)
-        
+
+        # Index on sync_date to speed up daily digest queries
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_node_changes_sync_date
+            ON node_changes(sync_date)
+        """)
+
+        # Digest state (single-row) table used by the daily Discord digest
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS digest_state (
+                id              INTEGER PRIMARY KEY CHECK (id = 1),
+                last_sent_utc   TEXT,
+                last_channel_id TEXT,
+                last_message_id TEXT
+            )
+        """)
+        cursor.execute("""
+            INSERT OR IGNORE INTO digest_state (id, last_sent_utc)
+            VALUES (1, NULL)
+        """)
+
+        # node_claims: append-only event log of /node claim and /node unclaim
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS node_claims (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                public_key VARCHAR(64) NOT NULL,
+                discord_owner_id VARCHAR(20),
+                discord_owner_name VARCHAR(100),
+                action VARCHAR(10) NOT NULL,
+                timestamp TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_node_claims_public_key
+            ON node_claims(public_key)
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_node_claims_owner
+            ON node_claims(discord_owner_id)
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_node_claims_timestamp
+            ON node_claims(timestamp)
+        """)
+
         conn.commit()
         print(f"Database initialized successfully at {get_db_path()}")
         
@@ -219,8 +262,8 @@ def dict_from_row(row: sqlite3.Row) -> Dict[str, Any]:
 
 
 def get_current_timestamp() -> str:
-    """Get current timestamp as ISO format string."""
-    return datetime.now().isoformat()
+    """Get current timestamp as ISO format string in UTC."""
+    return datetime.now(timezone.utc).isoformat()
 
 
 def verify_schema() -> bool:
@@ -252,7 +295,7 @@ def verify_schema() -> bool:
             'public_key', 'type', 'adv_name', 'adv_lat', 'adv_lon', 'city',
             'last_advert', 'inserted_date', 'updated_date', 'params', 'link',
             'source', 'inserted_by', 'updated_by', 'discord_owner_id',
-            'discord_owner_name', 'discord_updated_date', 'synced_from_official',
+            'discord_owner_name', 'synced_from_official',
             'last_sync_date', 'is_active', 'removed_from_official', 'removed_date',
             'created_at', 'updated_at'
         }

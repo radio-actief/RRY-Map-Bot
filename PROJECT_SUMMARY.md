@@ -4,7 +4,7 @@
 
 **RRY-Map-Bot** is a new integrated project combining a **Discord bot** (discord.py) and a **Belgian web map application** for visualizing and managing MeshCore network nodes. The system focuses exclusively on Belgian nodes and provides both web-based map visualization and Discord-based interaction capabilities.
 
-**Target Domain**: `map.axistem.eu`
+**Target Domain**: `meshmap.radio-actief.be`
 
 ---
 
@@ -28,7 +28,7 @@
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │              Official MeshCore Map API                       │
-│         https://map.meshcore.dev/api/v1/nodes                │
+│         https://map.meshcore.io/api/v1/nodes                │
 └──────────────────────┬──────────────────────────────────────┘
                        │
                        │ Periodic Sync (few times/day)
@@ -51,12 +51,13 @@
         │                             │
 ┌───────▼────────┐         ┌─────────▼──────────┐
 │  Web Map App   │         │   Discord Bot      │
-│ (map.axistem.eu)│         │  (discord.py)      │
+│ (meshmap.radio-actief.be)│         │  (discord.py)      │
 │                │         │                    │
 │ • Leaflet Map  │         │ • /search          │
-│ • Node Display │         │ • /claim           │
-│ • Filtering    │         │ • /manage          │
-│ • Statistics   │         │ • /stats           │
+│ • Node Display │         │ • /mynodes         │
+│ • Filtering    │         │ • /node claim      │
+│ • Statistics   │         │ • /node unclaim    │
+│                │         │ • /stats           │
 │                │         │                    │
 │ (via REST API) │         │ (Direct DB Access)│
 └────────────────┘         └────────────────────┘
@@ -78,7 +79,7 @@ The project currently contains a **frontend web map application** based on the o
 - **Material Icons**
 
 #### Current Features
-- Fetches nodes from `https://map.meshcore.dev/api/v1/nodes`
+- Fetches nodes from `https://map.meshcore.io/api/v1/nodes`
 - Displays all nodes on interactive map
 - Node filtering by type (Client, Repeater, Room Server, Sensor)
 - Search by node name or public key
@@ -116,14 +117,12 @@ Nodes are fetched as JSON array with structure:
 - `city` - Extracted via Geopy during sync
 - `discord_owner_id` - Set when users claim nodes via Discord
 - `discord_owner_name` - Set when users claim nodes via Discord
-- `discord_updated_date` - Tracks when node was last updated via Discord bot (separate from official map's `updated_date`)
 - `synced_from_official` - Tracks if node came from official map
 - `last_sync_date` - Tracks last sync operation
 
 **Date Field Clarification**:
-- `updated_date` - From official map, tracks when node was last updated on the official MeshCore map
-- `discord_updated_date` - From our Discord bot, tracks when node was last updated via Discord commands
-- These are **separate fields** to allow proper data merging between official map updates and Discord user modifications
+- `updated_date` - From official map, tracks when node was last updated on the official MeshCore map.
+- Discord ownership history lives in the dedicated `node_claims` event log (see schema below).
 
 **Important**: `inserted_by` and `updated_by` are **public hex keys** of companion devices that uploaded/updated nodes on the official map. These are **NOT** Discord user IDs and should **NOT** be modified by our system. They are separate from `discord_owner_id`/`discord_owner_name` which track Discord ownership.
 
@@ -145,7 +144,7 @@ BELGIUM_BOUNDS = {
 ```
 
 #### Workflow
-1. **Download**: Fetch all nodes from `https://map.meshcore.dev/api/v1/nodes`
+1. **Download**: Fetch all nodes from `https://map.meshcore.io/api/v1/nodes`
 2. **Initial Filter**: Remove nodes outside Belgian bounds (or without coordinates)
 3. **Geopy Verification**: 
    - Use Geopy reverse geocoding for each remaining node
@@ -247,7 +246,6 @@ CREATE TABLE belgian_nodes (
     updated_by VARCHAR(64),  -- Public hex key of companion device that last updated node on official map (from official map, immutable)
     discord_owner_id VARCHAR(20),  -- Discord user ID (set when user claims node via Discord bot)
     discord_owner_name VARCHAR(100),  -- Discord username (set when user claims node via Discord bot)
-    discord_updated_date TEXT,  -- Tracks when node was last updated via Discord bot (ISO 8601 format, separate from official map's updated_date)
     synced_from_official INTEGER DEFAULT 0,  -- SQLite uses INTEGER for BOOLEAN (1 = TRUE, 0 = FALSE)
     last_sync_date TEXT,  -- SQLite uses TEXT for timestamps (ISO 8601 format)
     is_active INTEGER DEFAULT 1,  -- SQLite uses INTEGER for BOOLEAN (1 = TRUE, 0 = FALSE) - FALSE when node removed from official map
@@ -277,6 +275,16 @@ CREATE TABLE node_changes (
     old_data TEXT,  -- JSON stored as TEXT in SQLite
     new_data TEXT  -- JSON stored as TEXT in SQLite
 );
+
+-- Append-only log of Discord ownership events
+CREATE TABLE node_claims (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    public_key VARCHAR(64) NOT NULL,
+    discord_owner_id VARCHAR(20),
+    discord_owner_name VARCHAR(100),
+    action VARCHAR(10) NOT NULL,         -- 'claim' or 'unclaim'
+    timestamp TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 ```
 
 ### 3. Discord Bot Features
@@ -287,88 +295,14 @@ CREATE TABLE node_changes (
 
 #### Required Commands
 
-##### `/search` - Search Nodes
-Search Belgian nodes by various criteria with partial matching:
-- **Parameters**:
-  - `query` (optional): Search by **partial** node name, **partial** public key (hex), or **partial** Discord owner name
-  - `node_type` (optional): Filter by node type (dropdown: "Companion", "Repeater", "Room Server", "Sensor")
-  - `city` (optional): Filter by city name (partial match, case-insensitive)
-  - `frequency_preset` (optional): Filter by frequency preset (dropdown: select from preset list)
-  - `owner` (optional): Filter by Discord owner (mention user for exact match, or search by name in query field)
-- **Search Restrictions**:
-  - **Coordinates are NOT searchable** - cannot filter or search by latitude/longitude
-  - Coordinates are only displayed when listing your own nodes (security reasons)
-- **Node Type Mapping**:
-  - `1` = "companion"
-  - `2` = "repeater"
-  - `3` = "room server"
-  - `4` = "sensor"
-  - Users can search/display using text names instead of numbers
-- **Search Behavior**:
-  - Supports **substring matching** (anywhere in the string) on node names (case-insensitive)
-  - Supports **substring matching** (anywhere in the string) on public keys (hex, case-insensitive)
-  - Examples:
-    - Searching "aa" will match both "aabbcc" and "ccbbaa" (matches anywhere in the string, not just prefix)
-    - Searching "R1" will match "USER_R1_Home" (matches in the middle of the name)
-  - If exactly **1 node** is found: Display full detailed information (name, type as text, city, frequency preset name + frequency if matched, owner, full public key, link to web map, last Discord update date)
-  - **Coordinates are NOT displayed** in search results (security reasons)
-  - If **multiple nodes** found: Display list with format: **ICON `HEX HEAD` - NODE NAME - <DISCORD USER/Unclaimed>**
-    - Icon matches node type: 📱 (companion), 📡 (repeater), 💾 (room server), 🌡️ (sensor)
-    - Hex head: First 6 characters in UPPERCASE, displayed as code (backticks)
-    - Discord owner: Shows Discord mention if claimed, otherwise "Unclaimed"
-    - Example: `📱 `4E21ED` - USER_R1_Home - <@123456789>` or `📱 `4E21ED` - USER_R1_Home - Unclaimed`
-  - If **no nodes** found: Display "No nodes found" message
-- **Response Format**:
-  - Single result: Full node details (replaces `/info` functionality)
-  - Multiple results: List format with **ICON NODE NAME HEX HEAD (6 chars)**
-  - Public key display: 
-    - **Always displayed in UPPERCASE** (even though stored in lowercase)
-    - First 6 characters only (unless it's the only result, then show full key)
-    - Example: `000000...` or `0000001D8652...` (full key)
-- **Pagination**: If results exceed Discord message limits, results are split across multiple messages
-  - Each message shows a range (e.g., "Showing 1-50 of 150")
-  - Footer indicates: "Use `/search` more precisely to get a detailed node view"
-  - All results are displayed (up to 500 nodes fetched, then paginated across messages)
-- **Response Visibility**: **Public** (visible to entire channel) - search results are general information
-- **Logging**: Log all search queries to console with user info and result count
+**Discord bot scope**: The bot allows searching nodes, listing your own nodes, claiming/unclaiming nodes, updating city, and viewing stats. No node register/delete or recent command.
 
-##### `/register` - Register a New Node
-Register a new node via Discord. This creates a new node in the database with `source='discord'`.
-- **Parameters**:
-  - `public_key` (required): Public hex key (exactly 64 hexadecimal characters = 32 bytes)
-  - `name` (required): Node name
-  - `node_type` (required): Node type (dropdown: "Companion", "Repeater", "Room Server", "Sensor")
-  - `city` (required): City name
-  - `frequency_preset` (required): Frequency preset (dropdown: select from preset list)
-  - `latitude` (optional): Latitude coordinate
-  - `longitude` (optional): Longitude coordinate
-  - `link` (optional): MeshCore link (must start with `meshcore://`)
-- **Validation**:
-  - Public key must be exactly 64 hex characters
-  - Public key must be unique (not already in database)
-  - Link must start with `meshcore://` if provided
-- **Behavior**:
-  - If node already exists and is active but unclaimed: Prompts user to choose between existing and new details, then claims it
-  - If node already exists and is inactive: Prompts user to confirm reactivation, then shows details choice prompt
-  - If node already exists and user owns it: Shows informational message suggesting `/manage list`
-  - If node already exists and is claimed by another user: Shows error message
-  - If node doesn't exist: Creates new node with all provided details
-- **Auto-set Fields**:
-  - `discord_owner_id` = command user's ID
-  - `discord_owner_name` = command user's username
-  - `source` = 'discord'
-  - `inserted_date` = current timestamp
-  - `discord_updated_date` = current timestamp
-  - `params` = frequency parameters from selected preset
-  - `is_active` = TRUE
-  - `synced_from_official` = FALSE
-- **Response Visibility**:
-  - **Success messages**: Public (visible to channel) - shows successful registration
-  - **Error messages**: Ephemeral (only to sender) - validation errors, already claimed, etc.
-  - **Interactive prompts**: Ephemeral (only to sender) - confirmation dialogs, detail choice prompts
-- **Logging**: Log all registration attempts to console with user info and result
+##### `/mynodes` - List Your Nodes
+- Lists all nodes owned by the user (including inactive).
+- **Response Visibility**: **Ephemeral** (only visible to sender).
+- **Display**: Simplified list with coordinates (only for own nodes).
 
-##### `/claim` - Claim a Node
+##### `/node claim` - Claim a Node
 Allow users to claim ownership of a node by partial name or partial public key:
 - **Parameters**:
   - `query` (required): Node's **partial** name or **partial** public key (hex)
@@ -377,12 +311,12 @@ Allow users to claim ownership of a node by partial name or partial public key:
   - If **exactly 1 node** found: Claim that node
   - If **multiple nodes** found: Show error message listing all matching nodes (with truncated public keys) and ask user to be more specific
   - If **no nodes** found: Show error message
-- **Action**: 
+- **Action**:
   - Sets `discord_owner_id` = command user's ID
   - Sets `discord_owner_name` = command user's username
-  - Updates `discord_updated_date` = current timestamp
-  - Verifies node exists in Belgian database
-  - **Note**: `updated_date` (from official map) is NOT modified by Discord commands
+  - Appends one row to `node_claims` with `action = 'claim'` and the current timestamp
+  - Verifies the node exists in the Belgian database
+  - **Note**: `updated_date` (from official map) is never modified by Discord commands
 - **Response**: 
   - Success: Confirmation message with node name - **Public** (visible to entire channel)
   - Error: List of matching nodes if multiple found, or "Node not found" if none - **Ephemeral** (only visible to sender)
@@ -391,91 +325,9 @@ Allow users to claim ownership of a node by partial name or partial public key:
   - **Error messages**: Ephemeral (only to sender) - errors are private
 - **Logging**: Log all claim attempts to console with user info, query, and result
 
-##### `/manage` - Manage Owned Nodes
-Users can manage nodes they've claimed:
-- **Subcommands**:
-  - `/manage list` - List all nodes owned by user
-    - **Display**: Shows all owned nodes with full details including **coordinates** (only shown for own nodes for security)
-    - **Response Visibility**: **Ephemeral** (only visible to sender) - private information including coordinates
-    - **Logging**: Log to console with user info
-  - `/manage update` - Update node properties
-    - Parameters: 
-      - `query` (required): Partial name or public key to identify the node
-      - `name` (optional): New node name
-      - `city` (optional): New city name
-      - `latitude` (optional): New latitude coordinate
-      - `longitude` (optional): New longitude coordinate
-      - `preset` (optional): Frequency preset name (dropdown: select from preset list)
-      - `freq` (optional): Custom frequency in MHz (if not using preset)
-      - `sf` (optional): Spreading factor (if not using preset)
-      - `bw` (optional): Bandwidth in kHz (if not using preset)
-      - `cr` (optional): Coding rate (if not using preset)
-    - **Search Behavior**: Same as `/claim` - must match exactly 1 node, or show error with list (uses substring matching)
-    - **Action**: 
-      - Updates specified fields (name, city, latitude, longitude, frequency parameters)
-      - If `preset` is provided, sets frequency parameters from preset (freq, sf, bw, cr)
-      - If individual frequency params (freq, sf, bw, cr) are provided, uses those instead
-      - Sets `discord_updated_date` = current timestamp
-      - **Note**: `updated_date` (from official map) is NOT modified by Discord commands
-      - If both preset and individual params are given: Return error message (ephemeral - only visible to sender) and do nothing
-      - Shows "📝 Changes" field in success message with old → new values for all updated fields
-    - **Restrictions**:
-      - **Public key/hex CANNOT be edited** - this field is immutable
-      - **Node type CANNOT be edited** - this field is immutable
-      - Users can update: name, city, coordinates (latitude/longitude), and frequency parameters
-      - **Note**: Coordinates are only displayed in ephemeral messages (like `/manage list`) for security reasons
-    - **Response Visibility**:
-      - **Success messages**: Public (visible to channel) - shows successful update to everyone
-      - **Error messages**: Ephemeral (only to sender) - errors are private (node not found, multiple matches, ownership verification failed, invalid preset, etc.)
-    - **Logging**: Log all update attempts to console
-  - `/manage unclaim` - Remove ownership claim
-    - Parameter: `query` (required): Partial name or partial public key to identify the node
-    - **Search Behavior**: Same as `/claim` - must match exactly 1 node, or show error with list (uses case-insensitive substring matching)
-    - **Action**: Removes ownership and sets `discord_updated_date` = current timestamp
-    - **Note**: `updated_date` (from official map) is NOT modified by Discord commands
-    - **Note**: Allows unclaiming inactive nodes if the user owns them
-    - **Response Visibility**:
-      - **Success messages**: Public (visible to channel) - shows successful unclaim to everyone
-      - **Error messages**: Ephemeral (only to sender) - errors are private (node not found, multiple matches, ownership verification failed, etc.)
-    - **Logging**: Log all unclaim attempts to console
-  - `/manage delete` - Permanently Delete a Node
-    - Parameter: `query` (required): Partial name or partial public key to identify the node
-    - **Search Behavior**: Same as `/claim` - must match exactly 1 node, or show error with list (uses case-insensitive substring matching, includes inactive nodes)
-    - **Deletion Criteria**: Node can only be deleted if:
-      - The node's `source` is 'discord', OR
-      - The node has never been detected by the official map (`synced_from_official = FALSE`), OR
-      - The node was previously removed from the official map (`removed_from_official = TRUE`)
-    - **Action**: 
-      - Requires interactive confirmation (ephemeral prompt with buttons)
-      - Permanently deletes the node from the database
-      - **Warning**: This action cannot be undone!
-    - **Response Visibility**:
-      - **Success messages**: Public (visible to channel) - shows successful deletion
-      - **Error messages**: Ephemeral (only to sender) - errors are private (node not found, multiple matches, ownership failed, deletion not allowed, etc.)
-      - **Confirmation prompts**: Ephemeral (only to sender)
-    - **Logging**: Log all delete attempts to console
-
-##### `/stats` - Statistics
-Show Belgian node statistics:
-- Total active nodes (claimed/unclaimed)
-- Registered users
-- Nodes by type (Companions, Repeaters, Room Servers, Sensors)
-- Top cities (most covered cities)
-- Coverage statistics
-- **Response Visibility**: **Public** (visible to entire channel) - statistics are general information
-- **Logging**: Log all stats requests to console with user info
-
-##### `/recent` - Recently Updated Nodes
-List the 25 most recently added or updated nodes from the last 24 hours:
-- **Parameters**: None (no user-settable limit or days parameters)
-- **Criteria**: Based on the most recent of 4 date fields:
-  - `inserted_date`
-  - `updated_date`
-  - `last_advert`
-  - `discord_updated_date`
-- **Display**: Shows list format with ICON `HEX HEAD` - NODE NAME - <DISCORD USER/Unclaimed>
-- **Response Visibility**: **Public** (visible to entire channel)
-- **Logging**: Log all recent requests to console with user info
+##### `/node unclaim` - Remove Ownership
+- Parameter: `query` (required). Same search behavior as claim; allows unclaiming inactive nodes if owned.
+- **Response Visibility**: Success public; errors ephemeral.
 
 #### Command Behavior Rules
 
@@ -493,7 +345,7 @@ List the 25 most recently added or updated nodes from the last 24 hours:
    - This applies to both full keys and truncated keys (6 characters)
    - Example: Stored as `0000001d8652...`, displayed as `0000001D8652...`
 
-3. **Multiple Results Handling**: For action commands (`/claim`, `/manage update`, `/manage unclaim`, `/manage delete`):
+3. **Multiple Results Handling**: For action commands (`/node claim`, `/node unclaim`):
   - If multiple nodes match: Show error message with list of all matching nodes
   - User must refine query to match exactly 1 node
   - **List format**: Show **ICON `HEX HEAD` - NODE NAME - <DISCORD USER/Unclaimed>**
@@ -502,8 +354,7 @@ List the 25 most recently added or updated nodes from the last 24 hours:
   - Example: `📱 `4E21ED` - USER_R1_Home - Unclaimed`
 
 4. **Public Key Display**:
-   - **Default**: Show only first 6 characters in UPPERCASE (e.g., `000000...`)
-   - **Exception**: When exactly 1 node is found in `/search`, show full public key in UPPERCASE
+   - Show first 6 characters in UPPERCASE (e.g., `000000...`) where applicable
    - **Storage**: Always stored in lowercase in database
 
 5. **Logging Requirements**:
@@ -514,100 +365,57 @@ List the 25 most recently added or updated nodes from the last 24 hours:
      - Result (success/failure, node count, etc.)
    - Format: `[TIMESTAMP] [COMMAND] User: @username (ID: 123456) Query: "xyz" Result: 3 nodes found`
 
-6. **Info Command Integration**:
-   - `/info` command is **obsolete**
-   - Full node information is automatically shown in `/search` when exactly 1 node is found
-
-7. **Discord Markdown Formatting**:
+6. **Discord Markdown Formatting**:
    - Node names with underscores (e.g., "USER_R1_Home") must be properly escaped to prevent Discord from rendering them as italic text
    - Use code blocks or escape underscores: `USER_R1_Home` or `USER\_R1\_Home`
    - All node names displayed in Discord responses must preserve underscores correctly
    - Example: Display `USER_R1_Home` instead of *USER*R1*Home* (which would render incorrectly)
 
-8. **Data Update Tracking**:
-   - **Every command that modifies data** must update the `discord_updated_date` field:
-     - `/claim`: Updates `discord_updated_date` when setting ownership
-     - `/manage update`: Updates `discord_updated_date` when modifying node properties
-     - `/manage unclaim`: Updates `discord_updated_date` when removing ownership
-   - Set `discord_updated_date` to current timestamp (ISO 8601 format)
-   - **Important**: `updated_date` (from official map) is **NOT** modified by Discord commands
-   - This separation allows proper data merging between official map updates and Discord user modifications
+7. **Data Update Tracking**:
+   - Every Discord ownership change appends one row to `node_claims`:
+     - `/node claim`: inserts an event with `action = 'claim'` and the current timestamp.
+     - `/node unclaim`: inserts an event with `action = 'unclaim'` and the current timestamp.
+   - **Important**: `updated_date` (from official map) is **NOT** modified by Discord commands.
+   - The append-only `node_claims` log is the single source of truth for ownership history.
 
-9. **Node Type Display and Search**:
+8. **Node Type Display**:
    - Node types are displayed and searchable as **text** instead of numbers:
      - `1` = "companion"
      - `2` = "repeater"
      - `3` = "room server"
      - `4` = "sensor"
-   - Users can filter/search by type using text names (case-insensitive)
    - All type displays in Discord show the text name, not the number
    - Internal storage still uses numbers (1-4) for database efficiency
 
-10. **Frequency Preset Matching**:
-   - Frequency parameters are matched against known MeshCore presets
-   - If parameters match a preset exactly, display: **"Preset Name + Frequency"**
-   - If no preset matches, display raw parameters as before
-   - Preset matching is based on: Frequency, SF, BW, CR (all must match exactly)
-   - See "Frequency Presets" section below for complete preset list
-
-11. **Response Visibility Rules**:
+9. **Response Visibility Rules**:
    - **Public Responses** (visible to entire channel):
-     - `/search` - All search results (general information)
-     - `/stats` - Statistics (general information)
-     - `/claim` - Success messages (shows successful claim to channel)
-     - `/register` - Success messages (shows successful registration to channel)
-     - `/manage update` - Success messages (shows successful update to channel)
-     - `/manage unclaim` - Success messages (shows successful unclaim to channel)
-     - `/manage delete` - Success messages (shows successful deletion to channel)
+     - `/node claim` - Success messages (shows successful claim to channel)
+     - `/node unclaim` - Success messages (shows successful unclaim to channel)
    - **Ephemeral Responses** (only visible to command sender):
-     - `/claim` - Error messages (node not found, multiple matches, already claimed)
-     - `/register` - Error messages (node not found, validation errors, already claimed by another user)
-     - `/manage list` - All responses (private information including coordinates)
-     - `/manage update` - Error messages (node not found, multiple matches, ownership failed, invalid preset, etc.)
-     - `/manage unclaim` - Error messages (node not found, multiple matches, ownership failed, etc.)
-     - `/manage delete` - Error messages (node not found, multiple matches, ownership failed, deletion not allowed, etc.)
-     - All interactive prompts (confirmation dialogs, detail choice prompts, etc.)
+     - `/mynodes` - All responses (private information including coordinates)
+     - `/node claim` - Error messages (node not found, multiple matches, already claimed)
+     - `/node unclaim` - Error messages (node not found, multiple matches, ownership failed, etc.)
+     - All interactive prompts (confirmation dialogs, etc.)
    - **Implementation**: Use `ephemeral=True` parameter in `interaction.response.send_message()` for private responses
-   - **Rationale**: 
-     - Success messages are public to show community activity
-     - Errors are private to avoid cluttering the channel
-     - Private information (own nodes list with coordinates) is ephemeral for security
+   - **Rationale**: Success messages are public to show community activity; errors and own-node list are private.
 
-12. **User Restrictions - What Discord Users CANNOT Do**:
+10. **User Restrictions - What Discord Users CANNOT Do**:
    - **Public Key/Hex is IMMUTABLE**: Discord users can **NEVER** edit, modify, or change a node's public key (hex). This field is read-only and cannot be updated via any Discord command.
    - **Node Type is IMMUTABLE**: Discord users can **NEVER** edit, modify, or change a node's type. This field is read-only.
    - **Coordinates are NOT Searchable**: Users cannot search or filter nodes by coordinates (latitude/longitude).
-   - **Coordinates Display Restrictions**: Coordinates are **only displayed** in ephemeral messages (like `/manage list` and interactive prompts) for security reasons. They are **never shown** in public search results or other public displays.
-   - **Cannot Add Nodes via Discord**: Discord users cannot manually add nodes to the database. Nodes are added via:
-     - The sync service from the official MeshCore map, OR
-     - The `/register` command (which creates new nodes with `source='discord'`)
-   - **Cannot Remove Nodes (except via `/manage delete`)**: Discord users can only delete nodes they own if:
-     - The node was registered via Discord (`source='discord'`), OR
-     - The node was never detected by the official map, OR
-     - The node was previously removed from the official map
-   - **Cannot Edit Immutable Fields**: The following fields cannot be modified by Discord users:
-     - `public_key` (hex) - **IMMUTABLE**
-     - `type` (node type) - **IMMUTABLE**
-     - `inserted_date` - read-only
-     - `link` (meshcore:// link) - read-only (can be set during `/register`)
-     - `inserted_by` - read-only (public hex key from official map companion device)
-     - `updated_by` - read-only (public hex key from official map companion device)
-     - `updated_date` - read-only (from official map, tracks official map updates)
+   - **Coordinates Display Restrictions**: Coordinates are **only displayed** in ephemeral messages (e.g. `/mynodes` and interactive prompts) for security reasons. They are **never shown** in public messages.
+  - **Cannot Add Nodes via Discord**: Discord users cannot add new nodes to the database. New nodes are added only via the sync service from the official MeshCore map (or via the MeshCore app / official map).
+   - **Cannot Remove Nodes via Discord**: Node deletion via Discord has been removed.
+   - **Cannot Edit Node Fields**: The Discord bot does not edit node attributes. All node attributes (`adv_name`, `city`, `params`, `adv_lat`, `adv_lon`, `link`, `inserted_by`, `updated_by`, `inserted_date`, `updated_date`) are **read-only** from the bot's perspective and come from the official map / sync service.
    - **Field Clarification**:
-     - `inserted_by` / `updated_by`: Public hex keys of companion devices that uploaded/updated nodes on the official map (from official map, never modified)
-     - `discord_owner_id` / `discord_owner_name`: Discord user information (set/updated only via Discord bot when users claim nodes)
-     - `updated_date`: From official map, tracks when node was last updated on the official MeshCore map (never modified by Discord bot)
-     - `discord_updated_date`: From Discord bot, tracks when node was last updated via Discord commands (separate from official map's `updated_date`)
-     - These are **separate fields** with **different purposes** - Discord ownership and updates do not affect official map tracking, and vice versa
+     - `inserted_by` / `updated_by`: Public hex keys of companion devices that uploaded/updated nodes on the official map (from official map, never modified).
+     - `discord_owner_id` / `discord_owner_name`: Discord user information (set only via `/node claim`, cleared by `/node unclaim`).
+     - `updated_date`: From official map, tracks when the node was last updated on the official MeshCore map (never modified by the Discord bot).
+     - `node_claims`: Append-only event log of every `/node claim` and `/node unclaim` action with a timestamp.
    - **What Users CAN Do**:
-     - Claim/unclaim node ownership
-     - Register new nodes via `/register`
-     - Update node name (`adv_name`)
-     - Update city
-     - Update coordinates (`adv_lat`, `adv_lon`) for nodes they own
-     - Update frequency parameters (freq, sf, bw, cr) or select presets
-     - Delete nodes they own (subject to restrictions above)
-   - **Security**: All update operations must verify ownership before allowing modifications
+     - Claim node ownership (`/node claim`)
+     - Release node ownership (`/node unclaim`)
+   - **Security**: `/node unclaim` verifies the caller is the current owner before allowing the change.
 
 #### Frequency Presets
 
@@ -680,7 +488,7 @@ BELGIUM_BOUNDS = {
 
 def download_official_nodes():
     """Download all nodes from official API"""
-    response = requests.get('https://map.meshcore.dev/api/v1/nodes')
+    response = requests.get('https://map.meshcore.io/api/v1/nodes')
     return response.json()
 
 def filter_by_bounds(nodes):
@@ -893,13 +701,14 @@ def format_frequency_display(params):
     else:
         return f"{params.get('freq', 'N/A')} MHz (SF: {params.get('sf', 'N/A')}, BW: {params.get('bw', 'N/A')}, CR: {params.get('cr', 'N/A')})"
 
-def update_discord_updated_date(public_key):
-    """Update the discord_updated_date field for a node
-    This tracks when the node was last modified via Discord bot commands.
-    The official map's updated_date field is NOT modified.
+def append_node_claim_event(public_key, user_id, user_name, action):
+    """Append a row to node_claims for the given action ('claim' or 'unclaim').
+
+    SQL:
+        INSERT INTO node_claims
+            (public_key, discord_owner_id, discord_owner_name, action, timestamp)
+        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
     """
-    # Set discord_updated_date to current timestamp
-    # SQL: UPDATE belgian_nodes SET discord_updated_date = CURRENT_TIMESTAMP WHERE public_key = ?
     pass
 
 def log_command(command_name, user, query=None, result=None):
@@ -968,10 +777,6 @@ Public Key: {pub_key_display} (full)
 Frequency: {freq_display}
 Owner: {node.get('discord_owner_name', 'Unclaimed')}
 """
-    # Show Discord update date if available
-    if node.get('discord_updated_date'):
-        response += f"Last Discord Update: {node.get('discord_updated_date')}\n"
-    
     response += f"[View on Map]({get_map_link(node)})\n"
     return response
 
@@ -1049,11 +854,11 @@ async def claim_node(interaction: discord.Interaction, query: str):
         await interaction.response.send_message(error_msg, ephemeral=True)
         return
     
-    # Exactly 1 node: claim it
+    # Exactly 1 node: claim it.
+    # update_ownership() updates belgian_nodes AND inserts the
+    # corresponding row into node_claims in a single transaction.
     node = nodes[0]
-    # Update ownership and discord_updated_date
     update_ownership(node['public_key'], interaction.user.id, interaction.user.name)
-    update_discord_updated_date(node['public_key'])
     
     log_command("CLAIM", interaction.user, query, f"SUCCESS: Claimed {node['adv_name']}")
     # Escape node name to preserve underscores
@@ -1088,103 +893,6 @@ async def manage_list(interaction: discord.Interaction):
     # Private information with coordinates - ephemeral (only to sender)
     await interaction.response.send_message(response, ephemeral=True)
 
-@manage_nodes.tree.command(name="update", description="Update node properties")
-@app_commands.describe(
-    query="Node's partial name or partial public key (required)",
-    name="New node name (optional)",
-    city="New city (optional)",
-    preset="Frequency preset name (optional, e.g., 'EU/UK (Narrow)')",
-    freq="Custom frequency in MHz (optional, if not using preset)",
-    sf="Spreading factor (optional, if not using preset)",
-    bw="Bandwidth in kHz (optional, if not using preset)",
-    cr="Coding rate (optional, if not using preset)"
-)
-async def manage_update(interaction: discord.Interaction,
-                        query: str,
-                        name: str = None,
-                        city: str = None,
-                        preset: str = None,
-                        freq: float = None,
-                        cr: int = None,
-                        sf: int = None,
-                        bw: float = None):
-    # Search with substring matching (matches anywhere in string, case-insensitive)
-    nodes = query_nodes_substring(query)
-    
-    log_command("MANAGE_UPDATE", interaction.user, query, f"{len(nodes)} nodes found")
-    
-    if not nodes:
-        # Error - ephemeral (only to sender)
-        await interaction.response.send_message("Node not found.", ephemeral=True)
-        return
-    
-    if len(nodes) > 1:
-        # Error - ephemeral (only to sender)
-        error_msg = f"**Multiple nodes found. Please be more specific:**\n\n"
-        error_msg += format_node_list(nodes, show_full_keys=False)
-        await interaction.response.send_message(error_msg, ephemeral=True)
-        return
-    
-    # Verify ownership
-    node = nodes[0]
-    if node.get('discord_owner_id') != str(interaction.user.id):
-        # Error - ephemeral (only to sender)
-        await interaction.response.send_message("You don't own this node.", ephemeral=True)
-        return
-    
-    # Handle preset vs individual frequency params
-    freq_params = {}
-    if preset:
-        # Check if individual params also provided (conflict)
-        if freq is not None or sf is not None or bw is not None or cr is not None:
-            # Error - ephemeral (only to sender)
-            await interaction.response.send_message(
-                "Error: Cannot specify both preset and individual frequency parameters. Use either preset OR individual params, not both.",
-                ephemeral=True
-            )
-            return
-        
-        # Find preset by name (case-insensitive)
-        preset_obj = None
-        for p in FREQUENCY_PRESETS:
-            if p['name'].lower() == preset.lower():
-                preset_obj = p
-                break
-        if preset_obj:
-            freq_params = {
-                'freq': preset_obj['freq'],
-                'sf': preset_obj['sf'],
-                'bw': preset_obj['bw'],
-                'cr': preset_obj['cr']
-            }
-        else:
-            # Error - ephemeral (only to sender)
-            await interaction.response.send_message(f"Invalid preset name: {preset}", ephemeral=True)
-            return
-    elif freq is not None or sf is not None or bw is not None or cr is not None:
-        # Use individual params if provided
-        if freq is not None:
-            freq_params['freq'] = freq
-        if sf is not None:
-            freq_params['sf'] = sf
-        if bw is not None:
-            freq_params['bw'] = bw
-        if cr is not None:
-            freq_params['cr'] = cr
-    
-    # Update node properties and discord_updated_date
-    # NOTE: public_key is NEVER updated - it's immutable
-    # NOTE: updated_date (from official map) is NOT modified - only discord_updated_date is updated
-    # Only allowed fields: name, city, frequency parameters
-    update_node_properties(node['public_key'], name, city, freq_params)
-    update_discord_updated_date(node['public_key'])
-    
-    log_command("MANAGE_UPDATE", interaction.user, query, f"SUCCESS: Updated {node['adv_name']}")
-    # Escape node name to preserve underscores
-    node_name = escape_discord_markdown(node['adv_name'])
-    # Success - public (visible to channel)
-    await interaction.response.send_message(f"✅ Updated node: {node_name}")
-
 @manage_nodes.tree.command(name="unclaim", description="Remove ownership claim")
 @app_commands.describe(query="Node's partial name or partial public key")
 async def manage_unclaim(interaction: discord.Interaction, query: str):
@@ -1212,9 +920,10 @@ async def manage_unclaim(interaction: discord.Interaction, query: str):
         await interaction.response.send_message("You don't own this node.", ephemeral=True)
         return
     
-    # Unclaim node and update discord_updated_date
-    remove_ownership(node['public_key'])
-    update_discord_updated_date(node['public_key'])
+    # remove_ownership() clears discord_owner_id/discord_owner_name on
+    # belgian_nodes AND inserts the corresponding 'unclaim' row into
+    # node_claims in a single transaction.
+    remove_ownership(node['public_key'], interaction.user.id)
     
     log_command("MANAGE_UNCLAIM", interaction.user, query, f"SUCCESS: Unclaimed {node['adv_name']}")
     # Escape node name to preserve underscores
@@ -1320,8 +1029,7 @@ bot.run(os.getenv('DISCORD_BOT_TOKEN'))
 #### Database Queries
 - Efficient indexing on `public_key`, `city`, `discord_owner_id`, `is_active`
 - **Always filter active nodes**: `WHERE is_active = TRUE` (for web map and ALL Discord bot commands)
-- **Discord Bot Filtering**: ALL commands (`/search`, `/claim`, `/manage update`, `/manage unclaim`, `/stats`) MUST filter `WHERE is_active = TRUE`
-- **Exception**: `/manage list` shows both active and inactive nodes (with clear indication of inactive status)
+- **Discord Bot Filtering**: Commands that target a single node (`/node claim`, `/node unclaim`) MUST filter active nodes for discovery; `/mynodes` shows both active and inactive nodes (with clear indication of inactive status)
 - Prepared statements for security
 - Connection pooling for performance
 - **Case-Insensitive Storage and Queries**:
@@ -1342,24 +1050,14 @@ bot.run(os.getenv('DISCORD_BOT_TOKEN'))
   - Text is converted to number (1-4) before database query
   - Database stores and queries using numbers (1-4) for efficiency
   - Display always shows text names
-- **Update Functions**:
-  - `update_ownership()`: Sets `discord_owner_id`, `discord_owner_name`, and `discord_updated_date`
-    - **Does NOT modify** `inserted_by`, `updated_by`, or `updated_date` (these are from official map, immutable)
-  - `update_node_properties()`: Updates specified fields and sets `discord_updated_date`
-    - **Allowed fields**: `adv_name`, `city`, `params` (frequency parameters)
-    - **IMMUTABLE fields** (never updated): `public_key`, `type`, `adv_lat`, `adv_lon`, `inserted_date`, `link`, `inserted_by`, `updated_by`, `updated_date`
-    - **Coordinates cannot be updated**: `adv_lat` and `adv_lon` are immutable
-    - **Official map fields preserved**: 
-      - `inserted_by` and `updated_by` are public hex keys from companion devices that uploaded/updated nodes on the official map - these are **never modified** by our system
-      - `updated_date` tracks when node was last updated on the official map - this is **never modified** by Discord commands
-    - Must verify ownership before allowing updates
-  - `remove_ownership()`: Removes ownership fields (`discord_owner_id`, `discord_owner_name`) and sets `discord_updated_date`
-    - **Does NOT modify** `inserted_by`, `updated_by`, or `updated_date`
-  - All update functions must set `discord_updated_date = CURRENT_TIMESTAMP` (or equivalent)
-  - **Date Field Separation**: 
-    - `updated_date` - From official map, never modified by Discord bot
-    - `discord_updated_date` - From Discord bot, tracks Discord modifications
-    - This separation enables proper data merging between official map and Discord updates
+- **Ownership Functions**:
+  - `update_ownership()`: Sets `discord_owner_id` and `discord_owner_name` on `belgian_nodes` AND inserts a `'claim'` row into `node_claims` in the same transaction.
+  - `remove_ownership()`: Clears `discord_owner_id` / `discord_owner_name` AND inserts an `'unclaim'` row into `node_claims` in the same transaction.
+  - **Does NOT modify** `inserted_by`, `updated_by`, or `updated_date` (these come from the official map and are immutable from the bot's perspective).
+  - **Other node attributes** (`adv_name`, `city`, `params`, `adv_lat`, `adv_lon`, `link`) are read-only from the bot's side; they are owned by the sync service.
+  - **Date Field Source of Truth**:
+    - `updated_date` – From the official map, never modified by the Discord bot.
+    - `node_claims.timestamp` – From the Discord bot, ordered append-only history of every claim/unclaim event.
 - **Security Restrictions**:
   - **No node addition**: Discord bot cannot add nodes (only sync service can)
   - **No node deletion**: Discord bot cannot delete nodes (only sync service can)
@@ -1376,7 +1074,7 @@ bot.run(os.getenv('DISCORD_BOT_TOKEN'))
 1. **Change API endpoint**:
 ```javascript
 // Current
-const apiUrl = "https://map.meshcore.dev/api/v1/nodes";
+const apiUrl = "https://map.meshcore.io/api/v1/nodes";
 
 // New (REST API endpoint - recommended architecture)
 const apiUrl = "/api/v1/belgian-nodes";  // Local REST API endpoint
@@ -1467,8 +1165,8 @@ let params = { lat: 50.5039, lon: 4.4699, zoom: 8 };  // Brussels
 3. Processes command logic
    ↓
 4. Updates database (if needed)
-   - Updates `discord_updated_date` (not `updated_date`)
-   - Updates ownership or node properties
+   - Sets / clears `discord_owner_id` and `discord_owner_name` on `belgian_nodes`
+   - Appends a row to `node_claims` (`action = 'claim'` or `'unclaim'`)
    ↓
 5. Sends response to Discord
 ```
@@ -1479,7 +1177,7 @@ let params = { lat: 50.5039, lon: 4.4699, zoom: 8 };  // Brussels
 
 ### Web Map Workflow
 ```
-1. User loads map.axistem.eu
+1. User loads meshmap.radio-actief.be
    ↓
 2. Frontend requests Belgian nodes via REST API
    ↓
@@ -1589,7 +1287,7 @@ GEOPY_USER_AGENT=belgian_meshcore_map
 GEOPY_TIMEOUT=10
 
 # API
-OFFICIAL_API_URL=https://map.meshcore.dev/api/v1/nodes
+OFFICIAL_API_URL=https://map.meshcore.io/api/v1/nodes
 LOCAL_API_URL=http://localhost:8000/api/v1
 
 # Sync Schedule

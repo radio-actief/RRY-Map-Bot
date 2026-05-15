@@ -1,7 +1,12 @@
 """
 Sync Service for RRY-Map-Bot
 Downloads nodes from official MeshCore map, filters for Belgian nodes,
-verifies with Geopy, and integrates changes into the database.
+verifies each node with the local Belgian geocoder (``backend.belgian_geocoder``)
+and integrates changes into the database.
+
+Geopy/Nominatim is kept as an optional fallback, enabled via ``--use-geopy``
+or ``USE_GEOPY_FALLBACK=1`` (and auto-used when the municipalities GeoJSON
+is missing).
 """
 
 import requests
@@ -9,9 +14,23 @@ import time
 import sys
 import os
 from typing import Dict, List, Any, Optional, Set
-from datetime import datetime
-from geopy.geocoders import Nominatim
-from geopy.exc import GeocoderTimedOut, GeocoderServiceError, GeocoderUnavailable
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
+
+# Geopy is now optional (fallback only); gate the import so a missing geopy
+# install doesn't break the default local-geocoder path.
+try:
+    from geopy.geocoders import Nominatim  # type: ignore
+    from geopy.exc import (  # type: ignore
+        GeocoderTimedOut,
+        GeocoderServiceError,
+        GeocoderUnavailable,
+    )
+    _GEOPY_AVAILABLE = True
+except ImportError:  # pragma: no cover - optional
+    Nominatim = None  # type: ignore
+    GeocoderTimedOut = GeocoderServiceError = GeocoderUnavailable = Exception  # type: ignore
+    _GEOPY_AVAILABLE = False
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
@@ -21,11 +40,12 @@ try:
         OFFICIAL_API_URL,
         BELGIUM_BOUNDS,
         GEOPY_USER_AGENT,
-        GEOPY_TIMEOUT
+        GEOPY_TIMEOUT,
+        SYNC_INTERVAL_MINUTES,
     )
 except (ImportError, ModuleNotFoundError):
     # Fallback if config not available
-    OFFICIAL_API_URL = 'https://map.meshcore.dev/api/v1/nodes'
+    OFFICIAL_API_URL = 'https://map.meshcore.io/api/v1/nodes'
     BELGIUM_BOUNDS = {
         'min_lat': 49.5,
         'max_lat': 51.5,
@@ -34,9 +54,11 @@ except (ImportError, ModuleNotFoundError):
     }
     GEOPY_USER_AGENT = 'belgian_meshcore_map'
     GEOPY_TIMEOUT = 10
+    SYNC_INTERVAL_MINUTES = int(os.getenv('SYNC_INTERVAL_MINUTES', str(int(os.getenv('SYNC_INTERVAL_HOURS', '6')) * 60)))
 
 from backend.database import (
     get_connection,
+    get_db_path,
     init_database,
     json_serialize,
     json_deserialize,
@@ -44,6 +66,53 @@ from backend.database import (
     dict_from_row
 )
 import sqlite3
+from pathlib import Path
+
+# Safety: skip applying removals if count exceeds this (avoids mass delete on API/network issues)
+REMOVAL_SAFETY_MAX_ABSOLUTE = 25
+REMOVAL_SAFETY_MAX_PERCENT_OF_ACTIVE = 0.05  # 5%
+
+
+def _geocode_failures_log_path() -> Path:
+    """Path for the verification-failures log (same directory as DB).
+
+    Used by both the local geocoder and the Geopy fallback. File name kept
+    neutral so operators don't have to chase two separate logs.
+    """
+    return Path(get_db_path()).parent / "geocode_failures.log"
+
+
+# Backwards-compatible alias; older callers may still import this name.
+_geopy_failures_log_path = _geocode_failures_log_path
+
+
+def _log_geocode_failure(
+    public_key: str,
+    reason: str,
+    lat: Optional[float],
+    lon: Optional[float],
+    kept_from_db: bool,
+    source: str = "local",
+) -> None:
+    """Append one line to the geocode-failures log.
+
+    Columns: ``ts\tpublic_key\tlat\tlon\taction\tsource\treason``.
+    ``source`` is either ``local`` (BelgianGeocoder miss) or ``geopy`` (Nominatim failure).
+    """
+    try:
+        log_path = _geocode_failures_log_path()
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        action = "kept_from_db" if kept_from_db else "dropped"
+        line = f"{ts}\t{public_key}\t{lat}\t{lon}\t{action}\t{source}\t{reason}\n"
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(line)
+    except OSError:
+        pass  # Do not fail sync if logging fails
+
+
+# Back-compat alias for the legacy name used in older code paths.
+_log_geopy_failure = _log_geocode_failure
 
 
 def download_official_nodes() -> List[Dict[str, Any]]:
@@ -97,6 +166,101 @@ def filter_by_bounds(nodes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return filtered
 
 
+def verify_with_local_geocoder(
+    node: Dict[str, Any], geocoder: "Any"
+) -> Dict[str, Any]:
+    """Verify a node is in Belgium and extract the gemeente using the local geocoder.
+
+    Returns a dict with ``verified`` (bool), plus either ``city`` / ``nis5`` /
+    ``province_code`` on a hit or ``reason`` on a miss. Mirrors the shape of
+    :func:`verify_with_geopy` so the rest of the pipeline is unchanged.
+    """
+    lat = node.get('adv_lat')
+    lon = node.get('adv_lon')
+
+    if lat is None or lon is None:
+        return {'verified': False, 'reason': 'No coordinates'}
+
+    try:
+        result = geocoder.geocode(lat, lon)
+    except Exception as e:  # pragma: no cover - defensive
+        return {'verified': False, 'reason': f'Local geocoder error: {e}'}
+
+    if result is None:
+        return {'verified': False, 'reason': 'Outside Belgium (local geocoder)'}
+
+    return {
+        'verified': True,
+        'city': result.get('plaats') or 'Unknown',
+        'nis5': result.get('nis5'),
+        'province_code': result.get('province_code'),
+    }
+
+
+def verify_nodes_locally(
+    nodes: List[Dict[str, Any]],
+    previous_nodes: Optional[Dict[str, Dict[str, Any]]] = None,
+    geocoder: Optional["Any"] = None,
+) -> List[Dict[str, Any]]:
+    """Verify nodes with the local Belgian geocoder (no network, no rate limit).
+
+    Semantics match :func:`verify_nodes_with_geopy`:
+    - Local hit → keep node, set ``city`` from the canonical ``plaats`` label.
+    - Local miss but node is already in DB → keep node with its DB city.
+    - Local miss and node is new → drop.
+    Failures are logged to ``<db_dir>/geocode_failures.log`` with ``source=local``.
+    """
+    if geocoder is None:
+        from backend.belgian_geocoder import get_geocoder as _gg
+        geocoder = _gg()
+
+    previous_nodes = previous_nodes or {}
+    verified_nodes: List[Dict[str, Any]] = []
+    verified_count = 0
+    failed_kept_from_db = 0
+    failed_dropped = 0
+
+    print(f"Verifying {len(nodes)} nodes with local Belgian geocoder "
+          f"({len(geocoder)} gemeenten, buffer {geocoder.buffer_m:.0f} m)...")
+
+    t0 = time.time()
+    for node in nodes:
+        result = verify_with_local_geocoder(node, geocoder)
+
+        if result['verified']:
+            node['city'] = result['city']
+            if result.get('nis5'):
+                node['nis5'] = result['nis5']
+            if result.get('province_code'):
+                node['province_code'] = result['province_code']
+            verified_nodes.append(node)
+            verified_count += 1
+        else:
+            key = node.get('public_key')
+            kept = bool(key and key in previous_nodes)
+            if kept:
+                node['city'] = previous_nodes[key].get('city')
+                verified_nodes.append(node)
+                failed_kept_from_db += 1
+            else:
+                failed_dropped += 1
+            _log_geocode_failure(
+                key or "",
+                result.get("reason", "unknown"),
+                node.get("adv_lat"),
+                node.get("adv_lon"),
+                kept_from_db=kept,
+                source="local",
+            )
+
+    elapsed = time.time() - t0
+    rate = (len(nodes) / elapsed) if elapsed > 0 else float('inf')
+    print(f"Local geocoding complete: {verified_count} Belgian verified, "
+          f"{failed_kept_from_db} kept from DB, {failed_dropped} dropped "
+          f"({elapsed:.2f}s, {rate:.0f} nodes/s)")
+    return verified_nodes
+
+
 def verify_with_geopy(node: Dict[str, Any], geolocator: Nominatim) -> Dict[str, Any]:
     """
     Verify node is in Belgium and extract city using Geopy.
@@ -148,21 +312,30 @@ def verify_with_geopy(node: Dict[str, Any], geolocator: Nominatim) -> Dict[str, 
 
 
 def verify_nodes_with_geopy(nodes: List[Dict[str, Any]], 
-                            delay: float = 1.5) -> List[Dict[str, Any]]:
+                            delay: float = 1.5,
+                            previous_nodes: Optional[Dict[str, Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
     """
-    Verify all nodes with Geopy, respecting rate limits.
+    Verify nodes with Geopy, respecting rate limits.
+    - If Geopy confirms Belgium: keep node and set city from Geopy.
+    - If Geopy fails but node is already in DB (previous_nodes): keep node and keep city from DB.
+    - If Geopy fails and node is new: drop (do not add unverified new nodes).
+    This avoids false "removed" for existing nodes when Geopy times out or rate-limits.
     
     Args:
         nodes: List of nodes to verify.
         delay: Delay between Geopy requests in seconds (default 1.5).
+        previous_nodes: Optional dict of existing nodes from DB (public_key -> node). Used to keep
+            nodes that fail Geopy but are already in the DB, preserving their city.
     
     Returns:
-        List of verified Belgian nodes with city information.
+        List of verified Belgian nodes plus existing nodes that failed verification (with DB city).
     """
     geolocator = Nominatim(user_agent=GEOPY_USER_AGENT)
+    previous_nodes = previous_nodes or {}
     verified_nodes = []
     verified_count = 0
-    failed_count = 0
+    failed_kept_from_db = 0
+    failed_dropped = 0
     
     print(f"Verifying {len(nodes)} nodes with Geopy (delay: {delay}s between requests)...")
     
@@ -173,19 +346,34 @@ def verify_nodes_with_geopy(nodes: List[Dict[str, Any]],
             node['city'] = result['city']
             verified_nodes.append(node)
             verified_count += 1
-            if i % 10 == 0:
-                print(f"  Progress: {i}/{len(nodes)} verified ({verified_count} Belgian, {failed_count} failed)")
         else:
-            failed_count += 1
-            if i % 10 == 0:
-                print(f"  Progress: {i}/{len(nodes)} verified ({verified_count} Belgian, {failed_count} failed)")
+            key = node.get('public_key')
+            kept = key and key in previous_nodes
+            if kept:
+                node['city'] = previous_nodes[key].get('city')
+                verified_nodes.append(node)
+                failed_kept_from_db += 1
+            else:
+                failed_dropped += 1
+            _log_geocode_failure(
+                key or "",
+                result.get("reason", "unknown"),
+                node.get("adv_lat"),
+                node.get("adv_lon"),
+                kept_from_db=kept,
+                source="geopy",
+            )
+        
+        if i % 10 == 0:
+            print(f"  Progress: {i}/{len(nodes)} verified ({verified_count} Belgian, "
+                  f"{failed_kept_from_db} kept from DB, {failed_dropped} dropped)")
         
         # Rate limiting: delay between requests (except for last node)
         if i < len(nodes):
             time.sleep(delay)
     
     print(f"Geopy verification complete: {verified_count} Belgian nodes verified, "
-          f"{failed_count} nodes failed verification")
+          f"{failed_kept_from_db} kept from DB (Geopy failed), {failed_dropped} new nodes dropped")
     return verified_nodes
 
 
@@ -287,7 +475,12 @@ def integrate_added_node(node: Dict[str, Any], conn) -> None:
         conn: Database connection.
     """
     cursor = conn.cursor()
-    
+
+    # Always stamp inserted_date: prefer the official feed's value, fall back
+    # to our current scrape time so every row has a first-seen day for the
+    # stats chart and timeline playback.
+    inserted_date_value = node.get('inserted_date') or get_current_timestamp()
+
     try:
         cursor.execute("""
             INSERT INTO belgian_nodes (
@@ -304,7 +497,7 @@ def integrate_added_node(node: Dict[str, Any], conn) -> None:
             node.get('adv_lon'),
             node.get('city'),
             node.get('last_advert'),
-            node.get('inserted_date'),
+            inserted_date_value,
             node.get('updated_date'),
             json_serialize(node.get('params')),
             node.get('link'),
@@ -344,7 +537,7 @@ def integrate_removed_node(public_key: str, conn) -> None:
     cursor = conn.cursor()
     
     # Normalize public key: remove spaces, dashes, convert to lowercase
-    # This matches the normalization in register_node and get_node_by_key
+    # This matches the normalization in get_node_by_key
     public_key_normalized = public_key.replace(' ', '').replace('-', '').lower()
     
     # Get current node data for logging
@@ -392,52 +585,33 @@ def restore_removed_node(node: Dict[str, Any], conn) -> None:
     cursor = conn.cursor()
     
     # Normalize public key: remove spaces, dashes, convert to lowercase
-    # This matches the normalization in register_node and get_node_by_key
+    # This matches the normalization in get_node_by_key
     public_key_normalized = node['public_key'].replace(' ', '').replace('-', '').lower()
     
     # Get current node to preserve Discord ownership, source, and city
-    cursor.execute("SELECT discord_owner_id, discord_owner_name, discord_updated_date, source, adv_lat, adv_lon, city FROM belgian_nodes WHERE public_key = ?", (public_key_normalized,))
+    cursor.execute("SELECT discord_owner_id, discord_owner_name, source, adv_lat, adv_lon, city FROM belgian_nodes WHERE public_key = ?", (public_key_normalized,))
     existing = cursor.fetchone()
     discord_owner_id = existing['discord_owner_id'] if existing else None
     discord_owner_name = existing['discord_owner_name'] if existing else None
-    discord_updated_date = existing['discord_updated_date'] if existing else None
     current_source = existing['source'] if existing else None
     current_lat = existing['adv_lat'] if existing else None
     current_lon = existing['adv_lon'] if existing else None
     current_city = existing['city'] if existing else None
     
-    # Preserve "discord" source if it exists (nodes registered via Discord)
-    # If source is "discord", it means the node was registered via Discord and shouldn't be in official map
-    # But if it appears in official map, we update everything except source
-    source_to_use = current_source if (current_source and current_source.lower() == 'discord') else node.get('source')
+    # Use source from official map when restoring (if node is back on API as app/uploader, sync that)
+    source_to_use = node.get('source')
     
-    # Determine city to use: only update from Geopy if coordinates changed by >= 0.01 degrees
-    # OR if current city is NULL/empty
+    # Local geocoding is effectively free, so always re-geocode on restore when
+    # the node has coordinates. Falls back to the current DB city only when the
+    # incoming sync couldn't resolve a city (e.g. "kept from DB" path).
     new_lat = node.get('adv_lat')
-    new_lon = node.get('adv_lon')
-    city_to_use = current_city  # Default: keep existing city
+    new_city = node.get('city')
+    if new_lat is not None and new_city:
+        city_to_use = new_city
+    else:
+        city_to_use = current_city
     
-    if new_lat is not None and new_lon is not None and current_lat is not None and current_lon is not None:
-        # Both old and new coordinates exist - check if they changed significantly
-        lat_diff = abs(float(new_lat) - float(current_lat))
-        lon_diff = abs(float(new_lon) - float(current_lon))
-        
-        if lat_diff >= 0.01 or lon_diff >= 0.01:
-            # Coordinates changed by >= 0.01 degrees - update city from Geopy
-            city_to_use = node.get('city')
-        elif not current_city or (isinstance(current_city, str) and current_city.strip() == ''):
-            # Coordinates didn't change much, but city is missing - update from Geopy
-            city_to_use = node.get('city')
-        # Otherwise: coordinates didn't change enough and city exists - keep existing city
-    elif not current_city or (isinstance(current_city, str) and current_city.strip() == ''):
-        # No existing coordinates or city is missing - use city from Geopy
-        city_to_use = node.get('city')
-    elif current_lat is None or current_lon is None:
-        # Had no coordinates before, now we have them - use city from Geopy
-        city_to_use = node.get('city')
-    # Otherwise: keep existing city (we have coordinates and city, and coordinates didn't change enough)
-    
-    # Update ALL fields from official map, reactivate, preserve Discord ownership and discord source
+    # Update ALL fields from official map, reactivate, preserve Discord ownership.
     cursor.execute("""
         UPDATE belgian_nodes
         SET is_active = 1,
@@ -457,15 +631,14 @@ def restore_removed_node(node: Dict[str, Any], conn) -> None:
             updated_by = ?,
             last_sync_date = ?,
             discord_owner_id = ?,
-            discord_owner_name = ?,
-            discord_updated_date = ?
+            discord_owner_name = ?
         WHERE public_key = ?
     """, (
         node.get('type'),
         node.get('adv_name'),
         node.get('adv_lat'),
         node.get('adv_lon'),
-        city_to_use,  # Use determined city
+        city_to_use,
         node.get('last_advert'),
         node.get('updated_date'),
         json_serialize(node.get('params')),
@@ -474,9 +647,8 @@ def restore_removed_node(node: Dict[str, Any], conn) -> None:
         node.get('inserted_by'),
         node.get('updated_by'),
         get_current_timestamp(),
-        discord_owner_id,  # Preserve Discord ownership
-        discord_owner_name,  # Preserve Discord ownership
-        discord_updated_date,  # Preserve Discord ownership
+        discord_owner_id,
+        discord_owner_name,
         public_key_normalized
     ))
     
@@ -491,60 +663,6 @@ def restore_removed_node(node: Dict[str, Any], conn) -> None:
         get_current_timestamp(),
         json_serialize(node)
     ))
-
-
-def should_preserve_discord_edit(db_node: Dict[str, Any], 
-                                  official_node: Dict[str, Any], 
-                                  field: str) -> bool:
-    """
-    Determine if Discord user edit should be preserved for a field.
-    
-    Args:
-        db_node: Node from database.
-        official_node: Node from official map.
-        field: Field name to check.
-    
-    Returns:
-        True if Discord edit should be preserved, False if official map should win.
-    """
-    # If Discord never edited this field, official map wins
-    if not db_node.get('discord_updated_date'):
-        return False
-    
-    # If official map updated_date is newer than discord_updated_date, official wins
-    official_updated = official_node.get('updated_date')
-    discord_updated = db_node.get('discord_updated_date')
-    
-    if not official_updated:
-        return True  # No official update, preserve Discord edit
-    
-    # Compare timestamps
-    try:
-        # Handle different timestamp formats
-        # ISO format: "2025-01-15T14:30:00" or "2025-01-15T14:30:00.123456"
-        # Space format: "2025-01-15 14:30:00"
-        # Normalize formats
-        official_normalized = official_updated.replace('Z', '+00:00').replace(' ', 'T')
-        discord_normalized = discord_updated.replace('Z', '+00:00').replace(' ', 'T')
-        
-        # Parse timestamps
-        official_dt = datetime.fromisoformat(official_normalized)
-        discord_dt = datetime.fromisoformat(discord_normalized)
-        
-        # Make both timezone-aware or both timezone-naive for comparison
-        # If one is aware and one is naive, make both naive (assume UTC for naive)
-        if official_dt.tzinfo is None and discord_dt.tzinfo is not None:
-            # Official is naive, Discord is aware - make Discord naive
-            discord_dt = discord_dt.replace(tzinfo=None)
-        elif official_dt.tzinfo is not None and discord_dt.tzinfo is None:
-            # Official is aware, Discord is naive - make official naive
-            official_dt = official_dt.replace(tzinfo=None)
-        
-        return discord_dt > official_dt
-    except (ValueError, AttributeError) as e:
-        # If we can't parse dates, default to preserving Discord edit
-        # This is safer than losing user edits
-        return True
 
 
 def merge_node_update(node: Dict[str, Any], 
@@ -565,7 +683,7 @@ def merge_node_update(node: Dict[str, Any],
     cursor = conn.cursor()
     
     # Normalize public key: remove spaces, dashes, convert to lowercase
-    # This matches the normalization in register_node and get_node_by_key
+    # This matches the normalization in get_node_by_key
     public_key_normalized = node['public_key'].replace(' ', '').replace('-', '').lower()
     
     # Immutable fields: always update from official map
@@ -583,61 +701,23 @@ def merge_node_update(node: Dict[str, Any],
         'inserted_date': node.get('inserted_date'),
     }
     
-    # Preserve "discord" source if it exists (nodes registered via Discord)
-    current_source = db_node.get('source')
-    if current_source and current_source.lower() == 'discord':
-        # Keep discord source, don't overwrite with official map source
-        pass  # Don't add source to immutable_updates
-    else:
-        # Update source from official map
-        immutable_updates['source'] = node.get('source')
-    
-    # Editable fields: conflict resolution
-    editable_updates = {}
-    
-    # adv_name
-    if should_preserve_discord_edit(db_node, node, 'adv_name'):
-        editable_updates['adv_name'] = db_node.get('adv_name')
-    else:
-        editable_updates['adv_name'] = node.get('adv_name')
-    
-    # city
-    # Only update city from Geopy if coordinates changed by >= 0.01 degrees
-    # OR if Discord edit should not be preserved AND city is missing
-    current_lat = db_node.get('adv_lat')
-    current_lon = db_node.get('adv_lon')
+    # Always update source from official map (e.g. if a Discord-registered node
+    # is later detected by an uploader, API will have source=uploader and we sync that).
+    immutable_updates['source'] = node.get('source')
+
+    # Editable fields are owned by the official map; Discord-side claim/unclaim
+    # only touches discord_owner_id / discord_owner_name (handled separately).
+    editable_updates = {
+        'adv_name': node.get('adv_name'),
+        'params': node.get('params'),
+    }
+
+    # Local geocoding is effectively free, so we prefer the freshly resolved
+    # `new_city`. If the sync couldn't resolve a city (e.g. "kept from DB" path)
+    # fall back to the current value.
     current_city = db_node.get('city')
-    new_lat = node.get('adv_lat')
-    new_lon = node.get('adv_lon')
     new_city = node.get('city')
-    
-    # Check if coordinates changed significantly
-    coordinates_changed = False
-    if (current_lat is not None and current_lon is not None and 
-        new_lat is not None and new_lon is not None):
-        lat_diff = abs(float(new_lat) - float(current_lat))
-        lon_diff = abs(float(new_lon) - float(current_lon))
-        coordinates_changed = (lat_diff >= 0.01 or lon_diff >= 0.01)
-    
-    # Determine city to use
-    if should_preserve_discord_edit(db_node, node, 'city'):
-        # Discord edit is more recent - preserve it
-        editable_updates['city'] = db_node.get('city')
-    elif coordinates_changed:
-        # Coordinates changed by >= 0.01 - update city from Geopy
-        editable_updates['city'] = new_city
-    elif not current_city or (isinstance(current_city, str) and current_city.strip() == ''):
-        # City is missing - update from Geopy even if coordinates didn't change
-        editable_updates['city'] = new_city
-    else:
-        # Coordinates didn't change enough and city exists - keep existing city
-        editable_updates['city'] = current_city
-    
-    # params (frequency parameters)
-    if should_preserve_discord_edit(db_node, node, 'params'):
-        editable_updates['params'] = db_node.get('params')
-    else:
-        editable_updates['params'] = node.get('params')
+    editable_updates['city'] = new_city if new_city else current_city
     
     # Check if there are any actual changes
     # Compare current values with new values to determine if update is needed
@@ -840,7 +920,7 @@ def get_node_details_by_keys(public_keys: List[str], conn) -> List[Dict[str, Any
         return []
     
     # Normalize all public keys: remove spaces, dashes, convert to lowercase
-    # This matches the normalization in register_node and get_node_by_key
+    # This matches the normalization in get_node_by_key
     public_keys_normalized = [key.replace(' ', '').replace('-', '').lower() for key in public_keys]
     
     cursor = conn.cursor()
@@ -925,12 +1005,12 @@ def send_sync_notification(
     """
     try:
         from config.config import (
-            DISCORD_BOT_TOKEN, 
-            STARTUP_CHANNEL_ID, 
+            DISCORD_BOT_TOKEN,
+            STARTUP_CHANNEL_ID,
             NODE_TYPE_ICONS,
-            SYNC_INTERVAL_HOURS
+            SYNC_INTERVAL_MINUTES as _SYNC_MINUTES,
         )
-        
+
         if not DISCORD_BOT_TOKEN or not STARTUP_CHANNEL_ID:
             print("Discord bot token or startup channel ID not configured. Skipping notification.")
             return
@@ -957,10 +1037,10 @@ def send_sync_notification(
                 from backend.discord_queries import get_statistics
                 stats = get_statistics()
                 
-                # Calculate next sync time (for footer, no seconds)
-                from datetime import datetime, timedelta
-                next_sync = datetime.now() + timedelta(hours=SYNC_INTERVAL_HOURS)
-                next_sync_str = next_sync.strftime("%Y-%m-%d %H:%M")
+                # Calculate next sync time in CET for footer (user-facing)
+                next_sync_utc = datetime.now(timezone.utc) + timedelta(minutes=_SYNC_MINUTES)
+                next_sync_cet = next_sync_utc.astimezone(ZoneInfo("Europe/Brussels"))
+                next_sync_str = next_sync_cet.strftime("%Y-%m-%d %H:%M") + " " + next_sync_cet.tzname()
                 
                 # Node type names (plural)
                 node_type_names = {
@@ -982,7 +1062,7 @@ def send_sync_notification(
                 # Build notification embed
                 embed = discord.Embed(
                     title="🔄 Sync Complete",
-                    description="Sync completed and updated the [Belgian MeshCore Network](https://map.axistem.eu)\n\u200b",
+                    description="Sync completed and updated the [#BEMesh Map](https://meshmap.radio-actief.be)\n\u200b",
                     color=discord.Color.blue()
                 )
                 
@@ -1051,9 +1131,9 @@ def send_sync_notification(
                         inline=True
                     )
                 
-                # Get node details for each category
+                # Get node details for each category (added, restored, removed; updated not shown)
                 added_nodes = get_node_details_by_keys(changes.get('added', [])[:50], conn)  # Limit to 50
-                updated_nodes = get_node_details_by_keys(changes.get('updated', [])[:50], conn)  # Limit to 50
+                restored_nodes = get_node_details_by_keys(changes.get('restored', [])[:50], conn)  # Limit to 50
                 
                 # Get deactivated unclaimed Discord nodes from THIS sync cycle only
                 # (not all historical deactivated unclaimed Discord nodes)
@@ -1069,7 +1149,7 @@ def send_sync_notification(
                 ]
                 removed_nodes = get_node_details_by_keys(removed_keys_filtered[:50], conn)  # Limit to 50
                 
-                # Separate lists: New Nodes, Updated Nodes, Deleted Nodes, Deleted Unclaimed Discord Nodes
+                # Separate lists: New Nodes, Restored Nodes, Deleted Nodes, Deleted Unclaimed Discord Nodes (updated not shown)
                 # Only show if there are actual items
                 
                 if added_nodes:
@@ -1083,13 +1163,13 @@ def send_sync_notification(
                         inline=False
                     )
                 
-                if updated_nodes:
-                    formatted = "\n".join([f"- {format_node_for_sync_notification(node)}" for node in updated_nodes])
-                    total_count = len(changes.get('updated', []))
+                if restored_nodes:
+                    formatted = "\n".join([f"- {format_node_for_sync_notification(node)}" for node in restored_nodes])
+                    total_count = len(changes.get('restored', []))
                     if total_count > 50:
                         formatted += f"\n\n*... and {total_count - 50} more*"
                     embed.add_field(
-                        name=f"🔄 Updated Nodes ({total_count})",
+                        name=f"🔄 Restored Nodes ({total_count})",
                         value=formatted[:1024],
                         inline=False
                     )
@@ -1117,7 +1197,7 @@ def send_sync_notification(
                     )
                 
                 # Footer: Next Sync (no icon, no seconds)
-                embed.set_footer(text=f"Next Sync: {next_sync_str} (in {SYNC_INTERVAL_HOURS} hours)")
+                embed.set_footer(text=f"Next Sync: {next_sync_str} (in {_SYNC_MINUTES} minutes)")
                 
                 # Send the message
                 await channel.send(embed=embed)
@@ -1142,17 +1222,32 @@ def send_sync_notification(
         traceback.print_exc()
 
 
-def sync_belgian_nodes(geopy_delay: float = 1.5, skip_geopy: bool = False) -> Dict[str, Any]:
+def sync_belgian_nodes(
+    geopy_delay: float = 1.5,
+    skip_geopy: bool = False,
+    use_geopy: Optional[bool] = None,
+    notify: bool = False,
+) -> Dict[str, Any]:
     """
     Main sync function: download, filter, verify, and integrate Belgian nodes.
-    
+
     Args:
-        geopy_delay: Delay between Geopy requests in seconds.
-        skip_geopy: If True, skip Geopy verification (for testing).
-    
+        geopy_delay: Delay between Geopy requests in seconds (only used when
+            falling back to Geopy).
+        skip_geopy: If True, skip all verification (for tests). Name kept for
+            backwards compatibility — effectively "skip verification".
+        use_geopy: Force the Geopy/Nominatim path instead of the local geocoder.
+            ``None`` (default) means: local geocoder if available, else Geopy,
+            honouring the ``USE_GEOPY_FALLBACK`` env var.
+        notify: If True, post the legacy per-sync Discord message via a
+            short-lived client. Defaults to False — the long-running
+            ``discord-bot`` service now posts a single daily digest instead.
+
     Returns:
         Dictionary with sync results and statistics.
     """
+    if use_geopy is None:
+        use_geopy = os.getenv("USE_GEOPY_FALLBACK", "").strip() in ("1", "true", "True", "yes", "YES")
     print("=" * 60)
     print("Starting Belgian Nodes Sync")
     print("=" * 60)
@@ -1173,27 +1268,73 @@ def sync_belgian_nodes(geopy_delay: float = 1.5, skip_geopy: bool = False) -> Di
         # 2. Filter by Belgian geographic bounds
         bounded_nodes = filter_by_bounds(all_nodes)
         
-        # 3. Verify with Geopy (if not skipped)
-        # NOTE: This step extracts city from coordinates via reverse geocoding.
-        # The nodes are NOT merged into the database yet - that happens in step 6.
-        # City is extracted here and stored in node['city'] for later use.
+        # 3. Load DB state for Geopy (when Geopy fails, we keep nodes already in DB with their city)
+        db_for_geopy = load_previous_nodes_from_db()
+        
+        # 4. Verify nodes (local geocoder by default; Geopy as optional fallback)
         if skip_geopy:
-            print("Skipping Geopy verification (testing mode)")
+            print("Skipping verification (testing mode)")
             belgian_nodes = bounded_nodes
-            # Set city to None for nodes without verification
             for node in belgian_nodes:
                 if 'city' not in node:
                     node['city'] = None
         else:
-            belgian_nodes = verify_nodes_with_geopy(bounded_nodes, delay=geopy_delay)
+            geocoder = None
+            geocoder_err: Optional[Exception] = None
+            if not use_geopy:
+                try:
+                    from backend.belgian_geocoder import get_geocoder
+                    geocoder = get_geocoder()
+                except FileNotFoundError as e:
+                    geocoder_err = e
+                except Exception as e:  # pragma: no cover - defensive
+                    geocoder_err = e
+
+            if geocoder is not None:
+                belgian_nodes = verify_nodes_locally(
+                    bounded_nodes,
+                    previous_nodes=db_for_geopy,
+                    geocoder=geocoder,
+                )
+            elif _GEOPY_AVAILABLE:
+                if geocoder_err is not None:
+                    print(
+                        f"WARN: local geocoder unavailable ({geocoder_err}). "
+                        "Falling back to Geopy/Nominatim. "
+                        "Build the local polygons with: "
+                        "python3 scripts/generate-be-municipalities-geojson.py"
+                    )
+                else:
+                    print("Using Geopy/Nominatim (forced via --use-geopy / USE_GEOPY_FALLBACK)")
+                belgian_nodes = verify_nodes_with_geopy(
+                    bounded_nodes, delay=geopy_delay, previous_nodes=db_for_geopy
+                )
+            else:
+                raise RuntimeError(
+                    "Node verification is not configured: the local Belgian "
+                    "geocoder GeoJSON is missing and the optional geopy "
+                    "dependency is not installed. Fix either of:\n"
+                    "  (a) python3 scripts/generate-be-municipalities-geojson.py\n"
+                    "  (b) pip install geopy  (then run with --use-geopy)"
+                )
         
-        # 4. Load previous state from database
+        # 5. Load current DB state for change tracking (reload so we compare against latest)
         previous_nodes = load_previous_nodes_from_db()
         
-        # 5. Track changes
+        # 6. Track changes
         changes = track_changes(belgian_nodes, previous_nodes)
         
-        # 6. Integrate changes into database
+        # 6b. Failsafe: do not apply mass removals (e.g. API returned partial/empty)
+        active_count = sum(1 for n in previous_nodes.values() if n.get('is_active', True))
+        removed_count = changes['removed_count']
+        over_absolute = removed_count > REMOVAL_SAFETY_MAX_ABSOLUTE
+        over_percent = active_count > 0 and removed_count > (active_count * REMOVAL_SAFETY_MAX_PERCENT_OF_ACTIVE)
+        if removed_count > 0 and (over_absolute or over_percent):
+            print(f"\n⚠️  SAFETY: Skipping {removed_count} removals (max {REMOVAL_SAFETY_MAX_ABSOLUTE} or {REMOVAL_SAFETY_MAX_PERCENT_OF_ACTIVE*100:.0f}% of active). Check API/network.")
+            changes['removed'] = []
+            changes['removed_count'] = 0
+        
+        # 7. Integrate changes into database
         print("\nIntegrating changes into database...")
         
         # Create a lookup for current nodes by public_key
@@ -1241,28 +1382,35 @@ def sync_belgian_nodes(geopy_delay: float = 1.5, skip_geopy: bool = False) -> Di
         # Commit all changes
         conn.commit()
         
-        # 7. Log sync summary
+        # 8. Log sync summary
         log_sync_summary(changes, conn)
         conn.commit()
         
-        # 8. Calculate elapsed time
+        # 9. Calculate elapsed time
         elapsed_time = time.time() - start_time
         
-        # 9. Send Discord notification (if configured)
-        try:
-            send_sync_notification(
-                changes, 
-                current_nodes_dict, 
-                conn,
-                len(all_nodes),
-                len(bounded_nodes),
-                len(belgian_nodes),
-                elapsed_time
-            )
-        except Exception as e:
-            print(f"Warning: Failed to send sync notification: {e}")
+        # 10. Discord notification: disabled by default.
+        # The long-running discord-bot service posts a single daily digest
+        # (see backend/daily_digest.py). Legacy per-sync message is still
+        # available behind the --notify CLI flag for ops emergencies.
+        has_added = changes.get('added_count', 0) > 0
+        has_removed = changes.get('removed_count', 0) > 0
+        has_restored = changes.get('restored_count', 0) > 0
+        if notify and (has_added or has_removed or has_restored):
+            try:
+                send_sync_notification(
+                    changes,
+                    current_nodes_dict,
+                    conn,
+                    len(all_nodes),
+                    len(bounded_nodes),
+                    len(belgian_nodes),
+                    elapsed_time
+                )
+            except Exception as e:
+                print(f"Warning: Failed to send sync notification: {e}")
         
-        # 10. Print results
+        # 11. Print results
         print("\n" + "=" * 60)
         print("Sync Complete")
         print("=" * 60)
@@ -1311,15 +1459,23 @@ if __name__ == '__main__':
     
     parser = argparse.ArgumentParser(description='Sync Belgian nodes from official MeshCore map')
     parser.add_argument('--skip-geopy', action='store_true',
-                       help='Skip Geopy verification (for testing)')
+                       help='Skip verification entirely (for testing)')
+    parser.add_argument('--use-geopy', action='store_true',
+                       help='Force the Geopy/Nominatim fallback instead of the local geocoder '
+                            '(also via USE_GEOPY_FALLBACK=1)')
     parser.add_argument('--geopy-delay', type=float, default=1.5,
-                       help='Delay between Geopy requests in seconds (default: 1.5)')
-    
+                       help='Delay between Geopy requests in seconds (only used with --use-geopy, default: 1.5)')
+    parser.add_argument('--notify', action='store_true',
+                       help='Post a one-off per-sync Discord message (legacy behaviour). '
+                            'Normal sync runs leave notifications to the daily digest job.')
+
     args = parser.parse_args()
-    
+
     result = sync_belgian_nodes(
         geopy_delay=args.geopy_delay,
-        skip_geopy=args.skip_geopy
+        skip_geopy=args.skip_geopy,
+        use_geopy=args.use_geopy or None,
+        notify=args.notify,
     )
     
     if result['success']:

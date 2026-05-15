@@ -1,215 +1,154 @@
-# RRY-Map-Bot: Belgian MeshCore Node Mapping System
+# RRY-Map-Bot
 
-A comprehensive system for managing and visualizing Belgian MeshCore network nodes, combining a Discord bot and interactive web map.
+A Discord bot and web map for **Belgian MeshCore nodes**, syncing from
+[`https://map.meshcore.io/api/v1/nodes`](https://map.meshcore.io/api/v1/nodes).
 
-**Target Domain**: `map.axistem.eu`
+The web app shows every active Belgian node on a Leaflet map with stats,
+an activity timeline, and historical playback. The Discord bot lets users
+search the directory and claim ownership of their own nodes.
 
----
+The live deployment is at [meshmap.radio-actief.be](https://meshmap.radio-actief.be).
 
-## Features
+## Quick start
 
-### 🌐 Web Map
-- Interactive map showing all Belgian MeshCore nodes
-- Filter by city, node type, and date ranges
-- Search by name, public key, city, or Discord owner
-- Real-time statistics (active devices in 24h/7d/30d)
-- Clickable Discord owner links
-- Copy-to-clipboard for public keys and links
-- Relative time display for dates
-- Direct links to MeshCore Analyzer
+Prerequisites:
 
-### 🤖 Discord Bot
-- **`/search`** - Search nodes with multiple filters (name, type, city, frequency, owner, source, claimed/inactive status)
-- **`/mynodes`** - List all your claimed nodes (including inactive ones)
-- **`/recent`** - List recently added/updated nodes (last 24 hours)
-- **`/node claim`** - Claim ownership of an unclaimed node
-- **`/node register`** - Register a new node via Discord (or claim if already exists)
-- **`/node update`** - Update node properties (name, city, frequency, coordinates)
-- **`/node unclaim`** - Remove ownership claim from a node
-- **`/node delete`** - Permanently delete a node (Discord-registered or removed from official map)
-- **`/stats`** - View Belgian node statistics
-- **`/stats-cities`** - List all cities with node counts
-- **`/stats-frequencies`** - Show frequency preset statistics by node type
-- **`/stats-source`** - Show node statistics by source type
-
-### 🔄 Data Synchronization
-- Automatic sync from official MeshCore map (`https://map.meshcore.dev/api/v1/nodes`)
-- Filters nodes by Belgian geographic bounds
-- Verifies with Geopy (country code = BE)
-- Extracts native city names
-- Tracks added, removed, updated, and restored nodes
-- Preserves Discord ownership and edits
-- Sends sync notifications to Discord channel
-
----
-
-## Architecture
-
-```
-┌─────────────────────────────────────┐
-│   Official MeshCore Map API          │
-│   (map.meshcore.dev/api/v1/nodes)    │
-└──────────────┬──────────────────────┘
-               │
-               │ Periodic Sync
-               │
-┌──────────────▼──────────────────────┐
-│   Sync Service                       │
-│   (Filters & Verifies Belgian Nodes) │
-└──────────────┬──────────────────────┘
-               │
-               │ SQLite Database
-               │ (Single Source of Truth)
-               │
-    ┌──────────┴──────────┐
-    │                     │
-┌───▼──────┐      ┌──────▼──────┐
-│ Web Map  │      │ Discord Bot │
-│ (Flask)  │      │ (discord.py) │
-│          │      │              │
-│ REST API │      │ Direct DB    │
-└──────────┘      └──────────────┘
-```
-
----
-
-## Quick Start
-
-### Prerequisites
-- Python 3.11+
-- Docker & Docker Compose (for deployment)
-- Discord Bot Token
-- Discord Guild ID
-
-### Local Development
-
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd RRY-Map-Bot
-   ```
-
-2. **Set up environment variables**
-   ```bash
-   cp rry-map-bot.env.example .env
-   # Edit .env with your Discord bot token and other settings
-   ```
-
-3. **Install dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. **Initialize database**
-   ```bash
-   python3 -c "from backend.database import init_database; init_database()"
-   ```
-
-5. **Run sync service** (one-time or scheduled)
-   ```bash
-   python3 backend/sync_belgian_nodes.py
-   ```
-
-6. **Start Discord bot**
-   ```bash
-   python3 -m backend.discord_bot
-   ```
-
-7. **Start API server** (serves web map + REST API)
-   ```bash
-   python3 backend/api/app.py
-   ```
-
-### Docker Deployment
-
-See `DEPLOYMENT.md` for detailed deployment instructions.
+- Docker and Docker Compose
+- A Discord bot token if you want the bot online (web map runs without it)
 
 ```bash
-docker-compose up -d
+git clone <this-repo>
+cd RRY-Map-Bot
+cp .env.example .env       # fill in DISCORD_* and FLASK_SECRET_KEY
+docker compose build
+
+# Initialise the database (creates tables, backfills first-seen dates,
+# seeds node_claims from current owners). Safe to re-run.
+docker compose run --rm api python -m backend.migrations.reset_history --confirm
+
+# Pull the official Belgium feed once so the map has data on first load.
+docker compose run --rm sync python3 backend/sync_belgian_nodes.py
+
+# Bring up the web map on http://localhost:8000.
+docker compose up -d api
+
+# Optional services.
+docker compose up -d sync          # scheduled background syncs
+docker compose up -d discord-bot   # online Discord bot
 ```
 
----
+Run the test suite inside the image:
+
+```bash
+docker compose run --rm api pytest -q tests/
+```
+
+Verify the four count surfaces agree against the running API:
+
+```bash
+docker compose exec api python tests/check_invariants.py http://localhost:8000
+```
+
+## How it works
+
+```mermaid
+flowchart LR
+    Official["map.meshcore.io<br/>/api/v1/nodes"] --> Sync["sync_belgian_nodes.py<br/>(scheduled)"]
+    Sync --> BN[("belgian_nodes")]
+    Sync --> NC[("node_changes")]
+    Sync --> SH[("sync_history")]
+    Bot["discord_bot.py"] --> BN
+    Bot --> CL[("node_claims")]
+    BN --> API["app.py (Flask)"]
+    NC --> API
+    API --> Map["Web map (index.html)"]
+    API --> Stats["Stats page (stats.html)"]
+    Bot -.->|/search /mynodes /node info| API
+```
+
+**Sync.** `sync_belgian_nodes.py` fetches the official feed, filters Belgium by
+geocoding against `data/be-municipalities.geojson`, writes the resulting rows
+into `belgian_nodes`, and records every add / remove / update / restore in
+`node_changes`. Each run also writes a per-run summary into `sync_history`.
+
+**Stats chart.** The chart's first-seen seed counts each currently displayable
+node on its `inserted_date`; daily increments come from `node_changes`. Map
+header, stats chips, chart, and timeline playback all read the same row set
+(`is_active = 1 AND adv_lat IS NOT NULL AND adv_lon IS NOT NULL`), so totals
+match by construction.
+
+**Discord ownership.** `/node claim` and `/node unclaim` set
+`discord_owner_id` and `discord_owner_name` on `belgian_nodes` and append an
+event row to `node_claims` with a timestamp. `node_claims` is an append-only
+log of every claim/unclaim event.
 
 ## Configuration
 
-### Environment Variables
+`.env` is loaded by all three services. Keys (see `.env.example` for examples):
 
-See `rry-map-bot.env.example` for all available options:
+- `DISCORD_BOT_TOKEN`, `DISCORD_GUILD_ID`, `STARTUP_CHANNEL_ID`,
+  `STARTUP_MESSAGE_ID` – Discord bot.
+- `DISCORD_OAUTH2_CLIENT_ID`, `DISCORD_OAUTH2_CLIENT_SECRET`,
+  `DISCORD_OAUTH2_REDIRECT_URI`, `FLASK_SECRET_KEY`,
+  `SESSION_COOKIE_SECURE`, `DISCORD_SERVER_INVITE_URL` – web auth.
+- `DATABASE_PATH` – SQLite path (default `data/belgian_nodes.db`).
+- `OFFICIAL_API_URL` – upstream feed (default
+  `https://map.meshcore.io/api/v1/nodes`).
+- `BE_MUNICIPALITIES_GEOJSON`, `GEOCODE_BUFFER_METERS`, `GEOPY_USER_AGENT`,
+  `GEOPY_TIMEOUT`, `USE_GEOPY_FALLBACK` – Belgian geocoder.
+- `SYNC_INTERVAL_MINUTES` (or legacy `SYNC_INTERVAL_HOURS`) – scheduled sync
+  interval.
+- `DAILY_DIGEST_ENABLED`, `DAILY_DIGEST_HOUR`, `DAILY_DIGEST_MINUTE`,
+  `DAILY_DIGEST_TZ`, `DAILY_DIGEST_CHANNEL_ID` – daily activity digest.
 
-- `DISCORD_BOT_TOKEN` - Discord bot token (required)
-- `DISCORD_GUILD_ID` - Discord server ID (optional, for guild-specific commands)
-- `STARTUP_CHANNEL_ID` - Channel for bot instructions and sync notifications
-- `STARTUP_MESSAGE_ID` - Message ID to update with bot instructions
-- `DATABASE_PATH` - Path to SQLite database (default: `data/belgian_nodes.db`)
-- `SYNC_INTERVAL_HOURS` - Hours between sync runs (default: 6)
-- `GEOPY_USER_AGENT` - User agent for Geopy requests
-- `OFFICIAL_MAP_API_URL` - Official map API URL
+## Database tables
 
----
+- `belgian_nodes` – every Belgian node currently or recently seen on the map.
+- `node_changes` – per-event ledger (added / removed / restored / updated)
+  emitted by the sync.
+- `sync_history` – one row per sync run with aggregate counts.
+- `node_claims` – append-only event log of `/node claim` and `/node unclaim`.
+- `digest_state` – single-row state for the daily Discord digest.
 
-## Project Structure
+## Discord commands
+
+- `/search <query>` – substring search across nodes.
+- `/mynodes` – list nodes owned by the caller.
+- `/node info <query>` – detailed view of a single node.
+- `/node claim <query>` – claim ownership of a node.
+- `/node unclaim <query>` – release ownership of a claimed node.
+- `/stats` – network statistics.
+- `/digest run` – manually trigger the daily activity digest.
+
+## Project structure
 
 ```
 RRY-Map-Bot/
-├── backend/
-│   ├── api/
-│   │   └── app.py              # Flask REST API + web map server
-│   ├── database.py             # Database utilities and schema
-│   ├── discord_bot.py          # Discord bot implementation
-│   ├── discord_queries.py     # Database query functions for Discord bot
-│   └── sync_belgian_nodes.py  # Sync service from official map
-├── config/
-│   └── config.py               # Configuration and constants
-├── src/
-│   └── map.js                  # Web map frontend (Vue3 + Leaflet)
-├── css/
-│   └── style.css              # Web map styles
-├── index.html                  # Web map HTML
-├── docker-compose.yml          # Docker Compose configuration
-├── Dockerfile                  # Docker image definition
-└── requirements.txt            # Python dependencies
+  backend/
+    api/app.py                 # Flask API + static assets
+    discord_bot.py             # Discord bot
+    sync_belgian_nodes.py      # Sync service
+    discord_queries.py         # DB queries used by bot and API
+    database.py                # Schema + connection helpers
+    migrations/reset_history.py
+  config/                      # Frequency presets, Belgium config
+  data/                        # SQLite DB + Belgium GeoJSON
+  src/                         # Frontend JS (map.js, …)
+  tests/                       # pytest test suite + check_invariants.py
+  index.html                   # Map page
+  stats.html                   # Stats / playback page
+  Dockerfile
+  docker-compose.yml
+  requirements.txt
 ```
 
----
+## Docker
 
-## Documentation
+`docker-compose.yml` defines three services: `api` (binds `localhost:8000`),
+`sync` (scheduled runs of `sync_belgian_nodes.py`), and `discord-bot`. They
+share `./data:/app/data` for the SQLite database and `./logs:/app/logs` for
+logs. See [`DEPLOYMENT.md`](DEPLOYMENT.md) for production deployment notes.
 
-- **`PROJECT_SUMMARY.md`** - Complete project specification and features
-- **`DEPLOYMENT.md`** - Deployment guide and Docker setup
-- **`DISCORDBOT_INSTRUCTIONS.md`** - Discord bot command reference
-- **`DOCUMENTATION_INDEX.md`** - Complete documentation index
+## License / contact
 
----
-
-## Technologies
-
-### Backend
-- **Python 3.11+**
-- **discord.py** - Discord bot framework
-- **Flask** - REST API and web server
-- **SQLite** - Database
-- **Geopy** - Geographic verification
-- **requests** - HTTP client
-
-### Frontend
-- **Vue 3** - JavaScript framework
-- **Leaflet** - Interactive maps
-- **Leaflet.markercluster** - Node clustering
-- **Beer.css** - UI framework
-- **Material Icons** - Icons
-
----
-
-## License
-
-See `LICENSE` file for details.
-
----
-
-## Contributing
-
-This is a private project. For questions or issues, contact the project administrators.
-
----
-
-*Last Updated: 2026-01-04*
+MIT. Issues and PRs welcome.

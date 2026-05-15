@@ -1274,10 +1274,22 @@ def stats_page():
     return send_from_directory(PROJECT_ROOT, 'stats.html')
 
 
+@app.route('/configurator')
+def configurator_page():
+    """Serve the repeater configurator page."""
+    return send_from_directory(PROJECT_ROOT, 'configurator.html')
+
+
 @app.route('/region-configurator')
-def region_configurator_page():
-    """Serve the BE region codes configurator page."""
-    return send_from_directory(PROJECT_ROOT, 'region-configurator.html')
+def region_configurator_redirect():
+    """Redirect legacy region-configurator URL to the new configurator path."""
+    return redirect('/configurator', code=301)
+
+
+@app.route('/region-configurator.html')
+def region_configurator_html_redirect():
+    """Redirect legacy static filename to /configurator."""
+    return redirect('/configurator', code=301)
 
 
 @app.route('/region-map')

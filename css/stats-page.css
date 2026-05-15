@@ -1139,6 +1139,79 @@
         text-transform: uppercase;
         letter-spacing: 0.04em;
       }
+      .stats-playback-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        margin-bottom: 0.5rem;
+      }
+      .stats-playback-head .stats-block-title {
+        margin-bottom: 0;
+        flex: 1;
+        min-width: 0;
+      }
+      .playback-expand-btn {
+        flex-shrink: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 2.25rem;
+        height: 2.25rem;
+        padding: 0;
+        border: 1px solid var(--stats-border);
+        border-radius: var(--stats-radius-sm);
+        background: var(--stats-surface);
+        color: var(--stats-text-muted);
+        cursor: pointer;
+        box-shadow: var(--stats-shadow);
+        transition:
+          background 0.2s ease,
+          color 0.2s ease,
+          border-color 0.2s ease,
+          transform 0.2s ease;
+      }
+      .playback-expand-btn:hover {
+        color: var(--stats-accent);
+        border-color: rgba(212, 160, 23, 0.35);
+        background: var(--stats-secondary);
+        transform: scale(1.04);
+      }
+      .playback-expand-btn[aria-pressed="true"] {
+        color: var(--stats-accent);
+        border-color: rgba(212, 160, 23, 0.45);
+        background: rgba(212, 160, 23, 0.12);
+      }
+      .playback-expand-btn .playback-expand-icon {
+        display: block;
+        flex-shrink: 0;
+      }
+      .playback-expand-btn .playback-expand-icon--exit {
+        display: none;
+      }
+      .playback-expand-btn[aria-pressed="true"] .playback-expand-icon--enter {
+        display: none;
+      }
+      .playback-expand-btn[aria-pressed="true"] .playback-expand-icon--exit {
+        display: block;
+      }
+      .stats-playback-body {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+      }
+      .stats-playback-dock {
+        flex-shrink: 0;
+        margin-top: 0.75rem;
+        padding-top: 0.75rem;
+        border-top: 1px solid var(--stats-border);
+        background: linear-gradient(
+          180deg,
+          rgba(252, 251, 248, 0.72) 0%,
+          rgba(255, 255, 255, 0.95) 100%
+        );
+        border-radius: 0 0 var(--stats-radius) var(--stats-radius);
+      }
       .stats-playback .stats-map-container {
         height: 360px;
         border-radius: var(--stats-radius);
@@ -1301,6 +1374,103 @@
         color: var(--stats-text);
       }
 
+      /* Fullscreen the Leaflet map container only */
+      .stats-map-container:fullscreen,
+      .stats-map-container:-webkit-full-screen {
+        width: 100vw !important;
+        height: 100vh !important;
+        height: 100dvh !important;
+        max-height: none !important;
+        min-height: 0 !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        background: var(--stats-bg-subtle);
+      }
+      .stats-map-container:fullscreen > #stats-map,
+      .stats-map-container:-webkit-full-screen > #stats-map,
+      .stats-map-container:fullscreen > #stats-map.leaflet-container,
+      .stats-map-container:-webkit-full-screen > #stats-map.leaflet-container {
+        height: 100% !important;
+        width: 100% !important;
+        min-height: 0;
+      }
+      /* Fullscreen toggle button overlaid on the map */
+      .stats-map-container {
+        position: relative;
+      }
+      .stats-map-fullscreen-btn {
+        position: absolute;
+        top: 0.5rem;
+        right: 0.5rem;
+        z-index: 500;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 2rem;
+        height: 2rem;
+        padding: 0;
+        background: rgba(255, 255, 255, 0.95);
+        color: var(--stats-text);
+        border: 1px solid rgba(0, 0, 0, 0.18);
+        border-radius: 4px;
+        cursor: pointer;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
+        transition:
+          background 0.15s ease,
+          color 0.15s ease,
+          transform 0.15s ease;
+      }
+      .stats-map-fullscreen-btn:hover {
+        background: #fff;
+        color: var(--stats-accent);
+        transform: scale(1.04);
+      }
+      .stats-map-fullscreen-btn .stats-map-fs-icon--exit {
+        display: none;
+      }
+      .stats-map-fullscreen-btn[aria-pressed="true"] .stats-map-fs-icon--enter {
+        display: none;
+      }
+      .stats-map-fullscreen-btn[aria-pressed="true"] .stats-map-fs-icon--exit {
+        display: block;
+      }
+      /* Dock overlaid on the (fullscreen) map: floats over tiles at the bottom */
+      .stats-map-container > .stats-playback-dock--map-overlay {
+        position: absolute;
+        left: 50%;
+        transform: translateX(-50%);
+        bottom: max(0.75rem, env(safe-area-inset-bottom));
+        z-index: 600;
+        width: min(960px, calc(100% - 1.5rem));
+        max-height: min(40vh, 260px);
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        padding: 0.6rem 0.75rem 0.5rem;
+        margin: 0;
+        background: rgba(255, 255, 255, 0.92);
+        backdrop-filter: blur(8px) saturate(1.1);
+        -webkit-backdrop-filter: blur(8px) saturate(1.1);
+        border: 1px solid rgba(0, 0, 0, 0.12);
+        border-radius: var(--stats-radius);
+        box-shadow:
+          0 1px 0 rgba(255, 255, 255, 0.7) inset,
+          0 6px 18px rgba(0, 0, 0, 0.18);
+      }
+      .stats-map-container > .stats-playback-dock--map-overlay .stats-playback-controls {
+        margin-top: 0;
+      }
+      .stats-map-container > .stats-playback-dock--map-overlay .stats-playback-legend {
+        margin-top: 0.4rem;
+      }
+      @media (max-width: 640px) {
+        .stats-map-container > .stats-playback-dock--map-overlay {
+          width: calc(100% - 0.75rem);
+          padding: 0.45rem 0.5rem;
+        }
+      }
+
       .stats-table {
         position: relative;
         overflow-x: auto;
@@ -1382,8 +1552,11 @@
       }
       .stats-topdays-grid {
         display: grid;
-        grid-template-columns: repeat(2, 1fr);
+        grid-template-columns: 1fr;
         gap: 0.75rem;
+        max-width: 420px;
+        margin-left: auto;
+        margin-right: auto;
       }
       @media (max-width: 900px) {
         .stats-topdays {

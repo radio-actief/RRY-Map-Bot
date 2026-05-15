@@ -1,0 +1,493 @@
+<!doctype html>
+<html lang="en" class="config-page">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta
+      name="description"
+      content="#BEmesh repeater configurator: naming, region scopes, and CLI defaults for Belgian MeshCore repeaters."
+    />
+    <link rel="icon" type="image/x-icon" href="./favicon.ico" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Figtree:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./css/style.css" />
+    <link rel="stylesheet" href="./css/rry-tool-pages.css" />
+    <link rel="stylesheet" href="./css/configurator-page.css" />
+    <link rel="stylesheet" href="./lib/css/beer.css" />
+    <title>Repeater Configuration · #BEmesh</title>
+  </head>
+  <body class="light map-page config-body rty-doc-page">
+    <div class="rty-page-wrap rty-page-wrap--stack">
+      <div class="config-header rty-glass-surface rty-chrome-accent-bar">
+        <div class="config-header-top">
+          <h1>#BEmesh repeater configurator</h1>
+          <div class="config-header-links">
+            <a href="/" class="rty-back-link">← Back to map</a>
+            <a href="/stats" class="rty-back-link">Stats</a>
+            <a
+              href="/region-map"
+              class="config-map-btn"
+              title="Open region map (#BEmesh)"
+              aria-label="Open region map (#BEmesh)"
+            >
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path
+                  d="M20.5 3l-.16.03L15 5.1 9 3 3.36 4.9c-.21.07-.36.25-.36.48V20.5c0 .28.22.5.5.5l.16-.03L9 18.9l6 2.1 5.64-1.9c.21-.07.36-.25.36-.48V3.5c0-.28-.22-.5-.5-.5zM15 19l-6-2.11V5l6 2.11V19z"
+                />
+              </svg>
+            </a>
+          </div>
+        </div>
+        <p class="config-header-desc">
+          Configure your repeater name, region flood scopes, and default
+          repeater settings in one CLI output.
+        </p>
+      </div>
+
+      <section
+        class="config-card config-location-card"
+        aria-labelledby="location"
+      >
+        <div class="config-header-search">
+          <h2 id="location">1. Location</h2>
+          <div class="search-wrap">
+            <span class="search-icon" aria-hidden="true">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <circle cx="11" cy="11" r="8" />
+                <path d="m21 21-4.35-4.35" />
+              </svg>
+            </span>
+            <input
+              type="text"
+              class="search-input"
+              id="city-search"
+              placeholder="Loading locations…"
+              aria-label="Search locations and region codes"
+              autocomplete="off"
+            />
+            <div
+              class="search-dropdown"
+              id="city-dropdown"
+              style="display: none"
+            ></div>
+          </div>
+        </div>
+      </section>
+
+      <div class="config-prep-row">
+        <div class="config-card config-naming-card" id="naming-card">
+          <h2 id="naming">2. Naming</h2>
+          <p class="config-card-desc">
+            Generate a repeater name based on the chosen location. For more
+            information, see the Radio-Actief documentation about
+            <a
+              class="config-header-doc-link"
+              href="https://docs.radio-actief.be/nl/MeshCore/ConfigureRepeater#naamgeving"
+              target="_blank"
+              rel="noopener noreferrer"
+              >repeater naming</a
+            >.
+          </p>
+          <div class="config-naming-fields">
+            <div class="config-form-grid config-form-grid--naming-row">
+              <label
+                class="config-form-field"
+                for="name-location-mode"
+                id="name-location-mode-wrap"
+              >
+                <span>Prefix format</span>
+                <select id="name-location-mode">
+                  <option value="city">Country & city</option>
+                  <option value="province">Country & province</option>
+                  <option value="country">Country only</option>
+                  <option value="none">No predefined prefix</option>
+                </select>
+              </label>
+              <label class="config-form-field" for="name-prefix-preview">
+                <span>Prefix</span>
+                <input id="name-prefix-preview" type="text" />
+              </label>
+            </div>
+            <div class="config-form-grid config-form-grid--naming-row">
+              <label class="config-form-field" for="name-suffix">
+                <span>Node name</span>
+                <input
+                  id="name-suffix"
+                  type="text"
+                  placeholder="Kerk-RRY999"
+                  autocomplete="off"
+                />
+              </label>
+              <label class="config-form-field" for="name-power-emoji">
+                <span>Node type</span>
+                <select id="name-power-emoji">
+                  <option value="">Do not include</option>
+                  <option value="🌞">🌞 Solar</option>
+                  <option value="⚡">⚡ Mains</option>
+                  <option value="🔋">🔋 Battery</option>
+                  <option value="👀">👀 Observer</option>
+                </select>
+              </label>
+            </div>
+          </div>
+          <div class="config-naming-preview">
+            <p class="result-muted-note">Generated name</p>
+            <p id="name-preview" class="config-naming-preview-value">—</p>
+            <p id="name-preview-meta" class="config-naming-preview-meta"></p>
+            <p
+              id="name-preview-note"
+              class="result-muted-note config-naming-note"
+              hidden
+            ></p>
+          </div>
+        </div>
+
+        <div class="config-card config-settings-card" id="settings-card">
+          <h2 id="settings">3. General settings</h2>
+          <p class="config-card-desc">
+            Set radio, security, and timing options here. For most #BEmesh
+            setups, pick an <strong>admin password</strong> and add
+            <strong>owner info</strong>, then keep the other fields at their
+            defaults.
+          </p>
+          <div class="config-form-grid">
+            <label
+              class="config-form-field config-form-field--full"
+              for="setting-radio-preset"
+            >
+              <span>Radio preset</span>
+              <select id="setting-radio-preset"></select>
+            </label>
+          </div>
+          <div
+            id="setting-radio-custom-wrap"
+            class="setting-radio-custom"
+            hidden
+          >
+            <div class="config-form-grid config-form-grid--radio-custom">
+              <label class="config-form-field" for="setting-radio-freq">
+                <span>Freq (MHz)</span>
+                <input
+                  id="setting-radio-freq"
+                  type="number"
+                  step="0.001"
+                  min="150"
+                  max="2500"
+                  placeholder="869.618"
+                />
+              </label>
+              <label class="config-form-field" for="setting-radio-sf">
+                <span>SF</span>
+                <input
+                  id="setting-radio-sf"
+                  type="number"
+                  step="1"
+                  min="5"
+                  max="12"
+                  placeholder="8"
+                />
+              </label>
+              <label class="config-form-field" for="setting-radio-bw">
+                <span>BW (kHz)</span>
+                <input
+                  id="setting-radio-bw"
+                  type="number"
+                  step="0.001"
+                  min="7"
+                  max="500"
+                  placeholder="62.5"
+                />
+              </label>
+              <label class="config-form-field" for="setting-radio-cr">
+                <span>CR</span>
+                <input
+                  id="setting-radio-cr"
+                  type="number"
+                  step="1"
+                  min="5"
+                  max="8"
+                  placeholder="8"
+                />
+              </label>
+            </div>
+            <p
+              id="setting-radio-error"
+              class="setting-radio-error"
+              role="alert"
+              hidden
+            ></p>
+          </div>
+          <div class="config-form-grid config-form-grid--settings-system">
+            <label class="config-form-field" for="setting-admin-password">
+              <span>Admin password</span>
+              <input
+                id="setting-admin-password"
+                type="text"
+                placeholder="password"
+                autocomplete="off"
+              />
+            </label>
+            <label class="config-form-field" for="setting-guest-password">
+              <span>Guest password</span>
+              <input
+                id="setting-guest-password"
+                type="text"
+                placeholder="Leave empty for open telemetry"
+                autocomplete="off"
+              />
+            </label>
+            <label class="config-form-field" for="setting-repeat">
+              <span>Repeat mode</span>
+              <select id="setting-repeat">
+                <option value="on" selected>on</option>
+                <option value="off">off</option>
+              </select>
+            </label>
+            <label
+              class="config-form-field config-form-field--full"
+              for="setting-owner-info"
+            >
+              <span>Owner info</span>
+              <input
+                id="setting-owner-info"
+                type="text"
+                placeholder="Contact or notes (| = newline)"
+                autocomplete="off"
+              />
+            </label>
+          </div>
+          <div class="config-form-grid config-form-grid--settings-timing">
+            <label class="config-form-field" for="setting-txdelay">
+              <span>Tx delay (flood)</span>
+              <input
+                id="setting-txdelay"
+                type="number"
+                min="0"
+                max="2"
+                step="0.1"
+                value="0.5"
+              />
+            </label>
+            <label class="config-form-field" for="setting-direct-txdelay">
+              <span>Direct tx delay</span>
+              <input
+                id="setting-direct-txdelay"
+                type="number"
+                min="0"
+                max="2"
+                step="0.1"
+                value="0.2"
+              />
+            </label>
+          </div>
+          <div class="config-form-grid config-form-grid--settings-adverts">
+            <label
+              class="config-form-field"
+              for="setting-flood-advert-interval"
+            >
+              <span>Flood advert interval (h)</span>
+              <input
+                id="setting-flood-advert-interval"
+                type="number"
+                min="3"
+                max="168"
+                step="1"
+                value="71"
+              />
+            </label>
+            <label class="config-form-field" for="setting-advert-interval">
+              <span>Zero-hop advert interval (min)</span>
+              <input
+                id="setting-advert-interval"
+                type="number"
+                min="0"
+                max="240"
+                step="2"
+                value="0"
+              />
+            </label>
+          </div>
+          <div class="config-form-grid config-form-grid--settings-rest">
+            <label class="config-form-field" for="setting-path-hash-mode">
+              <span>Path hash mode</span>
+              <select id="setting-path-hash-mode">
+                <option value="0">0</option>
+                <option value="1" selected>1</option>
+                <option value="2">2</option>
+              </select>
+            </label>
+            <label class="config-form-field" for="setting-dutycycle">
+              <span>Duty cycle</span>
+              <select id="setting-dutycycle">
+                <option value="1">1</option>
+                <option value="10" selected>10</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+              </select>
+            </label>
+            <label class="config-form-field" for="setting-loop-detect">
+              <span>Loop detection</span>
+              <select id="setting-loop-detect">
+                <option value="off">off</option>
+                <option value="minimal" selected>minimal</option>
+                <option value="moderate">moderate</option>
+                <option value="strict">strict</option>
+              </select>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="config-policy-cli-row" id="policy-cli-row">
+        <div
+          class="config-card policy-section"
+          id="policy-card"
+          aria-live="polite"
+        >
+          <h2 id="regions">4. Region scopes (flood policy)</h2>
+          <p
+            id="policy-scope-empty"
+            class="result-muted-note policy-scope-empty policy-location-prompt"
+          >
+            Choose a location first to configure region scopes.
+          </p>
+          <div id="policy-regions-body" hidden>
+            <p class="config-card-desc">
+              Tick <strong>Allow</strong> or <strong>Deny</strong> for
+              <strong>flood forwarding</strong> on each scope (see
+              <a
+                class="config-header-doc-link"
+                href="https://docs.radio-actief.be/nl/MeshCore/RegioScopes"
+                target="_blank"
+                rel="noopener noreferrer"
+                >Regio-scopes</a
+              >
+              for <code>allowf</code> / <code>denyf</code>).
+            </p>
+            <div class="policy-quick-actions">
+              <h3 class="policy-quick-actions-title">Quick actions</h3>
+              <div
+                class="policy-global-actions"
+                role="group"
+                aria-label="Apply to all policy scopes below"
+              >
+                <button
+                  type="button"
+                  class="policy-global-btn"
+                  data-global-bulk="defaults"
+                >
+                  Defaults
+                </button>
+                <button
+                  type="button"
+                  class="policy-global-btn policy-global-btn--clear"
+                  data-global-bulk="clear"
+                >
+                  Clear all
+                </button>
+                <button
+                  type="button"
+                  class="policy-global-btn"
+                  data-global-bulk="allow"
+                >
+                  Allow all
+                </button>
+                <button
+                  type="button"
+                  class="policy-global-btn"
+                  data-global-bulk="deny"
+                >
+                  Deny all
+                </button>
+              </div>
+            </div>
+            <div
+              id="policy-grids-container"
+              class="policy-grids-container"
+            ></div>
+            <div
+              class="policy-codes-block result-section"
+              id="result-card"
+              aria-labelledby="result-card-heading"
+            >
+              <h3 class="policy-codes-heading" id="result-card-heading">
+                Codes for this selection
+              </h3>
+              <div class="result-found-stack" id="result-grid"></div>
+            </div>
+            <div class="policy-masters">
+              <label class="policy-master">
+                <input type="checkbox" id="policy-untagged-flood" checked />
+                <span
+                  ><strong>Allow flood without a region tag</strong> (wildcard
+                  <code>*</code>). Leave on unless you deliberately block
+                  untagged flood. If you turn it off, align with neighbouring
+                  repeaters and keep enough <strong>Allow</strong> rows —
+                  otherwise packets can be dropped.</span
+                >
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="config-cli-results-stack">
+          <div class="config-card result-section" id="commands-card">
+            <h2 id="cli">5. MeshCore CLI output</h2>
+            <p class="config-card-desc">
+              Paste into your repeater serial console.
+            </p>
+            <label class="config-cli-show-defaults">
+              <input type="checkbox" id="cli-show-defaults" />
+              <span>Enforce MeshCore default settings</span>
+            </label>
+            <pre class="commands-block" id="commands-block"></pre>
+            <button type="button" class="copy-btn" id="copy-btn">
+              Copy commands
+            </button>
+            <span class="config-card-desc-tip"
+              >Your console may only accept one line at a time.</span
+            >
+          </div>
+        </div>
+      </div>
+
+      <main id="config-app">
+        <footer class="config-footer">
+          <h3>#BEmesh region map</h3>
+          <p class="config-footer-desc">
+            Same <code>be</code> / <code>be-*</code> / municipality codes as
+            above — search the map to cross-check names and coordinates.
+          </p>
+          <a
+            href="/region-map"
+            class="config-footer-map-link"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Open region map →
+          </a>
+          <div class="config-footer-embed">
+            <iframe
+              src="/region-map?embed=1"
+              title="#BEmesh region map (embedded)"
+              class="config-footer-iframe"
+            ></iframe>
+          </div>
+        </footer>
+      </main>
+    </div>
+    <script src="./src/configurator.js"></script>
+  </body>
+</html>

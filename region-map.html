@@ -115,7 +115,7 @@
           </div>
           <nav class="region-map-header-links" aria-label="Page navigation">
             <a href="/" class="rty-back-link">← Back to map</a>
-            <a href="/region-configurator" class="rty-back-link">Regioncodes</a>
+            <a href="/configurator" class="rty-back-link">Configurator</a>
             <a
               href="/stats"
               class="region-map-header-icon-btn"
@@ -141,7 +141,8 @@
       (function () {
         /**
          * Resolve data/ URLs for both local *.html files and Flask routes
-         * /region-map and /region-configurator (with or without trailing slash).
+         * /region-map, /configurator and /region-configurator
+         * (with or without trailing slash).
          * Relative ./data/ from /region-map/ incorrectly becomes /region-map/data/…
          */
         function rryDataUrl(filename) {
@@ -149,7 +150,7 @@
           if (/\.html?$/i.test(p)) {
             return "./data/" + filename;
           }
-          if (/(?:^|\/)(region-map|region-configurator)(?:\/|$)/.test(p)) {
+          if (/(?:^|\/)(region-map|configurator|region-configurator)(?:\/|$)/.test(p)) {
             return "/data/" + filename;
           }
           return "./data/" + filename;

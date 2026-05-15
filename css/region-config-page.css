@@ -592,15 +592,23 @@
         color: var(--cfg-text-muted);
       }
 
-      /* Found codes card — dense compact layout */
-      #result-card.config-card {
-        padding: 0.4rem 0.5rem 0.5rem;
-        margin-bottom: var(--cfg-space-sm);
+      /* Codes for this selection — nested in region scopes card */
+      #policy-card .policy-codes-block {
+        margin-top: var(--cfg-space-md);
+        padding-top: var(--cfg-space-md);
+        border-top: 1px solid var(--cfg-border-subtle, rgba(0, 0, 0, 0.08));
       }
-      #result-card > h2 {
-        margin: 0 0 0.15rem;
+      #policy-card .policy-codes-heading {
+        margin: 0 0 0.35rem;
         font-size: 0.78rem;
+        font-weight: 700;
         letter-spacing: 0.055em;
+        text-transform: uppercase;
+        color: var(--cfg-text-muted);
+      }
+      #result-card.policy-codes-block {
+        padding: 0;
+        margin-bottom: 0;
       }
       #result-card .result-found-stack {
         gap: 0.3rem;

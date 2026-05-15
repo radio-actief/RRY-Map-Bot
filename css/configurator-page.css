@@ -1,0 +1,269 @@
+@import url("./region-config-page.css");
+
+/* Location search dropdown must escape the card and sit above blocks below */
+.config-card.config-location-card {
+  overflow: visible;
+  z-index: 50;
+}
+
+.config-card.config-location-card:focus-within {
+  z-index: 100;
+}
+
+.config-location-card {
+  margin-bottom: var(--cfg-space-md);
+}
+
+.config-location-card .config-header-search {
+  margin-top: 0;
+}
+
+.config-location-card .search-wrap {
+  z-index: 2;
+}
+
+.config-prep-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--cfg-space-md);
+  margin-bottom: var(--cfg-space-md);
+}
+
+@media (min-width: 980px) {
+  .config-prep-row {
+    /* 2. Naming ~⅓, 3. General settings ~⅔ */
+    grid-template-columns: 1fr 2fr;
+  }
+}
+
+.config-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.55rem;
+}
+
+.config-naming-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.config-form-grid--naming-row {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.4rem 0.5rem;
+}
+
+.config-form-grid--naming-row .config-form-field > span {
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+}
+
+.config-form-grid--naming-row .config-form-field input,
+.config-form-grid--naming-row .config-form-field select {
+  min-height: 2.15rem;
+  padding: 0.32rem 0.45rem;
+  font-size: 0.84rem;
+}
+
+.config-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.config-form-field > span {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.045em;
+  color: var(--cfg-text-muted);
+  font-weight: 700;
+}
+
+.config-form-field input[readonly] {
+  background: var(--cfg-secondary);
+  color: var(--cfg-text-muted);
+  cursor: default;
+}
+
+.config-form-field--full {
+  grid-column: 1 / -1;
+}
+
+.config-form-grid--radio-custom {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.4rem 0.5rem;
+}
+
+@media (min-width: 720px) {
+  .config-form-grid--radio-custom {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.setting-radio-custom {
+  margin-top: 0.45rem;
+}
+
+.config-form-grid--settings-system,
+.config-form-grid--settings-timing,
+.config-form-grid--settings-adverts,
+.config-form-grid--settings-rest {
+  margin-top: 0.55rem;
+}
+
+@media (min-width: 720px) {
+  .config-settings-card .config-form-grid--settings-system,
+  .config-settings-card .config-form-grid--settings-rest {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .config-settings-card .config-form-grid--settings-timing,
+  .config-settings-card .config-form-grid--settings-adverts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.config-form-grid--settings-adverts {
+  margin-top: 0.4rem;
+}
+
+.setting-radio-error {
+  margin: 0.35rem 0 0;
+  font-size: 0.78rem;
+  color: #b42318;
+}
+
+.config-form-field input.is-invalid {
+  border-color: #b42318;
+  background: #fff8f7;
+}
+
+.config-form-field input,
+.config-form-field select {
+  min-height: 2.45rem;
+  border-radius: var(--cfg-radius-sm);
+  border: 1px solid var(--cfg-border);
+  padding: 0.45rem 0.6rem;
+  font-size: 0.9rem;
+  background: #fff;
+  color: var(--cfg-text);
+}
+
+.config-form-field-inline {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid var(--cfg-border);
+  border-radius: var(--cfg-radius-sm);
+  padding: 0.55rem 0.65rem;
+  background: var(--cfg-secondary);
+}
+
+.config-form-field-inline > span {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 0.86rem;
+  color: var(--cfg-text);
+  font-weight: 600;
+}
+
+.config-form-field-inline input {
+  min-height: 1rem;
+}
+
+.config-naming-preview {
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  border-radius: var(--cfg-radius-sm);
+  border: 1px solid var(--cfg-border);
+  background: var(--cfg-secondary);
+}
+
+.config-naming-preview-value {
+  margin: 0.2rem 0 0;
+  font-family: ui-monospace, "Consolas", "Monaco", monospace;
+  font-size: 1rem;
+  color: var(--cfg-text);
+  font-weight: 700;
+}
+
+.config-naming-preview-value.is-warning {
+  color: #9a6700;
+}
+
+.config-naming-preview-meta {
+  margin: 0.4rem 0 0;
+  font-size: 0.8rem;
+  color: var(--cfg-text-muted);
+}
+
+.config-naming-preview-meta.is-warning {
+  color: #9a6700;
+}
+
+.config-naming-preview-meta.is-error {
+  color: #b42318;
+}
+
+.config-naming-note {
+  margin-top: 0.45rem;
+  font-size: 0.76rem;
+  line-height: 1.35;
+}
+
+.config-naming-note.is-warning {
+  color: #9a6700;
+}
+
+.config-naming-note.is-warning code {
+  color: #7a5200;
+}
+
+.policy-location-prompt {
+  margin: 0;
+  padding: 0.75rem 0;
+  text-align: center;
+}
+
+.policy-scope-empty {
+  padding-top: 0.35rem;
+  padding-bottom: 1rem;
+}
+
+code.config-naming-preview-advert {
+  display: block;
+  margin-top: 0.35rem;
+  padding: 0.35rem 0.5rem;
+  font-family: ui-monospace, "Consolas", "Monaco", monospace;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #9a6700;
+  word-break: break-all;
+  background: rgba(154, 103, 0, 0.08);
+  border: 1px solid rgba(154, 103, 0, 0.22);
+  border-radius: var(--cfg-radius-sm, 6px);
+}
+
+.copy-btn[disabled] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.config-cli-show-defaults {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0.65rem 0 0.45rem;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--cfg-text);
+  cursor: pointer;
+  user-select: none;
+}
+
+.config-cli-show-defaults input {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  flex-shrink: 0;
+  cursor: pointer;
+}

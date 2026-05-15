@@ -47,22 +47,13 @@ body.rty-doc-page.map-page .config-footer {
   box-sizing: border-box;
 }
 
-/* Configurator: column layout + ordered blocks */
+/* Configurator: column layout (DOM order = visual order) */
 .rty-page-wrap.rty-page-wrap--stack {
   display: flex;
   flex-direction: column;
 }
 
-.rty-page-wrap--stack > .config-header {
-  order: 1;
-}
-
-.rty-page-wrap--stack > #policy-cli-row {
-  order: 2;
-}
-
 .rty-page-wrap--stack > #config-app {
-  order: 3;
   min-width: 0;
   animation: rty-reveal var(--app-reveal-duration, 0.4s)
     var(--app-ease, 0.25s ease) 0.16s both;

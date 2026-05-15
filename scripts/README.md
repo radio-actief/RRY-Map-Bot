@@ -54,7 +54,7 @@ Optional paths:
 
 **Output schema (per row):** `nis5`, `plaats`, `gemeente`, `province_code`, `city_code`, `lat`, `lon`, `search_aliases` (array of strings).
 
-Consumers: [Regioncodes Configurator](../region-configurator.html), [region map](../region-map.html).
+Consumers: [Repeater Configurator](../configurator.html), [region map](../region-map.html).
 
 **StatBel geometry (reference only):** how to obtain municipality / sector GeoJSON for your own checks is documented in [`data/statbel/STATBEL_MUNICIPALITIES.md`](../data/statbel/STATBEL_MUNICIPALITIES.md). The in-repo Python audit scripts were removed; regenerate `be-locode.json` with `generate-be-locode.py` when source data or overrides change.
 

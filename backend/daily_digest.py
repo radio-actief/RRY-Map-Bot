@@ -93,6 +93,9 @@ def collect_changes_since(conn, since_utc: datetime) -> Dict[str, List[str]]:
                      explicit ``removed`` row (or no ``belgian_nodes`` row but
                      ``removed`` in the window). Routine ``updated`` rows on
                      inactive nodes do not count as a new deletion each day.
+        (flaps)   -> ``added``+``removed`` in the same window while still
+                     inactive, or ``removed``+``restored`` in the same window,
+                     are omitted from all buckets (net active stock unchanged).
         updated   -> intentionally excluded from the digest (matches the
                      old per-sync notification).
 
@@ -162,6 +165,12 @@ def collect_changes_since(conn, since_utc: datetime) -> Dict[str, List[str]]:
         prior = cursor.fetchall()
         had_prior_history = len(prior) > 0
         had_prior_removed = any((r[0] == 'removed') for r in prior)
+
+        # Same-window opposing lifecycle events with no net active-stock change.
+        if 'removed' in types and 'restored' in types:
+            continue
+        if 'added' in types and 'removed' in types and is_active == 0:
+            continue
 
         if is_active == 0:
             # Only count as removed when this window actually logged a removal.

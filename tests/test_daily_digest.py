@@ -137,6 +137,40 @@ class TestCollectChangesSince(unittest.TestCase):
         self.assertNotIn(pk, agg["removed"])
         self.assertEqual(agg["added"].count(pk), 1)
 
+    def test_same_window_add_remove_inactive_omitted(self) -> None:
+        """Added then removed same window, still inactive: net 0, not Deleted."""
+        pk = "9" * 64
+        _insert_node(self.conn, pk, "Brief-Node", is_active=0)
+        _insert_change(self.conn, pk, "added", self.window_start + timedelta(minutes=10))
+        _insert_change(self.conn, pk, "removed", self.window_start + timedelta(minutes=40))
+        self.conn.commit()
+
+        agg = collect_changes_since(self.conn, self.window_start)
+        self.assertNotIn(pk, agg["added"])
+        self.assertNotIn(pk, agg["removed"])
+        self.assertNotIn(pk, agg["restored"])
+
+    def test_same_window_remove_restore_omitted(self) -> None:
+        """Removed then restored same window: net 0, not Restored."""
+        pk = "8" * 64
+        _insert_node(self.conn, pk, "Flap-Back", is_active=1)
+        _insert_change(
+            self.conn, pk, "added",
+            self.window_start - timedelta(days=30),
+        )
+        _insert_change(
+            self.conn, pk, "removed",
+            self.window_start - timedelta(days=10),
+        )
+        _insert_change(self.conn, pk, "removed", self.window_start + timedelta(minutes=20))
+        _insert_change(self.conn, pk, "restored", self.window_start + timedelta(minutes=90))
+        self.conn.commit()
+
+        agg = collect_changes_since(self.conn, self.window_start)
+        self.assertNotIn(pk, agg["added"])
+        self.assertNotIn(pk, agg["removed"])
+        self.assertNotIn(pk, agg["restored"])
+
     def test_removed_when_currently_inactive(self) -> None:
         pk = "c" * 64
         _insert_node(self.conn, pk, "Gone", is_active=0)

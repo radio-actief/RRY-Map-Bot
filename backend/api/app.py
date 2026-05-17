@@ -20,6 +20,7 @@ from backend.database import (
     init_database,
     dict_from_row
 )
+from backend.datetime_utils import normalize_node_timestamps
 from backend.auth import (
     get_authorization_url,
     exchange_code_for_token,
@@ -124,7 +125,8 @@ def get_all_belgian_nodes():
             
             # Add coords field for frontend compatibility (format: "lat, lon")
             formatted_node['coords'] = f"{node_dict['adv_lat']}, {node_dict['adv_lon']}"
-            
+
+            normalize_node_timestamps(formatted_node)
             nodes.append(formatted_node)
         
         return nodes
@@ -862,23 +864,10 @@ def get_config():
 
 def _date_to_unix(date_val) -> int:
     """Convert DB date (TEXT, ISO or similar) to Unix timestamp. Returns 0 if missing or invalid."""
-    if not date_val:
-        return 0
-    try:
-        from datetime import datetime, timezone
-        s = str(date_val).strip()
-        if not s:
-            return 0
-        s = s.replace("Z", "+00:00")
-        try:
-            dt = datetime.fromisoformat(s[:26].rstrip("Z"))
-        except ValueError:
-            return 0
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-        return int(dt.timestamp())
-    except Exception:
-        return 0
+    from backend.datetime_utils import parse_utc
+
+    dt = parse_utc(date_val)
+    return int(dt.timestamp()) if dt else 0
 
 
 def _get_contacts_by_type(node_type: int, filename: str):
@@ -1257,6 +1246,7 @@ def get_my_nodes():
         }
         
         formatted_node['coords'] = f"{node_dict['adv_lat']}, {node_dict['adv_lon']}"
+        normalize_node_timestamps(formatted_node)
         formatted_nodes.append(formatted_node)
     
     return jsonify(formatted_nodes), 200

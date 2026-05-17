@@ -65,6 +65,7 @@ from backend.database import (
     get_current_timestamp,
     dict_from_row
 )
+from backend.datetime_utils import normalize_node_timestamps
 import sqlite3
 from pathlib import Path
 
@@ -102,7 +103,7 @@ def _log_geocode_failure(
     try:
         log_path = _geocode_failures_log_path()
         log_path.parent.mkdir(parents=True, exist_ok=True)
-        ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        ts = get_current_timestamp()
         action = "kept_from_db" if kept_from_db else "dropped"
         line = f"{ts}\t{public_key}\t{lat}\t{lon}\t{action}\t{source}\t{reason}\n"
         with open(log_path, "a", encoding="utf-8") as f:
@@ -475,6 +476,7 @@ def integrate_added_node(node: Dict[str, Any], conn) -> None:
         conn: Database connection.
     """
     cursor = conn.cursor()
+    normalize_node_timestamps(node)
 
     # Always stamp inserted_date: prefer the official feed's value, fall back
     # to our current scrape time so every row has a first-seen day for the
@@ -681,7 +683,8 @@ def merge_node_update(node: Dict[str, Any],
         True if any changes were made, False otherwise.
     """
     cursor = conn.cursor()
-    
+    normalize_node_timestamps(node)
+
     # Normalize public key: remove spaces, dashes, convert to lowercase
     # This matches the normalization in get_node_by_key
     public_key_normalized = node['public_key'].replace(' ', '').replace('-', '').lower()

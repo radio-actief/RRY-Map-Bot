@@ -243,39 +243,18 @@ def match_frequency_preset(params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 
 def format_date_display(date_string: Optional[str]) -> str:
     """
-    Format date string for Discord display in CET/CEST with timezone label.
-    Expects stored dates in UTC (or ISO with Z/+00:00); naive strings are treated as UTC.
-    
-    Args:
-        date_string: ISO format date string (e.g., "2026-01-02T18:45:49Z" or "2026-01-02T18:45:49.123456").
-    
+    Format UTC storage string for Discord display in CET/CEST with timezone label.
+
     Returns:
-        Formatted date string (e.g., "2026-01-02 19:45 CET") or "N/A" if invalid.
+        e.g. "2026-01-02 19:45 CET", or "N/A" if invalid.
     """
-    if not date_string:
+    from backend.datetime_utils import parse_utc
+
+    dt = parse_utc(date_string)
+    if not dt:
         return "N/A"
-    
-    try:
-        # Normalize: Z -> +00:00 for fromisoformat; strip microseconds for consistent parsing
-        date_str_clean = date_string.strip()
-        if date_str_clean.endswith("Z"):
-            date_str_clean = date_str_clean[:-1] + "+00:00"
-        if "." in date_str_clean and "+" in date_str_clean:
-            date_str_clean = date_str_clean.split(".")[0] + date_str_clean[date_str_clean.index("+"):]
-        elif "." in date_str_clean:
-            date_str_clean = date_str_clean.split(".")[0]
-        
-        dt = datetime.fromisoformat(date_str_clean)
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-        else:
-            dt = dt.astimezone(timezone.utc)
-        
-        cet = ZoneInfo("Europe/Brussels")
-        dt_cet = dt.astimezone(cet)
-        return dt_cet.strftime("%Y-%m-%d %H:%M") + " " + dt_cet.tzname()
-    except (ValueError, AttributeError):
-        return "N/A"
+    dt_cet = dt.astimezone(ZoneInfo("Europe/Brussels"))
+    return dt_cet.strftime("%Y-%m-%d %H:%M") + " " + dt_cet.tzname()
 
 
 def format_frequency_display(params: Dict[str, Any]) -> str:
@@ -426,28 +405,15 @@ def get_most_recent_date(node: Dict[str, Any]) -> Optional[str]:
     Returns:
         Most recent date as string in CET (e.g. "2026-01-02 19:45 CET"), or None if no dates found.
     """
+    from backend.datetime_utils import parse_utc
+
     cet = ZoneInfo("Europe/Brussels")
     dates_utc = []
-    for date_field in ['inserted_date', 'updated_date', 'last_advert']:
-        date_val = node.get(date_field)
-        if date_val:
-            try:
-                if isinstance(date_val, str):
-                    s = date_val.replace('Z', '+00:00').split('.')[0]
-                    if 'T' in s or '+' in s:
-                        dt = datetime.fromisoformat(s)
-                    else:
-                        dt = datetime.strptime(s, '%Y-%m-%d %H:%M:%S')
-                else:
-                    dt = date_val
-                if dt.tzinfo is None:
-                    dt = dt.replace(tzinfo=timezone.utc)
-                else:
-                    dt = dt.astimezone(timezone.utc)
-                dates_utc.append(dt)
-            except (ValueError, TypeError, AttributeError):
-                continue
-    
+    for date_field in ('inserted_date', 'updated_date', 'last_advert'):
+        dt = parse_utc(node.get(date_field))
+        if dt:
+            dates_utc.append(dt)
+
     if dates_utc:
         most_recent_utc = max(dates_utc)
         dt_cet = most_recent_utc.astimezone(cet)

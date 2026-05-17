@@ -499,6 +499,17 @@ function formatRadioParams(params) {
   return html || "N/A";
 }
 
+/** Parse API/DB timestamp as UTC epoch ms. Naive ``YYYY-MM-DD HH:MM:SS`` => UTC. */
+function parseUtcMs(dateString) {
+  if (dateString == null || dateString === "") return NaN;
+  const s = String(dateString).trim();
+  if (!s) return NaN;
+  if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}$/.test(s)) {
+    return Date.parse(s.replace(" ", "T") + "Z");
+  }
+  return Date.parse(s);
+}
+
 // Format date as relative time (exact upstream implementation)
 function timeAgo(msec) {
   const seconds = Math.floor((Date.now() - msec) / 1000);
@@ -545,11 +556,12 @@ function timeAgoCompact(msec) {
 
 function formatRelativeTimeCompact(dateString) {
   if (!dateString) return "N/A";
-  const date = new Date(dateString);
-  if (isNaN(date.getTime())) return "Invalid date";
+  const ms = parseUtcMs(dateString);
+  if (Number.isNaN(ms)) return "Invalid date";
+  const date = new Date(ms);
   const titleCET = formatInCET(date);
-  const long = timeAgo(date.getTime());
-  const short = timeAgoCompact(date.getTime());
+  const long = timeAgo(ms);
+  const short = timeAgoCompact(ms);
   const tip = `${titleCET} · ${long}`;
   return `<time datetime="${escapeAttrHtml(dateString)}" title="${escapeAttrHtml(tip)}">${escapeAttrHtml(short)}</time>`;
 }
@@ -573,13 +585,13 @@ function formatInCET(date) {
 function formatRelativeTime(dateString) {
   if (!dateString) return "N/A";
 
-  const date = new Date(dateString);
-  if (isNaN(date.getTime())) return "Invalid date";
+  const ms = parseUtcMs(dateString);
+  if (Number.isNaN(ms)) return "Invalid date";
 
-  const dt = new Date(dateString);
+  const dt = new Date(ms);
   const titleCET = formatInCET(dt);
-  return `<time datetime="${dateString}" title="${titleCET}">${timeAgo(
-    dt.getTime(),
+  return `<time datetime="${escapeAttrHtml(dateString)}" title="${escapeAttrHtml(titleCET)}">${timeAgo(
+    ms,
   )}</time>`;
 }
 
@@ -1451,9 +1463,9 @@ if (document.readyState === "loading") {
 
 window.isNewerThan = (date, days) => {
   const daysMs = 1000 * 3600 * 24 * days;
-  const dateMs = new Date(date).getTime();
+  const dateMs = parseUtcMs(date);
 
-  return dateMs > Date.now() - daysMs;
+  return !Number.isNaN(dateMs) && dateMs > Date.now() - daysMs;
 };
 
 // Get the most recent date from a node's date fields
@@ -1467,8 +1479,10 @@ function getMostRecentDate(node) {
 
   if (dates.length === 0) return null;
 
-  // Convert all dates to timestamps and find the maximum
-  const timestamps = dates.map((date) => new Date(date).getTime());
+  const timestamps = dates
+    .map((date) => parseUtcMs(date))
+    .filter((ms) => !Number.isNaN(ms));
+  if (timestamps.length === 0) return null;
   const mostRecentTimestamp = Math.max(...timestamps);
 
   // Return as ISO string for consistency with node date format
@@ -1483,7 +1497,7 @@ function getDaysEpochMsec(days) {
 function getNodeUpdateStatus(node) {
   const src = node.source != null ? String(node.source) : "";
   if (!src || src[0] !== "u") return "none";
-  const updateEpoch = new Date(node.updated_date).getTime();
+  const updateEpoch = parseUtcMs(node.updated_date);
   if (Number.isNaN(updateEpoch)) return "none";
   const now = Date.now();
   if (updateEpoch < now - getDaysEpochMsec(20)) return "extinct";
@@ -2303,9 +2317,13 @@ createApp({
             node.coords = `${node.adv_lat.toFixed(4)}, ${node.adv_lon.toFixed(
               4,
             )}`;
-            node.lastAdvertDate = new Date(node.last_advert);
-            node.insertDate = new Date(node.inserted_date);
-            node.updatedDate = node.updated_date && new Date(node.updated_date);
+            node.lastAdvertDate = new Date(parseUtcMs(node.last_advert));
+            node.insertDate = new Date(parseUtcMs(node.inserted_date));
+            const updatedMs = parseUtcMs(node.updated_date);
+            node.updatedDate =
+              node.updated_date && !Number.isNaN(updatedMs)
+                ? new Date(updatedMs)
+                : null;
 
             const f = node.params?.freq;
             if (f != null && !Number.isNaN(Number(f))) {

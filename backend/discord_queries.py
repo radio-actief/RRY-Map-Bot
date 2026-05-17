@@ -522,9 +522,11 @@ def get_statistics(
         
         # Activity stats: devices active in last 24h, 7d, 30d.
         # Based on most recent of inserted_date, updated_date, last_advert.
-        from datetime import datetime, timedelta
+        from datetime import datetime, timedelta, timezone
 
-        now = datetime.now()
+        from backend.datetime_utils import parse_utc
+
+        now = datetime.now(timezone.utc)
         day_ago = now - timedelta(days=1)
         week_ago = now - timedelta(days=7)
         month_ago = now - timedelta(days=30)
@@ -546,27 +548,15 @@ def get_statistics(
             if not isinstance(row, dict):
                 row = dict_from_row(row)
             dates = []
-            for date_val in [row.get('inserted_date'), row.get('updated_date'), row.get('last_advert')]:
-                if date_val:
-                    try:
-                        # Handle different date formats
-                        if isinstance(date_val, str):
-                            # Try parsing ISO format or SQLite datetime format
-                            if 'T' in date_val:
-                                # ISO format: "2025-01-15T14:30:00" or "2025-01-15T14:30:00.123456"
-                                dt = datetime.fromisoformat(date_val.replace('Z', '+00:00').split('.')[0])
-                            else:
-                                # SQLite format: "2025-01-15 14:30:00"
-                                dt = datetime.strptime(date_val, '%Y-%m-%d %H:%M:%S')
-                        else:
-                            dt = date_val
-                        # Remove timezone info for comparison
-                        if dt.tzinfo:
-                            dt = dt.replace(tzinfo=None)
-                        dates.append(dt)
-                    except (ValueError, TypeError, AttributeError):
-                        continue
-            
+            for date_val in (
+                row.get('inserted_date'),
+                row.get('updated_date'),
+                row.get('last_advert'),
+            ):
+                dt = parse_utc(date_val)
+                if dt:
+                    dates.append(dt)
+
             if dates:
                 most_recent = max(dates)
                 

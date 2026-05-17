@@ -48,6 +48,7 @@ except (ImportError, ModuleNotFoundError):  # pragma: no cover - defensive fallb
     NODE_TYPE_ICONS = {1: "📱", 2: "📡", 3: "💾", 4: "🌡️"}
 
 from backend.database import get_connection
+from backend.datetime_utils import format_utc_iso, parse_utc
 
 
 NODE_TYPE_NAMES = {
@@ -64,31 +65,13 @@ NODE_TYPE_NAMES = {
 
 
 def _parse_iso_utc(ts: Optional[str]) -> Optional[datetime]:
-    """Parse the ISO-8601 timestamps stored in node_changes/digest_state."""
-    if not ts:
-        return None
-    s = ts.strip()
-    if not s:
-        return None
-    if s.endswith('Z'):
-        s = s[:-1] + '+00:00'
-    try:
-        dt = datetime.fromisoformat(s)
-    except ValueError:
-        try:
-            dt = datetime.strptime(s, "%Y-%m-%d %H:%M:%S")
-        except ValueError:
-            return None
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(timezone.utc)
+    """Parse timestamps stored in node_changes / digest_state."""
+    return parse_utc(ts)
 
 
 def _format_utc(dt: datetime) -> str:
-    """Format an aware UTC datetime back into ISO with 'Z' suffix."""
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    """Format an aware UTC datetime as canonical ISO Z."""
+    return format_utc_iso(dt) or ""
 
 
 # ---------------------------------------------------------------------------

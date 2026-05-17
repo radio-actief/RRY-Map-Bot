@@ -7,6 +7,8 @@ import sqlite3
 import json
 import os
 from datetime import datetime, timezone
+
+from backend.datetime_utils import utc_now_iso
 from typing import Optional, Dict, Any, List
 from pathlib import Path
 import sys
@@ -262,8 +264,8 @@ def dict_from_row(row: sqlite3.Row) -> Dict[str, Any]:
 
 
 def get_current_timestamp() -> str:
-    """Get current timestamp as ISO format string in UTC."""
-    return datetime.now(timezone.utc).isoformat()
+    """Current UTC instant as canonical ISO ``YYYY-MM-DDTHH:MM:SSZ``."""
+    return utc_now_iso()
 
 
 def verify_schema() -> bool:

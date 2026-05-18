@@ -335,7 +335,7 @@
 "plaats": "As",
 "gemeente": "As",
 "province_code": "be-vli",
-"city_code": "beasm",
+"city_code": "beass",
 "search_aliases": [
 "NIEL-BIJ-AS"
 ],
@@ -835,7 +835,7 @@
 "plaats": "Beveren-Kruibeke-Zwijndrecht",
 "gemeente": "Beveren-Kruibeke-Zwijndrecht",
 "province_code": "be-vov",
-"city_code": "bebev",
+"city_code": "bebws",
 "search_aliases": [
 "ZWIJNDRECHT",
 "BURCHT",
@@ -1382,7 +1382,7 @@
 "plaats": "Celles",
 "gemeente": "Celles",
 "province_code": "be-wht",
-"city_code": "becel",
+"city_code": "becle",
 "search_aliases": [
 "MOLENBAIX",
 "POTTES",
@@ -2645,7 +2645,7 @@
 "plaats": "Froidchapelle",
 "gemeente": "Froidchapelle",
 "province_code": "be-wht",
-"city_code": "befrd",
+"city_code": "befda",
 "search_aliases": [
 "VERGNIES+PARTIE DE BARBENCON",
 "ERPION",
@@ -3059,7 +3059,7 @@
 "plaats": "Halle",
 "gemeente": "Halle",
 "province_code": "be-vbr",
-"city_code": "behll",
+"city_code": "behfb",
 "search_aliases": [
 "BUIZINGEN",
 "LEMBEEK",
@@ -3244,7 +3244,7 @@
 "plaats": "Hechtel-Eksel",
 "gemeente": "Hechtel-Eksel",
 "province_code": "be-vli",
-"city_code": "beekl",
+"city_code": "behcl",
 "search_aliases": [
 "HECHTEL + DEEL HELCHTEREN",
 "EKSEL+ DEEL VAN OVERPELT"
@@ -3346,7 +3346,7 @@
 "plaats": "Herent",
 "gemeente": "Herent",
 "province_code": "be-vbr",
-"city_code": "behet",
+"city_code": "beheb",
 "search_aliases": [
 "WINKSELE",
 "VELTEM-BEISEM"
@@ -4194,7 +4194,7 @@
 "plaats": "Kruisem",
 "gemeente": "Kruisem",
 "province_code": "be-vov",
-"city_code": "bekrs",
+"city_code": "bekhm",
 "search_aliases": [
 "KRUISHOUTEM",
 "DEEL HUISE",
@@ -5396,7 +5396,7 @@
 "plaats": "Montigny-le-Tilleul",
 "gemeente": "Montigny-le-Tilleul",
 "province_code": "be-wht",
-"city_code": "bemzl",
+"city_code": "bemon",
 "search_aliases": [
 "LANDELIES"
 ],
@@ -5536,7 +5536,7 @@
 "plaats": "Nazareth-De Pinte",
 "gemeente": "Nazareth-De Pinte",
 "province_code": "be-vov",
-"city_code": "benzh",
+"city_code": "bedpe",
 "search_aliases": [
 "DE PINTE",
 "ZEVERGEM",
@@ -5904,7 +5904,7 @@
 "plaats": "Oudsbergen",
 "gemeente": "Oudsbergen",
 "province_code": "be-vli",
-"city_code": "beodg",
+"city_code": "bemgu",
 "search_aliases": [
 "OPGLABBEEK",
 "MEEUWEN",
@@ -5962,7 +5962,7 @@
 "plaats": "Pajottegem",
 "gemeente": "Pajottegem",
 "province_code": "be-vbr",
-"city_code": "bepjt",
+"city_code": "begma",
 "search_aliases": [
 "GALMAARDEN",
 "VOLLEZELE",
@@ -6030,7 +6030,7 @@
 "plaats": "Pelt",
 "gemeente": "Pelt",
 "province_code": "be-vli",
-"city_code": "benrp",
+"city_code": "beove",
 "search_aliases": [
 "NEERPELT",
 "SINT-HUIBRECHTS-LILLE",
@@ -6093,7 +6093,7 @@
 "plaats": "Perwez",
 "gemeente": "Perwez",
 "province_code": "be-wbr",
-"city_code": "beprw",
+"city_code": "bepwe",
 "search_aliases": [
 "THOREMBAIS-SAINT-TROND",
 "ORBAIS",

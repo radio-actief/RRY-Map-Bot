@@ -8,7 +8,9 @@ Builds [`data/be-locode.json`](../data/be-locode.json): **exactly 565** Belgian 
 
 1. **Set of gemeenten:** NIS6 xlsx column `CNIS5_2025` (565 unique parents).
 2. **`province_code`:** derived by walking `REFNIS_2025_CITIES.xlsx` (province headers → following gemeente rows); default file is under [`data/inputs/`](../data/inputs/) if present, else [`data/statbel/`](../data/statbel/).
-3. **`city_code` / default coordinates:** [UN/LOCODE `code-list.csv`](https://github.com/datasets/un-locode/blob/master/data/code-list.csv) (Belgium rows), with [`be_locode_nis5_un_overrides.py`](be_locode_nis5_un_overrides.py) for fusions, disambiguation, and synthetic 3-letter codes. With `--osm-pbf`, pins come from OSM **settlement** nodes (`place=*`) inside each gemeente polygon, then polygon **representative_point**, then UN coords.
+3. **`city_code` / default coordinates:** [UN/LOCODE `code-list.csv`](https://github.com/datasets/un-locode/blob/master/data/code-list.csv) (Belgium rows), with [`be_locode_nis5_un_overrides.py`](be_locode_nis5_un_overrides.py) for fusions, disambiguation, and seat-based picks (see **[LOCODE_POLICY.md](LOCODE_POLICY.md)**). With `--osm-pbf`, pins come from OSM **settlement** nodes (`place=*`) inside each gemeente polygon, then polygon **representative_point**, then UN coords.
+
+   After changing overrides, run [`verify_locode_overrides.py`](verify_locode_overrides.py) and regenerate `be-locode.json` when StatBel inputs are available.
 4. **Legacy UN coordinate fixes:** `LOCODE_COORD_OVERRIDES` in `generate-be-locode.py` (still keyed by UN Location).
 5. **`plaats` / `gemeente`:** Dutch in Flanders and Brussels, French in Wallonia (with the other language and sectors in `search_aliases`).
 

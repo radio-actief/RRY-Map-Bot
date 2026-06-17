@@ -155,230 +155,327 @@
         </div>
 
         <div class="config-card config-settings-card" id="settings-card">
-          <h2 id="settings">3. General settings</h2>
+          <h2 id="settings">3. Repeater settings</h2>
           <p class="config-card-desc">
-            Set radio, security, and timing options here. For most #BEmesh
-            setups, pick an <strong>admin password</strong> and add
-            <strong>owner info</strong>, then keep the other fields at their
-            defaults.
+            Tiered options for radio, security, and mesh behaviour. Start with
+            <strong>General</strong>; open <strong>Advanced</strong> or
+            <strong>Expert</strong> only when you need finer control.
           </p>
-          <div class="config-form-grid">
-            <label
-              class="config-form-field config-form-field--full"
-              for="setting-radio-preset"
-            >
-              <span>Radio preset</span>
-              <select id="setting-radio-preset"></select>
-            </label>
-          </div>
-          <div
-            id="setting-radio-custom-wrap"
-            class="setting-radio-custom"
-            hidden
-          >
-            <div class="config-form-grid config-form-grid--radio-custom">
-              <label class="config-form-field" for="setting-radio-freq">
-                <span>Freq (MHz)</span>
+
+          <details class="config-settings-tier" open>
+            <summary class="config-settings-tier-summary">
+              General settings
+            </summary>
+            <p class="config-tier-desc">
+              Essentials for most #BEmesh repeaters: credentials, owner
+              contact, radio plan, and EU duty cycle.
+            </p>
+            <div class="config-form-grid">
+              <label
+                class="config-form-field config-form-field--full"
+                for="setting-radio-preset"
+              >
+                <span>Radio preset</span>
+                <select id="setting-radio-preset"></select>
+              </label>
+            </div>
+            <div class="config-form-grid config-form-grid--settings-system">
+              <label class="config-form-field" for="setting-admin-password">
+                <span>Admin password</span>
                 <input
-                  id="setting-radio-freq"
-                  type="number"
-                  step="0.001"
-                  min="150"
-                  max="2500"
-                  placeholder="869.618"
+                  id="setting-admin-password"
+                  type="text"
+                  placeholder="password"
+                  autocomplete="off"
                 />
               </label>
-              <label class="config-form-field" for="setting-radio-sf">
-                <span>SF</span>
+              <label class="config-form-field" for="setting-guest-password">
+                <span>Guest password</span>
                 <input
-                  id="setting-radio-sf"
+                  id="setting-guest-password"
+                  type="text"
+                  placeholder="Leave empty for open telemetry"
+                  autocomplete="off"
+                />
+              </label>
+              <label class="config-form-field" for="setting-repeat">
+                <span>Repeat mode</span>
+                <select id="setting-repeat">
+                  <option value="on" selected>on</option>
+                  <option value="off">off</option>
+                </select>
+              </label>
+              <label
+                class="config-form-field config-form-field--full"
+                for="setting-owner-info"
+              >
+                <span>Owner info</span>
+                <input
+                  id="setting-owner-info"
+                  type="text"
+                  placeholder="Contact or notes (| = newline)"
+                  autocomplete="off"
+                />
+              </label>
+              <label class="config-form-field" for="setting-dutycycle">
+                <span>Duty cycle (%)</span>
+                <select id="setting-dutycycle">
+                  <option value="1">1</option>
+                  <option value="10" selected>10</option>
+                  <option value="50">50</option>
+                  <option value="100">100</option>
+                </select>
+              </label>
+            </div>
+          </details>
+
+          <details class="config-settings-tier">
+            <summary class="config-settings-tier-summary">
+              Advanced settings
+            </summary>
+            <p class="config-tier-desc">
+              Advert timing, flood hop limits, and path-hash mode for mesh
+              tuning. Defaults match #BEmesh guidance on v1.16+ firmware.
+            </p>
+            <div class="config-form-grid config-form-grid--settings-adverts">
+              <label
+                class="config-form-field"
+                for="setting-flood-advert-interval"
+              >
+                <span>Flood advert interval (h)</span>
+                <input
+                  id="setting-flood-advert-interval"
                   type="number"
+                  min="3"
+                  max="168"
                   step="1"
-                  min="5"
-                  max="12"
-                  placeholder="8"
+                  value="47"
                 />
               </label>
-              <label class="config-form-field" for="setting-radio-bw">
-                <span>BW (kHz)</span>
+              <label class="config-form-field" for="setting-advert-interval">
+                <span>Zero-hop advert interval (min)</span>
                 <input
-                  id="setting-radio-bw"
+                  id="setting-advert-interval"
                   type="number"
-                  step="0.001"
-                  min="7"
-                  max="500"
-                  placeholder="62.5"
-                />
-              </label>
-              <label class="config-form-field" for="setting-radio-cr">
-                <span>CR</span>
-                <input
-                  id="setting-radio-cr"
-                  type="number"
-                  step="1"
-                  min="5"
-                  max="8"
-                  placeholder="8"
+                  min="0"
+                  max="240"
+                  step="2"
+                  value="0"
                 />
               </label>
             </div>
-            <p
-              id="setting-radio-error"
-              class="setting-radio-error"
-              role="alert"
+            <div
+              class="config-form-grid config-form-grid--settings-flood-limits"
+            >
+              <label
+                class="config-form-field"
+                for="setting-flood-max-unscoped"
+              >
+                <span>Flood max unscoped hops</span>
+                <input
+                  id="setting-flood-max-unscoped"
+                  type="number"
+                  min="0"
+                  max="64"
+                  step="1"
+                  value="12"
+                  title="Max hops for flood packets without a region tag (v1.16+)"
+                />
+              </label>
+              <label
+                class="config-form-field"
+                for="setting-flood-max-advert"
+              >
+                <span>Flood max advert hops</span>
+                <input
+                  id="setting-flood-max-advert"
+                  type="number"
+                  min="0"
+                  max="64"
+                  step="1"
+                  value="8"
+                  title="Max hops for advert flood packets (v1.16+)"
+                />
+              </label>
+              <label class="config-form-field" for="setting-flood-max">
+                <span>Flood max hops (all)</span>
+                <input
+                  id="setting-flood-max"
+                  type="number"
+                  min="0"
+                  max="64"
+                  step="1"
+                  value="64"
+                  title="Overall flood hop cap (any scoped flood)"
+                />
+              </label>
+              <label class="config-form-field" for="setting-path-hash-mode">
+                <span>Path hash mode</span>
+                <select id="setting-path-hash-mode">
+                  <option value="0">0 — 1-byte (64 hops)</option>
+                  <option value="1" selected>1 — 2-byte (32 hops)</option>
+                  <option value="2">2 — 3-byte (21 hops)</option>
+                </select>
+              </label>
+            </div>
+            <div class="config-form-grid config-form-grid--settings-rest">
+              <label class="config-form-field" for="setting-loop-detect">
+                <span>Loop detection</span>
+                <select id="setting-loop-detect">
+                  <option value="off">off</option>
+                  <option value="minimal" selected>minimal</option>
+                  <option value="moderate">moderate</option>
+                  <option value="strict">strict</option>
+                </select>
+              </label>
+            </div>
+          </details>
+
+          <details class="config-settings-tier">
+            <summary class="config-settings-tier-summary">Expert settings</summary>
+            <p class="config-tier-desc">
+              Custom radio parameters, collision-avoidance delays, and radio
+              diagnostics. Change only when you understand the trade-offs.
+            </p>
+            <div
+              id="setting-radio-custom-wrap"
+              class="setting-radio-custom"
               hidden
-            ></p>
-          </div>
-          <div class="config-form-grid config-form-grid--settings-system">
-            <label class="config-form-field" for="setting-admin-password">
-              <span>Admin password</span>
-              <input
-                id="setting-admin-password"
-                type="text"
-                placeholder="password"
-                autocomplete="off"
-              />
-            </label>
-            <label class="config-form-field" for="setting-guest-password">
-              <span>Guest password</span>
-              <input
-                id="setting-guest-password"
-                type="text"
-                placeholder="Leave empty for open telemetry"
-                autocomplete="off"
-              />
-            </label>
-            <label class="config-form-field" for="setting-repeat">
-              <span>Repeat mode</span>
-              <select id="setting-repeat">
-                <option value="on" selected>on</option>
-                <option value="off">off</option>
-              </select>
-            </label>
-            <label
-              class="config-form-field config-form-field--full"
-              for="setting-owner-info"
             >
-              <span>Owner info</span>
-              <input
-                id="setting-owner-info"
-                type="text"
-                placeholder="Contact or notes (| = newline)"
-                autocomplete="off"
-              />
-            </label>
-          </div>
-          <div class="config-form-grid config-form-grid--settings-timing">
-            <label class="config-form-field" for="setting-txdelay">
-              <span>Tx delay (flood)</span>
-              <input
-                id="setting-txdelay"
-                type="number"
-                min="0"
-                max="2"
-                step="0.1"
-                value="0.5"
-              />
-            </label>
-            <label class="config-form-field" for="setting-direct-txdelay">
-              <span>Direct tx delay</span>
-              <input
-                id="setting-direct-txdelay"
-                type="number"
-                min="0"
-                max="2"
-                step="0.1"
-                value="0.2"
-              />
-            </label>
-          </div>
-          <div class="config-form-grid config-form-grid--settings-adverts">
-            <label
-              class="config-form-field"
-              for="setting-flood-advert-interval"
-            >
-              <span>Flood advert interval (h)</span>
-              <input
-                id="setting-flood-advert-interval"
-                type="number"
-                min="3"
-                max="168"
-                step="1"
-                value="47"
-              />
-            </label>
-            <label class="config-form-field" for="setting-advert-interval">
-              <span>Zero-hop advert interval (min)</span>
-              <input
-                id="setting-advert-interval"
-                type="number"
-                min="0"
-                max="240"
-                step="2"
-                value="0"
-              />
-            </label>
-          </div>
-          <div class="config-form-grid config-form-grid--settings-flood-limits">
-            <label
-              class="config-form-field"
-              for="setting-flood-max-unscoped"
-            >
-              <span>Flood max unscoped hops</span>
-              <input
-                id="setting-flood-max-unscoped"
-                type="number"
-                min="0"
-                max="64"
-                step="1"
-                value="12"
-                title="Max hops for flood packets without a region tag (v1.16+)"
-              />
-            </label>
-            <label
-              class="config-form-field"
-              for="setting-flood-max-advert"
-            >
-              <span>Flood max advert hops</span>
-              <input
-                id="setting-flood-max-advert"
-                type="number"
-                min="0"
-                max="64"
-                step="1"
-                value="8"
-                title="Max hops for advert flood packets (v1.16+)"
-              />
-            </label>
-          </div>
-          <div class="config-form-grid config-form-grid--settings-rest">
-            <label class="config-form-field" for="setting-path-hash-mode">
-              <span>Path hash mode</span>
-              <select id="setting-path-hash-mode">
-                <option value="0">0</option>
-                <option value="1" selected>1</option>
-                <option value="2">2</option>
-              </select>
-            </label>
-            <label class="config-form-field" for="setting-dutycycle">
-              <span>Duty cycle</span>
-              <select id="setting-dutycycle">
-                <option value="1">1</option>
-                <option value="10" selected>10</option>
-                <option value="50">50</option>
-                <option value="100">100</option>
-              </select>
-            </label>
-            <label class="config-form-field" for="setting-loop-detect">
-              <span>Loop detection</span>
-              <select id="setting-loop-detect">
-                <option value="off">off</option>
-                <option value="minimal" selected>minimal</option>
-                <option value="moderate">moderate</option>
-                <option value="strict">strict</option>
-              </select>
-            </label>
-          </div>
+              <p class="config-tier-note">
+                Custom radio plan (visible when preset is
+                <strong>Custom</strong>).
+              </p>
+              <div class="config-form-grid config-form-grid--radio-custom">
+                <label class="config-form-field" for="setting-radio-freq">
+                  <span>Freq (MHz)</span>
+                  <input
+                    id="setting-radio-freq"
+                    type="number"
+                    step="0.001"
+                    min="150"
+                    max="2500"
+                    placeholder="869.618"
+                  />
+                </label>
+                <label class="config-form-field" for="setting-radio-sf">
+                  <span>SF</span>
+                  <input
+                    id="setting-radio-sf"
+                    type="number"
+                    step="1"
+                    min="5"
+                    max="12"
+                    placeholder="8"
+                  />
+                </label>
+                <label class="config-form-field" for="setting-radio-bw">
+                  <span>BW (kHz)</span>
+                  <input
+                    id="setting-radio-bw"
+                    type="number"
+                    step="0.001"
+                    min="7"
+                    max="500"
+                    placeholder="62.5"
+                  />
+                </label>
+                <label class="config-form-field" for="setting-radio-cr">
+                  <span>CR</span>
+                  <input
+                    id="setting-radio-cr"
+                    type="number"
+                    step="1"
+                    min="5"
+                    max="8"
+                    placeholder="8"
+                  />
+                </label>
+              </div>
+              <p
+                id="setting-radio-error"
+                class="setting-radio-error"
+                role="alert"
+                hidden
+              ></p>
+            </div>
+            <div class="config-form-grid config-form-grid--settings-timing">
+              <label class="config-form-field" for="setting-txdelay">
+                <span>Tx delay (flood)</span>
+                <input
+                  id="setting-txdelay"
+                  type="number"
+                  min="0"
+                  max="2"
+                  step="0.1"
+                  value="0.5"
+                />
+              </label>
+              <label class="config-form-field" for="setting-direct-txdelay">
+                <span>Direct tx delay</span>
+                <input
+                  id="setting-direct-txdelay"
+                  type="number"
+                  min="0"
+                  max="2"
+                  step="0.1"
+                  value="0.2"
+                />
+              </label>
+              <label class="config-form-field" for="setting-rxdelay">
+                <span>Rx delay base</span>
+                <input
+                  id="setting-rxdelay"
+                  type="number"
+                  min="0"
+                  max="20"
+                  step="0.1"
+                  value="0"
+                  title="Experimental: priority queue for weak vs strong flood RX"
+                />
+              </label>
+            </div>
+            <div class="config-form-grid config-form-grid--settings-expert">
+              <label class="config-form-field" for="setting-radio-rxgain">
+                <span>Radio RX gain</span>
+                <select id="setting-radio-rxgain">
+                  <option value="on" selected>on (boosted)</option>
+                  <option value="off">off</option>
+                </select>
+              </label>
+              <label class="config-form-field" for="setting-int-thresh">
+                <span>Interference threshold</span>
+                <input
+                  id="setting-int-thresh"
+                  type="number"
+                  min="0"
+                  max="255"
+                  step="1"
+                  value="0"
+                  title="0 = disabled"
+                />
+              </label>
+              <label class="config-form-field" for="setting-agc-reset">
+                <span>AGC reset interval (s)</span>
+                <input
+                  id="setting-agc-reset"
+                  type="number"
+                  min="0"
+                  max="255"
+                  step="4"
+                  value="0"
+                  title="Rounded down to multiple of 4; 0 = disabled"
+                />
+              </label>
+              <label class="config-form-field" for="setting-multi-acks">
+                <span>Multi-acks</span>
+                <select id="setting-multi-acks">
+                  <option value="0" selected>off</option>
+                  <option value="1">on</option>
+                </select>
+              </label>
+            </div>
+          </details>
         </div>
       </div>
 

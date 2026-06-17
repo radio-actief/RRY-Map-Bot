@@ -108,13 +108,81 @@
 .config-form-grid--settings-timing,
 .config-form-grid--settings-adverts,
 .config-form-grid--settings-flood-limits,
-.config-form-grid--settings-rest {
+.config-form-grid--settings-rest,
+.config-form-grid--settings-expert {
   margin-top: 0.55rem;
+}
+
+.config-settings-tier {
+  margin-top: 0.75rem;
+  border: 1px solid var(--cfg-border);
+  border-radius: var(--cfg-radius-sm);
+  background: rgba(255, 255, 255, 0.55);
+  overflow: hidden;
+}
+
+.config-settings-tier + .config-settings-tier {
+  margin-top: 0.55rem;
+}
+
+.config-settings-tier-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.65rem 0.75rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--cfg-text);
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+  background: var(--cfg-secondary);
+}
+
+.config-settings-tier-summary::-webkit-details-marker {
+  display: none;
+}
+
+.config-settings-tier-summary::before {
+  content: "▸";
+  font-size: 0.85rem;
+  color: var(--cfg-text-muted);
+  transition: transform 0.15s ease;
+}
+
+.config-settings-tier[open] > .config-settings-tier-summary::before {
+  transform: rotate(90deg);
+}
+
+.config-settings-tier > .config-tier-desc,
+.config-settings-tier > .config-form-grid,
+.config-settings-tier > .setting-radio-custom {
+  margin-left: 0.75rem;
+  margin-right: 0.75rem;
+}
+
+.config-settings-tier > .config-tier-desc {
+  margin-top: 0.55rem;
+  margin-bottom: 0;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: var(--cfg-text-muted);
+}
+
+.config-settings-tier > :last-child {
+  margin-bottom: 0.75rem;
+}
+
+.config-tier-note {
+  margin: 0.55rem 0 0;
+  font-size: 0.8rem;
+  color: var(--cfg-text-muted);
 }
 
 @media (min-width: 720px) {
   .config-settings-card .config-form-grid--settings-system,
-  .config-settings-card .config-form-grid--settings-rest {
+  .config-settings-card .config-form-grid--settings-rest,
+  .config-settings-card .config-form-grid--settings-expert {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
   .config-settings-card .config-form-grid--settings-timing,

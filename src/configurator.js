@@ -125,6 +125,12 @@
   const settingFloodMaxAdvertEl = document.getElementById(
     "setting-flood-max-advert",
   );
+  const settingFloodMaxEl = document.getElementById("setting-flood-max");
+  const settingRxdelayEl = document.getElementById("setting-rxdelay");
+  const settingRadioRxgainEl = document.getElementById("setting-radio-rxgain");
+  const settingIntThreshEl = document.getElementById("setting-int-thresh");
+  const settingAgcResetEl = document.getElementById("setting-agc-reset");
+  const settingMultiAcksEl = document.getElementById("setting-multi-acks");
   const settingRadioPresetEl = document.getElementById("setting-radio-preset");
   const settingRadioCustomWrapEl = document.getElementById(
     "setting-radio-custom-wrap",
@@ -703,9 +709,15 @@
     advertIntervalMinutes: 0,
     floodMaxUnscoped: 64,
     floodMaxAdvert: 8,
+    floodMax: 64,
     pathHashMode: "0",
     dutycycle: "50",
     loopDetect: "off",
+    rxdelay: 0,
+    radioRxgain: "on",
+    intThresh: 0,
+    agcResetInterval: 0,
+    multiAcks: "0",
     adminPassword: "password",
   };
 
@@ -725,6 +737,10 @@
   const FLOOD_ADVERT_INTERVAL_FORM_DEFAULT = 47;
   const FLOOD_MAX_UNSCOPED_FORM_DEFAULT = 12;
   const FLOOD_MAX_ADVERT_FORM_DEFAULT = 8;
+  const FLOOD_MAX_FORM_DEFAULT = 64;
+  const LOOP_DETECT_FORM_DEFAULT = "minimal";
+  const PATH_HASH_MODE_FORM_DEFAULT = "1";
+  const DUTYCYCLE_FORM_DEFAULT = "10";
 
   function roundToMaxDecimals(value, maxDecimals) {
     const factor = Math.pow(10, maxDecimals);
@@ -986,6 +1002,34 @@
     return Math.min(64, Math.max(0, v));
   }
 
+  function parseRxdelayBase(el, fallback) {
+    if (!el) return fallback;
+    const raw = String(el.value || "").trim();
+    if (!raw) return fallback;
+    const v = parseFloat(raw);
+    if (!Number.isFinite(v)) return fallback;
+    return Math.min(20, Math.max(0, roundToMaxDecimals(v, 1)));
+  }
+
+  function parseAgcResetSeconds(el, fallback) {
+    if (!el) return fallback;
+    const raw = String(el.value || "").trim();
+    if (!raw) return fallback;
+    const v = parseInt(raw, 10);
+    if (!Number.isFinite(v) || v <= 0) return 0;
+    const clamped = Math.min(255, Math.max(4, v));
+    return clamped - (clamped % 4);
+  }
+
+  function parseIntThresh(el, fallback) {
+    if (!el) return fallback;
+    const raw = String(el.value || "").trim();
+    if (!raw) return fallback;
+    const v = parseInt(raw, 10);
+    if (!Number.isFinite(v)) return fallback;
+    return Math.min(255, Math.max(0, v));
+  }
+
   function buildGeneralSettingsCli(showDefaults) {
     const lines = [];
     const fw = FIRMWARE_DEFAULTS;
@@ -1031,17 +1075,11 @@
       lines.push("set guest.password " + guestPassword);
     }
 
-    const txdelay = parseTxDelayFactor(settingTxdelayEl, fw.txdelay);
-    if (showDefaults || !delayFactorsEqual(txdelay, fw.txdelay)) {
-      lines.push("set txdelay " + txdelay);
-    }
-
-    const directTxdelay = parseTxDelayFactor(
-      settingDirectTxdelayEl,
-      fw.directTxdelay,
-    );
-    if (showDefaults || !delayFactorsEqual(directTxdelay, fw.directTxdelay)) {
-      lines.push("set direct.txdelay " + directTxdelay);
+    const dutycycle = settingDutycycleEl
+      ? settingDutycycleEl.value
+      : DUTYCYCLE_FORM_DEFAULT;
+    if (showDefaults || dutycycle !== fw.dutycycle) {
+      lines.push("set dutycycle " + dutycycle);
     }
 
     const floodAdvertHours = parseFloodAdvertHours(
@@ -1072,25 +1110,71 @@
       lines.push("set flood.max.advert " + floodMaxAdvert);
     }
 
+    const floodMax = parseFloodMaxHops(
+      settingFloodMaxEl,
+      FLOOD_MAX_FORM_DEFAULT,
+    );
+    if (showDefaults || floodMax !== fw.floodMax) {
+      lines.push("set flood.max " + floodMax);
+    }
+
     const pathMode = settingPathHashModeEl
       ? settingPathHashModeEl.value
-      : fw.pathHashMode;
+      : PATH_HASH_MODE_FORM_DEFAULT;
     if (showDefaults || pathMode !== fw.pathHashMode) {
       lines.push("set path.hash.mode " + pathMode);
     }
 
-    const dutycycle = settingDutycycleEl
-      ? settingDutycycleEl.value
-      : fw.dutycycle;
-    if (showDefaults || dutycycle !== fw.dutycycle) {
-      lines.push("set dutycycle " + dutycycle);
-    }
-
     const loopDetect = settingLoopDetectEl
       ? settingLoopDetectEl.value
-      : fw.loopDetect;
+      : LOOP_DETECT_FORM_DEFAULT;
     if (showDefaults || loopDetect !== fw.loopDetect) {
       lines.push("set loop.detect " + loopDetect);
+    }
+
+    const txdelay = parseTxDelayFactor(settingTxdelayEl, fw.txdelay);
+    if (showDefaults || !delayFactorsEqual(txdelay, fw.txdelay)) {
+      lines.push("set txdelay " + txdelay);
+    }
+
+    const directTxdelay = parseTxDelayFactor(
+      settingDirectTxdelayEl,
+      fw.directTxdelay,
+    );
+    if (showDefaults || !delayFactorsEqual(directTxdelay, fw.directTxdelay)) {
+      lines.push("set direct.txdelay " + directTxdelay);
+    }
+
+    const rxdelay = parseRxdelayBase(settingRxdelayEl, fw.rxdelay);
+    if (showDefaults || !delayFactorsEqual(rxdelay, fw.rxdelay)) {
+      lines.push("set rxdelay " + formatDecimalMaxPlaces(rxdelay, 1));
+    }
+
+    const radioRxgain = settingRadioRxgainEl
+      ? settingRadioRxgainEl.value
+      : fw.radioRxgain;
+    if (showDefaults || radioRxgain !== fw.radioRxgain) {
+      lines.push("set radio.rxgain " + radioRxgain);
+    }
+
+    const intThresh = parseIntThresh(settingIntThreshEl, fw.intThresh);
+    if (showDefaults || intThresh !== fw.intThresh) {
+      lines.push("set int.thresh " + intThresh);
+    }
+
+    const agcReset = parseAgcResetSeconds(
+      settingAgcResetEl,
+      fw.agcResetInterval,
+    );
+    if (showDefaults || agcReset !== fw.agcResetInterval) {
+      lines.push("set agc.reset.interval " + agcReset);
+    }
+
+    const multiAcks = settingMultiAcksEl
+      ? settingMultiAcksEl.value
+      : fw.multiAcks;
+    if (showDefaults || multiAcks !== fw.multiAcks) {
+      lines.push("set multi.acks " + multiAcks);
     }
 
     return lines.join("\n");
@@ -2476,6 +2560,12 @@
         settingRadioPresetEl
       ) {
         if (isCustomRadioPreset()) {
+          const expertTier = document.querySelector(
+            "#settings-card .config-settings-tier:last-of-type",
+          );
+          if (expertTier instanceof HTMLDetailsElement) {
+            expertTier.open = true;
+          }
           const idx = parseInt(
             settingRadioPresetEl.dataset.lastPreset || "",
             10,

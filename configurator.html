@@ -304,7 +304,7 @@
                 min="3"
                 max="168"
                 step="1"
-                value="71"
+                value="47"
               />
             </label>
             <label class="config-form-field" for="setting-advert-interval">
@@ -316,6 +316,38 @@
                 max="240"
                 step="2"
                 value="0"
+              />
+            </label>
+          </div>
+          <div class="config-form-grid config-form-grid--settings-flood-limits">
+            <label
+              class="config-form-field"
+              for="setting-flood-max-unscoped"
+            >
+              <span>Flood max unscoped hops</span>
+              <input
+                id="setting-flood-max-unscoped"
+                type="number"
+                min="0"
+                max="64"
+                step="1"
+                value="12"
+                title="Max hops for flood packets without a region tag (v1.16+)"
+              />
+            </label>
+            <label
+              class="config-form-field"
+              for="setting-flood-max-advert"
+            >
+              <span>Flood max advert hops</span>
+              <input
+                id="setting-flood-max-advert"
+                type="number"
+                min="0"
+                max="64"
+                step="1"
+                value="8"
+                title="Max hops for advert flood packets (v1.16+)"
               />
             </label>
           </div>

@@ -119,6 +119,12 @@
   const settingAdvertIntervalEl = document.getElementById(
     "setting-advert-interval",
   );
+  const settingFloodMaxUnscopedEl = document.getElementById(
+    "setting-flood-max-unscoped",
+  );
+  const settingFloodMaxAdvertEl = document.getElementById(
+    "setting-flood-max-advert",
+  );
   const settingRadioPresetEl = document.getElementById("setting-radio-preset");
   const settingRadioCustomWrapEl = document.getElementById(
     "setting-radio-custom-wrap",
@@ -693,8 +699,10 @@
     repeat: "on",
     txdelay: 0.5,
     directTxdelay: 0.2,
-    floodAdvertHours: 12,
+    floodAdvertHours: 47,
     advertIntervalMinutes: 0,
+    floodMaxUnscoped: 64,
+    floodMaxAdvert: 8,
     pathHashMode: "0",
     dutycycle: "50",
     loopDetect: "off",
@@ -714,7 +722,9 @@
   };
 
   /** Configurator form default when a numeric field is left empty (not firmware). */
-  const FLOOD_ADVERT_INTERVAL_FORM_DEFAULT = 71;
+  const FLOOD_ADVERT_INTERVAL_FORM_DEFAULT = 47;
+  const FLOOD_MAX_UNSCOPED_FORM_DEFAULT = 12;
+  const FLOOD_MAX_ADVERT_FORM_DEFAULT = 8;
 
   function roundToMaxDecimals(value, maxDecimals) {
     const factor = Math.pow(10, maxDecimals);
@@ -967,6 +977,15 @@
     return clamped - (clamped % 2);
   }
 
+  function parseFloodMaxHops(el, fallback) {
+    if (!el) return fallback;
+    const raw = String(el.value || "").trim();
+    if (!raw) return fallback;
+    const v = parseInt(raw, 10);
+    if (!Number.isFinite(v)) return fallback;
+    return Math.min(64, Math.max(0, v));
+  }
+
   function buildGeneralSettingsCli(showDefaults) {
     const lines = [];
     const fw = FIRMWARE_DEFAULTS;
@@ -1035,6 +1054,22 @@
     const advertInterval = parseZeroHopAdvertMinutes(settingAdvertIntervalEl);
     if (showDefaults || advertInterval !== fw.advertIntervalMinutes) {
       lines.push("set advert.interval " + advertInterval);
+    }
+
+    const floodMaxUnscoped = parseFloodMaxHops(
+      settingFloodMaxUnscopedEl,
+      FLOOD_MAX_UNSCOPED_FORM_DEFAULT,
+    );
+    if (showDefaults || floodMaxUnscoped !== fw.floodMaxUnscoped) {
+      lines.push("set flood.max.unscoped " + floodMaxUnscoped);
+    }
+
+    const floodMaxAdvert = parseFloodMaxHops(
+      settingFloodMaxAdvertEl,
+      FLOOD_MAX_ADVERT_FORM_DEFAULT,
+    );
+    if (showDefaults || floodMaxAdvert !== fw.floodMaxAdvert) {
+      lines.push("set flood.max.advert " + floodMaxAdvert);
     }
 
     const pathMode = settingPathHashModeEl

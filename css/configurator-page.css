@@ -1,5 +1,190 @@
 @import url("./region-config-page.css");
 
+/* Unified page layout */
+.config-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cfg-space-md);
+  margin-bottom: var(--cfg-space-md);
+}
+
+.config-section-title {
+  margin: 0 0 0.65rem;
+  font-family: var(--cfg-font-display);
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--cfg-text);
+}
+
+.config-subsection-title {
+  margin: 0 0 0.45rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--cfg-text-muted);
+}
+
+.config-general-card {
+  overflow: visible;
+  z-index: 40;
+}
+
+.config-general-card:focus-within {
+  z-index: 60;
+}
+
+.config-identity-block {
+  margin-bottom: 0.85rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid var(--cfg-border);
+}
+
+.config-identity-search {
+  margin-bottom: 0.65rem;
+}
+
+.config-identity-search .search-wrap {
+  z-index: 3;
+}
+
+.config-identity-fields {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.65rem;
+}
+
+@media (min-width: 900px) {
+  .config-identity-fields {
+    grid-template-columns: 1.4fr 1fr;
+    align-items: start;
+  }
+
+  .config-form-grid--naming-row {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.config-naming-guide-link {
+  display: inline-block;
+  margin-top: 0.35rem;
+  font-size: 0.78rem;
+}
+
+/* Header USB toolbar */
+.config-header-serial {
+  width: 100%;
+  margin-top: 0.15rem;
+}
+
+.config-header-serial-unsupported {
+  margin: 0 0 0.35rem;
+}
+
+.config-header-serial-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.32rem;
+}
+
+.config-header .config-header-serial .copy-btn {
+  margin-top: 0;
+}
+
+/* Policy + deploy: full-width stack (override side-by-side row) */
+.config-main .config-policy-cli-row {
+  display: contents;
+}
+
+.config-main .policy-section,
+.config-main .policy-section.visible {
+  display: block;
+}
+
+.policy-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem 0.65rem;
+  margin-bottom: 0.65rem;
+}
+
+.policy-card-head .config-section-title {
+  margin: 0;
+  flex: 1 1 auto;
+  min-width: 8rem;
+}
+
+.policy-card-head-actions {
+  flex: 0 1 auto;
+  margin-left: auto;
+  padding: 0;
+  border: none;
+  background: transparent;
+  gap: 0.26rem 0.4rem;
+}
+
+.policy-card-head-actions .policy-global-btn {
+  font-size: 0.66rem;
+  padding: 0.24rem 0.48rem;
+  border-radius: 5px;
+}
+
+#policy-card:has(#policy-scope-empty:not([hidden])) .policy-card-head {
+  margin-bottom: 0.35rem;
+}
+
+.config-codes-details,
+.policy-codes-details {
+  margin-top: 0.55rem;
+  border: 1px solid var(--cfg-border);
+  border-radius: var(--cfg-radius-sm);
+  background: var(--cfg-secondary);
+  overflow: hidden;
+}
+
+.policy-codes-summary {
+  padding: 0.5rem 0.65rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.policy-codes-summary::-webkit-details-marker {
+  display: none;
+}
+
+.policy-codes-details[open] > .policy-codes-block {
+  padding: 0 0.65rem 0.65rem;
+}
+
+.cli-preview-details {
+  margin-top: 0.75rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid var(--cfg-border);
+}
+
+.cli-preview-summary {
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.cli-preview-summary::-webkit-details-marker {
+  display: none;
+}
+
+.cli-preview-details > .config-cli-show-defaults,
+.cli-preview-details > .commands-block,
+.cli-preview-details > .copy-btn {
+  margin-top: 0.45rem;
+}
+
 /* Location search dropdown must escape the card and sit above blocks below */
 .config-card.config-location-card {
   overflow: visible;
@@ -180,14 +365,14 @@
 }
 
 @media (min-width: 720px) {
-  .config-settings-card .config-form-grid--settings-system,
-  .config-settings-card .config-form-grid--settings-rest,
-  .config-settings-card .config-form-grid--settings-expert {
+  .config-general-card .config-form-grid--settings-system,
+  .config-general-card .config-form-grid--settings-rest,
+  .config-general-card .config-form-grid--settings-expert {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
-  .config-settings-card .config-form-grid--settings-timing,
-  .config-settings-card .config-form-grid--settings-adverts,
-  .config-settings-card .config-form-grid--settings-flood-limits {
+  .config-general-card .config-form-grid--settings-timing,
+  .config-general-card .config-form-grid--settings-adverts,
+  .config-general-card .config-form-grid--settings-flood-limits {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -291,7 +476,7 @@
 
 .policy-location-prompt {
   margin: 0;
-  padding: 0.75rem 0;
+  padding: 0.25rem 0 0.75rem;
   text-align: center;
 }
 
@@ -314,7 +499,13 @@ code.config-naming-preview-advert {
   border-radius: var(--cfg-radius-sm, 6px);
 }
 
-/* Compact page buttons — header chrome (.config-header) unchanged */
+.config-body .config-header .copy-btn,
+.config-body .config-header .copy-btn:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+/* Compact page buttons — page body only (header USB uses same compact sizing) */
 .config-body .config-card .copy-btn,
 .config-body #commands-card .copy-btn,
 .config-body .config-footer .copy-btn {

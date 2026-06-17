@@ -20,7 +20,6 @@
     <link rel="stylesheet" href="./css/style.css" />
     <link rel="stylesheet" href="./css/rry-tool-pages.css" />
     <link rel="stylesheet" href="./css/configurator-page.css" />
-    <link rel="stylesheet" href="./lib/css/beer.css" />
     <title>Repeater Configuration · #BEmesh</title>
   </head>
   <body class="light map-page config-body rty-doc-page">
@@ -45,122 +44,162 @@
             </a>
           </div>
         </div>
+        <div class="config-header-serial" id="config-header-serial">
+          <p
+            id="serial-unsupported"
+            class="serial-unsupported-note config-header-serial-unsupported"
+            hidden
+          >
+            Web Serial is not available in this browser.
+          </p>
+          <div class="config-header-serial-toolbar">
+            <button
+              type="button"
+              class="copy-btn"
+              id="serial-connect-btn"
+              title="Chrome or Edge on HTTPS or localhost; 115200 baud"
+            >
+              Connect USB
+            </button>
+            <button
+              type="button"
+              class="copy-btn serial-btn-secondary"
+              id="serial-disconnect-btn"
+              disabled
+            >
+              Disconnect
+            </button>
+            <button
+              type="button"
+              class="copy-btn serial-btn-secondary"
+              id="serial-read-btn"
+              disabled
+              title="Load name, settings, and region policy from the device (admin password not readable)"
+            >
+              Read from repeater
+            </button>
+            <span
+              class="serial-status"
+              id="serial-status"
+              data-state="disconnected"
+              >Disconnected</span
+            >
+          </div>
+        </div>
         <p class="config-header-desc">
-          Name, regions, settings — deploy over USB or copy the command script.
+          Configure your repeater, then apply over USB or copy the command script.
         </p>
       </div>
 
-      <section
-        class="config-card config-location-card"
-        aria-labelledby="location"
-      >
-        <div class="config-header-search">
-          <h2 id="location">1. Location</h2>
-          <div class="search-wrap">
-            <span class="search-icon" aria-hidden="true">
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-              >
-                <circle cx="11" cy="11" r="8" />
-                <path d="m21 21-4.35-4.35" />
-              </svg>
-            </span>
-            <input
-              type="text"
-              class="search-input"
-              id="city-search"
-              placeholder="Loading locations…"
-              aria-label="Search locations and region codes"
-              autocomplete="off"
-            />
-            <div
-              class="search-dropdown"
-              id="city-dropdown"
-              style="display: none"
-            ></div>
-          </div>
-        </div>
-      </section>
+      <main class="config-main" id="config-main">
+        <section
+          class="config-card config-general-card"
+          id="general-card"
+          aria-labelledby="configuration-heading"
+        >
+          <h2 id="configuration-heading" class="config-section-title">
+            Configuration
+          </h2>
 
-      <div class="config-prep-row">
-        <div class="config-card config-naming-card" id="naming-card">
-          <h2 id="naming">2. Naming</h2>
-          <p class="config-card-desc">
-            Prefix and node name.
-            <a
-              class="config-header-doc-link"
-              href="https://docs.radio-actief.be/nl/MeshCore/ConfigureRepeater#naamgeving"
-              target="_blank"
-              rel="noopener noreferrer"
-              title="Radio-Actief repeater naming guide"
-              >Naming guide</a
-            >.
-          </p>
-          <div class="config-naming-fields">
-            <div class="config-form-grid config-form-grid--naming-row">
-              <label
-                class="config-form-field"
-                for="name-location-mode"
-                id="name-location-mode-wrap"
-              >
-                <span title="How much of the location is included in the prefix"
-                  >Prefix format</span
-                >
-                <select id="name-location-mode">
-                  <option value="city">Country & city</option>
-                  <option value="province">Country & province</option>
-                  <option value="country">Country only</option>
-                  <option value="none">No predefined prefix</option>
-                </select>
-              </label>
-              <label class="config-form-field" for="name-prefix-preview">
-                <span title="Auto-generated from location and prefix format"
-                  >Prefix</span
-                >
-                <input id="name-prefix-preview" type="text" />
-              </label>
-            </div>
-            <div class="config-form-grid config-form-grid--naming-row">
-              <label class="config-form-field" for="name-suffix">
-                <span>Node name</span>
+          <div class="config-identity-block" id="config-identity-block">
+            <h3 class="config-subsection-title">Location &amp; name</h3>
+            <div class="config-identity-search config-header-search">
+              <div class="search-wrap">
+                <span class="search-icon" aria-hidden="true">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <circle cx="11" cy="11" r="8" />
+                    <path d="m21 21-4.35-4.35" />
+                  </svg>
+                </span>
                 <input
-                  id="name-suffix"
                   type="text"
-                  placeholder="Kerk-RRY999"
+                  class="search-input"
+                  id="city-search"
+                  placeholder="Loading locations…"
+                  aria-label="Search locations and region codes"
                   autocomplete="off"
                 />
-              </label>
-              <label class="config-form-field" for="name-power-emoji">
-                <span title="Optional power/source emoji appended to the name"
-                  >Node type</span
+                <div
+                  class="search-dropdown"
+                  id="city-dropdown"
+                  style="display: none"
+                ></div>
+              </div>
+            </div>
+            <div class="config-identity-fields">
+              <div class="config-naming-fields">
+                <div class="config-form-grid config-form-grid--naming-row">
+                  <label
+                    class="config-form-field"
+                    for="name-location-mode"
+                    id="name-location-mode-wrap"
+                  >
+                    <span
+                      title="How much of the location is included in the prefix"
+                      >Prefix format</span
+                    >
+                    <select id="name-location-mode">
+                      <option value="city">Country &amp; city</option>
+                      <option value="province">Country &amp; province</option>
+                      <option value="country">Country only</option>
+                      <option value="none">No predefined prefix</option>
+                    </select>
+                  </label>
+                  <label class="config-form-field" for="name-prefix-preview">
+                    <span title="Auto-generated from location and prefix format"
+                      >Prefix</span
+                    >
+                    <input id="name-prefix-preview" type="text" />
+                  </label>
+                  <label class="config-form-field" for="name-suffix">
+                    <span>Node name</span>
+                    <input
+                      id="name-suffix"
+                      type="text"
+                      placeholder="Kerk-RRY999"
+                      autocomplete="off"
+                    />
+                  </label>
+                  <label class="config-form-field" for="name-power-emoji">
+                    <span
+                      title="Optional power/source emoji appended to the name"
+                      >Node type</span
+                    >
+                    <select id="name-power-emoji">
+                      <option value="">Do not include</option>
+                      <option value="🌞">🌞 Solar</option>
+                      <option value="⚡">⚡ Mains</option>
+                      <option value="🔋">🔋 Battery</option>
+                      <option value="👀">👀 Observer</option>
+                    </select>
+                  </label>
+                </div>
+              </div>
+              <div class="config-naming-preview">
+                <p class="result-muted-note">Generated name</p>
+                <p id="name-preview" class="config-naming-preview-value">—</p>
+                <p id="name-preview-meta" class="config-naming-preview-meta"></p>
+                <p
+                  id="name-preview-note"
+                  class="result-muted-note config-naming-note"
+                  hidden
+                ></p>
+                <a
+                  class="config-header-doc-link config-naming-guide-link"
+                  href="https://docs.radio-actief.be/nl/MeshCore/ConfigureRepeater#naamgeving"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Radio-Actief repeater naming guide"
+                  >Naming guide</a
                 >
-                <select id="name-power-emoji">
-                  <option value="">Do not include</option>
-                  <option value="🌞">🌞 Solar</option>
-                  <option value="⚡">⚡ Mains</option>
-                  <option value="🔋">🔋 Battery</option>
-                  <option value="👀">👀 Observer</option>
-                </select>
-              </label>
+              </div>
             </div>
           </div>
-          <div class="config-naming-preview">
-            <p class="result-muted-note">Generated name</p>
-            <p id="name-preview" class="config-naming-preview-value">—</p>
-            <p id="name-preview-meta" class="config-naming-preview-meta"></p>
-            <p
-              id="name-preview-note"
-              class="result-muted-note config-naming-note"
-              hidden
-            ></p>
-          </div>
-        </div>
-
-        <div class="config-card config-settings-card" id="settings-card">
-          <h2 id="settings">3. Repeater settings</h2>
 
           <details class="config-settings-tier" id="settings-tier-general" open>
             <summary
@@ -225,9 +264,7 @@
                 />
               </label>
               <label class="config-form-field" for="setting-dutycycle">
-                <span title="EU duty cycle percentage"
-                  >Duty cycle (%)</span
-                >
+                <span title="EU duty cycle percentage">Duty cycle (%)</span>
                 <select id="setting-dutycycle">
                   <option value="1">1</option>
                   <option value="10" selected>10</option>
@@ -283,7 +320,8 @@
                 class="config-form-field"
                 for="setting-flood-max-unscoped"
               >
-                <span title="Max hops for flood packets without a region tag (v1.16+)"
+                <span
+                  title="Max hops for flood packets without a region tag (v1.16+)"
                   >Flood max unscoped hops</span
                 >
                 <input
@@ -499,21 +537,60 @@
               </label>
             </div>
           </details>
-        </div>
-      </div>
+        </section>
 
-      <div class="config-policy-cli-row" id="policy-cli-row">
-        <div
-          class="config-card policy-section"
+        <section
+          class="config-card policy-section visible"
           id="policy-card"
+          aria-labelledby="regions-heading"
           aria-live="polite"
         >
-          <h2 id="regions">4. Region scopes (flood policy)</h2>
+          <div class="policy-card-head">
+            <h2 id="regions-heading" class="config-section-title">
+              Region scopes
+            </h2>
+            <div
+              class="policy-global-actions policy-card-head-actions"
+              id="policy-head-actions"
+              role="group"
+              aria-label="Apply to all policy scopes below"
+              hidden
+            >
+              <button
+                type="button"
+                class="policy-global-btn"
+                data-global-bulk="defaults"
+              >
+                Defaults
+              </button>
+              <button
+                type="button"
+                class="policy-global-btn policy-global-btn--clear"
+                data-global-bulk="clear"
+              >
+                Clear all
+              </button>
+              <button
+                type="button"
+                class="policy-global-btn"
+                data-global-bulk="allow"
+              >
+                Allow all
+              </button>
+              <button
+                type="button"
+                class="policy-global-btn"
+                data-global-bulk="deny"
+              >
+                Deny all
+              </button>
+            </div>
+          </div>
           <p
             id="policy-scope-empty"
             class="result-muted-note policy-scope-empty policy-location-prompt"
           >
-            Choose a location first to configure region scopes.
+            Choose a location above to configure region scopes.
           </p>
           <div id="policy-regions-body" hidden>
             <p
@@ -529,57 +606,21 @@
                 >Regio-scopes</a
               >.
             </p>
-            <div class="policy-quick-actions">
-              <h3 class="policy-quick-actions-title">Quick actions</h3>
-              <div
-                class="policy-global-actions"
-                role="group"
-                aria-label="Apply to all policy scopes below"
-              >
-                <button
-                  type="button"
-                  class="policy-global-btn"
-                  data-global-bulk="defaults"
-                >
-                  Defaults
-                </button>
-                <button
-                  type="button"
-                  class="policy-global-btn policy-global-btn--clear"
-                  data-global-bulk="clear"
-                >
-                  Clear all
-                </button>
-                <button
-                  type="button"
-                  class="policy-global-btn"
-                  data-global-bulk="allow"
-                >
-                  Allow all
-                </button>
-                <button
-                  type="button"
-                  class="policy-global-btn"
-                  data-global-bulk="deny"
-                >
-                  Deny all
-                </button>
-              </div>
-            </div>
             <div
               id="policy-grids-container"
               class="policy-grids-container"
             ></div>
-            <div
-              class="policy-codes-block result-section"
-              id="result-card"
-              aria-labelledby="result-card-heading"
-            >
-              <h3 class="policy-codes-heading" id="result-card-heading">
+            <details class="policy-codes-details" id="policy-codes-details">
+              <summary class="policy-codes-summary" id="result-card-heading">
                 Codes for this selection
-              </h3>
-              <div class="result-found-stack" id="result-grid"></div>
-            </div>
+              </summary>
+              <div
+                class="policy-codes-block result-section"
+                id="result-card"
+              >
+                <div class="result-found-stack" id="result-grid"></div>
+              </div>
+            </details>
             <div class="policy-masters">
               <label
                 class="policy-master"
@@ -590,166 +631,129 @@
               </label>
             </div>
           </div>
-        </div>
+        </section>
 
-        <div class="config-cli-results-stack">
-          <div class="config-card result-section" id="commands-card">
-            <h2 id="deploy">5. Deploy to repeater</h2>
-            <p class="config-card-desc">
-              USB deploy or copy the command script below.
-            </p>
+        <section
+          class="config-card result-section visible"
+          id="commands-card"
+          aria-labelledby="deploy-heading"
+        >
+          <h2 id="deploy-heading" class="config-section-title">Deploy</h2>
+          <p class="config-card-desc">
+            Apply configuration, send adverts, or use the interactive console.
+          </p>
 
-            <div class="serial-apply-panel" id="serial-apply-panel">
-              <h3 class="deploy-subheading">USB connection</h3>
-              <p
-                id="serial-unsupported"
-                class="serial-unsupported-note"
-                hidden
-              >
-                Web Serial is not available in this browser.
-              </p>
-              <div class="serial-apply-toolbar">
-                <button
-                  type="button"
-                  class="copy-btn"
-                  id="serial-connect-btn"
-                  title="Chrome or Edge on HTTPS or localhost; 115200 baud"
-                >
-                  Connect USB
-                </button>
-                <button
-                  type="button"
-                  class="copy-btn serial-btn-secondary"
-                  id="serial-disconnect-btn"
-                  disabled
-                >
-                  Disconnect
-                </button>
-                <button
-                  type="button"
-                  class="copy-btn serial-btn-secondary"
-                  id="serial-read-btn"
-                  disabled
-                  title="Load name, settings, and region policy from the device (admin password not readable)"
-                >
-                  Read from repeater
-                </button>
-                <button
-                  type="button"
-                  class="copy-btn serial-btn-apply"
-                  id="serial-apply-btn"
-                  disabled
-                  title="Send generated commands; always includes MeshCore firmware defaults"
-                >
-                  Apply configuration
-                </button>
-                <span
-                  class="serial-status"
-                  id="serial-status"
-                  data-state="disconnected"
-                  >Disconnected</span
-                >
-              </div>
-              <p class="deploy-toolbar-label">Quick actions</p>
-              <div class="serial-advert-toolbar">
-                <button
-                  type="button"
-                  class="copy-btn serial-btn-secondary"
-                  id="serial-advert-zerohop-btn"
-                  disabled
-                  title="CLI: advert.zerohop"
-                >
-                  Zero-hop advert
-                </button>
-                <button
-                  type="button"
-                  class="copy-btn serial-btn-secondary"
-                  id="serial-advert-flood-btn"
-                  disabled
-                  title="CLI: advert"
-                >
-                  Flood advert
-                </button>
-              </div>
-              <div class="serial-log-toolbar">
-                <p class="deploy-toolbar-label serial-log-toolbar-label">
-                  Session log
-                </p>
-                <label
-                  class="serial-show-command-log"
-                  title="Show each CLI command and reply during USB read"
-                >
-                  <input type="checkbox" id="serial-show-command-log" />
-                  <span>Show command log</span>
-                </label>
-              </div>
-              <pre
-                class="serial-apply-log"
-                id="serial-apply-log"
-                aria-live="polite"
-              ></pre>
-              <form class="serial-console-form" id="serial-console-form">
-                <label class="serial-console-label" for="serial-console-input"
-                  >Interactive console</label
-                >
-                <div class="serial-console-row">
-                  <input
-                    type="text"
-                    id="serial-console-input"
-                    class="serial-console-input"
-                    placeholder="e.g. get name"
-                    disabled
-                    autocomplete="off"
-                    spellcheck="false"
-                    maxlength="151"
-                    title="One command per line (max 151 chars). Up/Down recalls history. region load not supported."
-                  />
-                  <button
-                    type="submit"
-                    class="copy-btn serial-btn-secondary"
-                    id="serial-console-send-btn"
-                    disabled
-                    title="Send line to device"
-                  >
-                    Send
-                  </button>
-                  <button
-                    type="button"
-                    class="copy-btn serial-btn-secondary"
-                    id="serial-console-clear-btn"
-                    disabled
-                    title="Clear session log"
-                  >
-                    Clear log
-                  </button>
-                </div>
-              </form>
-            </div>
-
-            <div class="cli-preview-panel" id="cli-preview-panel">
-              <h3 class="deploy-subheading">Command preview</h3>
-              <label
-                class="config-cli-show-defaults"
-                title="Preview only — USB apply always sends firmware defaults regardless"
-              >
-                <input type="checkbox" id="cli-show-defaults" />
-                <span>Include firmware defaults in preview</span>
-              </label>
-              <pre class="commands-block" id="commands-block"></pre>
+          <div class="serial-apply-panel" id="serial-apply-panel">
+            <div class="serial-apply-toolbar">
               <button
                 type="button"
-                class="copy-btn"
-                id="copy-btn"
-                title="Copy script; paste one line at a time if your terminal requires it"
+                class="copy-btn serial-btn-apply"
+                id="serial-apply-btn"
+                disabled
+                title="Send generated commands; always includes MeshCore firmware defaults"
               >
-                Copy command script
+                Apply configuration
               </button>
             </div>
+            <p class="deploy-toolbar-label">Quick actions</p>
+            <div class="serial-advert-toolbar">
+              <button
+                type="button"
+                class="copy-btn serial-btn-secondary"
+                id="serial-advert-zerohop-btn"
+                disabled
+                title="CLI: advert.zerohop"
+              >
+                Zero-hop advert
+              </button>
+              <button
+                type="button"
+                class="copy-btn serial-btn-secondary"
+                id="serial-advert-flood-btn"
+                disabled
+                title="CLI: advert"
+              >
+                Flood advert
+              </button>
+            </div>
+            <div class="serial-log-toolbar">
+              <p class="deploy-toolbar-label serial-log-toolbar-label">
+                Session log
+              </p>
+              <label
+                class="serial-show-command-log"
+                title="Show each CLI command and reply during USB read"
+              >
+                <input type="checkbox" id="serial-show-command-log" />
+                <span>Show command log</span>
+              </label>
+            </div>
+            <pre
+              class="serial-apply-log"
+              id="serial-apply-log"
+              aria-live="polite"
+            ></pre>
+            <form class="serial-console-form" id="serial-console-form">
+              <label class="serial-console-label" for="serial-console-input"
+                >Interactive console</label
+              >
+              <div class="serial-console-row">
+                <input
+                  type="text"
+                  id="serial-console-input"
+                  class="serial-console-input"
+                  placeholder="e.g. get name"
+                  disabled
+                  autocomplete="off"
+                  spellcheck="false"
+                  maxlength="151"
+                  title="One command per line (max 151 chars). Up/Down recalls history. region load not supported."
+                />
+                <button
+                  type="submit"
+                  class="copy-btn serial-btn-secondary"
+                  id="serial-console-send-btn"
+                  disabled
+                  title="Send line to device"
+                >
+                  Send
+                </button>
+                <button
+                  type="button"
+                  class="copy-btn serial-btn-secondary"
+                  id="serial-console-clear-btn"
+                  disabled
+                  title="Clear session log"
+                >
+                  Clear log
+                </button>
+              </div>
+            </form>
           </div>
-        </div>
-      </div>
 
-      <main id="config-app">
+          <details class="cli-preview-details" id="cli-preview-panel">
+            <summary class="deploy-subheading cli-preview-summary">
+              Command preview
+            </summary>
+            <label
+              class="config-cli-show-defaults"
+              title="Preview only — USB apply always sends firmware defaults regardless"
+            >
+              <input type="checkbox" id="cli-show-defaults" />
+              <span>Include firmware defaults in preview</span>
+            </label>
+            <pre class="commands-block" id="commands-block"></pre>
+            <button
+              type="button"
+              class="copy-btn"
+              id="copy-btn"
+              title="Copy script; paste one line at a time if your terminal requires it"
+            >
+              Copy command script
+            </button>
+          </details>
+        </section>
+
         <footer class="config-footer">
           <h3>#BEmesh region map</h3>
           <p class="config-footer-desc">
@@ -774,6 +778,13 @@
       </main>
     </div>
     <script src="./src/repeater-serial.js"></script>
+    <script src="./src/configurator/dom.js"></script>
+    <script src="./src/configurator/serial-ui.js"></script>
+    <script src="./src/configurator/location.js"></script>
+    <script src="./src/configurator/naming.js"></script>
+    <script src="./src/configurator/settings.js"></script>
+    <script src="./src/configurator/policy.js"></script>
+    <script src="./src/configurator/cli.js"></script>
     <script src="./src/configurator.js"></script>
   </body>
 </html>

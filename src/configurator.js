@@ -1,4 +1,9 @@
 (function () {
+  const App = window.ConfiguratorApp;
+  if (App && App.initDom) {
+    App.initDom();
+  }
+
   function rryDataUrl(filename) {
     var p = window.location.pathname || "";
     if (/\.html?$/i.test(p)) {
@@ -22,6 +27,7 @@
     })
     .then(function (data) {
       CITIES = Array.isArray(data) ? data : [];
+      if (App && App.state) App.state.CITIES = CITIES;
       var inp = document.getElementById("city-search");
       if (inp)
         inp.placeholder =
@@ -29,11 +35,12 @@
     })
     .catch(function () {
       CITIES = [];
+      if (App && App.state) App.state.CITIES = CITIES;
       var inp = document.getElementById("city-search");
       if (inp) inp.placeholder = "Could not load locations — try again later.";
     });
 
-  const PROVINCE_NAMES = {
+  const PROVINCE_NAMES = App && App.PROVINCE_NAMES ? App.PROVINCE_NAMES : {
     "be-van": "Antwerpen",
     "be-vbr": "Vlaams-Brabant",
     "be-vov": "Oost-Vlaanderen",
@@ -789,7 +796,7 @@
       const nameResult = applyReadNameToForm(nameValue, anchor);
       if (nameResult.applied) {
         mark("Name", "general");
-        scrollTarget = scrollTarget || "naming-card";
+        scrollTarget = scrollTarget || "config-identity-block";
         if (nameResult.prefixMismatch) {
           namePrefixMismatch = true;
         }
@@ -802,7 +809,7 @@
       if (isCustomRadioPreset()) {
         tierFlags.expert = true;
       }
-      scrollTarget = scrollTarget || "settings-card";
+      scrollTarget = scrollTarget || "general-card";
     }
 
     const repeatValue = takeReadReply(byCmd, "get repeat", failures);
@@ -992,7 +999,7 @@
         scrollTarget = scrollTarget || "policy-card";
       } else if (regionResult.reason === "no-location") {
         appendSerialLog(
-          "Region policy not applied — pick a location in section 1 to map allow/deny checkboxes.",
+          "Region policy not applied — pick a location above to map allow/deny checkboxes.",
           "is-error",
         );
       }
@@ -3144,15 +3151,18 @@
 
   function refreshPolicySection(anchor) {
     if (!policyCard) return;
-    policyCard.classList.add("visible");
     const emptyEl = document.getElementById("policy-scope-empty");
     const bodyEl = document.getElementById("policy-regions-body");
+    const headActions = document.getElementById("policy-head-actions");
     if (!anchor) {
       if (emptyEl) {
         emptyEl.hidden = false;
       }
       if (bodyEl) {
         bodyEl.hidden = true;
+      }
+      if (headActions) {
+        headActions.hidden = true;
       }
       if (policyGridsContainer) {
         policyGridsContainer.innerHTML = "";
@@ -3164,6 +3174,9 @@
     }
     if (bodyEl) {
       bodyEl.hidden = false;
+    }
+    if (headActions) {
+      headActions.hidden = false;
     }
   }
 
@@ -3488,20 +3501,19 @@
     refreshConfiguratorOutputs();
   }
 
-  function selectProvince(pc) {
-    selectionMode = "province";
-    selectedProvinceCode = pc;
-    selectedCity = null;
-    input.value = PROVINCE_NAMES[pc] || pc;
+  function selectLocation(anchor, label) {
+    if (label != null && input) {
+      input.value = label;
+    }
     dropdown.style.display = "none";
 
-    const anchor = getAnchor();
     const seed = neighborSeedRow(anchor);
     const neighborsRadius = findGeographicNeighbors(seed, {
       maxKm: NEIGHBOR_RADIUS_KM,
     });
     const neighborsScope = neighborsRadius.slice(0, NEIGHBOR_SCOPE_MAX_CITIES);
     const hasCoords =
+      seed &&
       seed.lat != null &&
       seed.lon != null &&
       Number.isFinite(seed.lat) &&
@@ -3511,73 +3523,33 @@
     lastHasCoords = hasCoords;
 
     renderPolicyGrids(anchor, neighborsScope, neighborsRadius, hasCoords);
-    if (policyCard) policyCard.classList.add("visible");
+    refreshPolicySection(anchor);
     resetNamingForLocation(anchor);
     applyPolicyDefaults();
-    resultCard.classList.add("visible");
-    commandsCard.classList.add("visible");
+    if (resultCard) resultCard.classList.add("visible");
+    if (commandsCard) commandsCard.classList.add("visible");
     refreshConfiguratorOutputs();
+  }
+
+  function selectProvince(pc) {
+    selectionMode = "province";
+    selectedProvinceCode = pc;
+    selectedCity = null;
+    selectLocation(getAnchor(), PROVINCE_NAMES[pc] || pc);
   }
 
   function selectCountryBe() {
     selectionMode = "country";
     selectedProvinceCode = null;
     selectedCity = null;
-    input.value = "België (be)";
-    dropdown.style.display = "none";
-
-    const anchor = getAnchor();
-    const seed = neighborSeedRow(anchor);
-    const neighborsRadius = findGeographicNeighbors(seed, {
-      maxKm: NEIGHBOR_RADIUS_KM,
-    });
-    const neighborsScope = neighborsRadius.slice(0, NEIGHBOR_SCOPE_MAX_CITIES);
-    const hasCoords =
-      seed.lat != null &&
-      seed.lon != null &&
-      Number.isFinite(seed.lat) &&
-      Number.isFinite(seed.lon);
-
-    lastNeighbors = neighborsRadius;
-    lastHasCoords = hasCoords;
-
-    renderPolicyGrids(anchor, neighborsScope, neighborsRadius, hasCoords);
-    if (policyCard) policyCard.classList.add("visible");
-    resetNamingForLocation(anchor);
-    applyPolicyDefaults();
-    resultCard.classList.add("visible");
-    commandsCard.classList.add("visible");
-    refreshConfiguratorOutputs();
+    selectLocation(getAnchor(), "België (be)");
   }
 
   function selectCity(city) {
     selectionMode = "city";
     selectedProvinceCode = city.province_code;
     selectedCity = city;
-    input.value = city.plaats;
-    dropdown.style.display = "none";
-
-    const anchor = getAnchor();
-    const neighborsRadius = findGeographicNeighbors(city, {
-      maxKm: NEIGHBOR_RADIUS_KM,
-    });
-    const neighborsScope = neighborsRadius.slice(0, NEIGHBOR_SCOPE_MAX_CITIES);
-    const hasCoords =
-      city.lat != null &&
-      city.lon != null &&
-      Number.isFinite(city.lat) &&
-      Number.isFinite(city.lon);
-
-    lastNeighbors = neighborsRadius;
-    lastHasCoords = hasCoords;
-
-    renderPolicyGrids(anchor, neighborsScope, neighborsRadius, hasCoords);
-    if (policyCard) policyCard.classList.add("visible");
-    resetNamingForLocation(anchor);
-    applyPolicyDefaults();
-    resultCard.classList.add("visible");
-    commandsCard.classList.add("visible");
-    refreshConfiguratorOutputs();
+    selectLocation(getAnchor(), city.plaats);
   }
 
   input.addEventListener("input", () => {
@@ -3685,16 +3657,23 @@
     }
   });
 
-  const settingsCard = document.getElementById("settings-card");
-  if (settingsCard) {
-    settingsCard.addEventListener("input", function (e) {
+  const generalCard = document.getElementById("general-card");
+  if (generalCard) {
+    generalCard.addEventListener("input", function (e) {
       const t = e.target;
       if (t instanceof HTMLElement && t.id === "setting-radio-bw") {
         clampRadioBwInput();
       }
+      if (
+        t instanceof HTMLElement &&
+        (t.id === "name-suffix" || t.id === "name-power-emoji")
+      ) {
+        const anchor = getAnchor();
+        clampNamingInput(anchor);
+      }
       refreshConfiguratorOutputs();
     });
-    settingsCard.addEventListener("change", function (e) {
+    generalCard.addEventListener("change", function (e) {
       const t = e.target;
       if (t instanceof HTMLElement && t.id === "setting-radio-bw") {
         clampRadioBwInput();
@@ -3717,33 +3696,16 @@
           settingRadioPresetEl.dataset.lastPreset = settingRadioPresetEl.value;
         }
       }
-      refreshConfiguratorOutputs();
-    });
-  }
-
-  const namingCard = document.getElementById("naming-card");
-  if (namingCard) {
-    namingCard.addEventListener("input", function (e) {
-      const t = e.target;
-      if (!(t instanceof HTMLElement)) return;
-      if (t.id !== "name-suffix" && t.id !== "name-power-emoji") {
-        return;
+      if (
+        t instanceof HTMLElement &&
+        (t.id === "name-location-mode" || t.id === "name-power-emoji")
+      ) {
+        const anchor = getAnchor();
+        if (t.id === "name-location-mode") {
+          syncPrefixField(anchor);
+        }
+        clampNamingInput(anchor);
       }
-      const anchor = getAnchor();
-      clampNamingInput(anchor);
-      refreshConfiguratorOutputs();
-    });
-    namingCard.addEventListener("change", function (e) {
-      const t = e.target;
-      if (!(t instanceof HTMLElement)) return;
-      if (t.id !== "name-location-mode" && t.id !== "name-power-emoji") {
-        return;
-      }
-      const anchor = getAnchor();
-      if (t.id === "name-location-mode") {
-        syncPrefixField(anchor);
-      }
-      clampNamingInput(anchor);
       refreshConfiguratorOutputs();
     });
   }
@@ -3760,6 +3722,8 @@
 
   if (commandsCard) commandsCard.classList.add("visible");
   if (resultCard) resultCard.classList.add("visible");
+  if (policyCard) policyCard.classList.add("visible");
+  refreshPolicySection(null);
   setCurrentLocationMode("none");
   refreshConfiguratorOutputs();
 

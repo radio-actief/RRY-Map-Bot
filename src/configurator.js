@@ -82,6 +82,26 @@
   const commandsBlock = document.getElementById("commands-block");
   const copyBtn = document.getElementById("copy-btn");
   const cliShowDefaultsEl = document.getElementById("cli-show-defaults");
+  const serialConnectBtn = document.getElementById("serial-connect-btn");
+  const serialDisconnectBtn = document.getElementById("serial-disconnect-btn");
+  const serialReadBtn = document.getElementById("serial-read-btn");
+  const serialApplyBtn = document.getElementById("serial-apply-btn");
+  const serialAdvertZerohopBtn = document.getElementById(
+    "serial-advert-zerohop-btn",
+  );
+  const serialAdvertFloodBtn = document.getElementById(
+    "serial-advert-flood-btn",
+  );
+  const serialConsoleForm = document.getElementById("serial-console-form");
+  const serialConsoleInput = document.getElementById("serial-console-input");
+  const serialConsoleSendBtn = document.getElementById("serial-console-send-btn");
+  const serialConsoleClearBtn = document.getElementById(
+    "serial-console-clear-btn",
+  );
+  const serialStatusEl = document.getElementById("serial-status");
+  const serialApplyLogEl = document.getElementById("serial-apply-log");
+  const serialShowCommandLogEl = document.getElementById("serial-show-command-log");
+  const serialUnsupportedEl = document.getElementById("serial-unsupported");
   const policyCard = document.getElementById("policy-card");
   const policyGridsContainer = document.getElementById(
     "policy-grids-container",
@@ -154,6 +174,1072 @@
     totalBytes: 0,
     message: "Pick a location first to build a name.",
   };
+  let serialApplyAbort = null;
+  let serialApplying = false;
+  let serialReading = false;
+  let serialConsoleSending = false;
+  let serialConsoleHistory = [];
+  let serialConsoleHistoryBrowse = -1;
+  const SERIAL_CONSOLE_HISTORY_MAX = 50;
+  const SERIAL_LOG_VERBOSE_KEY = "configurator.serialShowCommandLog";
+
+  function isSerialShowCommandLog() {
+    return Boolean(serialShowCommandLogEl && serialShowCommandLogEl.checked);
+  }
+
+  function initSerialShowCommandLogToggle() {
+    if (!serialShowCommandLogEl) return;
+    try {
+      serialShowCommandLogEl.checked =
+        sessionStorage.getItem(SERIAL_LOG_VERBOSE_KEY) === "1";
+    } catch (_e) {
+      /* ignore */
+    }
+    serialShowCommandLogEl.addEventListener("change", function () {
+      try {
+        sessionStorage.setItem(
+          SERIAL_LOG_VERBOSE_KEY,
+          serialShowCommandLogEl.checked ? "1" : "0",
+        );
+      } catch (_e) {
+        /* ignore */
+      }
+    });
+  }
+
+  function isSerialBusy() {
+    return serialApplying || serialReading || serialConsoleSending;
+  }
+
+  const REPEATER_READ_COMMANDS = [
+    "get name",
+    "get radio",
+    "get repeat",
+    "get owner.info",
+    "get guest.password",
+    "get dutycycle",
+    "get flood.advert.interval",
+    "get advert.interval",
+    "get flood.max.unscoped",
+    "get flood.max.advert",
+    "get flood.max",
+    "get path.hash.mode",
+    "get loop.detect",
+    "get txdelay",
+    "get direct.txdelay",
+    "get rxdelay",
+    "get radio.rxgain",
+    "get int.thresh",
+    "get agc.reset.interval",
+    "get multi.acks",
+    "region home",
+    "region list allowed",
+    "region list denied",
+  ];
+
+  const NAME_POWER_EMOJI_VALUES = ["🌞", "⚡", "🔋", "👀"];
+
+  function takeReadReply(byCmd, cmd, failures) {
+    const entry = byCmd[cmd];
+    if (!entry) {
+      return undefined;
+    }
+    if (!entry.ok) {
+      failures.push(cmd + ": " + (entry.reply || "failed"));
+      return undefined;
+    }
+    return stripCliReply(entry.reply);
+  }
+
+  function splitNameSuffixAndEmoji(nameBody) {
+    let body = String(nameBody || "");
+    let emoji = "";
+    for (let i = 0; i < NAME_POWER_EMOJI_VALUES.length; i++) {
+      const mark = NAME_POWER_EMOJI_VALUES[i];
+      if (body.endsWith(mark)) {
+        emoji = mark;
+        body = body.slice(0, -mark.length);
+        break;
+      }
+    }
+    return { body: body, emoji: emoji };
+  }
+
+  function openSettingsTier(tierId) {
+    const el = document.getElementById(tierId);
+    if (el instanceof HTMLDetailsElement) {
+      el.open = true;
+    }
+  }
+
+  function expandSettingsTiersAfterRead(flags) {
+    if (flags && flags.advanced) {
+      openSettingsTier("settings-tier-advanced");
+    }
+    if (flags && flags.expert) {
+      openSettingsTier("settings-tier-expert");
+    }
+  }
+
+  function scrollConfiguratorSection(sectionId) {
+    const el = document.getElementById(sectionId);
+    if (el && el.scrollIntoView) {
+      el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  }
+
+  function getRepeaterSerial() {
+    return typeof window !== "undefined" ? window.RepeaterSerial : null;
+  }
+
+  function appendSerialLog(text, className) {
+    if (!serialApplyLogEl) return;
+    const line = document.createElement("div");
+    line.className = "serial-apply-log-line" + (className ? " " + className : "");
+    line.textContent = text;
+    serialApplyLogEl.appendChild(line);
+    serialApplyLogEl.scrollTop = serialApplyLogEl.scrollHeight;
+  }
+
+  function clearSerialLog() {
+    if (serialApplyLogEl) {
+      serialApplyLogEl.textContent = "";
+    }
+  }
+
+  function setSerialStatus(state, label) {
+    if (!serialStatusEl) return;
+    serialStatusEl.textContent = label;
+    serialStatusEl.dataset.state = state;
+  }
+
+  function validateCommandLinesForSerial(lines) {
+    const rs = getRepeaterSerial();
+    const maxLen = rs ? rs.MAX_LINE_LEN : 151;
+    const tooLong = lines.filter(function (line) {
+      return line.length > maxLen;
+    });
+    if (tooLong.length) {
+      return {
+        ok: false,
+        message:
+          tooLong.length +
+          " command(s) exceed " +
+          maxLen +
+          " characters (room server limit). Shorten region names or split manually.",
+        lines: tooLong,
+      };
+    }
+    return { ok: true };
+  }
+
+  function updateUsbApplyUi(anchor) {
+    const rs = getRepeaterSerial();
+    const supported = rs && rs.isSupported();
+    const busy = isSerialBusy();
+    const connected = Boolean(rs && rs.isConnected());
+    const consoleEnabled = supported && connected && !busy;
+    if (serialUnsupportedEl) {
+      serialUnsupportedEl.hidden = supported;
+    }
+    if (serialConnectBtn) {
+      serialConnectBtn.disabled = !supported || busy;
+    }
+    if (serialDisconnectBtn) {
+      serialDisconnectBtn.disabled =
+        !supported || busy || !(rs && rs.isConnected());
+    }
+    if (serialReadBtn) {
+      serialReadBtn.disabled = !supported || busy || !(rs && rs.isConnected());
+    }
+    const advertEnabled = supported && !busy && rs && rs.isConnected();
+    if (serialAdvertZerohopBtn) {
+      serialAdvertZerohopBtn.disabled = !advertEnabled;
+    }
+    if (serialAdvertFloodBtn) {
+      serialAdvertFloodBtn.disabled = !advertEnabled;
+    }
+    if (serialConsoleInput) {
+      serialConsoleInput.disabled = !consoleEnabled;
+    }
+    if (serialConsoleSendBtn) {
+      serialConsoleSendBtn.disabled = !consoleEnabled;
+    }
+    if (serialConsoleClearBtn) {
+      serialConsoleClearBtn.disabled = !connected;
+    }
+    if (serialApplyBtn) {
+      const applyLines = buildConfiguratorCommandLines(anchor, {
+        enforceFirmwareDefaults: true,
+      });
+      const hasCommands = applyLines.length > 0;
+      const needsLocation = !anchor;
+      serialApplyBtn.disabled =
+        !supported ||
+        busy ||
+        !(rs && rs.isConnected()) ||
+        !hasCommands ||
+        needsLocation;
+      if (needsLocation && rs && rs.isConnected()) {
+        serialApplyBtn.title = "Choose a location for region scopes.";
+      } else {
+        serialApplyBtn.title = "";
+      }
+    }
+    if (serialReading) {
+      setSerialStatus("applying", "Reading…");
+    } else if (rs && rs.isConnected() && !serialApplying) {
+      setSerialStatus("connected", "Connected");
+    } else if (serialApplying) {
+      setSerialStatus("applying", "Applying…");
+    } else if (supported) {
+      setSerialStatus("disconnected", "Disconnected");
+    }
+  }
+
+  async function connectSerialUsb() {
+    const rs = getRepeaterSerial();
+    if (!rs || !rs.isSupported()) return;
+    try {
+      clearSerialLog();
+      appendSerialLog("Requesting USB port…");
+      await rs.connect({ baudRate: rs.DEFAULT_BAUD });
+      appendSerialLog("Connected at " + rs.DEFAULT_BAUD + " baud.");
+      const probe = await rs.sendLine("ver");
+      if (probe.reply) {
+        appendSerialLog("Device: " + probe.reply);
+      }
+      updateUsbApplyUi(getAnchor());
+      if (serialConsoleInput) {
+        serialConsoleInput.focus();
+      }
+    } catch (err) {
+      appendSerialLog(
+        "Connect failed: " + (err && err.message ? err.message : String(err)),
+        "is-error",
+      );
+      setSerialStatus("disconnected", "Disconnected");
+      updateUsbApplyUi(getAnchor());
+    }
+  }
+
+  async function disconnectSerialUsb() {
+    const rs = getRepeaterSerial();
+    if (!rs) return;
+    if (serialApplyAbort) {
+      serialApplyAbort.abort();
+      serialApplyAbort = null;
+    }
+    try {
+      await rs.disconnect();
+      appendSerialLog("Disconnected.");
+    } catch (err) {
+      appendSerialLog(
+        "Disconnect error: " + (err && err.message ? err.message : String(err)),
+        "is-error",
+      );
+    }
+    serialApplying = false;
+    serialReading = false;
+    serialConsoleSending = false;
+    setSerialStatus("disconnected", "Disconnected");
+    updateUsbApplyUi(getAnchor());
+  }
+
+  function logSerialCommandReply(line, result, err) {
+    appendSerialLog("> " + line);
+    if (err) {
+      appendSerialLog(
+        "  -> " + (err && err.message ? err.message : String(err)),
+        "is-error",
+      );
+      return;
+    }
+    if (result && result.reply) {
+      appendSerialLog(
+        "  -> " + result.reply,
+        result.ok ? "is-ok" : "is-error",
+      );
+    } else if (result && !result.ok) {
+      appendSerialLog("  -> (no reply)", "is-error");
+    } else if (result) {
+      appendSerialLog("  -> (ok)", "is-ok");
+    }
+  }
+
+  function pushSerialConsoleHistory(cmd) {
+    if (!cmd) return;
+    const last = serialConsoleHistory[serialConsoleHistory.length - 1];
+    if (last === cmd) return;
+    serialConsoleHistory.push(cmd);
+    if (serialConsoleHistory.length > SERIAL_CONSOLE_HISTORY_MAX) {
+      serialConsoleHistory.shift();
+    }
+    serialConsoleHistoryBrowse = -1;
+  }
+
+  async function sendSerialConsoleCommand(line) {
+    const rs = getRepeaterSerial();
+    const cmd = String(line || "").trim();
+    if (!rs || !rs.isConnected() || isSerialBusy() || !cmd) {
+      return;
+    }
+
+    const maxLen = rs.MAX_LINE_LEN || 151;
+    if (cmd.length > maxLen) {
+      appendSerialLog(
+        "Command too long (" + cmd.length + " > " + maxLen + ").",
+        "is-error",
+      );
+      return;
+    }
+
+    serialConsoleSending = true;
+    updateUsbApplyUi(getAnchor());
+
+    try {
+      const result = await rs.sendLine(cmd);
+      logSerialCommandReply(cmd, result);
+      pushSerialConsoleHistory(cmd);
+    } catch (err) {
+      logSerialCommandReply(cmd, null, err);
+    } finally {
+      serialConsoleSending = false;
+      updateUsbApplyUi(getAnchor());
+      if (serialConsoleInput) {
+        serialConsoleInput.focus();
+      }
+    }
+  }
+
+  function onSerialConsoleSubmit(ev) {
+    if (ev && ev.preventDefault) {
+      ev.preventDefault();
+    }
+    const value = serialConsoleInput ? serialConsoleInput.value : "";
+    if (serialConsoleInput) {
+      serialConsoleInput.value = "";
+    }
+    sendSerialConsoleCommand(value);
+  }
+
+  function onSerialConsoleKeydown(ev) {
+    if (!serialConsoleInput || !serialConsoleHistory.length) {
+      return;
+    }
+    if (ev.key === "ArrowUp") {
+      ev.preventDefault();
+      if (serialConsoleHistoryBrowse < 0) {
+        serialConsoleHistoryBrowse = serialConsoleHistory.length - 1;
+      } else if (serialConsoleHistoryBrowse > 0) {
+        serialConsoleHistoryBrowse--;
+      }
+      serialConsoleInput.value =
+        serialConsoleHistory[serialConsoleHistoryBrowse] || "";
+    } else if (ev.key === "ArrowDown") {
+      ev.preventDefault();
+      if (serialConsoleHistoryBrowse < 0) {
+        return;
+      }
+      if (serialConsoleHistoryBrowse >= serialConsoleHistory.length - 1) {
+        serialConsoleHistoryBrowse = -1;
+        serialConsoleInput.value = "";
+      } else {
+        serialConsoleHistoryBrowse++;
+        serialConsoleInput.value =
+          serialConsoleHistory[serialConsoleHistoryBrowse] || "";
+      }
+    }
+  }
+
+  async function sendRepeaterAdvert(kind) {
+    const rs = getRepeaterSerial();
+    if (!rs || !rs.isConnected() || isSerialBusy()) {
+      return;
+    }
+
+    const cmd = kind === "zerohop" ? "advert.zerohop" : "advert";
+
+    serialConsoleSending = true;
+    updateUsbApplyUi(getAnchor());
+    try {
+      const result = await rs.sendLine(cmd);
+      logSerialCommandReply(cmd, result);
+      pushSerialConsoleHistory(cmd);
+    } catch (err) {
+      logSerialCommandReply(cmd, null, err);
+    } finally {
+      serialConsoleSending = false;
+      updateUsbApplyUi(getAnchor());
+    }
+  }
+
+  function stripCliReply(reply) {
+    return String(reply || "")
+      .replace(/^\s*>\s*/, "")
+      .trim();
+  }
+
+  function indexResultsByCommand(results) {
+    const map = Object.create(null);
+    (results || []).forEach(function (entry) {
+      if (entry && entry.line) {
+        map[entry.line] = entry;
+      }
+    });
+    return map;
+  }
+
+  function parseRegionNameList(reply) {
+    const s = stripCliReply(reply);
+    if (!s || s === "-none-") return [];
+    return s
+      .split(",")
+      .map(function (part) {
+        return part.trim();
+      })
+      .filter(Boolean);
+  }
+
+  function parseRegionHomeName(reply) {
+    const s = stripCliReply(reply);
+    const m = s.match(/^home is\s+(.+)$/i);
+    if (!m) return "";
+    return m[1].trim();
+  }
+
+  function snapDutycycleSelect(value) {
+    const options = [1, 10, 50, 100];
+    const v = parseFloat(String(value).replace(/%$/, ""));
+    if (!Number.isFinite(v)) return null;
+    let best = options[0];
+    let bestDiff = Math.abs(v - best);
+    for (let i = 1; i < options.length; i++) {
+      const d = Math.abs(v - options[i]);
+      if (d < bestDiff) {
+        best = options[i];
+        bestDiff = d;
+      }
+    }
+    return String(best);
+  }
+
+  function setSelectIfPresent(el, value) {
+    if (!el || value == null || value === "") return false;
+    const v = String(value);
+    for (let i = 0; i < el.options.length; i++) {
+      if (el.options[i].value === v) {
+        el.value = v;
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function applyReadRadioToForm(reply) {
+    const raw = stripCliReply(reply);
+    const parts = raw.split(",");
+    if (parts.length < 4) return false;
+    const params = {
+      freq: parseFloat(parts[0]),
+      bw: parseFloat(parts[1]),
+      sf: parseInt(parts[2], 10),
+      cr: parseInt(parts[3], 10),
+    };
+    if (
+      !Number.isFinite(params.freq) ||
+      !Number.isFinite(params.bw) ||
+      !Number.isFinite(params.sf) ||
+      !Number.isFinite(params.cr)
+    ) {
+      return false;
+    }
+    if (!settingRadioPresetEl) return false;
+    let matched = -1;
+    for (let i = 0; i < FREQUENCY_PRESETS.length; i++) {
+      if (radioParamsMatch(params, FREQUENCY_PRESETS[i])) {
+        matched = i;
+        break;
+      }
+    }
+    if (matched >= 0) {
+      settingRadioPresetEl.value = String(matched);
+      settingRadioPresetEl.dataset.lastPreset = String(matched);
+    } else {
+      settingRadioPresetEl.value = "custom";
+      fillCustomRadioFields(params);
+    }
+    refreshRadioSettingsUi();
+    return true;
+  }
+
+  function applyReadNameToForm(deviceName, anchor) {
+    const name = String(deviceName || "").trim();
+    if (!name || !nameSuffixEl) {
+      return { applied: false };
+    }
+
+    let remainder = name;
+    let prefixMismatch = false;
+    const prefix = anchor ? getEffectivePrefix(anchor) : "";
+
+    if (anchor && prefix) {
+      if (name.indexOf(prefix) === 0) {
+        remainder = name.slice(prefix.length);
+      } else {
+        prefixMismatch = true;
+        remainder = name;
+      }
+    }
+
+    const split = splitNameSuffixAndEmoji(remainder);
+    nameSuffixEl.value = split.body;
+    if (namePowerEmojiEl) {
+      if (split.emoji) {
+        setSelectIfPresent(namePowerEmojiEl, split.emoji);
+      } else {
+        namePowerEmojiEl.value = "";
+      }
+    }
+
+    return { applied: true, prefixMismatch: prefixMismatch };
+  }
+
+  function applyReadRegionsToPolicy(allowed, denied, homeRegion, anchor) {
+    if (!policyCard || !anchor) {
+      return { applied: false, reason: "no-location" };
+    }
+    const allowedSet = new Set(allowed || []);
+    const deniedSet = new Set(denied || []);
+
+    policyCard.querySelectorAll("input.policy-allow").forEach(function (el) {
+      const code = el.getAttribute("data-code");
+      if (!code || el.disabled) return;
+      el.checked = allowedSet.has(code);
+    });
+    policyCard.querySelectorAll("input.policy-deny").forEach(function (el) {
+      const code = el.getAttribute("data-code");
+      if (!code || el.disabled) return;
+      el.checked = deniedSet.has(code);
+    });
+
+    const untagged = document.getElementById("policy-untagged-flood");
+    if (untagged) {
+      untagged.checked = allowedSet.has("*");
+    }
+
+    finalizePolicyUiChange();
+    refreshHomeOverrideSelect();
+
+    const ov = document.getElementById("policy-home-override");
+    const sel = document.getElementById("policy-home-override-select");
+    if (ov && sel && homeRegion) {
+      const defaultHome = deepestAllowedHomeRegionCode(anchor);
+      if (homeRegion === defaultHome) {
+        ov.checked = false;
+        sel.value = "";
+      } else if (homeRegion === "*") {
+        ov.checked = true;
+        sel.value = HOME_OVERRIDE_OMIT;
+      } else {
+        ov.checked = true;
+        let found = false;
+        for (let i = 0; i < sel.options.length; i++) {
+          if (sel.options[i].value === homeRegion) {
+            sel.value = homeRegion;
+            found = true;
+            break;
+          }
+        }
+        if (!found) {
+          appendSerialLog(
+            "Home region " +
+              homeRegion +
+              " is not in the policy list for this location.",
+            "is-error",
+          );
+        }
+      }
+      sel.disabled = !ov.checked;
+    }
+
+    return { applied: true };
+  }
+
+  function applyReadResultsToForm(byCmd, anchor) {
+    let updated = 0;
+    const failures = [];
+    const labels = [];
+    const tierFlags = { advanced: false, expert: false };
+    let scrollTarget = null;
+    let namePrefixMismatch = false;
+
+    function mark(label, tier) {
+      labels.push(label);
+      updated++;
+      if (tier === "advanced") {
+        tierFlags.advanced = true;
+      } else if (tier === "expert") {
+        tierFlags.expert = true;
+      }
+    }
+
+    const nameValue = takeReadReply(byCmd, "get name", failures);
+    if (nameValue !== undefined) {
+      const nameResult = applyReadNameToForm(nameValue, anchor);
+      if (nameResult.applied) {
+        mark("Name", "general");
+        scrollTarget = scrollTarget || "naming-card";
+        if (nameResult.prefixMismatch) {
+          namePrefixMismatch = true;
+        }
+      }
+    }
+
+    const radioValue = takeReadReply(byCmd, "get radio", failures);
+    if (radioValue !== undefined && applyReadRadioToForm(radioValue)) {
+      mark("Radio", "general");
+      if (isCustomRadioPreset()) {
+        tierFlags.expert = true;
+      }
+      scrollTarget = scrollTarget || "settings-card";
+    }
+
+    const repeatValue = takeReadReply(byCmd, "get repeat", failures);
+    if (repeatValue !== undefined && settingRepeatEl) {
+      if (repeatValue === "on" || repeatValue === "off") {
+        settingRepeatEl.value = repeatValue;
+        mark("Repeat mode", "general");
+      }
+    }
+
+    const ownerValue = takeReadReply(byCmd, "get owner.info", failures);
+    if (ownerValue !== undefined && settingOwnerInfoEl) {
+      settingOwnerInfoEl.value = ownerValue.replace(/\|/g, " ");
+      mark("Owner info", "general");
+    }
+
+    const guestValue = takeReadReply(byCmd, "get guest.password", failures);
+    if (guestValue !== undefined && settingGuestPasswordEl) {
+      settingGuestPasswordEl.value = guestValue;
+      mark("Guest password", "general");
+    }
+
+    const dutycycleValue = takeReadReply(byCmd, "get dutycycle", failures);
+    if (dutycycleValue !== undefined && settingDutycycleEl) {
+      const snapped = snapDutycycleSelect(dutycycleValue);
+      if (snapped && setSelectIfPresent(settingDutycycleEl, snapped)) {
+        mark("Duty cycle", "general");
+      }
+    }
+
+    const floodAdvertValue = takeReadReply(
+      byCmd,
+      "get flood.advert.interval",
+      failures,
+    );
+    if (floodAdvertValue !== undefined && settingFloodAdvertIntervalEl) {
+      const hours = parseInt(floodAdvertValue, 10);
+      if (Number.isFinite(hours)) {
+        settingFloodAdvertIntervalEl.value = String(hours);
+        mark("Flood advert interval", "advanced");
+      }
+    }
+
+    const advertValue = takeReadReply(byCmd, "get advert.interval", failures);
+    if (advertValue !== undefined && settingAdvertIntervalEl) {
+      const minutes = parseInt(advertValue, 10);
+      if (Number.isFinite(minutes)) {
+        const formMinutes = minutes > 0 ? minutes / 2 : 0;
+        settingAdvertIntervalEl.value =
+          formMinutes > 0 ? String(formMinutes) : "0";
+        mark("Zero-hop advert interval", "advanced");
+      }
+    }
+
+    const floodMaxUnscopedValue = takeReadReply(
+      byCmd,
+      "get flood.max.unscoped",
+      failures,
+    );
+    if (floodMaxUnscopedValue !== undefined && settingFloodMaxUnscopedEl) {
+      settingFloodMaxUnscopedEl.value = floodMaxUnscopedValue;
+      mark("Flood max unscoped", "advanced");
+    }
+
+    const floodMaxAdvertValue = takeReadReply(
+      byCmd,
+      "get flood.max.advert",
+      failures,
+    );
+    if (floodMaxAdvertValue !== undefined && settingFloodMaxAdvertEl) {
+      settingFloodMaxAdvertEl.value = floodMaxAdvertValue;
+      mark("Flood max advert", "advanced");
+    }
+
+    const floodMaxValue = takeReadReply(byCmd, "get flood.max", failures);
+    if (floodMaxValue !== undefined && settingFloodMaxEl) {
+      settingFloodMaxEl.value = floodMaxValue;
+      mark("Flood max", "advanced");
+    }
+
+    const pathHashValue = takeReadReply(byCmd, "get path.hash.mode", failures);
+    if (
+      pathHashValue !== undefined &&
+      setSelectIfPresent(settingPathHashModeEl, pathHashValue)
+    ) {
+      mark("Path hash mode", "advanced");
+    }
+
+    const loopValue = takeReadReply(byCmd, "get loop.detect", failures);
+    if (
+      loopValue !== undefined &&
+      setSelectIfPresent(settingLoopDetectEl, loopValue)
+    ) {
+      mark("Loop detection", "advanced");
+    }
+
+    const txdelayValue = takeReadReply(byCmd, "get txdelay", failures);
+    if (txdelayValue !== undefined && settingTxdelayEl) {
+      settingTxdelayEl.value = txdelayValue;
+      mark("TX delay", "expert");
+    }
+
+    const directTxdelayValue = takeReadReply(
+      byCmd,
+      "get direct.txdelay",
+      failures,
+    );
+    if (directTxdelayValue !== undefined && settingDirectTxdelayEl) {
+      settingDirectTxdelayEl.value = directTxdelayValue;
+      mark("Direct TX delay", "expert");
+    }
+
+    const rxdelayValue = takeReadReply(byCmd, "get rxdelay", failures);
+    if (rxdelayValue !== undefined && settingRxdelayEl) {
+      settingRxdelayEl.value = rxdelayValue;
+      mark("RX delay", "expert");
+    }
+
+    const rxgainValue = takeReadReply(byCmd, "get radio.rxgain", failures);
+    if (
+      rxgainValue !== undefined &&
+      setSelectIfPresent(settingRadioRxgainEl, rxgainValue)
+    ) {
+      mark("Radio RX gain", "expert");
+    }
+
+    const intThreshValue = takeReadReply(byCmd, "get int.thresh", failures);
+    if (intThreshValue !== undefined && settingIntThreshEl) {
+      settingIntThreshEl.value = intThreshValue;
+      mark("Interference threshold", "expert");
+    }
+
+    const agcValue = takeReadReply(byCmd, "get agc.reset.interval", failures);
+    if (agcValue !== undefined && settingAgcResetEl) {
+      settingAgcResetEl.value = agcValue;
+      mark("AGC reset interval", "expert");
+    }
+
+    const multiAcksValue = takeReadReply(byCmd, "get multi.acks", failures);
+    if (multiAcksValue !== undefined && settingMultiAcksEl) {
+      const n = parseInt(multiAcksValue, 10);
+      if (Number.isFinite(n)) {
+        setSelectIfPresent(settingMultiAcksEl, n > 0 ? "1" : "0");
+        mark("Multi-acks", "expert");
+      }
+    }
+
+    const homeValue = takeReadReply(byCmd, "region home", failures);
+    const allowedValue = takeReadReply(byCmd, "region list allowed", failures);
+    const deniedValue = takeReadReply(byCmd, "region list denied", failures);
+    const homeRegion =
+      homeValue !== undefined ? parseRegionHomeName(homeValue) || homeValue : "";
+    const allowed =
+      allowedValue !== undefined ? parseRegionNameList(allowedValue) : [];
+    const denied =
+      deniedValue !== undefined ? parseRegionNameList(deniedValue) : [];
+
+    if (
+      homeValue !== undefined ||
+      allowedValue !== undefined ||
+      deniedValue !== undefined
+    ) {
+      if (allowed.length) {
+        appendSerialLog("Allowed regions: " + allowed.join(", "), "is-ok");
+      } else if (allowedValue !== undefined) {
+        appendSerialLog("Allowed regions: (none)", "is-ok");
+      }
+      if (denied.length) {
+        appendSerialLog("Denied regions: " + denied.join(", "), "is-ok");
+      } else if (deniedValue !== undefined) {
+        appendSerialLog("Denied regions: (none)", "is-ok");
+      }
+      if (homeValue !== undefined) {
+        appendSerialLog(
+          "Home region: " + (homeRegion || "(wildcard)"),
+          "is-ok",
+        );
+      }
+      const regionResult = applyReadRegionsToPolicy(
+        allowed,
+        denied,
+        homeRegion,
+        anchor,
+      );
+      if (regionResult.applied) {
+        mark("Region policy", "advanced");
+        scrollTarget = scrollTarget || "policy-card";
+      } else if (regionResult.reason === "no-location") {
+        appendSerialLog(
+          "Region policy not applied — pick a location in section 1 to map allow/deny checkboxes.",
+          "is-error",
+        );
+      }
+    }
+
+    expandSettingsTiersAfterRead(tierFlags);
+    refreshConfiguratorOutputs();
+
+    return {
+      updated: updated,
+      failures: failures,
+      labels: labels,
+      scrollTarget: scrollTarget,
+      namePrefixMismatch: namePrefixMismatch,
+      adminPasswordUnreadable: true,
+    };
+  }
+
+  async function readFromRepeater() {
+    const rs = getRepeaterSerial();
+    if (!rs || !rs.isConnected() || !rs.queryCommands) return;
+
+    const anchor = getAnchor();
+    const msg =
+      "Read current settings from the connected repeater?\n\n" +
+      "This updates the form. Admin password cannot be read from the device." +
+      (anchor
+        ? " Region allow/deny lists and home will be applied to the policy for your selected location."
+        : " Choose a location afterward to align region policy with the device.");
+    if (!window.confirm(msg)) {
+      return;
+    }
+
+    serialReading = true;
+    serialApplyAbort = new AbortController();
+    updateUsbApplyUi(anchor);
+    clearSerialLog();
+    const verboseRead = isSerialShowCommandLog();
+    if (verboseRead) {
+      appendSerialLog(
+        "Reading " + REPEATER_READ_COMMANDS.length + " setting(s)…",
+      );
+    }
+
+    try {
+      const results = await rs.queryCommands(REPEATER_READ_COMMANDS, {
+        signal: serialApplyAbort.signal,
+        onProgress: function (ev) {
+          if (!verboseRead) return;
+          if (ev.phase === "sending") {
+            appendSerialLog("> " + ev.line);
+          } else if (ev.phase === "done") {
+            if (ev.reply) {
+              appendSerialLog(
+                "  -> " + ev.reply,
+                ev.ok ? "is-ok" : "is-error",
+              );
+            } else if (!ev.ok) {
+              appendSerialLog("  -> (no reply)", "is-error");
+            }
+          }
+        },
+      });
+      const summary = applyReadResultsToForm(indexResultsByCommand(results), anchor);
+      if (summary.labels.length) {
+        appendSerialLog(
+          "Updated " +
+            summary.labels.length +
+            " field group(s): " +
+            summary.labels.join(", ") +
+            ".",
+          "is-ok",
+        );
+      } else {
+        appendSerialLog(
+          verboseRead
+            ? "Read finished but no form fields were updated — check replies above."
+            : "Read finished but no form fields were updated — enable Show command log for details.",
+          "is-error",
+        );
+      }
+      appendSerialLog(
+        "Admin password was not read (not exposed by device firmware).",
+        "is-muted",
+      );
+      if (summary.namePrefixMismatch) {
+        appendSerialLog(
+          "Device name does not match the location prefix — adjust the suffix, change location mode, or pick a matching location.",
+          "is-error",
+        );
+      }
+      if (summary.failures.length) {
+        appendSerialLog(
+          summary.failures.length +
+            " command(s) failed or are unsupported on this firmware.",
+          "is-error",
+        );
+      }
+      if (summary.scrollTarget) {
+        scrollConfiguratorSection(summary.scrollTarget);
+      }
+    } catch (err) {
+      if (err && err.name === "AbortError") {
+        appendSerialLog("Read cancelled.", "is-error");
+      } else {
+        appendSerialLog(
+          "Read failed: " + (err && err.message ? err.message : String(err)),
+          "is-error",
+        );
+      }
+    } finally {
+      serialReading = false;
+      serialApplyAbort = null;
+      updateUsbApplyUi(getAnchor());
+    }
+  }
+
+  async function offerRepeaterReboot(rs, appliedLines) {
+    if (!rs || !rs.isConnected()) return;
+
+    const needsRebootHint =
+      appliedLines &&
+      appliedLines.some(function (line) {
+        return (
+          /^set radio /.test(line) ||
+          /^set freq /.test(line) ||
+          /^set radio\.rxgain /.test(line)
+        );
+      });
+    const msg = needsRebootHint
+      ? "Configuration applied.\n\nReboot the repeater now? Radio or frequency changes need a reboot to take effect."
+      : "Configuration applied.\n\nReboot the repeater now?";
+
+    if (!window.confirm(msg)) {
+      return;
+    }
+
+    appendSerialLog("> reboot");
+    try {
+      const result = await rs.sendLine("reboot", { timeoutMs: 3000 });
+      if (result.reply) {
+        appendSerialLog(
+          "  -> " + result.reply,
+          result.ok ? "is-ok" : "is-error",
+        );
+      } else {
+        appendSerialLog("Reboot sent (device may disconnect).", "is-ok");
+      }
+    } catch (err) {
+      appendSerialLog(
+        "Reboot failed: " + (err && err.message ? err.message : String(err)),
+        "is-error",
+      );
+    }
+  }
+
+  async function applyToRepeater() {
+    const rs = getRepeaterSerial();
+    if (!rs || !rs.isConnected()) return;
+
+    const anchor = getAnchor();
+    if (!anchor) {
+      window.alert("Choose a location first — region scopes are required.");
+      return;
+    }
+    if (!namePreviewState.isValid || !namePreviewState.name) {
+      window.alert("Set a valid repeater name before applying.");
+      return;
+    }
+
+    const lines = buildConfiguratorCommandLines(anchor, {
+      enforceFirmwareDefaults: true,
+    });
+    if (!lines.length) {
+      window.alert("No commands to apply.");
+      return;
+    }
+
+    const validation = validateCommandLinesForSerial(lines);
+    if (!validation.ok) {
+      window.alert(validation.message);
+      return;
+    }
+
+    const previewLines = buildConfiguratorCommandLines(anchor, {
+      enforceFirmwareDefaults: false,
+    });
+    const extraCount = Math.max(0, lines.length - previewLines.length);
+    const msg =
+      "Apply " +
+      lines.length +
+      " command(s) to the connected repeater?\n\n" +
+      "This overwrites repeater settings. USB apply always includes MeshCore " +
+      "firmware defaults" +
+      (extraCount > 0
+        ? " (" + extraCount + " more than the CLI preview)."
+        : ".") +
+      "\n\nContinue?";
+    if (!window.confirm(msg)) {
+      return;
+    }
+
+    serialApplying = true;
+    serialApplyAbort = new AbortController();
+    updateUsbApplyUi(anchor);
+    clearSerialLog();
+    appendSerialLog("Applying " + lines.length + " command(s)…");
+
+    let applySucceeded = false;
+    try {
+      await rs.applyCommands(lines, {
+        signal: serialApplyAbort.signal,
+        onProgress: function (ev) {
+          if (ev.phase === "sending") {
+            appendSerialLog("> " + ev.line);
+          } else if (ev.phase === "done") {
+            if (ev.reply) {
+              appendSerialLog("  -> " + ev.reply, ev.ok ? "is-ok" : "is-error");
+            }
+          }
+        },
+      });
+      applySucceeded = true;
+      appendSerialLog("Apply complete.", "is-ok");
+    } catch (err) {
+      if (err && err.name === "AbortError") {
+        appendSerialLog("Apply cancelled.", "is-error");
+      } else {
+        const detail =
+          err && err.line
+            ? 'Failed on "' + err.line + '": '
+            : "Apply failed: ";
+        appendSerialLog(
+          detail + (err && err.message ? err.message : String(err)),
+          "is-error",
+        );
+      }
+    } finally {
+      serialApplying = false;
+      serialApplyAbort = null;
+      updateUsbApplyUi(getAnchor());
+    }
+
+    if (applySucceeded) {
+      await offerRepeaterReboot(rs, lines);
+    }
+  }
 
   function provinceCentroid(pc) {
     let sumLat = 0;
@@ -2081,93 +3167,108 @@
     }
   }
 
-  function updateMeshcoreCliBlock(anchor) {
-    if (!commandsBlock) return;
+  function buildRegionCommandLines(anchor) {
+    if (!anchor) return [];
 
+    refreshHomeOverrideSelect();
+    const allowCodes = [];
+    const denyCodes = [];
+    if (policyCard) {
+      policyCard
+        .querySelectorAll("input.policy-allow:checked")
+        .forEach(function (el) {
+          allowCodes.push(el.getAttribute("data-code"));
+        });
+      policyCard
+        .querySelectorAll("input.policy-deny:checked")
+        .forEach(function (el) {
+          denyCodes.push(el.getAttribute("data-code"));
+        });
+    }
+    const untaggedEl = document.getElementById("policy-untagged-flood");
+    const allowUntagged = !untaggedEl || untaggedEl.checked;
+    let allowForCli = withoutStar(allowCodes);
+    let denyForCli = withoutStar(denyCodes);
+    if (allowUntagged) {
+      allowForCli.push("*");
+    } else {
+      denyForCli.push("*");
+    }
+    const allowSorted = starFirst(sortCodesForCli(allowForCli));
+    const denySorted = starFirst(sortCodesForCli(denyForCli));
+
+    const needed = new Set();
+    withoutStar(allowForCli).forEach(function (c) {
+      needed.add(c);
+    });
+    withoutStar(denyForCli).forEach(function (c) {
+      needed.add(c);
+    });
+    expandRegionNeeded(needed, anchor);
+    const homeCityRow =
+      anchor.mode === "city" && anchor.row ? anchor.row : null;
+    const putLines = buildOrderedRegionPutLines(needed, homeCityRow);
+    const lines = putLines.slice();
+    allowSorted.forEach(function (r) {
+      lines.push("region allowf " + r);
+    });
+    denySorted.forEach(function (r) {
+      lines.push("region denyf " + r);
+    });
+    const homeLine = regionHomeLineForCli(anchor);
+    if (homeLine) {
+      lines.push(homeLine);
+    }
+    lines.push("region save");
+    return lines;
+  }
+
+  function buildConfiguratorSections(anchor, options) {
+    const enforceFirmwareDefaults = Boolean(
+      options && options.enforceFirmwareDefaults,
+    );
     const sections = [];
     if (namePreviewState && namePreviewState.isValid && namePreviewState.name) {
       sections.push("set name " + namePreviewState.name);
     }
 
-    const showCliDefaults = Boolean(
-      cliShowDefaultsEl && cliShowDefaultsEl.checked,
-    );
-    const setupLines = buildGeneralSettingsCli(showCliDefaults);
+    const setupLines = buildGeneralSettingsCli(enforceFirmwareDefaults);
     if (setupLines) {
       sections.push(setupLines);
     }
 
     if (anchor) {
-      refreshHomeOverrideSelect();
-      const allowCodes = [];
-      const denyCodes = [];
-      if (policyCard) {
-        policyCard
-          .querySelectorAll("input.policy-allow:checked")
-          .forEach(function (el) {
-            allowCodes.push(el.getAttribute("data-code"));
-          });
-        policyCard
-          .querySelectorAll("input.policy-deny:checked")
-          .forEach(function (el) {
-            denyCodes.push(el.getAttribute("data-code"));
-          });
+      const regionLines = buildRegionCommandLines(anchor);
+      if (regionLines.length) {
+        sections.push(regionLines.join("\n"));
       }
-      const untaggedEl = document.getElementById("policy-untagged-flood");
-      const allowUntagged = !untaggedEl || untaggedEl.checked;
-      let allowForCli = withoutStar(allowCodes);
-      let denyForCli = withoutStar(denyCodes);
-      if (allowUntagged) {
-        allowForCli.push("*");
-      } else {
-        denyForCli.push("*");
-      }
-      const allowSorted = starFirst(sortCodesForCli(allowForCli));
-      const denySorted = starFirst(sortCodesForCli(denyForCli));
-
-      const needed = new Set();
-      withoutStar(allowForCli).forEach(function (c) {
-        needed.add(c);
-      });
-      withoutStar(denyForCli).forEach(function (c) {
-        needed.add(c);
-      });
-      expandRegionNeeded(needed, anchor);
-      const homeCityRow =
-        anchor.mode === "city" && anchor.row ? anchor.row : null;
-      const putLines = buildOrderedRegionPutLines(needed, homeCityRow).join(
-        "\n",
-      );
-      const allowfLines = allowSorted
-        .map((r) => `region allowf ${r}`)
-        .join("\n");
-      const denyfLines = denySorted.map((r) => `region denyf ${r}`).join("\n");
-
-      const homeLine = regionHomeLineForCli(anchor);
-
-      const regionBlocks = [];
-      const putTrimmed = putLines.trim();
-      if (putTrimmed) {
-        regionBlocks.push(putTrimmed);
-      }
-      if (allowSorted.length > 0) {
-        regionBlocks.push(allowfLines);
-      }
-      if (denyfLines) {
-        regionBlocks.push(denyfLines);
-      }
-      let regionCmd = regionBlocks.length ? regionBlocks.join("\n\n") : "";
-      if (regionCmd) {
-        regionCmd += "\n\n";
-      }
-      if (homeLine) {
-        regionCmd += homeLine + "\n\n";
-      }
-      regionCmd += "region save";
-      sections.push(regionCmd);
     }
+    return sections;
+  }
 
+  function buildConfiguratorCommandLines(anchor, options) {
+    return buildConfiguratorSections(anchor, options)
+      .join("\n")
+      .split("\n")
+      .map(function (line) {
+        return line.trim();
+      })
+      .filter(function (line) {
+        return line.length > 0 && line.charAt(0) !== "#";
+      });
+  }
+
+  function updateMeshcoreCliBlock(anchor) {
+    if (!commandsBlock) return;
+
+    const showCliDefaults = Boolean(
+      cliShowDefaultsEl && cliShowDefaultsEl.checked,
+    );
+    const sections = buildConfiguratorSections(anchor, {
+      enforceFirmwareDefaults: showCliDefaults,
+    });
     commandsBlock.textContent = sections.join("\n\n");
+    updateUsbApplyUi(anchor);
   }
 
   /** @deprecated Use refreshConfiguratorOutputs — kept for call sites that only need CLI text. */
@@ -2530,7 +3631,7 @@
       copyBtn.textContent = "Copied";
       copyBtn.classList.add("copied");
       setTimeout(() => {
-        copyBtn.textContent = "Copy commands";
+        copyBtn.textContent = "Copy command script";
         copyBtn.classList.remove("copied");
       }, 2000);
     });
@@ -2539,6 +3640,50 @@
   if (cliShowDefaultsEl) {
     cliShowDefaultsEl.addEventListener("change", refreshConfiguratorOutputs);
   }
+
+  if (serialConnectBtn) {
+    serialConnectBtn.addEventListener("click", connectSerialUsb);
+  }
+  if (serialDisconnectBtn) {
+    serialDisconnectBtn.addEventListener("click", disconnectSerialUsb);
+  }
+  if (serialReadBtn) {
+    serialReadBtn.addEventListener("click", readFromRepeater);
+  }
+  if (serialAdvertZerohopBtn) {
+    serialAdvertZerohopBtn.addEventListener("click", function () {
+      sendRepeaterAdvert("zerohop");
+    });
+  }
+  if (serialAdvertFloodBtn) {
+    serialAdvertFloodBtn.addEventListener("click", function () {
+      sendRepeaterAdvert("flood");
+    });
+  }
+  if (serialApplyBtn) {
+    serialApplyBtn.addEventListener("click", applyToRepeater);
+  }
+  if (serialConsoleForm) {
+    serialConsoleForm.addEventListener("submit", onSerialConsoleSubmit);
+  }
+  if (serialConsoleInput) {
+    serialConsoleInput.addEventListener("keydown", onSerialConsoleKeydown);
+  }
+  if (serialConsoleClearBtn) {
+    serialConsoleClearBtn.addEventListener("click", function () {
+      clearSerialLog();
+      if (serialConsoleInput) {
+        serialConsoleInput.focus();
+      }
+    });
+  }
+
+  window.addEventListener("beforeunload", function () {
+    const rs = getRepeaterSerial();
+    if (rs && rs.isConnected()) {
+      rs.disconnect();
+    }
+  });
 
   const settingsCard = document.getElementById("settings-card");
   if (settingsCard) {
@@ -2560,12 +3705,7 @@
         settingRadioPresetEl
       ) {
         if (isCustomRadioPreset()) {
-          const expertTier = document.querySelector(
-            "#settings-card .config-settings-tier:last-of-type",
-          );
-          if (expertTier instanceof HTMLDetailsElement) {
-            expertTier.open = true;
-          }
+          openSettingsTier("settings-tier-expert");
           const idx = parseInt(
             settingRadioPresetEl.dataset.lastPreset || "",
             10,
@@ -2609,6 +3749,7 @@
   }
 
   initRadioPresetSelect();
+  initSerialShowCommandLogToggle();
 
   const untaggedFloodEl = document.getElementById("policy-untagged-flood");
   if (untaggedFloodEl) {

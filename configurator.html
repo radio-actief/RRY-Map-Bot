@@ -8,7 +8,7 @@
     />
     <meta
       name="description"
-      content="#BEmesh repeater configurator: naming, region scopes, and CLI defaults for Belgian MeshCore repeaters."
+      content="#BEmesh repeater configurator: naming, region scopes, settings, and USB deploy for Belgian MeshCore repeaters."
     />
     <link rel="icon" type="image/x-icon" href="./favicon.ico" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -46,8 +46,7 @@
           </div>
         </div>
         <p class="config-header-desc">
-          Configure your repeater name, region flood scopes, and default
-          repeater settings in one CLI output.
+          Name, regions, settings — deploy over USB or copy the command script.
         </p>
       </div>
 
@@ -90,14 +89,14 @@
         <div class="config-card config-naming-card" id="naming-card">
           <h2 id="naming">2. Naming</h2>
           <p class="config-card-desc">
-            Generate a repeater name based on the chosen location. For more
-            information, see the Radio-Actief documentation about
+            Prefix and node name.
             <a
               class="config-header-doc-link"
               href="https://docs.radio-actief.be/nl/MeshCore/ConfigureRepeater#naamgeving"
               target="_blank"
               rel="noopener noreferrer"
-              >repeater naming</a
+              title="Radio-Actief repeater naming guide"
+              >Naming guide</a
             >.
           </p>
           <div class="config-naming-fields">
@@ -107,7 +106,9 @@
                 for="name-location-mode"
                 id="name-location-mode-wrap"
               >
-                <span>Prefix format</span>
+                <span title="How much of the location is included in the prefix"
+                  >Prefix format</span
+                >
                 <select id="name-location-mode">
                   <option value="city">Country & city</option>
                   <option value="province">Country & province</option>
@@ -116,7 +117,9 @@
                 </select>
               </label>
               <label class="config-form-field" for="name-prefix-preview">
-                <span>Prefix</span>
+                <span title="Auto-generated from location and prefix format"
+                  >Prefix</span
+                >
                 <input id="name-prefix-preview" type="text" />
               </label>
             </div>
@@ -131,7 +134,9 @@
                 />
               </label>
               <label class="config-form-field" for="name-power-emoji">
-                <span>Node type</span>
+                <span title="Optional power/source emoji appended to the name"
+                  >Node type</span
+                >
                 <select id="name-power-emoji">
                   <option value="">Do not include</option>
                   <option value="🌞">🌞 Solar</option>
@@ -156,20 +161,14 @@
 
         <div class="config-card config-settings-card" id="settings-card">
           <h2 id="settings">3. Repeater settings</h2>
-          <p class="config-card-desc">
-            Tiered options for radio, security, and mesh behaviour. Start with
-            <strong>General</strong>; open <strong>Advanced</strong> or
-            <strong>Expert</strong> only when you need finer control.
-          </p>
 
-          <details class="config-settings-tier" open>
-            <summary class="config-settings-tier-summary">
+          <details class="config-settings-tier" id="settings-tier-general" open>
+            <summary
+              class="config-settings-tier-summary"
+              title="Credentials, radio plan, repeat mode, duty cycle"
+            >
               General settings
             </summary>
-            <p class="config-tier-desc">
-              Essentials for most #BEmesh repeaters: credentials, owner
-              contact, radio plan, and EU duty cycle.
-            </p>
             <div class="config-form-grid">
               <label
                 class="config-form-field config-form-field--full"
@@ -181,7 +180,9 @@
             </div>
             <div class="config-form-grid config-form-grid--settings-system">
               <label class="config-form-field" for="setting-admin-password">
-                <span>Admin password</span>
+                <span title="CLI password command; not readable from device"
+                  >Admin password</span
+                >
                 <input
                   id="setting-admin-password"
                   type="text"
@@ -190,16 +191,20 @@
                 />
               </label>
               <label class="config-form-field" for="setting-guest-password">
-                <span>Guest password</span>
+                <span title="Leave empty for open telemetry access"
+                  >Guest password</span
+                >
                 <input
                   id="setting-guest-password"
                   type="text"
-                  placeholder="Leave empty for open telemetry"
+                  placeholder="Optional"
                   autocomplete="off"
                 />
               </label>
               <label class="config-form-field" for="setting-repeat">
-                <span>Repeat mode</span>
+                <span title="Off stops packet forwarding on this repeater"
+                  >Repeat mode</span
+                >
                 <select id="setting-repeat">
                   <option value="on" selected>on</option>
                   <option value="off">off</option>
@@ -209,16 +214,20 @@
                 class="config-form-field config-form-field--full"
                 for="setting-owner-info"
               >
-                <span>Owner info</span>
+                <span title="Contact or notes; use | for newline in CLI"
+                  >Owner info</span
+                >
                 <input
                   id="setting-owner-info"
                   type="text"
-                  placeholder="Contact or notes (| = newline)"
+                  placeholder="Contact or notes"
                   autocomplete="off"
                 />
               </label>
               <label class="config-form-field" for="setting-dutycycle">
-                <span>Duty cycle (%)</span>
+                <span title="EU duty cycle percentage"
+                  >Duty cycle (%)</span
+                >
                 <select id="setting-dutycycle">
                   <option value="1">1</option>
                   <option value="10" selected>10</option>
@@ -229,20 +238,21 @@
             </div>
           </details>
 
-          <details class="config-settings-tier">
-            <summary class="config-settings-tier-summary">
+          <details class="config-settings-tier" id="settings-tier-advanced">
+            <summary
+              class="config-settings-tier-summary"
+              title="Advert timing, flood hop limits, path hash, loop detection"
+            >
               Advanced settings
             </summary>
-            <p class="config-tier-desc">
-              Advert timing, flood hop limits, and path-hash mode for mesh
-              tuning. Defaults match #BEmesh guidance on v1.16+ firmware.
-            </p>
             <div class="config-form-grid config-form-grid--settings-adverts">
               <label
                 class="config-form-field"
                 for="setting-flood-advert-interval"
               >
-                <span>Flood advert interval (h)</span>
+                <span title="Hours between flood adverts"
+                  >Flood advert interval (h)</span
+                >
                 <input
                   id="setting-flood-advert-interval"
                   type="number"
@@ -253,7 +263,9 @@
                 />
               </label>
               <label class="config-form-field" for="setting-advert-interval">
-                <span>Zero-hop advert interval (min)</span>
+                <span title="Minutes between zero-hop adverts; 0 = disabled"
+                  >Zero-hop advert interval (min)</span
+                >
                 <input
                   id="setting-advert-interval"
                   type="number"
@@ -271,7 +283,9 @@
                 class="config-form-field"
                 for="setting-flood-max-unscoped"
               >
-                <span>Flood max unscoped hops</span>
+                <span title="Max hops for flood packets without a region tag (v1.16+)"
+                  >Flood max unscoped hops</span
+                >
                 <input
                   id="setting-flood-max-unscoped"
                   type="number"
@@ -279,14 +293,15 @@
                   max="64"
                   step="1"
                   value="12"
-                  title="Max hops for flood packets without a region tag (v1.16+)"
                 />
               </label>
               <label
                 class="config-form-field"
                 for="setting-flood-max-advert"
               >
-                <span>Flood max advert hops</span>
+                <span title="Max hops for advert flood packets (v1.16+)"
+                  >Flood max advert hops</span
+                >
                 <input
                   id="setting-flood-max-advert"
                   type="number"
@@ -294,11 +309,12 @@
                   max="64"
                   step="1"
                   value="8"
-                  title="Max hops for advert flood packets (v1.16+)"
                 />
               </label>
               <label class="config-form-field" for="setting-flood-max">
-                <span>Flood max hops (all)</span>
+                <span title="Overall flood hop cap for any scoped flood"
+                  >Flood max hops (all)</span
+                >
                 <input
                   id="setting-flood-max"
                   type="number"
@@ -306,11 +322,13 @@
                   max="64"
                   step="1"
                   value="64"
-                  title="Overall flood hop cap (any scoped flood)"
                 />
               </label>
               <label class="config-form-field" for="setting-path-hash-mode">
-                <span>Path hash mode</span>
+                <span
+                  title="Advert path hash size; v1.14+ firmware needed for modes 1–2"
+                  >Path hash mode</span
+                >
                 <select id="setting-path-hash-mode">
                   <option value="0">0 — 1-byte (64 hops)</option>
                   <option value="1" selected>1 — 2-byte (32 hops)</option>
@@ -320,7 +338,9 @@
             </div>
             <div class="config-form-grid config-form-grid--settings-rest">
               <label class="config-form-field" for="setting-loop-detect">
-                <span>Loop detection</span>
+                <span title="Loop detection strictness for flood paths"
+                  >Loop detection</span
+                >
                 <select id="setting-loop-detect">
                   <option value="off">off</option>
                   <option value="minimal" selected>minimal</option>
@@ -331,21 +351,18 @@
             </div>
           </details>
 
-          <details class="config-settings-tier">
-            <summary class="config-settings-tier-summary">Expert settings</summary>
-            <p class="config-tier-desc">
-              Custom radio parameters, collision-avoidance delays, and radio
-              diagnostics. Change only when you understand the trade-offs.
-            </p>
+          <details class="config-settings-tier" id="settings-tier-expert">
+            <summary
+              class="config-settings-tier-summary"
+              title="Custom radio, TX/RX delays, diagnostics — change with care"
+            >
+              Expert settings
+            </summary>
             <div
               id="setting-radio-custom-wrap"
               class="setting-radio-custom"
               hidden
             >
-              <p class="config-tier-note">
-                Custom radio plan (visible when preset is
-                <strong>Custom</strong>).
-              </p>
               <div class="config-form-grid config-form-grid--radio-custom">
                 <label class="config-form-field" for="setting-radio-freq">
                   <span>Freq (MHz)</span>
@@ -401,7 +418,7 @@
             </div>
             <div class="config-form-grid config-form-grid--settings-timing">
               <label class="config-form-field" for="setting-txdelay">
-                <span>Tx delay (flood)</span>
+                <span title="Flood TX delay factor">Tx delay (flood)</span>
                 <input
                   id="setting-txdelay"
                   type="number"
@@ -412,7 +429,7 @@
                 />
               </label>
               <label class="config-form-field" for="setting-direct-txdelay">
-                <span>Direct tx delay</span>
+                <span title="Direct TX delay factor">Direct tx delay</span>
                 <input
                   id="setting-direct-txdelay"
                   type="number"
@@ -423,7 +440,10 @@
                 />
               </label>
               <label class="config-form-field" for="setting-rxdelay">
-                <span>Rx delay base</span>
+                <span
+                  title="Experimental: priority queue for weak vs strong flood RX"
+                  >Rx delay base</span
+                >
                 <input
                   id="setting-rxdelay"
                   type="number"
@@ -431,20 +451,21 @@
                   max="20"
                   step="0.1"
                   value="0"
-                  title="Experimental: priority queue for weak vs strong flood RX"
                 />
               </label>
             </div>
             <div class="config-form-grid config-form-grid--settings-expert">
               <label class="config-form-field" for="setting-radio-rxgain">
-                <span>Radio RX gain</span>
+                <span title="Boosted RX gain (SX126x / LR1110)"
+                  >Radio RX gain</span
+                >
                 <select id="setting-radio-rxgain">
                   <option value="on" selected>on (boosted)</option>
                   <option value="off">off</option>
                 </select>
               </label>
               <label class="config-form-field" for="setting-int-thresh">
-                <span>Interference threshold</span>
+                <span title="0 = disabled">Interference threshold</span>
                 <input
                   id="setting-int-thresh"
                   type="number"
@@ -452,11 +473,12 @@
                   max="255"
                   step="1"
                   value="0"
-                  title="0 = disabled"
                 />
               </label>
               <label class="config-form-field" for="setting-agc-reset">
-                <span>AGC reset interval (s)</span>
+                <span title="Rounded to multiple of 4 seconds; 0 = disabled"
+                  >AGC reset interval (s)</span
+                >
                 <input
                   id="setting-agc-reset"
                   type="number"
@@ -464,11 +486,12 @@
                   max="255"
                   step="4"
                   value="0"
-                  title="Rounded down to multiple of 4; 0 = disabled"
                 />
               </label>
               <label class="config-form-field" for="setting-multi-acks">
-                <span>Multi-acks</span>
+                <span title="Experimental priority queue for flood RX"
+                  >Multi-acks</span
+                >
                 <select id="setting-multi-acks">
                   <option value="0" selected>off</option>
                   <option value="1">on</option>
@@ -493,17 +516,18 @@
             Choose a location first to configure region scopes.
           </p>
           <div id="policy-regions-body" hidden>
-            <p class="config-card-desc">
-              Tick <strong>Allow</strong> or <strong>Deny</strong> for
-              <strong>flood forwarding</strong> on each scope (see
+            <p
+              class="config-card-desc"
+              title="Maps to region allowf / denyf CLI commands"
+            >
+              Allow or deny flood per scope.
               <a
                 class="config-header-doc-link"
                 href="https://docs.radio-actief.be/nl/MeshCore/RegioScopes"
                 target="_blank"
                 rel="noopener noreferrer"
                 >Regio-scopes</a
-              >
-              for <code>allowf</code> / <code>denyf</code>).
+              >.
             </p>
             <div class="policy-quick-actions">
               <h3 class="policy-quick-actions-title">Quick actions</h3>
@@ -557,15 +581,12 @@
               <div class="result-found-stack" id="result-grid"></div>
             </div>
             <div class="policy-masters">
-              <label class="policy-master">
+              <label
+                class="policy-master"
+                title="Allow flood for packets without a region tag (*). Turn off only if neighbours agree; keep enough Allow rows or packets may drop."
+              >
                 <input type="checkbox" id="policy-untagged-flood" checked />
-                <span
-                  ><strong>Allow flood without a region tag</strong> (wildcard
-                  <code>*</code>). Leave on unless you deliberately block
-                  untagged flood. If you turn it off, align with neighbouring
-                  repeaters and keep enough <strong>Allow</strong> rows —
-                  otherwise packets can be dropped.</span
-                >
+                <span>Allow untagged flood (<code>*</code>)</span>
               </label>
             </div>
           </div>
@@ -573,21 +594,157 @@
 
         <div class="config-cli-results-stack">
           <div class="config-card result-section" id="commands-card">
-            <h2 id="cli">5. MeshCore CLI output</h2>
+            <h2 id="deploy">5. Deploy to repeater</h2>
             <p class="config-card-desc">
-              Paste into your repeater serial console.
+              USB deploy or copy the command script below.
             </p>
-            <label class="config-cli-show-defaults">
-              <input type="checkbox" id="cli-show-defaults" />
-              <span>Enforce MeshCore default settings</span>
-            </label>
-            <pre class="commands-block" id="commands-block"></pre>
-            <button type="button" class="copy-btn" id="copy-btn">
-              Copy commands
-            </button>
-            <span class="config-card-desc-tip"
-              >Your console may only accept one line at a time.</span
-            >
+
+            <div class="serial-apply-panel" id="serial-apply-panel">
+              <h3 class="deploy-subheading">USB connection</h3>
+              <p
+                id="serial-unsupported"
+                class="serial-unsupported-note"
+                hidden
+              >
+                Web Serial is not available in this browser.
+              </p>
+              <div class="serial-apply-toolbar">
+                <button
+                  type="button"
+                  class="copy-btn"
+                  id="serial-connect-btn"
+                  title="Chrome or Edge on HTTPS or localhost; 115200 baud"
+                >
+                  Connect USB
+                </button>
+                <button
+                  type="button"
+                  class="copy-btn serial-btn-secondary"
+                  id="serial-disconnect-btn"
+                  disabled
+                >
+                  Disconnect
+                </button>
+                <button
+                  type="button"
+                  class="copy-btn serial-btn-secondary"
+                  id="serial-read-btn"
+                  disabled
+                  title="Load name, settings, and region policy from the device (admin password not readable)"
+                >
+                  Read from repeater
+                </button>
+                <button
+                  type="button"
+                  class="copy-btn serial-btn-apply"
+                  id="serial-apply-btn"
+                  disabled
+                  title="Send generated commands; always includes MeshCore firmware defaults"
+                >
+                  Apply configuration
+                </button>
+                <span
+                  class="serial-status"
+                  id="serial-status"
+                  data-state="disconnected"
+                  >Disconnected</span
+                >
+              </div>
+              <p class="deploy-toolbar-label">Quick actions</p>
+              <div class="serial-advert-toolbar">
+                <button
+                  type="button"
+                  class="copy-btn serial-btn-secondary"
+                  id="serial-advert-zerohop-btn"
+                  disabled
+                  title="CLI: advert.zerohop"
+                >
+                  Zero-hop advert
+                </button>
+                <button
+                  type="button"
+                  class="copy-btn serial-btn-secondary"
+                  id="serial-advert-flood-btn"
+                  disabled
+                  title="CLI: advert"
+                >
+                  Flood advert
+                </button>
+              </div>
+              <div class="serial-log-toolbar">
+                <p class="deploy-toolbar-label serial-log-toolbar-label">
+                  Session log
+                </p>
+                <label
+                  class="serial-show-command-log"
+                  title="Show each CLI command and reply during USB read"
+                >
+                  <input type="checkbox" id="serial-show-command-log" />
+                  <span>Show command log</span>
+                </label>
+              </div>
+              <pre
+                class="serial-apply-log"
+                id="serial-apply-log"
+                aria-live="polite"
+              ></pre>
+              <form class="serial-console-form" id="serial-console-form">
+                <label class="serial-console-label" for="serial-console-input"
+                  >Interactive console</label
+                >
+                <div class="serial-console-row">
+                  <input
+                    type="text"
+                    id="serial-console-input"
+                    class="serial-console-input"
+                    placeholder="e.g. get name"
+                    disabled
+                    autocomplete="off"
+                    spellcheck="false"
+                    maxlength="151"
+                    title="One command per line (max 151 chars). Up/Down recalls history. region load not supported."
+                  />
+                  <button
+                    type="submit"
+                    class="copy-btn serial-btn-secondary"
+                    id="serial-console-send-btn"
+                    disabled
+                    title="Send line to device"
+                  >
+                    Send
+                  </button>
+                  <button
+                    type="button"
+                    class="copy-btn serial-btn-secondary"
+                    id="serial-console-clear-btn"
+                    disabled
+                    title="Clear session log"
+                  >
+                    Clear log
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            <div class="cli-preview-panel" id="cli-preview-panel">
+              <h3 class="deploy-subheading">Command preview</h3>
+              <label
+                class="config-cli-show-defaults"
+                title="Preview only — USB apply always sends firmware defaults regardless"
+              >
+                <input type="checkbox" id="cli-show-defaults" />
+                <span>Include firmware defaults in preview</span>
+              </label>
+              <pre class="commands-block" id="commands-block"></pre>
+              <button
+                type="button"
+                class="copy-btn"
+                id="copy-btn"
+                title="Copy script; paste one line at a time if your terminal requires it"
+              >
+                Copy command script
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -596,8 +753,7 @@
         <footer class="config-footer">
           <h3>#BEmesh region map</h3>
           <p class="config-footer-desc">
-            Same <code>be</code> / <code>be-*</code> / municipality codes as
-            above — search the map to cross-check names and coordinates.
+            Cross-check <code>be</code> / <code>be-*</code> codes on the map.
           </p>
           <a
             href="/region-map"
@@ -617,6 +773,7 @@
         </footer>
       </main>
     </div>
+    <script src="./src/repeater-serial.js"></script>
     <script src="./src/configurator.js"></script>
   </body>
 </html>

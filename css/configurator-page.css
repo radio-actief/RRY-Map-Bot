@@ -314,6 +314,66 @@ code.config-naming-preview-advert {
   border-radius: var(--cfg-radius-sm, 6px);
 }
 
+/* Compact page buttons — header chrome (.config-header) unchanged */
+.config-body .config-card .copy-btn,
+.config-body #commands-card .copy-btn,
+.config-body .config-footer .copy-btn {
+  margin-top: 0;
+  min-height: 0;
+  padding: 0.28rem 0.62rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.25;
+  width: auto;
+  max-width: none;
+  box-shadow: none;
+  border-radius: 6px;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.config-body .config-card .copy-btn:hover,
+.config-body #commands-card .copy-btn:hover,
+.config-body .config-footer .copy-btn:hover {
+  transform: none;
+  box-shadow: none;
+  background: var(--cfg-secondary);
+  color: var(--cfg-text);
+  border-color: rgba(212, 160, 23, 0.45);
+}
+
+.config-body .config-card .copy-btn.copied,
+.config-body #commands-card .copy-btn.copied,
+.config-body .config-footer .copy-btn.copied {
+  background: rgba(21, 128, 61, 0.08);
+}
+
+.config-body .policy-global-actions {
+  padding: 0.45rem 0.55rem;
+  gap: 0.3rem 0.4rem;
+}
+
+.config-body .policy-global-btn {
+  font-size: 0.68rem;
+  padding: 0.24rem 0.48rem;
+  border-radius: 5px;
+}
+
+.config-body .config-footer-map-link {
+  min-height: 0;
+  padding: 0.3rem 0.65rem;
+  font-size: 0.78rem;
+  box-shadow: none;
+}
+
+.config-body .config-footer-map-link:hover {
+  transform: none;
+  box-shadow: none;
+  background: var(--cfg-secondary);
+}
+
 .copy-btn[disabled] {
   opacity: 0.55;
   cursor: not-allowed;
@@ -380,7 +440,7 @@ code.config-naming-preview-advert {
 }
 
 .cli-preview-panel .copy-btn {
-  margin-top: 0.45rem;
+  margin-top: 0.35rem;
 }
 
 .serial-unsupported-note {
@@ -393,16 +453,16 @@ code.config-naming-preview-advert {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.45rem;
-  margin-bottom: 0.4rem;
+  gap: 0.32rem;
+  margin-bottom: 0.35rem;
 }
 
 .serial-advert-toolbar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.45rem;
-  margin-bottom: 0.35rem;
+  gap: 0.32rem;
+  margin-bottom: 0.3rem;
 }
 
 .serial-log-toolbar {
@@ -439,14 +499,28 @@ code.config-naming-preview-advert {
 
 .serial-btn-secondary {
   background: var(--cfg-secondary);
-  color: var(--cfg-text);
+  color: var(--cfg-text-muted);
   border: 1px solid var(--cfg-border);
 }
 
+.config-body .config-card .copy-btn.serial-btn-secondary:hover,
+.config-body #commands-card .copy-btn.serial-btn-secondary:hover {
+  background: var(--cfg-surface-hover, var(--cfg-secondary));
+  color: var(--cfg-text);
+  border-color: var(--cfg-border);
+}
+
 .serial-btn-apply {
+  background: rgba(15, 110, 86, 0.1);
+  color: #0f6e56;
+  border-color: rgba(15, 110, 86, 0.35);
+}
+
+.config-body .config-card .copy-btn.serial-btn-apply:hover,
+.config-body #commands-card .copy-btn.serial-btn-apply:hover {
   background: #0f6e56;
   color: #fff;
-  border-color: #0a5644;
+  border-color: #0f6e56;
 }
 
 .serial-btn-apply:disabled {
@@ -456,13 +530,13 @@ code.config-naming-preview-advert {
 .serial-status {
   display: inline-flex;
   align-items: center;
-  min-height: 2rem;
-  padding: 0.2rem 0.55rem;
+  min-height: 1.55rem;
+  padding: 0.12rem 0.45rem;
   border-radius: 999px;
-  font-size: 0.78rem;
-  font-weight: 700;
+  font-size: 0.7rem;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.03em;
   background: var(--cfg-secondary);
   color: var(--cfg-text-muted);
 }

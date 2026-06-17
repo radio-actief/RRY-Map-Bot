@@ -323,11 +323,11 @@ code.config-naming-preview-advert {
   display: flex;
   align-items: center;
   gap: 0.45rem;
-  margin: 0.65rem 0 0.45rem;
+  margin: 0 0 0.45rem;
   font-size: 0.86rem;
   font-weight: 600;
   color: var(--cfg-text);
-  cursor: pointer;
+  cursor: help;
   user-select: none;
 }
 
@@ -337,4 +337,210 @@ code.config-naming-preview-advert {
   margin: 0;
   flex-shrink: 0;
   cursor: pointer;
+}
+
+.deploy-subheading {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.deploy-toolbar-label {
+  margin: 0.1rem 0 0.3rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--cfg-text-muted);
+}
+
+#commands-card > .config-card-desc {
+  margin-bottom: 0.5rem;
+}
+
+.config-form-field > span[title],
+.config-settings-tier-summary[title],
+.policy-master[title],
+.serial-show-command-log[title],
+.config-cli-show-defaults[title] {
+  cursor: help;
+}
+
+.serial-apply-panel {
+  margin-top: 0.45rem;
+  margin-bottom: 0.85rem;
+  padding-top: 0;
+  border-top: none;
+}
+
+.cli-preview-panel {
+  margin-top: 0;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--cfg-border);
+}
+
+.cli-preview-panel .copy-btn {
+  margin-top: 0.45rem;
+}
+
+.serial-unsupported-note {
+  margin: 0 0 0.45rem;
+  font-size: 0.82rem;
+  color: #9a6700;
+}
+
+.serial-apply-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  margin-bottom: 0.4rem;
+}
+
+.serial-advert-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  margin-bottom: 0.35rem;
+}
+
+.serial-log-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+  margin-bottom: 0.3rem;
+}
+
+.serial-log-toolbar-label {
+  margin: 0;
+}
+
+.serial-show-command-log {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--cfg-text-muted);
+  cursor: help;
+  user-select: none;
+}
+
+.serial-show-command-log input {
+  width: 0.95rem;
+  height: 0.95rem;
+  margin: 0;
+  cursor: pointer;
+}
+
+.serial-btn-secondary {
+  background: var(--cfg-secondary);
+  color: var(--cfg-text);
+  border: 1px solid var(--cfg-border);
+}
+
+.serial-btn-apply {
+  background: #0f6e56;
+  color: #fff;
+  border-color: #0a5644;
+}
+
+.serial-btn-apply:disabled {
+  opacity: 0.55;
+}
+
+.serial-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: var(--cfg-secondary);
+  color: var(--cfg-text-muted);
+}
+
+.serial-status[data-state="connected"] {
+  background: #e6f4ee;
+  color: #0f6e56;
+}
+
+.serial-status[data-state="applying"] {
+  background: #fff4e5;
+  color: #9a6700;
+}
+
+.serial-apply-log {
+  margin: 0;
+  max-height: 14rem;
+  overflow: auto;
+  padding: 0.55rem 0.65rem;
+  border-radius: var(--cfg-radius-sm);
+  border: 1px solid var(--cfg-border);
+  background: #1a1d21;
+  color: #e8eaed;
+  font-family: ui-monospace, "Consolas", "Monaco", monospace;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.serial-apply-log-line.is-ok {
+  color: #6ee7b7;
+}
+
+.serial-apply-log-line.is-error {
+  color: #fca5a5;
+}
+
+.serial-apply-log-line.is-muted {
+  color: #9aa0a6;
+}
+
+.serial-console-form {
+  margin-top: 0.35rem;
+}
+
+.serial-console-label {
+  display: block;
+  margin-bottom: 0.3rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--cfg-text);
+}
+
+.serial-console-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 0.45rem;
+}
+
+.serial-console-input {
+  flex: 1 1 12rem;
+  min-height: 2.1rem;
+  padding: 0.35rem 0.55rem;
+  border: 1px solid var(--cfg-border);
+  border-radius: var(--cfg-radius-sm);
+  background: #1a1d21;
+  color: #e8eaed;
+  font-family: ui-monospace, "Consolas", "Monaco", monospace;
+  font-size: 0.82rem;
+}
+
+.serial-console-input:disabled {
+  opacity: 0.55;
+}
+
+.serial-console-input:focus {
+  outline: 2px solid #0f6e56;
+  outline-offset: 1px;
 }

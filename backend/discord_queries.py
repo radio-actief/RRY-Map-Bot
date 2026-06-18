@@ -6,6 +6,7 @@ Handles all database queries for Discord bot commands.
 import sys
 import os
 import sqlite3
+import re
 from typing import Optional, Dict, Any, List
 
 # Add parent directory to path for imports
@@ -18,6 +19,132 @@ from backend.database import (
     get_current_timestamp,
     json_serialize
 )
+
+
+_HEX_PUBKEY_RE = re.compile(r'^[0-9a-fA-F]+$')
+
+
+def normalize_pubkey(query: Optional[str]) -> Optional[str]:
+    """
+    Normalize a query string that looks like a hex public key fragment.
+
+    Returns lowercase hex without spaces/dashes, or None if not hex-like (≥6 chars).
+    """
+    if not query:
+        return None
+    normalized = query.replace(' ', '').replace('-', '').lower()
+    if len(normalized) >= 6 and _HEX_PUBKEY_RE.match(normalized):
+        return normalized
+    return None
+
+
+def _node_passes_filters(
+    node: Dict[str, Any],
+    *,
+    node_type: Optional[int] = None,
+    city: Optional[str] = None,
+    frequency_preset_name: Optional[str] = None,
+    owner_id: Optional[str] = None,
+    claimed: Optional[bool] = None,
+    source: Optional[str] = None,
+    include_inactive: bool = False,
+) -> bool:
+    """Check whether a single node row satisfies the same filters as query_nodes_substring."""
+    if include_inactive:
+        if node.get('is_active', 1):
+            return False
+    else:
+        if not node.get('is_active', 1):
+            return False
+
+    if node_type is not None and node.get('type') != node_type:
+        return False
+
+    if city:
+        node_city = (node.get('city') or '').lower()
+        if city.lower() not in node_city:
+            return False
+
+    if owner_id and str(node.get('discord_owner_id')) != str(owner_id):
+        return False
+
+    if claimed is not None:
+        has_owner = node.get('discord_owner_id') is not None
+        if claimed and not has_owner:
+            return False
+        if not claimed and has_owner:
+            return False
+
+    if source:
+        source_lower = source.lower()
+        node_source = (node.get('source') or '').lower()
+        if source_lower == 'app':
+            if node_source not in ('app', 'web'):
+                return False
+        elif source_lower == 'unknown':
+            if node_source and node_source != 'unknown':
+                return False
+        elif node_source != source_lower:
+            return False
+
+    if frequency_preset_name:
+        from config.config import FREQUENCY_PRESETS
+        preset = None
+        for p in FREQUENCY_PRESETS:
+            if p['name'].lower() == frequency_preset_name.lower():
+                preset = p
+                break
+        if preset:
+            params_raw = node.get('params')
+            if isinstance(params_raw, str):
+                params = json_deserialize(params_raw) or {}
+            elif isinstance(params_raw, dict):
+                params = params_raw
+            else:
+                return False
+            freq = preset['freq']
+            sf = preset['sf']
+            bw = preset['bw']
+            cr = preset['cr']
+            params_str = str(params)
+            if not all(
+                frag in params_str
+                for frag in (
+                    f'"freq": {freq}',
+                    f'"sf": {sf}',
+                    f'"bw": {bw}',
+                    f'"cr": {cr}',
+                )
+            ):
+                return False
+
+    return True
+
+
+def _sort_nodes_by_relevance(nodes: List[Dict[str, Any]], query: Optional[str]) -> List[Dict[str, Any]]:
+    if not query or not nodes:
+        return nodes
+
+    query_lower = query.lower()
+    norm = normalize_pubkey(query)
+
+    def score(node: Dict[str, Any]) -> int:
+        pk = (node.get('public_key') or '').lower()
+        name = (node.get('adv_name') or '').lower()
+        owner = (node.get('discord_owner_name') or '').lower()
+        if norm and pk == norm:
+            return 0
+        if norm and pk.startswith(norm):
+            return 1
+        if query_lower in name:
+            return 2
+        if query_lower in owner:
+            return 3
+        if query_lower in pk:
+            return 4
+        return 5
+
+    return sorted(nodes, key=score)
 
 
 def query_nodes_substring(
@@ -49,6 +176,23 @@ def query_nodes_substring(
     Returns:
         List of node dictionaries matching the criteria.
     """
+    norm = normalize_pubkey(query) if query else None
+
+    # Full 64-char pubkey: try exact match first (respects active/inactive filter).
+    if norm and len(norm) == 64:
+        exact = get_node_by_key(norm, include_inactive=include_inactive)
+        if exact and _node_passes_filters(
+            exact,
+            node_type=node_type,
+            city=city,
+            frequency_preset_name=frequency_preset_name,
+            owner_id=owner_id,
+            claimed=claimed,
+            source=source,
+            include_inactive=include_inactive,
+        ):
+            return [exact]
+
     conn = get_connection()
     cursor = conn.cursor()
     
@@ -160,7 +304,10 @@ def query_nodes_substring(
         
         # Convert rows to dictionaries
         nodes = [dict_from_row(row) for row in rows]
-        
+
+        if query:
+            nodes = _sort_nodes_by_relevance(nodes, query)
+
         return nodes
         
     except Exception as e:

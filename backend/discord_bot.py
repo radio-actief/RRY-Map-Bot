@@ -71,6 +71,19 @@ except (ImportError, ModuleNotFoundError):
     ]
 
 from backend.discord_branding import apply_brand_to_embed
+from backend.discord_formatting import (
+    build_claim_embed_dict,
+    build_search_summary,
+    build_unclaim_embed_dict,
+    chunk_embed_descriptions,
+    dict_to_discord_embed,
+    ensure_node_params,
+    format_full_node_details as _format_full_node_details,
+    format_node_list,
+    format_node_simple,
+    format_owner_display,
+    get_map_link,
+)
 from backend.database import (
     init_database,
     get_connection,
@@ -88,6 +101,7 @@ from backend.discord_queries import (
     get_node_by_key,
     get_statistics,
     get_source_statistics,
+    normalize_pubkey,
 )
 
 # Set up Discord bot intents
@@ -104,6 +118,59 @@ bot = commands.Bot(command_prefix='!', intents=intents)
 
 def branded_embed(*args, **kwargs):
     return apply_brand_to_embed(discord.Embed(*args, **kwargs))
+
+
+def format_full_node_details(node: Dict[str, Any], show_coordinates: bool = False, user_id: Optional[str] = None) -> discord.Embed:
+    return _format_full_node_details(node, branded_embed, show_coordinates, user_id)
+
+
+def build_claim_embed(node: Dict[str, Any], user_id: str) -> discord.Embed:
+    return dict_to_discord_embed(build_claim_embed_dict(node, user_id, via_web=False), branded_embed)
+
+
+def build_unclaim_embed(node: Dict[str, Any], user_id: str) -> discord.Embed:
+    return dict_to_discord_embed(build_unclaim_embed_dict(node, user_id, via_web=False), branded_embed)
+
+
+async def send_chunked_node_embeds(
+    interaction: discord.Interaction,
+    *,
+    title: str,
+    header_text: str,
+    formatted_items: List[str],
+    color: discord.Color,
+    footer_single: str,
+    footer_range: str,
+    ephemeral: bool = False,
+    total_count: Optional[int] = None,
+) -> None:
+    """Send embed(s) with node list chunked to Discord description limits."""
+    descriptions = chunk_embed_descriptions(header_text, formatted_items)
+    total = total_count if total_count is not None else len(formatted_items)
+
+    def _count_nodes_in_desc(desc: str) -> int:
+        body = desc[len(header_text):].strip()
+        return len([b for b in body.split("\n\n") if b.strip()]) if body else 0
+
+    running = 0
+    for idx, desc in enumerate(descriptions):
+        embed = branded_embed(
+            title=title if idx == 0 else f"{title} (continued)",
+            description=desc,
+            color=color,
+        )
+        nodes_in_chunk = _count_nodes_in_desc(desc)
+        if len(descriptions) == 1:
+            embed.set_footer(text=footer_single)
+        else:
+            start = running + 1
+            end = running + nodes_in_chunk
+            embed.set_footer(text=footer_range.format(start=start, end=end, total=total))
+        running += nodes_in_chunk
+        if idx == 0:
+            await interaction.response.send_message(embed=embed, ephemeral=ephemeral)
+        else:
+            await interaction.followup.send(embed=embed, ephemeral=ephemeral)
 
 
 def log_command(command_name: str, user: discord.User, query: Optional[str] = None, result: Optional[str] = None) -> None:
@@ -123,424 +190,9 @@ def log_command(command_name: str, user: discord.User, query: Optional[str] = No
     print(f"[{timestamp}] [{command_name}] User: {user_info}{query_str}{result_str}")
 
 
-def truncate_public_key(pub_key: str, show_full: bool = False) -> str:
-    """
-    Truncate public key to 6 characters unless show_full is True.
-    Always returns UPPERCASE for display (even though stored in lowercase).
-    
-    Args:
-        pub_key: Public key string (may be lowercase).
-        show_full: If True, return full key; otherwise truncate to 6 chars.
-    
-    Returns:
-        Uppercase public key, truncated if show_full is False (no dots).
-    """
-    if not pub_key:
-        return ""
-    pub_key_upper = pub_key.upper()
-    if show_full:
-        return pub_key_upper
-    return pub_key_upper[:6] if len(pub_key_upper) > 6 else pub_key_upper
-
-
-def escape_discord_markdown(text: str) -> str:
-    """
-    Escape Discord markdown to prevent formatting issues (especially underscores).
-    Uses code blocks to preserve underscores correctly.
-    
-    Args:
-        text: Text to escape.
-    
-    Returns:
-        Text wrapped in code blocks.
-    """
-    if not text:
-        return ""
-    # Remove any existing backticks to prevent code block issues
-    cleaned = text.replace('`', '')
-    return f"`{cleaned}`"
-
-
-def get_node_type_text(type_num: int) -> str:
-    """
-    Convert node type number to descriptive text.
-    
-    Args:
-        type_num: Node type number (1-4).
-    
-    Returns:
-        Descriptive text for the node type (lowercase, for internal use).
-    """
-    return NODE_TYPES.get(type_num, f"Unknown ({type_num})")
-
-
-def get_node_type_display(type_num: int) -> str:
-    """
-    Get properly capitalized node type text for display.
-    
-    Args:
-        type_num: Node type number (1-4).
-    
-    Returns:
-        Properly capitalized text (e.g., "Companion", "Room Server").
-    """
-    type_text = NODE_TYPES.get(type_num, f"Unknown ({type_num})")
-    # Capitalize properly: "room server" -> "Room Server", "companion" -> "Companion"
-    return type_text.title()
-
-
 def get_node_type_number(type_text: str) -> Optional[int]:
-    """
-    Convert node type text to number (case-insensitive).
-    
-    Args:
-        type_text: Node type text (e.g., "companion", "repeater").
-    
-    Returns:
-        Node type number or None if not found.
-    """
+    """Convert node type text to number (case-insensitive)."""
     return NODE_TYPES_REVERSE.get(type_text.lower())
-
-
-def get_node_type_icon(type_num: int) -> str:
-    """
-    Get Discord icon for node type.
-    
-    Args:
-        type_num: Node type number (1-4).
-    
-    Returns:
-        Emoji icon for the node type.
-    """
-    return NODE_TYPE_ICONS.get(type_num, "•")
-
-
-def match_frequency_preset(params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    """
-    Match frequency parameters against known presets.
-    
-    Args:
-        params: Dictionary with keys: freq, sf, bw, cr.
-    
-    Returns:
-        Matching preset dictionary or None.
-    """
-    if not params:
-        return None
-    
-    freq = params.get('freq')
-    sf = params.get('sf')
-    bw = params.get('bw')
-    cr = params.get('cr')
-    
-    if freq is None or sf is None or bw is None or cr is None:
-        return None
-    
-    for preset in FREQUENCY_PRESETS:
-        if (abs(freq - preset['freq']) < 0.001 and
-            sf == preset['sf'] and
-            bw == preset['bw'] and
-            cr == preset['cr']):
-            return preset
-    
-    return None
-
-
-def format_date_display(date_string: Optional[str]) -> str:
-    """
-    Format UTC storage string for Discord display in CET/CEST with timezone label.
-
-    Returns:
-        e.g. "2026-01-02 19:45 CET", or "N/A" if invalid.
-    """
-    from backend.datetime_utils import parse_utc
-
-    dt = parse_utc(date_string)
-    if not dt:
-        return "N/A"
-    dt_cet = dt.astimezone(ZoneInfo("Europe/Brussels"))
-    return dt_cet.strftime("%Y-%m-%d %H:%M") + " " + dt_cet.tzname()
-
-
-def format_frequency_display(params: Dict[str, Any]) -> str:
-    """
-    Format frequency display, showing preset name if matched.
-    
-    Args:
-        params: Dictionary with frequency parameters.
-    
-    Returns:
-        Formatted frequency string.
-    """
-    # Handle None or empty params
-    if not params or not isinstance(params, dict):
-        return "N/A"
-    
-    # Check if params has any actual values
-    if not any(params.get(key) is not None for key in ['freq', 'sf', 'bw', 'cr']):
-        return "N/A"
-    
-    preset = match_frequency_preset(params)
-    if preset:
-        return f"Preset: {preset['name']} ({preset['freq']} MHz)"
-    else:
-        freq = params.get('freq', 'N/A')
-        sf = params.get('sf', 'N/A')
-        bw = params.get('bw', 'N/A')
-        cr = params.get('cr', 'N/A')
-        return f"Custom: Freq: {freq} MHz, SF: {sf}, BW: {bw}, CR: {cr}"
-
-
-def format_full_node_details(node: Dict[str, Any], show_coordinates: bool = False, user_id: Optional[str] = None) -> discord.Embed:
-    """
-    Format full node information as Discord embed (used when exactly 1 node found).
-    
-    Args:
-        node: Node dictionary from database.
-        show_coordinates: Only True when listing own nodes (security reasons).
-        user_id: Optional Discord user ID for "details found by" in description.
-    
-    Returns:
-        Discord embed with full node details.
-    """
-    node_name = node.get('adv_name', 'Unknown')
-    type_num = node.get('type', 0)
-    type_text = get_node_type_display(type_num)
-    type_icon = get_node_type_icon(type_num)
-    freq_display = format_frequency_display(node.get('params', {}))
-    pub_key_display_short = truncate_public_key(node.get('public_key', ''), show_full=False)
-    pub_key_display = truncate_public_key(node.get('public_key', ''), show_full=True)
-    city = node.get('city', 'Unknown')
-    
-    # Format owner with Discord mention if available
-    owner_id = node.get('discord_owner_id')
-    if owner_id:
-        owner = f"<@{owner_id}>"
-    else:
-        owner = "Unclaimed"
-    
-    # Create embed with "Details" in title
-    # Format description based on whether user_id is provided
-    if user_id:
-        description = f"**{node_name}** `{pub_key_display_short}` ({type_text.lower()}) details found by <@{user_id}>"
-    else:
-        description = f"**{node_name}**"
-    
-    embed = branded_embed(
-        title=f"{type_icon} Detailed node info",
-        description=description,
-        color=discord.Color.blue()
-    )
-    
-    # Public Key
-    embed.add_field(name="Public Key", value=f"`{pub_key_display}`", inline=False)
-
-    # Type
-    embed.add_field(name="Type", value=type_text, inline=True)
-    
-    # City
-    embed.add_field(name="City", value=city, inline=True)
-
-    # Location (if showing coordinates)
-    if show_coordinates:
-        lat = node.get('adv_lat')
-        lon = node.get('adv_lon')
-        if lat is not None and lon is not None:
-            embed.add_field(name="Location", value=f"`{lat}, {lon}`", inline=True)
-
-    # Owner
-    embed.add_field(name="Owner", value=owner, inline=True)
-    
-    # Frequency
-    embed.add_field(name="Frequency", value=freq_display, inline=False)
-    
-    # MeshCore Link
-    link = node.get('link')
-    if link:
-        embed.add_field(name="MeshCore Link", value=f"`{link}`", inline=False)
-    
-    # Inserted date
-    inserted_date = node.get('inserted_date')
-    if inserted_date:
-        formatted_inserted = format_date_display(inserted_date)
-        embed.add_field(name="Inserted Date", value=formatted_inserted, inline=True)
-    
-    # Updated date
-    updated_date = node.get('updated_date')
-    if updated_date:
-        formatted_updated = format_date_display(updated_date)
-        embed.add_field(name="Updated Date", value=formatted_updated, inline=True)
-    
-    # Last Advert Date
-    last_advert = node.get('last_advert')
-    if last_advert:
-        formatted_last_advert = format_date_display(last_advert)
-        embed.add_field(name="Last Advert", value=formatted_last_advert, inline=True)
-
-    # Inserted by (public hex key)
-    inserted_by = node.get('inserted_by')
-    if inserted_by:
-        embed.add_field(name="Inserted By", value=f"`{inserted_by.upper()}`", inline=True)
-    
-    # Updated by (public hex key)
-    updated_by = node.get('updated_by')
-    if updated_by:
-        embed.add_field(name="Updated By", value=f"`{updated_by.upper()}`", inline=True)
-
-    # Source (original upload location)
-    source = node.get('source')
-    if source:
-        embed.add_field(name="Source", value=f"`{source.upper()}`", inline=True)
-    
-    # Footer - will be set by caller based on context
-    # Don't set footer here, let the caller decide
-    
-    return embed
-
-
-def get_most_recent_date(node: Dict[str, Any]) -> Optional[str]:
-    """
-    Get the most recent date from a node's date fields.
-    Checks: inserted_date, updated_date, last_advert.
-    All dates are interpreted as UTC (naive = UTC); result is shown in CET with timezone label.
-
-    Args:
-        node: Node dictionary.
-
-    Returns:
-        Most recent date as string in CET (e.g. "2026-01-02 19:45 CET"), or None if no dates found.
-    """
-    from backend.datetime_utils import parse_utc
-
-    cet = ZoneInfo("Europe/Brussels")
-    dates_utc = []
-    for date_field in ('inserted_date', 'updated_date', 'last_advert'):
-        dt = parse_utc(node.get(date_field))
-        if dt:
-            dates_utc.append(dt)
-
-    if dates_utc:
-        most_recent_utc = max(dates_utc)
-        dt_cet = most_recent_utc.astimezone(cet)
-        return dt_cet.strftime('%Y-%m-%d %H:%M') + " " + dt_cet.tzname()
-    return None
-
-
-def format_node_simple(node: Dict[str, Any], show_coords: bool = False, show_owner: bool = False, include_map_link: bool = False) -> str:
-    """
-    Format a single node in the simplified format.
-    
-    Args:
-        node: Node dictionary.
-        show_coords: If True, show coordinates in parentheses.
-        show_owner: If True, show Discord owner in subtitle.
-        include_map_link: If True, add a "View on map" link line.
-    
-    Returns:
-        Formatted string with 3 lines per node (4 if include_map_link).
-    """
-    # Ensure params are deserialized
-    params = node.get('params', {})
-    if isinstance(params, str):
-        from backend.database import json_deserialize
-        try:
-            params = json_deserialize(params) or {}
-        except Exception:
-            params = {}
-    elif params is None:
-        params = {}
-    
-    # Line 1: Icon HEX HEAD - Node Name (- Owner if show_owner)
-    icon = get_node_type_icon(node.get('type', 0))
-    pub_key_display = truncate_public_key(node.get('public_key', ''), show_full=False)
-    node_name = escape_discord_markdown(node.get('adv_name', 'Unknown'))
-    
-    line1 = f"{icon} `{pub_key_display}` - {node_name}"
-    if show_owner:
-        owner_id = node.get('discord_owner_id')
-        if owner_id:
-            line1 += f" - 👤 <@{owner_id}>"
-        # If unclaimed, don't add anything (just end after node name)
-    
-    # Line 2: 📍 City (coords) | 📅 Most recent date
-    city = node.get('city', 'Unknown')
-    line2 = f"📍 {city}"
-    if show_coords:
-        lat = node.get('adv_lat')
-        lon = node.get('adv_lon')
-        if lat is not None and lon is not None:
-            line2 += f" ({lat}, {lon})"
-    line2 += " | 📅 "
-    most_recent = get_most_recent_date(node)
-    if most_recent:
-        line2 += most_recent
-    else:
-        line2 += "N/A"
-    
-    # Line 3: 📻 Frequency: preset/custom | ℹ️ Source: source
-    freq_display = format_frequency_display(params)
-    # Remove "Preset: " prefix if present, keep the rest
-    if freq_display.startswith("Preset: "):
-        freq_display = freq_display[8:]  # Remove "Preset: " prefix
-    source = node.get('source', 'N/A')
-    if source:
-        source_capitalized = source.capitalize()
-    else:
-        source_capitalized = 'N/A'
-    line3 = f"📻 Frequency: {freq_display} | ℹ️ Source: {source_capitalized}"
-    
-    result = f"{line1}\n{line2}\n{line3}"
-    if include_map_link:
-        result += f"\n[View on map]({get_map_link(node)})"
-    return result
-
-
-def format_node_list(nodes: List[Dict[str, Any]], show_full_keys: bool = False) -> str:
-    """
-    Format list of nodes for display.
-    Multiple results: Format: ICON HEX HEAD - NODE NAME
-    
-    Args:
-        nodes: List of node dictionaries.
-        show_full_keys: If True, show full public keys.
-    
-    Returns:
-        Formatted string with node list.
-    """
-    if len(nodes) == 1:
-        # Single node: format as simple text for list context
-        # (format_full_node_details now returns an embed, so we format manually here)
-        node = nodes[0]
-        icon = get_node_type_icon(node.get('type', 0))
-        pub_key_display = truncate_public_key(node.get('public_key', ''), show_full=show_full_keys)
-        node_name = escape_discord_markdown(node.get('adv_name', 'Unknown'))
-        return f"{icon} `{pub_key_display}` - {node_name}"
-    else:
-        # Multiple nodes: use simplified format
-        lines = []
-        for node in nodes:
-            formatted = format_node_simple(node, show_coords=False, show_owner=True)
-            lines.append(formatted)
-        return "\n\n".join(lines)
-
-
-def get_map_link(node: Dict[str, Any]) -> str:
-    """
-    Generate map link for a node (direct link to node on map).
-    
-    Args:
-        node: Node dictionary with public_key.
-    
-    Returns:
-        URL to view node on map.
-    """
-    from urllib.parse import quote
-    from config.config import MAP_BASE_URL
-    base = MAP_BASE_URL.rstrip("/")
-    pk = (node.get("public_key") or "").strip()
-    if pk:
-        return f"{base}/?node={quote(pk, safe='')}"
-    return base
 
 
 # ============================================================================
@@ -839,36 +491,7 @@ class UnclaimConfirmView(discord.ui.View):
         
         
         log_command("NODE_UNCLAIM", interaction.user, self.node.get('adv_name', 'Unknown'), f"SUCCESS: Unclaimed {self.node.get('adv_name', 'Unknown')}")
-        node_name = self.node.get('adv_name', 'Unknown')
-        type_icon = get_node_type_icon(self.node.get('type', 0))
-        pub_key_display = truncate_public_key(self.node.get('public_key', ''), show_full=False)
-        type_text = get_node_type_display(self.node.get('type', 0))
-        city = self.node.get('city', 'Unknown')
-        source = self.node.get('source', 'N/A')
-        if source:
-            source_capitalized = source.capitalize()
-        else:
-            source_capitalized = 'N/A'
-        
-        # Success - public (visible to channel) with embed (same format as /claim)
-        embed = branded_embed(
-            title=f"{type_icon} Node Unclaimed",
-            description=f"**{node_name}** `{pub_key_display}` ({type_text.lower()}) has been unclaimed by <@{self.user_id}>",
-            color=discord.Color.orange()
-        )
-        
-        # Inline 1: Public Key, Node Name, Node Type
-        embed.add_field(name="Public Key", value=f"`{truncate_public_key(self.node.get('public_key', ''), show_full=True)}`", inline=True)
-        embed.add_field(name="Node Name", value=node_name, inline=True)
-        embed.add_field(name="Node Type", value=type_text, inline=True)
-        
-        # Inline 2: Location (just city), Source Type, Status
-        embed.add_field(name="Location", value=city, inline=True)
-        embed.add_field(name="Source Type", value=source_capitalized, inline=True)
-        embed.add_field(name="Status", value="Unclaimed", inline=True)
-        
-        embed.set_footer(text="Use `/mynodes` to see your owned nodes.")
-        
+        embed = build_unclaim_embed(self.node, self.user_id)
         await interaction.followup.send(embed=embed)
     
     @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary, emoji="❌")
@@ -978,22 +601,24 @@ async def search_nodes(
     result_count = len(nodes) if nodes else 0
     log_command("SEARCH", interaction.user, query, f"{result_count} nodes found")
 
-    query_parts = []
-    if query:
-        query_parts.append(f"`{query}`")
+    node_type_label = None
     if node_type:
-        node_type_value = node_type.value if isinstance(node_type, app_commands.Choice) else node_type
-        query_parts.append(f"type: `{node_type_value}`")
-    if city:
-        query_parts.append(f"city: `{city}`")
-    if frequency_preset_name:
-        query_parts.append(f"frequency preset: `{frequency_preset_name}`")
-    if owner:
-        query_parts.append(f"owner: {owner.mention}")
+        node_type_label = node_type.value if isinstance(node_type, app_commands.Choice) else node_type
+
+    source_label = None
     if source_value:
         source_label = "App" if source_value.lower() == 'app' else source_value.capitalize()
-        query_parts.append(f"source: `{source_label}`")
-    search_query_str = ", ".join(query_parts) if query_parts else "all nodes"
+
+    search_query_str = build_search_summary(
+        query=query,
+        node_type=node_type_label,
+        city=city,
+        frequency_preset_name=frequency_preset_name,
+        owner_mention=owner.mention if owner else None,
+        claimed=claimed,
+        inactive=bool(inactive),
+        source_label=source_label,
+    )
 
     if not nodes:
         embed = branded_embed(
@@ -1005,15 +630,7 @@ async def search_nodes(
         return
 
     if len(nodes) == 1:
-        node = nodes[0]
-        if node.get('params') and isinstance(node.get('params'), str):
-            from backend.database import json_deserialize
-            try:
-                node['params'] = json_deserialize(node['params']) or {}
-            except Exception:
-                node['params'] = {}
-        elif 'params' not in node or node.get('params') is None:
-            node['params'] = {}
+        node = ensure_node_params(nodes[0])
         embed = format_full_node_details(node, show_coordinates=False, user_id=str(interaction.user.id))
         embed.description = f"**Search result for:** {search_query_str}\n\n{embed.description}"
         embed.add_field(name="View on Map", value=f"[Open on map]({get_map_link(node)})", inline=False)
@@ -1024,175 +641,89 @@ async def search_nodes(
             embed.set_footer(text="This node is unclaimed. Use `/node claim` to claim ownership. Use `/mynodes` to see your nodes.")
         await interaction.response.send_message(embed=embed)
     else:
-        DISCORD_EMBED_DESC_LIMIT = 4096
-        SAFE_BUFFER = 500
         total_nodes = len(nodes)
         header_text = f"**Search result for:** {search_query_str}\n\nFound **{total_nodes}** node(s):\n\n"
-
-        formatted_nodes = []
-        for node in nodes:
-            if node.get('params') and isinstance(node.get('params'), str):
-                from backend.database import json_deserialize
-                try:
-                    node['params'] = json_deserialize(node['params']) or {}
-                except Exception:
-                    node['params'] = {}
-            elif 'params' not in node or node.get('params') is None:
-                node['params'] = {}
-            formatted_nodes.append(format_node_simple(node, show_coords=False, show_owner=True))
-
-        chunks = []
-        current_chunk = []
-        max_allowed = DISCORD_EMBED_DESC_LIMIT - SAFE_BUFFER
-        MAX_NODES_PER_CHUNK = 25
-        EARLY_BREAK_BUFFER = 150
-
-        for formatted_node in formatted_nodes:
-            test_chunk = current_chunk + [formatted_node]
-            test_content = "\n\n".join(test_chunk)
-            test_description = header_text + test_content
-            if len(test_description) > max_allowed or len(test_chunk) > MAX_NODES_PER_CHUNK or len(test_description) > (max_allowed - EARLY_BREAK_BUFFER):
-                if current_chunk:
-                    chunks.append(current_chunk)
-                    current_chunk = [formatted_node]
-                else:
-                    current_chunk.append(formatted_node)
-            else:
-                current_chunk.append(formatted_node)
-        if current_chunk:
-            chunks.append(current_chunk)
-
-        num_messages = len(chunks)
-        first_chunk = chunks[0]
-        first_response = "\n\n".join(first_chunk)
-        description = header_text + first_response
-        while len(description) > max_allowed and len(first_chunk) > 0:
-            first_chunk = first_chunk[:-1]
-            description = header_text + ("\n\n".join(first_chunk) if first_chunk else "*Error: No nodes fit*")
-            if not first_chunk:
-                break
-
-        embed = branded_embed(title="🔍 Search Results", description=description, color=discord.Color.blue())
-        if num_messages > 1:
-            embed.set_footer(text=f"Showing 1-{len(first_chunk)} of {total_nodes} | Use `/search` to refine, `/mynodes` for your nodes.")
-        else:
-            embed.set_footer(text="Use `/search` to refine, `/mynodes` for your nodes.")
-        await interaction.response.send_message(embed=embed)
-
-        for i in range(1, num_messages):
-            chunk = chunks[i]
-            start_idx = sum(len(chunks[j]) for j in range(i)) + 1
-            followup_header = f"**Search result for:** {search_query_str}\n\n"
-            chunk_response = "\n\n".join(chunk)
-            followup_description = followup_header + chunk_response
-            while len(followup_description) > max_allowed and len(chunk) > 0:
-                chunk = chunk[:-1]
-                followup_description = followup_header + ("\n\n".join(chunk) if chunk else "*Error: No nodes fit*")
-                if not chunk:
-                    break
-            end_idx = start_idx + len(chunk) - 1 if chunk else start_idx
-            followup_embed = branded_embed(
-                title="🔍 Search Results (continued)",
-                description=followup_header + ("\n\n".join(chunk) if chunk else ""),
-                color=discord.Color.blue()
+        show_inactive = bool(inactive)
+        formatted_nodes = [
+            format_node_simple(
+                ensure_node_params(node),
+                show_coords=False,
+                show_owner=True,
+                include_map_link=True,
+                show_inactive_badge=show_inactive,
             )
-            followup_embed.set_footer(text=f"Showing {start_idx}-{end_idx} of {total_nodes} | Use `/search` to refine, `/mynodes` for your nodes.")
-            await interaction.followup.send(embed=followup_embed)
+            for node in nodes
+        ]
+        await send_chunked_node_embeds(
+            interaction,
+            title="🔍 Search Results",
+            header_text=header_text,
+            formatted_items=formatted_nodes,
+            color=discord.Color.blue(),
+            footer_single="Use `/search` to refine, `/mynodes` for your nodes.",
+            footer_range="Showing {start}-{end} of {total} | Use `/search` to refine, `/mynodes` for your nodes.",
+        )
 
 
 @node_group.command(name="claim", description="Claim ownership of an existing unclaimed node")
 @app_commands.describe(query="Node's partial name or partial public key")
 async def node_claim(interaction: discord.Interaction, query: str):
     """Claim ownership of a Belgian MeshCore node."""
-    # Search with substring matching
-    nodes = query_nodes_substring(query=query, limit=25)
-    
-    # Log command
+    nodes = query_nodes_substring(query=query, limit=25, claimed=False)
+
     result_count = len(nodes) if nodes else 0
-    log_command("NODE_CLAIM", interaction.user, query, f"{result_count} nodes found")
-    
+    log_command("NODE_CLAIM", interaction.user, query, f"{result_count} unclaimed nodes found")
+
     if not nodes:
-        # Error - ephemeral (only to sender)
+        hint = ""
+        if normalize_pubkey(query):
+            claimed_match = query_nodes_substring(query=query, limit=1, claimed=True)
+            if claimed_match:
+                owner = format_owner_display(claimed_match[0])
+                hint = f"\n\nThis node appears to be already claimed by {owner}. Try `/search claimed:true` for details."
+            else:
+                hint = "\n\nNo matching unclaimed node found. Check the pubkey on [BEMesh Map](https://meshmap.radio-actief.be)."
         await interaction.response.send_message(
-            "Node not found in Belgian database.",
-            ephemeral=True
+            f"Node not found in Belgian database (unclaimed).{hint}",
+            ephemeral=True,
         )
         return
-    
+
     if len(nodes) > 1:
-        # Multiple matches: show error with list - ephemeral (only to sender)
-        # Limit to first 10 nodes to avoid Discord message length limit (2000 chars)
         max_nodes_to_show = 10
         nodes_to_show = nodes[:max_nodes_to_show]
-        
-        error_msg = f"**Multiple nodes found ({len(nodes)} total). Please be more specific:**\n\n"
+        error_msg = f"**Multiple unclaimed nodes found ({len(nodes)} total). Please be more specific:**\n\n"
         error_msg += format_node_list(nodes_to_show, show_full_keys=False)
-        
         if len(nodes) > max_nodes_to_show:
             error_msg += f"\n\n*... and {len(nodes) - max_nodes_to_show} more. Please refine your search.*"
-        
         await interaction.response.send_message(error_msg, ephemeral=True)
         return
-    
-    # Exactly 1 node: claim it
+
     node = nodes[0]
-    
-    # Check if already claimed
     if node.get('discord_owner_id'):
-        current_owner = node.get('discord_owner_name', 'Unknown')
         await interaction.response.send_message(
-            f"This node is already claimed by {current_owner}.",
-            ephemeral=True
+            f"This node is already claimed by {format_owner_display(node)}.",
+            ephemeral=True,
         )
-        log_command("NODE_CLAIM", interaction.user, query, f"FAILED: Already claimed")
+        log_command("NODE_CLAIM", interaction.user, query, "FAILED: Already claimed")
         return
-    
-    # Update ownership
-    success = update_ownership(  # Logs to node_claims as 'claim'.
+
+    success = update_ownership(
         node['public_key'],
         str(interaction.user.id),
-        interaction.user.name
+        interaction.user.name,
     )
-    
+
     if not success:
         await interaction.response.send_message(
             "Error claiming node. Please try again.",
-            ephemeral=True
+            ephemeral=True,
         )
         log_command("NODE_CLAIM", interaction.user, query, "FAILED: Database error")
         return
-    
-    
+
     log_command("NODE_CLAIM", interaction.user, query, f"SUCCESS: Claimed {node.get('adv_name', 'Unknown')}")
-    node_name = node.get('adv_name', 'Unknown')
-    type_icon = get_node_type_icon(node.get('type', 0))
-    pub_key_display = truncate_public_key(node.get('public_key', ''), show_full=False)
-    type_text = get_node_type_display(node.get('type', 0))
-    city = node.get('city', 'Unknown')
-    source = node.get('source', 'N/A')
-    if source:
-        source_capitalized = source.capitalize()
-    else:
-        source_capitalized = 'N/A'
-    
-    # Success - public (visible to channel) with embed
-    embed = branded_embed(
-        title=f"{type_icon} Node Claimed",
-        description=f"**{node_name}** `{pub_key_display}` ({type_text.lower()}) has been claimed by <@{interaction.user.id}>",
-        color=discord.Color.green()
-    )
-    
-    # Inline 1: Public Key, Node Name, Node Type
-    embed.add_field(name="Public Key", value=f"`{truncate_public_key(node.get('public_key', ''), show_full=True)}`", inline=True)
-    embed.add_field(name="Node Name", value=node_name, inline=True)
-    embed.add_field(name="Node Type", value=type_text, inline=True)
-    
-    # Inline 2: Location (just city), Source Type, Claimed By
-    embed.add_field(name="Location", value=city, inline=True)
-    embed.add_field(name="Source Type", value=source_capitalized, inline=True)
-    embed.add_field(name="Claimed By", value=f"<@{interaction.user.id}>", inline=True)
-    
-    embed.set_footer(text="Use `/mynodes` to see your owned nodes.")
+    embed = build_claim_embed(node, str(interaction.user.id))
     await interaction.response.send_message(embed=embed)
 
 
@@ -1201,114 +732,104 @@ async def mynodes(interaction: discord.Interaction):
     """List all nodes owned by the user (including inactive ones)."""
     nodes = get_user_nodes(str(interaction.user.id), include_inactive=True)
     log_command("MYNODES", interaction.user, result=f"{len(nodes)} nodes owned")
-    
+
     if not nodes:
-        # Private information - ephemeral (only to sender)
         embed = branded_embed(
             title="Your registered Nodes (0)",
             description="You don't own any nodes.",
-            color=discord.Color.orange()
+            color=discord.Color.orange(),
         )
         await interaction.response.send_message(embed=embed, ephemeral=True)
         return
-    
-    # Format all nodes in simplified format
-    formatted_nodes = []
-    for node in nodes:
-        # Ensure params are deserialized
-        if node.get('params') and isinstance(node.get('params'), str):
-            from backend.database import json_deserialize
-            try:
-                node['params'] = json_deserialize(node['params']) or {}
-            except Exception:
-                node['params'] = {}
-        elif 'params' not in node or node.get('params') is None:
-            node['params'] = {}
-        
-        formatted = format_node_simple(node, show_coords=True, show_owner=False, include_map_link=True)
-        formatted_nodes.append(formatted)
-    
-    # Combine all formatted nodes
-    nodes_text = "\n\n".join(formatted_nodes)
-    
-    # Create single embed
-    embed = branded_embed(
+
+    active_nodes = [n for n in nodes if n.get('is_active', 1)]
+    inactive_nodes = [n for n in nodes if not n.get('is_active', 1)]
+
+    formatted_items: List[str] = []
+    if active_nodes:
+        formatted_items.append(f"**Active ({len(active_nodes)})**")
+        for node in active_nodes:
+            formatted_items.append(
+                format_node_simple(
+                    ensure_node_params(node),
+                    show_coords=True,
+                    show_owner=False,
+                    include_map_link=True,
+                )
+            )
+    if inactive_nodes:
+        formatted_items.append(f"**Inactive ({len(inactive_nodes)})**")
+        for node in inactive_nodes:
+            formatted_items.append(
+                format_node_simple(
+                    ensure_node_params(node),
+                    show_coords=True,
+                    show_owner=False,
+                    include_map_link=True,
+                    show_inactive_badge=True,
+                )
+            )
+
+    header_text = f"Nodes registered to {interaction.user.mention}\n\n"
+    await send_chunked_node_embeds(
+        interaction,
         title=f"Your registered Nodes ({len(nodes)})",
-        description=f"Nodes registered to {interaction.user.mention}\n\n{nodes_text}",
-        color=discord.Color.blue()
+        header_text=header_text,
+        formatted_items=formatted_items,
+        color=discord.Color.blue(),
+        footer_single="Use `/node unclaim` to release ownership of any of these nodes.",
+        footer_range="Showing {start}-{end} of {total} nodes · Use `/node unclaim` to release ownership.",
+        ephemeral=True,
+        total_count=len(nodes),
     )
-    
-    embed.set_footer(text="Use `/node unclaim` to release ownership of any of these nodes.")
-    
-    # Send as single message (ephemeral)
-    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
 @node_group.command(name="unclaim", description="Remove ownership claim from a node")
 @app_commands.describe(query="Node's partial name or partial public key")
 async def node_unclaim(interaction: discord.Interaction, query: str):
     """Remove your ownership claim from a node."""
-    # Search with substring matching - search both active and inactive nodes
-    # First try active nodes
-    nodes = query_nodes_substring(query=query, limit=25, include_inactive=False)
-    # If no active nodes found, also search inactive nodes
-    if not nodes:
-        nodes = query_nodes_substring(query=query, limit=25, include_inactive=True)
-    
+    norm = normalize_pubkey(query)
+    if norm and len(norm) == 64:
+        exact = get_node_by_key(norm, include_inactive=True)
+        nodes = [exact] if exact else []
+    else:
+        nodes = query_nodes_substring(query=query, limit=25, include_inactive=False)
+        if not nodes:
+            nodes = query_nodes_substring(query=query, limit=25, include_inactive=True)
+
     log_command("NODE_UNCLAIM", interaction.user, query, f"{len(nodes)} nodes found")
-    
+
     if not nodes:
-        # Error - ephemeral (only to sender)
         await interaction.response.send_message("Node not found.", ephemeral=True)
         return
-    
+
     if len(nodes) > 1:
-        # Error - ephemeral (only to sender)
-        # Limit to first 10 nodes to avoid Discord message length limit (2000 chars)
         max_nodes_to_show = 10
         nodes_to_show = nodes[:max_nodes_to_show]
-        
         error_msg = f"**Multiple nodes found ({len(nodes)} total). Please be more specific:**\n\n"
         error_msg += format_node_list(nodes_to_show, show_full_keys=False)
-        
         if len(nodes) > max_nodes_to_show:
             error_msg += f"\n\n*... and {len(nodes) - max_nodes_to_show} more. Please refine your search.*"
-        
         await interaction.response.send_message(error_msg, ephemeral=True)
         return
-    
-    # Verify ownership - include inactive nodes
-    node = nodes[0]
+
+    node = ensure_node_params(nodes[0])
     if not verify_ownership(node['public_key'], str(interaction.user.id), include_inactive=True):
-        # Error - ephemeral (only to sender)
         await interaction.response.send_message(
             "You don't own this node.",
-            ephemeral=True
+            ephemeral=True,
         )
         return
-    
-    # Show confirmation prompt - use same format as detailed /search result
-    # Ensure params are deserialized
-    if node.get('params') and isinstance(node.get('params'), str):
-        from backend.database import json_deserialize
-        try:
-            node['params'] = json_deserialize(node['params']) or {}
-        except Exception:
-            node['params'] = {}
-    elif 'params' not in node or node.get('params') is None:
-        node['params'] = {}
-    
-    # Use format_full_node_details with show_coordinates=True for owned nodes (ephemeral)
+
     embed = format_full_node_details(node, show_coordinates=True)
-    
-    # Update title and description for confirmation
     embed.title = "⚠️ Confirm Unclaim"
-    embed.description = "Are you sure you want to unclaim this node?\n\n**This will remove your ownership and allow other members to claim it.**"
+    embed.description = (
+        "Are you sure you want to unclaim this node?\n\n"
+        "**This will remove your ownership and allow other members to claim it.**"
+    )
     embed.color = discord.Color.orange()
-    
-    # Remove footer (will be added by the view if needed)
     embed.set_footer(text="")
-    
+
     view = UnclaimConfirmView(node, str(interaction.user.id))
     await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
@@ -1408,7 +929,7 @@ async def stats(interaction: discord.Interaction):
             for s, cnt in sorted(merged.items(), key=lambda x: x[1], reverse=True)
             if s != "discord"
         ]
-        source_value = "\n".join(src_lines) + " **"
+        source_value = "\n".join(src_lines)
     else:
         source_value = "No data."
     embed1.add_field(name="Source type", value=source_value, inline=True)

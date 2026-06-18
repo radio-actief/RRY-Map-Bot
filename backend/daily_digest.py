@@ -50,6 +50,7 @@ except (ImportError, ModuleNotFoundError):  # pragma: no cover - defensive fallb
 from backend.database import get_connection
 from backend.datetime_utils import format_utc_iso, parse_utc
 from backend.discord_branding import apply_brand_to_embed
+from backend.discord_formatting import format_node_compact
 
 
 NODE_TYPE_NAMES = {
@@ -232,17 +233,6 @@ def _get_node_details_by_keys(public_keys: List[str], conn) -> List[Dict[str, An
     return out
 
 
-def _format_node_line(node: Dict[str, Any]) -> str:
-    type_num = node.get('type', 0) or 0
-    icon = NODE_TYPE_ICONS.get(type_num, '•')
-    pk = node.get('public_key') or ''
-    pk_disp = pk[:6].upper() if pk else 'N/A'
-    name = (node.get('adv_name') or 'Unknown').replace('_', '\\_')
-    owner_id = node.get('discord_owner_id')
-    owner = f"<@{owner_id}>" if owner_id else "Unclaimed"
-    return f"{icon} `{pk_disp}` - {name} - {owner}"
-
-
 # ---------------------------------------------------------------------------
 # Embed builder (pure function; no Discord client required)
 # ---------------------------------------------------------------------------
@@ -346,7 +336,7 @@ def build_digest_embed(
         embed.add_field(name="\u200b", value="\u200b", inline=True)
 
     if added_nodes:
-        formatted = "\n".join([f"- {_format_node_line(n)}" for n in added_nodes])
+        formatted = "\n".join([f"- {format_node_compact(n)}" for n in added_nodes])
         if added_count > len(added_nodes):
             formatted += f"\n\n*... and {added_count - len(added_nodes)} more*"
         embed.add_field(
@@ -356,7 +346,7 @@ def build_digest_embed(
         )
 
     if restored_nodes:
-        formatted = "\n".join([f"- {_format_node_line(n)}" for n in restored_nodes])
+        formatted = "\n".join([f"- {format_node_compact(n)}" for n in restored_nodes])
         if restored_count > len(restored_nodes):
             formatted += f"\n\n*... and {restored_count - len(restored_nodes)} more*"
         embed.add_field(
@@ -366,7 +356,7 @@ def build_digest_embed(
         )
 
     if removed_nodes:
-        formatted = "\n".join([f"- {_format_node_line(n)}" for n in removed_nodes])
+        formatted = "\n".join([f"- {format_node_compact(n)}" for n in removed_nodes])
         if removed_count > len(removed_nodes):
             formatted += f"\n\n*... and {removed_count - len(removed_nodes)} more*"
         embed.add_field(

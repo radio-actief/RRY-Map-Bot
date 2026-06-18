@@ -67,6 +67,7 @@ from backend.database import (
 )
 from backend.datetime_utils import normalize_node_timestamps
 from backend.discord_branding import apply_brand_to_embed
+from backend.discord_formatting import format_node_compact
 import sqlite3
 from pathlib import Path
 
@@ -868,47 +869,6 @@ def log_sync_summary(changes: Dict[str, Any], conn) -> None:
     ))
 
 
-def format_node_for_sync_notification(node: Dict[str, Any]) -> str:
-    """
-    Format a single node for sync notification display.
-    Format: ICON `HEX HEAD` - NODE NAME - <DISCORD USER/Unclaimed>
-    
-    Args:
-        node: Node dictionary.
-    
-    Returns:
-        Formatted string.
-    """
-    # Node type icon mapping
-    node_type_icons = {
-        1: "📱",  # companion
-        2: "📡",  # repeater
-        3: "💾",  # room server
-        4: "🌡️"   # sensor
-    }
-    
-    type_num = node.get('type', 0)
-    icon = node_type_icons.get(type_num, "•")
-    
-    # Truncate public key to 6 characters (uppercase)
-    pub_key = node.get('public_key', '')
-    pub_key_display = pub_key[:6].upper() if pub_key else 'N/A'
-    
-    # Escape Discord markdown in node name
-    node_name = node.get('adv_name', 'Unknown')
-    # Replace underscores with escaped underscores to prevent italic
-    node_name = node_name.replace('_', '\\_')
-    
-    # Format owner - Discord mention if available, otherwise "Unclaimed"
-    owner_id = node.get('discord_owner_id')
-    if owner_id:
-        owner = f"<@{owner_id}>"
-    else:
-        owner = "Unclaimed"
-    
-    return f"{icon} `{pub_key_display}` - {node_name} - {owner}"
-
-
 def get_node_details_by_keys(public_keys: List[str], conn) -> List[Dict[str, Any]]:
     """
     Get full node details from database by public keys.
@@ -1157,7 +1117,7 @@ def send_sync_notification(
                 # Only show if there are actual items
                 
                 if added_nodes:
-                    formatted = "\n".join([f"- {format_node_for_sync_notification(node)}" for node in added_nodes])
+                    formatted = "\n".join([f"- {format_node_compact(node)}" for node in added_nodes])
                     total_count = len(changes.get('added', []))
                     if total_count > 50:
                         formatted += f"\n\n*... and {total_count - 50} more*"
@@ -1168,7 +1128,7 @@ def send_sync_notification(
                     )
                 
                 if restored_nodes:
-                    formatted = "\n".join([f"- {format_node_for_sync_notification(node)}" for node in restored_nodes])
+                    formatted = "\n".join([f"- {format_node_compact(node)}" for node in restored_nodes])
                     total_count = len(changes.get('restored', []))
                     if total_count > 50:
                         formatted += f"\n\n*... and {total_count - 50} more*"
@@ -1179,7 +1139,7 @@ def send_sync_notification(
                     )
                 
                 if removed_nodes:
-                    formatted = "\n".join([f"- {format_node_for_sync_notification(node)}" for node in removed_nodes])
+                    formatted = "\n".join([f"- {format_node_compact(node)}" for node in removed_nodes])
                     total_count = len(changes.get('removed', []))
                     if total_count > 50:
                         formatted += f"\n\n*... and {total_count - 50} more*"
@@ -1190,7 +1150,7 @@ def send_sync_notification(
                     )
                 
                 if deactivated_discord_nodes:
-                    formatted = "\n".join([f"- {format_node_for_sync_notification(node)}" for node in deactivated_discord_nodes])
+                    formatted = "\n".join([f"- {format_node_compact(node)}" for node in deactivated_discord_nodes])
                     total_count = len(deactivated_unclaimed_discord_keys)
                     if total_count > 50:
                         formatted += f"\n\n*... and {total_count - 50} more*"

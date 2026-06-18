@@ -26,7 +26,7 @@ Gebruik je de bot liever niet? Gebruik dan [**BEMesh Map**](https://meshmap.radi
 
 ### :bulb: Tips
 - **Node types**: 📱 Companion | 📡 Repeater | 💾 Room Server | 🌡️ Sensor
-- **Zichtbaarheid**: Alleen jij ziet je node-overzicht en foutmeldingen. Geslaagde acties (claimen, stad bijwerken, unclaimen) verschijnen in het kanaal, zichtbaar voor iedereen.
+- **Zichtbaarheid**: Alleen jij ziet je node-overzicht en foutmeldingen. Geslaagde acties (claimen, unclaimen) verschijnen in het kanaal, zichtbaar voor iedereen. Wijzig node-details via de [BEMesh Map](https://meshmap.radio-actief.be).
 
 ### :sos: Hulp
 Voor vragen of problemen, stuur een bericht in <#1454797139959091412> en tag <@322808063197184011>.

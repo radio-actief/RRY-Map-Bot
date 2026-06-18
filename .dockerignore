@@ -35,8 +35,9 @@ ENV/
 !README.md
 !DISCORDBOT_INSTRUCTIONS.md
 
-# Tests
-tests/
+# Tests (keep invariant checker for post-deploy verification in the api container)
+tests/*
+!tests/check_invariants.py
 test_*.py
 *_test.py
 

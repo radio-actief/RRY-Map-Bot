@@ -66,6 +66,7 @@ from backend.database import (
     dict_from_row
 )
 from backend.datetime_utils import normalize_node_timestamps
+from backend.discord_branding import apply_brand_to_embed
 import sqlite3
 from pathlib import Path
 
@@ -1203,7 +1204,7 @@ def send_sync_notification(
                 embed.set_footer(text=f"Next Sync: {next_sync_str} (in {_SYNC_MINUTES} minutes)")
                 
                 # Send the message
-                await channel.send(embed=embed)
+                await channel.send(embed=apply_brand_to_embed(embed))
                 print(f"Sync notification sent to channel {STARTUP_CHANNEL_ID}")
                 notification_sent = True
                 

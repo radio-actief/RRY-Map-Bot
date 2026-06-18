@@ -23,5 +23,8 @@
     { id: "setting-int-thresh", readCmd: "get int.thresh", cliKey: "int.thresh", tier: "expert" },
     { id: "setting-agc-reset", readCmd: "get agc.reset.interval", cliKey: "agc.reset.interval", tier: "expert" },
     { id: "setting-multi-acks", readCmd: "get multi.acks", cliKey: "multi.acks", tier: "expert" },
+    { id: "setting-lat", readCmd: "get lat", cliKey: "lat", tier: "general" },
+    { id: "setting-lon", readCmd: "get lon", cliKey: "lon", tier: "general" },
+    { id: "setting-advert-loc", readCmd: "gps advert", cliKey: "gps advert", tier: "general" },
   ];
 })(window.ConfiguratorApp);

@@ -64,8 +64,12 @@ def _playback_last_frame_total(changes: list[dict]) -> int:
         if not pk:
             continue
         ct = c.get("change_type")
-        if ct in ("added", "restored", "updated"):
+        if ct in ("added", "restored"):
             visible.add(pk)
+        elif ct == "updated":
+            # Match stats.html: routine updates do not resurrect removed nodes.
+            if pk in visible:
+                visible.add(pk)
         elif ct == "removed":
             visible.discard(pk)
     return len(visible)

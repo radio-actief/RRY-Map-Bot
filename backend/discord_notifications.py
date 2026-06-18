@@ -17,6 +17,7 @@ from config.config import (
     NODE_TYPE_ICONS,
     NODE_TYPES
 )
+from backend.discord_branding import apply_brand_to_embed_dict
 
 
 def truncate_public_key(pub_key: str, show_full: bool = False) -> str:
@@ -160,7 +161,7 @@ def notify_node_claimed(node: Dict[str, Any], user_id: str, username: str) -> bo
         }
     }
     
-    return send_discord_message(embed)
+    return send_discord_message(apply_brand_to_embed_dict(embed))
 
 
 def notify_node_unclaimed(node: Dict[str, Any], user_id: str, username: str) -> bool:
@@ -224,4 +225,4 @@ def notify_node_unclaimed(node: Dict[str, Any], user_id: str, username: str) -> 
         }
     }
     
-    return send_discord_message(embed)
+    return send_discord_message(apply_brand_to_embed_dict(embed))

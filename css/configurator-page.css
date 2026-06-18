@@ -49,6 +49,169 @@
   z-index: 3;
 }
 
+.config-position-block {
+  margin-bottom: 0.65rem;
+}
+
+.config-position-row {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 0.85fr) minmax(0, 0.85fr) auto minmax(0, 1.35fr);
+  gap: 0.4rem 0.5rem;
+  align-items: end;
+}
+
+.config-position-row .config-form-field--position {
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.config-position-row .config-form-field--position > span {
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+}
+
+.config-position-actions {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.32rem;
+  align-self: end;
+}
+
+.config-form-field--advert-loc {
+  min-width: 0;
+}
+
+.config-position-row input.is-warning,
+.config-position-block input.is-warning {
+  border-color: var(--cfg-warning, #c9a227);
+}
+
+@media (max-width: 899px) {
+  .config-position-row {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 0.15rem;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .config-position-row .config-form-field--position {
+    flex: 0 0 6.5rem;
+  }
+
+  .config-form-field--advert-loc {
+    flex: 1 0 9.5rem;
+    min-width: 9.5rem;
+  }
+
+  .config-position-actions {
+    flex: 0 0 auto;
+  }
+}
+
+body.position-map-modal-open {
+  overflow: hidden;
+}
+
+.position-map-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem;
+}
+
+.position-map-modal[hidden] {
+  display: none !important;
+}
+
+.position-map-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(8, 12, 18, 0.62);
+}
+
+.position-map-modal-panel {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  width: min(960px, 100%);
+  max-height: calc(100vh - 1.5rem);
+  background: var(--cfg-surface, #1a1f28);
+  border: 1px solid var(--cfg-border);
+  border-radius: 0.5rem;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  padding: 0.85rem 1rem 1rem;
+}
+
+.position-map-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.position-map-modal-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.position-map-modal-close {
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.15rem 0.35rem;
+  border-radius: 0.25rem;
+}
+
+.position-map-modal-close:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.position-map-modal-hint {
+  margin: 0 0 0.55rem;
+  font-size: 0.78rem;
+  color: var(--cfg-muted, #9aa3b2);
+}
+
+.position-map-container {
+  flex: 1 1 auto;
+  min-height: 60vh;
+  border-radius: 0.35rem;
+  border: 1px solid var(--cfg-border);
+  overflow: hidden;
+}
+
+.position-map-modal-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 0.65rem;
+}
+
+.position-map-pick-preview {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.82rem;
+  color: var(--cfg-muted, #9aa3b2);
+}
+
+.position-map-modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.32rem;
+}
+
 .config-identity-fields {
   display: grid;
   grid-template-columns: 1fr;
@@ -124,13 +287,7 @@
   padding: 0;
   border: none;
   background: transparent;
-  gap: 0.26rem 0.4rem;
-}
-
-.policy-card-head-actions .policy-global-btn {
-  font-size: 0.66rem;
-  padding: 0.24rem 0.48rem;
-  border-radius: 5px;
+  gap: 0.32rem;
 }
 
 #policy-card:has(#policy-scope-empty:not([hidden])) .policy-card-head {
@@ -241,13 +398,6 @@
 .config-form-grid--naming-row .config-form-field > span {
   font-size: 0.68rem;
   letter-spacing: 0.04em;
-}
-
-.config-form-grid--naming-row .config-form-field input,
-.config-form-grid--naming-row .config-form-field select {
-  min-height: 2.15rem;
-  padding: 0.32rem 0.45rem;
-  font-size: 0.84rem;
 }
 
 .config-form-field {
@@ -395,13 +545,44 @@
 
 .config-form-field input,
 .config-form-field select {
-  min-height: 2.45rem;
+  box-sizing: border-box;
   border-radius: var(--cfg-radius-sm);
   border: 1px solid var(--cfg-border);
-  padding: 0.45rem 0.6rem;
   font-size: 0.9rem;
+  line-height: 1.2;
   background: #fff;
   color: var(--cfg-text);
+}
+
+.config-form-field select {
+  height: 2.35rem;
+  min-height: 0;
+  padding: 0 2rem 0 0.6rem;
+}
+
+.config-form-field input:not([type="checkbox"]):not([type="radio"]) {
+  height: 2.35rem;
+  min-height: 0;
+  padding: 0 0.6rem;
+}
+
+/* Identity row controls — match compact selects */
+.config-form-grid--naming-row .config-form-field select,
+.config-position-row .config-form-field--position select {
+  height: 2.15rem;
+  min-height: 0;
+  padding: 0 1.75rem 0 0.45rem;
+  font-size: 0.84rem;
+  line-height: 1.2;
+}
+
+.config-form-grid--naming-row .config-form-field input:not([type="checkbox"]):not([type="radio"]),
+.config-position-row .config-form-field--position input:not([type="checkbox"]):not([type="radio"]) {
+  height: 2.15rem;
+  min-height: 0;
+  padding: 0 0.45rem;
+  font-size: 0.84rem;
+  line-height: 1.2;
 }
 
 .config-form-field-inline {
@@ -485,6 +666,10 @@
   padding-bottom: 1rem;
 }
 
+.policy-region-footer .policy-home-override-hint code {
+  font-size: 0.92em;
+}
+
 code.config-naming-preview-advert {
   display: block;
   margin-top: 0.35rem;
@@ -505,18 +690,24 @@ code.config-naming-preview-advert {
   box-shadow: none;
 }
 
-/* Compact page buttons — page body only (header USB uses same compact sizing) */
-.config-body .config-card .copy-btn,
-.config-body #commands-card .copy-btn,
-.config-body .config-footer .copy-btn {
+/* Page body buttons — match position row Pick on map / Clear (header excluded) */
+.config-body .config-main .copy-btn,
+.config-body .config-main .policy-global-btn,
+.config-body .position-map-modal .copy-btn,
+.config-body a.config-footer-map-link {
   margin-top: 0;
-  min-height: 0;
-  padding: 0.28rem 0.62rem;
+  height: 2.15rem;
+  min-height: 2.15rem;
+  padding: 0 0.55rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-size: 0.78rem;
   font-weight: 600;
   line-height: 1.25;
   width: auto;
   max-width: none;
+  white-space: nowrap;
   box-shadow: none;
   border-radius: 6px;
   transition:
@@ -525,9 +716,9 @@ code.config-naming-preview-advert {
     border-color 0.15s ease;
 }
 
-.config-body .config-card .copy-btn:hover,
-.config-body #commands-card .copy-btn:hover,
-.config-body .config-footer .copy-btn:hover {
+.config-body .config-main .copy-btn:hover,
+.config-body .position-map-modal .copy-btn:hover,
+.config-body a.config-footer-map-link:hover {
   transform: none;
   box-shadow: none;
   background: var(--cfg-secondary);
@@ -535,34 +726,18 @@ code.config-naming-preview-advert {
   border-color: rgba(212, 160, 23, 0.45);
 }
 
-.config-body .config-card .copy-btn.copied,
-.config-body #commands-card .copy-btn.copied,
-.config-body .config-footer .copy-btn.copied {
+.config-body .config-main .copy-btn.copied,
+.config-body .position-map-modal .copy-btn.copied {
   background: rgba(21, 128, 61, 0.08);
 }
 
 .config-body .policy-global-actions {
   padding: 0.45rem 0.55rem;
-  gap: 0.3rem 0.4rem;
-}
-
-.config-body .policy-global-btn {
-  font-size: 0.68rem;
-  padding: 0.24rem 0.48rem;
-  border-radius: 5px;
-}
-
-.config-body .config-footer-map-link {
-  min-height: 0;
-  padding: 0.3rem 0.65rem;
-  font-size: 0.78rem;
-  box-shadow: none;
+  gap: 0.32rem;
 }
 
 .config-body .config-footer-map-link:hover {
-  transform: none;
-  box-shadow: none;
-  background: var(--cfg-secondary);
+  text-decoration: none;
 }
 
 .copy-btn[disabled] {
@@ -694,8 +869,8 @@ code.config-naming-preview-advert {
   border: 1px solid var(--cfg-border);
 }
 
-.config-body .config-card .copy-btn.serial-btn-secondary:hover,
-.config-body #commands-card .copy-btn.serial-btn-secondary:hover {
+.config-body .config-main .copy-btn.serial-btn-secondary:hover,
+.config-body .position-map-modal .copy-btn.serial-btn-secondary:hover {
   background: var(--cfg-surface-hover, var(--cfg-secondary));
   color: var(--cfg-text);
   border-color: var(--cfg-border);
@@ -707,8 +882,8 @@ code.config-naming-preview-advert {
   border-color: rgba(15, 110, 86, 0.35);
 }
 
-.config-body .config-card .copy-btn.serial-btn-apply:hover,
-.config-body #commands-card .copy-btn.serial-btn-apply:hover {
+.config-body .config-main .copy-btn.serial-btn-apply:hover,
+.config-body .position-map-modal .copy-btn.serial-btn-apply:hover {
   background: #0f6e56;
   color: #fff;
   border-color: #0f6e56;
@@ -785,14 +960,15 @@ code.config-naming-preview-advert {
 .serial-console-row {
   display: flex;
   flex-wrap: wrap;
-  align-items: stretch;
-  gap: 0.45rem;
+  align-items: center;
+  gap: 0.32rem;
 }
 
 .serial-console-input {
   flex: 1 1 12rem;
-  min-height: 2.1rem;
-  padding: 0.35rem 0.55rem;
+  height: 2.15rem;
+  min-height: 0;
+  padding: 0 0.55rem;
   border: 1px solid var(--cfg-border);
   border-radius: var(--cfg-radius-sm);
   background: #1a1d21;

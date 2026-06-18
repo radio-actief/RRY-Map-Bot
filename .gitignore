@@ -80,6 +80,7 @@ venv/
 env/
 ENV/
 .venv
+flask_session/
 
 # StatBel reference spreadsheets (download from StatBel; use data/inputs/ for local copies)
 data/statbel/*.xlsx

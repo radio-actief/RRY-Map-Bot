@@ -49,6 +49,7 @@ except (ImportError, ModuleNotFoundError):  # pragma: no cover - defensive fallb
 
 from backend.database import get_connection
 from backend.datetime_utils import format_utc_iso, parse_utc
+from backend.discord_branding import apply_brand_to_embed
 
 
 NODE_TYPE_NAMES = {
@@ -377,7 +378,7 @@ def build_digest_embed(
     if next_digest_label is None:
         next_digest_label = _next_digest_label(period_end)
     embed.set_footer(text=f"Next digest: {next_digest_label}")
-    return embed
+    return apply_brand_to_embed(embed)
 
 
 def _next_digest_label(now_utc: datetime) -> str:

@@ -86,6 +86,19 @@
         width: 100%;
         gap: 1rem;
       }
+      .config-header-brand {
+        display: flex;
+        align-items: center;
+        gap: 0.65rem;
+        min-width: 0;
+      }
+      .config-header-logo {
+        display: block;
+        width: 2rem;
+        height: 2rem;
+        flex-shrink: 0;
+        border-radius: 6px;
+      }
       .config-header h1 {
         margin: 0;
         min-width: 0;
@@ -930,9 +943,34 @@
       }
 
       .policy-grids-container {
+        display: block;
+        min-width: 0;
+      }
+
+      .policy-grids-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 0.42fr) minmax(0, 0.58fr);
+        gap: var(--cfg-space-md);
+        align-items: start;
+      }
+
+      .policy-grids-col {
         display: flex;
         flex-direction: column;
         gap: var(--cfg-space-md);
+        min-width: 0;
+      }
+
+      .policy-subsection--scroll {
+        max-height: 22rem;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      @media (max-width: 767px) {
+        .policy-grids-layout {
+          grid-template-columns: 1fr;
+        }
       }
 
       .policy-subsection {
@@ -1148,9 +1186,23 @@
       }
 
       .policy-home-override-wrap {
+        margin-top: 0.55rem;
+        padding-top: 0.55rem;
+        border-top: 1px solid rgba(231, 229, 224, 0.85);
+      }
+
+      .policy-region-footer .policy-home-override-wrap {
         margin-top: 0.65rem;
         padding-top: 0.65rem;
-        border-top: 1px solid rgba(231, 229, 224, 0.85);
+      }
+
+      .policy-region-footer-title {
+        margin: 0 0 0.45rem;
+        font-size: 0.68rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--cfg-text-muted);
       }
 
       .policy-home-override-label {
@@ -1170,9 +1222,9 @@
       }
 
       .policy-home-override-hint {
-        margin: 0.35rem 0 0.5rem;
-        font-size: 0.8rem;
-        line-height: 1.4;
+        margin: 0.3rem 0 0.45rem;
+        font-size: 0.78rem;
+        line-height: 1.35;
         color: var(--cfg-text-muted);
       }
 
@@ -1187,10 +1239,14 @@
       }
 
       .policy-home-override-select {
+        box-sizing: border-box;
         width: 100%;
         max-width: 20rem;
-        font-size: 0.88rem;
-        padding: 0.35rem 0.5rem;
+        height: 2.15rem;
+        min-height: 0;
+        font-size: 0.84rem;
+        padding: 0 0.45rem;
+        line-height: 1.2;
         border-radius: 4px;
         border: 1px solid var(--cfg-border);
         background: var(--cfg-bg, #fff);
@@ -1232,6 +1288,9 @@
           order: -1;
           align-self: center;
           flex-wrap: wrap;
+          justify-content: center;
+        }
+        .config-header-top .config-header-brand {
           justify-content: center;
         }
         .config-header-top h1 {

@@ -10,7 +10,10 @@
       name="description"
       content="Map of Belgian MeshCore regions (be, be-*) — province boundaries and municipality location points"
     />
-    <link rel="icon" type="image/x-icon" href="./favicon.ico" />
+    <link rel="icon" href="./favicon.ico" sizes="any" />
+    <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="./favicon-16.png" />
+    <link rel="apple-touch-icon" href="./favicon.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -108,10 +111,23 @@
       <div class="region-map-main">
         <div class="region-map-header-bar rty-glass-surface rty-chrome-accent-bar">
           <div class="region-map-header-main">
-            <h1>Region codes map</h1>
-            <p class="region-map-attrib" aria-hidden="false">
-              #BEmesh region map
-            </p>
+            <div class="region-map-header-brand">
+              <img
+                src="./favicon-32.png"
+                alt=""
+                class="region-map-header-logo"
+                width="32"
+                height="32"
+                decoding="async"
+                aria-hidden="true"
+              />
+              <div>
+                <h1>Region codes map</h1>
+                <p class="region-map-attrib" aria-hidden="false">
+                  #BEmesh region map
+                </p>
+              </div>
+            </div>
           </div>
           <nav class="region-map-header-links" aria-label="Page navigation">
             <a href="/" class="rty-back-link">← Back to map</a>

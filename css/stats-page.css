@@ -99,6 +99,19 @@
         width: 100%;
         gap: 1rem;
       }
+      .stats-header-brand {
+        display: flex;
+        align-items: center;
+        gap: 0.65rem;
+        min-width: 0;
+      }
+      .stats-header-logo {
+        display: block;
+        width: 2rem;
+        height: 2rem;
+        flex-shrink: 0;
+        border-radius: 6px;
+      }
       .stats-header-main {
         display: flex;
         flex-direction: row;
@@ -1742,6 +1755,9 @@
           order: -1;
           align-self: center;
           flex-wrap: wrap;
+          justify-content: center;
+        }
+        .stats-header-top .stats-header-brand {
           justify-content: center;
         }
         .stats-header-top h1 {

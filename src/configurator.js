@@ -167,6 +167,43 @@
   const settingRadioBwEl = document.getElementById("setting-radio-bw");
   const settingRadioCrEl = document.getElementById("setting-radio-cr");
   const settingRadioErrorEl = document.getElementById("setting-radio-error");
+  const settingLatEl = document.getElementById("setting-lat");
+  const settingLonEl = document.getElementById("setting-lon");
+  const settingAdvertLocEl = document.getElementById("setting-advert-loc");
+
+  function positionApi() {
+    return App && App.position ? App.position : null;
+  }
+
+  function getAdvertLocPolicy() {
+    const api = positionApi();
+    if (api) return api.getAdvertLocPolicy();
+    return settingAdvertLocEl ? settingAdvertLocEl.value : "prefs";
+  }
+
+  function advertIncludesLocation() {
+    const api = positionApi();
+    if (api) return api.advertIncludesLocation();
+    return getAdvertLocPolicy() !== "none";
+  }
+
+  function getFormCoords() {
+    const api = positionApi();
+    if (api) return api.getCoords();
+    return { valid: false, lat: null, lon: null };
+  }
+
+  function coordsRequiredForApply() {
+    return getAdvertLocPolicy() === "prefs" && !getFormCoords().valid;
+  }
+
+  function parseGpsAdvertReply(reply) {
+    const r = String(reply || "")
+      .trim()
+      .replace(/^>\s*/, "");
+    if (r === "none" || r === "share" || r === "prefs") return r;
+    return null;
+  }
 
   let selectionMode = "none";
   let selectedProvinceCode = null;
@@ -239,6 +276,9 @@
     "get int.thresh",
     "get agc.reset.interval",
     "get multi.acks",
+    "get lat",
+    "get lon",
+    "gps advert",
     "region home",
     "region list allowed",
     "region list denied",
@@ -381,13 +421,18 @@
       });
       const hasCommands = applyLines.length > 0;
       const needsLocation = !anchor;
+      const needsCoords = coordsRequiredForApply();
       serialApplyBtn.disabled =
         !supported ||
         busy ||
         !(rs && rs.isConnected()) ||
         !hasCommands ||
-        needsLocation;
-      if (needsLocation && rs && rs.isConnected()) {
+        needsLocation ||
+        needsCoords;
+      if (needsCoords && rs && rs.isConnected()) {
+        serialApplyBtn.title =
+          "Set latitude and longitude — advert location uses stored prefs.";
+      } else if (needsLocation && rs && rs.isConnected()) {
         serialApplyBtn.title = "Choose a location for region scopes.";
       } else {
         serialApplyBtn.title = "";
@@ -957,6 +1002,34 @@
       }
     }
 
+    const latValue = takeReadReply(byCmd, "get lat", failures);
+    const lonValue = takeReadReply(byCmd, "get lon", failures);
+    if (latValue !== undefined || lonValue !== undefined) {
+      const lat = latValue !== undefined ? parseFloat(latValue) : NaN;
+      const lon = lonValue !== undefined ? parseFloat(lonValue) : NaN;
+      const api = positionApi();
+      if (api) {
+        if (api.hasValidCoords(lat, lon)) {
+          api.setCoords(lat, lon, { source: "device" });
+          mark("Coordinates", "general");
+          scrollTarget = scrollTarget || "config-identity-block";
+        } else if (latValue !== undefined && lonValue !== undefined) {
+          api.setCoords(null, null, { source: null });
+          mark("Coordinates", "general");
+          scrollTarget = scrollTarget || "config-identity-block";
+        }
+      }
+    }
+
+    const advertLocValue = takeReadReply(byCmd, "gps advert", failures);
+    if (advertLocValue !== undefined && settingAdvertLocEl) {
+      const policy = parseGpsAdvertReply(advertLocValue);
+      if (policy && setSelectIfPresent(settingAdvertLocEl, policy)) {
+        mark("Advert location", "general");
+        scrollTarget = scrollTarget || "config-identity-block";
+      }
+    }
+
     const homeValue = takeReadReply(byCmd, "region home", failures);
     const allowedValue = takeReadReply(byCmd, "region list allowed", failures);
     const deniedValue = takeReadReply(byCmd, "region list denied", failures);
@@ -1167,6 +1240,12 @@
     }
     if (!namePreviewState.isValid || !namePreviewState.name) {
       window.alert("Set a valid repeater name before applying.");
+      return;
+    }
+    if (coordsRequiredForApply()) {
+      window.alert(
+        "Set latitude and longitude — advert location is set to prefs (stored coordinates).",
+      );
       return;
     }
 
@@ -2270,6 +2349,23 @@
       lines.push("set multi.acks " + multiAcks);
     }
 
+    const coords = getFormCoords();
+    if (coords.valid) {
+      lines.push("set lat " + coords.lat);
+      lines.push("set lon " + coords.lon);
+    }
+
+    const advertLoc = getAdvertLocPolicy();
+    if (showDefaults) {
+      if (advertLoc === "none") lines.push("gps advert none");
+      else if (advertLoc === "share") lines.push("gps advert share");
+      else lines.push("gps advert prefs");
+    } else if (advertLoc === "none") {
+      lines.push("gps advert none");
+    } else if (advertLoc === "share") {
+      lines.push("gps advert share");
+    }
+
     return lines.join("\n");
   }
 
@@ -2291,6 +2387,7 @@
     }
 
     const overAdvert =
+      advertIncludesLocation() &&
       state.totalBytes > NAME_ADVERT_MAX_UTF8 &&
       state.totalBytes <= NAME_FIRMWARE_MAX_UTF8;
     const overFirmware = state.totalBytes > NAME_FIRMWARE_MAX_UTF8;
@@ -2325,7 +2422,10 @@
         metaText = state.totalBytes + " / " + NAME_FIRMWARE_MAX_UTF8 + " bytes";
         isWarning = true;
       } else if (state.hasSuffix) {
-        metaText = state.totalBytes + " / " + NAME_ADVERT_MAX_UTF8 + " bytes";
+        const byteLimit = advertIncludesLocation()
+          ? NAME_ADVERT_MAX_UTF8
+          : NAME_FIRMWARE_MAX_UTF8;
+        metaText = state.totalBytes + " / " + byteLimit + " bytes";
       }
       namePreviewMetaEl.textContent = metaText;
       namePreviewMetaEl.classList.toggle("is-error", isError);
@@ -2333,7 +2433,9 @@
     }
     if (namePreviewNoteEl) {
       const showNote =
-        state.hasSuffix && state.totalBytes > NAME_ADVERT_MAX_UTF8;
+        advertIncludesLocation() &&
+        state.hasSuffix &&
+        state.totalBytes > NAME_ADVERT_MAX_UTF8;
       if (showNote) {
         namePreviewNoteEl.hidden = false;
         namePreviewNoteEl.classList.add("is-warning");
@@ -2875,7 +2977,7 @@
     hasCoords,
   ) {
     if (!policyGridsContainer || !anchor) return;
-    let html = "";
+    const columnHtml = { home: "", scopes: "" };
     const homeProvinceCode =
       anchor.mode === "province"
         ? anchor.province_code
@@ -2886,6 +2988,11 @@
       opts = opts || {};
       const skipIfEmpty = !!opts.skipIfEmpty;
       const subNoteHtml = opts.subNoteHtml || "";
+      const column = opts.column === "home" ? "home" : "scopes";
+      const scrollClass =
+        opts.scrollable && rows && rows.length > 6
+          ? " policy-subsection--scroll"
+          : "";
       const scopeAttr = scopeKey
         ? ' data-policy-scope="' + escapeHtml(scopeKey) + '"'
         : "";
@@ -2893,26 +3000,29 @@
       if (skipIfEmpty && (!rows || !rows.length)) {
         return;
       }
-      html += '<div class="policy-subsection"' + scopeAttr + ">";
+      let subsectionHtml =
+        '<div class="policy-subsection' + scrollClass + '"' + scopeAttr + ">";
       if (!rows.length) {
-        html +=
+        subsectionHtml +=
           '<div class="policy-subhead policy-subhead--empty"><h3 class="policy-subtitle">' +
           escapeHtml(title) +
           "</h3></div>";
-        html +=
+        subsectionHtml +=
           '<p class="result-muted-note policy-empty">' +
           escapeHtml(emptyNote || "Nothing to list here.") +
           "</p></div>";
+        columnHtml[column] += subsectionHtml;
         return;
       }
-      html +=
+      subsectionHtml +=
         '<div class="policy-subhead"><h3 class="policy-subtitle">' +
         escapeHtml(title) +
         "</h3></div>";
       if (subNoteHtml) {
-        html += '<p class="policy-subsection-note">' + subNoteHtml + "</p>";
+        subsectionHtml +=
+          '<p class="policy-subsection-note">' + subNoteHtml + "</p>";
       }
-      html +=
+      subsectionHtml +=
         '<div class="policy-table-head" role="row">' +
         '<div class="policy-head-scope" role="columnheader">Scope</div>' +
         '<div class="policy-head-clear-wrap" role="columnheader">' +
@@ -2936,29 +3046,13 @@
         const allow =
           row.allow !== undefined ? row.allow !== false : defaultAllow;
         const deny = !!row.deny;
-        html += policyRow(row.label, row.code, {
+        subsectionHtml += policyRow(row.label, row.code, {
           allow: allow,
           deny: deny,
         });
       });
-      if (scopeKey === "home" && opts.homeOverrideFooter) {
-        html +=
-          '<div class="policy-home-override-wrap" role="group" aria-label="Home region override">' +
-          '<label class="policy-home-override-label" for="policy-home-override">' +
-          '<input type="checkbox" class="policy-home-override" id="policy-home-override">' +
-          "<span>Home override</span></label>" +
-          '<p class="policy-home-override-hint">' +
-          escapeHtml(
-            "By default, region home is the smallest scope with Allow checked in the table above. Check Home override if you want a different target.",
-          ) +
-          "</p>" +
-          '<label class="policy-home-override-select-label" for="policy-home-override-select">' +
-          "Target for region home</label>" +
-          '<select id="policy-home-override-select" class="policy-home-override-select" disabled aria-label="Override region home code">' +
-          '<option value="">Default</option>' +
-          "</select></div>";
-      }
-      html += "</div>";
+      subsectionHtml += "</div>";
+      columnHtml[column] += subsectionHtml;
     }
 
     const homeRows = [{ label: "Belgium (be)", code: "be", allow: true }];
@@ -2994,7 +3088,7 @@
     }
 
     addSubsection(homeTitle, homeRows, undefined, "home", {
-      homeOverrideFooter: true,
+      column: "home",
     });
 
     const nEmptyGeo = !hasCoords
@@ -3043,6 +3137,8 @@
       nEmptyGeo || "No neighbouring municipalities in the dataset yet.",
       "neighbor-municipalities",
       {
+        column: "scopes",
+        scrollable: true,
         skipIfEmpty: anchor.mode === "city",
         subNoteHtml: anchor.mode === "city" ? munNoteCity : munNoteProv,
       },
@@ -3063,6 +3159,7 @@
           " km).",
       "neighbor-provinces",
       {
+        column: "scopes",
         skipIfEmpty: true,
         subNoteHtml: escapeHtml(
           "Land-border provinces of the home province, limited to those with at least one mapped municipality within ~" +
@@ -3087,6 +3184,7 @@
       undefined,
       "neighbor-countries",
       {
+        column: "scopes",
         skipIfEmpty: true,
         subNoteHtml: escapeHtml(
           "Country rows only. For provinces or other scopes inside a neighbour, add those names manually (see that country’s mesh code list).",
@@ -3102,13 +3200,22 @@
       ],
       undefined,
       "wider",
+      { column: "scopes" },
     );
 
-    policyGridsContainer.innerHTML = html;
+    policyGridsContainer.innerHTML =
+      '<div class="policy-grids-layout">' +
+      '<div class="policy-grids-col policy-grids-col--home">' +
+      columnHtml.home +
+      "</div>" +
+      '<div class="policy-grids-col policy-grids-col--scopes">' +
+      columnHtml.scopes +
+      "</div></div>";
     applyNeighborPolicyGating(anchor);
     policyGridsContainer
       .querySelectorAll(".policy-subsection")
       .forEach(syncScopeMasters);
+    refreshHomeOverrideSelect();
   }
 
   function applyPolicyDefaults() {
@@ -3522,6 +3629,11 @@
     lastNeighbors = neighborsRadius;
     lastHasCoords = hasCoords;
 
+    const api = positionApi();
+    if (api && hasCoords) {
+      api.setCoords(seed.lat, seed.lon, { source: "search" });
+    }
+
     renderPolicyGrids(anchor, neighborsScope, neighborsRadius, hasCoords);
     refreshPolicySection(anchor);
     resetNamingForLocation(anchor);
@@ -3713,6 +3825,12 @@
   initRadioPresetSelect();
   initSerialShowCommandLogToggle();
 
+  if (App && App.position && App.position.init) {
+    App.position.init(function () {
+      refreshConfiguratorOutputs();
+    });
+  }
+
   const untaggedFloodEl = document.getElementById("policy-untagged-flood");
   if (untaggedFloodEl) {
     untaggedFloodEl.addEventListener("change", function () {
@@ -3741,6 +3859,12 @@
 
       if (t.id === "policy-untagged-flood") {
         refreshConfiguratorOutputs();
+        return;
+      }
+
+      if (t.id === "policy-home-override") {
+        refreshHomeOverrideSelect();
+        finalizePolicyUiChange();
         return;
       }
 

@@ -504,6 +504,21 @@
         min-width: 0;
       }
 
+      .region-map-header-brand {
+        display: flex;
+        align-items: center;
+        gap: 0.55rem;
+        min-width: 0;
+      }
+
+      .region-map-header-logo {
+        display: block;
+        width: 1.75rem;
+        height: 1.75rem;
+        flex-shrink: 0;
+        border-radius: 5px;
+      }
+
       .region-map-attrib {
         margin: 0;
         font-size: 0.65rem;

@@ -10,7 +10,10 @@
       name="description"
       content="#BEmesh repeater configurator: naming, region scopes, settings, and USB deploy for Belgian MeshCore repeaters."
     />
-    <link rel="icon" type="image/x-icon" href="./favicon.ico" />
+    <link rel="icon" href="./favicon.ico" sizes="any" />
+    <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="./favicon-16.png" />
+    <link rel="apple-touch-icon" href="./favicon.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -20,13 +23,25 @@
     <link rel="stylesheet" href="./css/style.css" />
     <link rel="stylesheet" href="./css/rry-tool-pages.css" />
     <link rel="stylesheet" href="./css/configurator-page.css" />
+    <link rel="stylesheet" href="./lib/css/leaflet.css" />
     <title>Repeater Configuration · #BEmesh</title>
   </head>
   <body class="light map-page config-body rty-doc-page">
     <div class="rty-page-wrap rty-page-wrap--stack">
       <div class="config-header rty-glass-surface rty-chrome-accent-bar">
         <div class="config-header-top">
-          <h1>#BEmesh repeater configurator</h1>
+          <div class="config-header-brand">
+            <img
+              src="./favicon-32.png"
+              alt=""
+              class="config-header-logo"
+              width="32"
+              height="32"
+              decoding="async"
+              aria-hidden="true"
+            />
+            <h1>#BEmesh repeater configurator</h1>
+          </div>
           <div class="config-header-links">
             <a href="/" class="rty-back-link">← Back to map</a>
             <a href="/stats" class="rty-back-link">Stats</a>
@@ -129,6 +144,71 @@
                   id="city-dropdown"
                   style="display: none"
                 ></div>
+              </div>
+            </div>
+            <div class="config-position-block">
+              <div class="config-position-row">
+                <label
+                  class="config-form-field config-form-field--position"
+                  for="setting-lat"
+                >
+                  <span title="Repeater latitude in decimal degrees">Latitude</span>
+                  <input
+                    id="setting-lat"
+                    type="text"
+                    inputmode="decimal"
+                    placeholder="50.8503"
+                    autocomplete="off"
+                  />
+                </label>
+                <label
+                  class="config-form-field config-form-field--position"
+                  for="setting-lon"
+                >
+                  <span title="Repeater longitude in decimal degrees"
+                    >Longitude</span
+                  >
+                  <input
+                    id="setting-lon"
+                    type="text"
+                    inputmode="decimal"
+                    placeholder="4.3517"
+                    autocomplete="off"
+                  />
+                </label>
+                <div class="config-position-actions">
+                  <button
+                    type="button"
+                    class="copy-btn serial-btn-secondary"
+                    id="position-pick-map-btn"
+                  >
+                    Pick on map
+                  </button>
+                  <button
+                    type="button"
+                    class="copy-btn serial-btn-secondary"
+                    id="position-clear-btn"
+                    title="Clear coordinates"
+                  >
+                    Clear
+                  </button>
+                </div>
+                <label
+                  class="config-form-field config-form-field--position config-form-field--advert-loc"
+                  for="setting-advert-loc"
+                >
+                  <span
+                    title="none: no position in adverts; prefs: use lat/lon above; share: live GPS (GPS hardware required)"
+                    >Advert location</span
+                  >
+                  <select id="setting-advert-loc">
+                    <option value="none">None</option>
+                    <option value="prefs" selected>
+                      Prefs (stored lat/lon)
+                    </option>
+                    <option value="share">Share (live GPS)</option>
+                  </select>
+                </label>
               </div>
             </div>
             <div class="config-identity-fields">
@@ -621,14 +701,52 @@
                 <div class="result-found-stack" id="result-grid"></div>
               </div>
             </details>
-            <div class="policy-masters">
+            <div class="policy-masters policy-region-footer">
+              <p class="policy-region-footer-title">Region CLI options</p>
               <label
                 class="policy-master"
                 title="Allow flood for packets without a region tag (*). Turn off only if neighbours agree; keep enough Allow rows or packets may drop."
               >
                 <input type="checkbox" id="policy-untagged-flood" checked />
-                <span>Allow untagged flood (<code>*</code>)</span>
+                <span>Allow flooding untagged traffic (<code>*</code>)</span>
               </label>
+              <div
+                class="policy-home-override-wrap"
+                role="group"
+                aria-label="Home region override"
+              >
+                <label
+                  class="policy-home-override-label"
+                  for="policy-home-override"
+                >
+                  <input
+                    type="checkbox"
+                    class="policy-home-override"
+                    id="policy-home-override"
+                  />
+                  <span>Home override</span>
+                </label>
+                <p
+                  class="policy-home-override-hint"
+                  title="By default, region home is the smallest scope with Allow checked in the home table. Check Home override to set a different region home target."
+                >
+                  Override automatic <code>region home</code> (smallest allowed
+                  home scope).
+                </p>
+                <label
+                  class="policy-home-override-select-label"
+                  for="policy-home-override-select"
+                  >Target for region home</label
+                >
+                <select
+                  id="policy-home-override-select"
+                  class="policy-home-override-select"
+                  disabled
+                  aria-label="Override region home code"
+                >
+                  <option value="">Default</option>
+                </select>
+              </div>
             </div>
           </div>
         </section>
@@ -777,6 +895,62 @@
         </footer>
       </main>
     </div>
+
+    <div
+      id="position-map-modal"
+      class="position-map-modal"
+      hidden
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="position-map-modal-title"
+    >
+      <div class="position-map-modal-backdrop" data-position-map-dismiss></div>
+      <div class="position-map-modal-panel">
+        <div class="position-map-modal-header">
+          <h2 id="position-map-modal-title" class="position-map-modal-title">
+            Pick repeater location
+          </h2>
+          <button
+            type="button"
+            class="position-map-modal-close"
+            id="position-map-close-btn"
+            aria-label="Close"
+            data-position-map-dismiss
+          >
+            ×
+          </button>
+        </div>
+        <p class="position-map-modal-hint">
+          Click the map or drag the marker to indicate your repeater position.
+          For optimal privacy, do not pin the exact location, instead choose a
+          nearby random location or landmark.
+        </p>
+        <div id="position-map-container" class="position-map-container"></div>
+        <div class="position-map-modal-footer">
+          <span id="position-map-pick-preview" class="position-map-pick-preview"
+            >—</span
+          >
+          <div class="position-map-modal-actions">
+            <button
+              type="button"
+              class="copy-btn serial-btn-secondary"
+              data-position-map-dismiss
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              class="copy-btn serial-btn-apply"
+              id="position-map-use-btn"
+            >
+              Use position
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="./lib/leaflet.js"></script>
     <script src="./src/repeater-serial.js"></script>
     <script src="./src/configurator/dom.js"></script>
     <script src="./src/configurator/serial-ui.js"></script>
@@ -785,6 +959,7 @@
     <script src="./src/configurator/settings.js"></script>
     <script src="./src/configurator/policy.js"></script>
     <script src="./src/configurator/cli.js"></script>
+    <script src="./src/configurator/position.js"></script>
     <script src="./src/configurator.js"></script>
   </body>
 </html>

@@ -10,7 +10,10 @@
       name="description"
       content="Historical node statistics for the Belgian MeshCore map"
     />
-    <link rel="icon" type="image/x-icon" href="./favicon.ico" />
+    <link rel="icon" href="./favicon.ico" sizes="any" />
+    <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="./favicon-16.png" />
+    <link rel="apple-touch-icon" href="./favicon.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -28,7 +31,18 @@
     <div class="rty-page-wrap">
       <div class="stats-header rty-glass-surface rty-chrome-accent-bar">
         <div class="stats-header-top">
-          <h1>#BEmesh MeshCore statistics</h1>
+          <div class="stats-header-brand">
+            <img
+              src="./favicon-32.png"
+              alt=""
+              class="stats-header-logo"
+              width="32"
+              height="32"
+              decoding="async"
+              aria-hidden="true"
+            />
+            <h1>#BEmesh MeshCore statistics</h1>
+          </div>
           <div class="stats-header-links">
             <a href="/" class="rty-back-link">← Back to map</a>
             <a href="/configurator" class="rty-back-link">Configurator</a>
@@ -2527,6 +2541,15 @@
                     4: "Sensors",
                   };
                   var parts = [];
+                  if (growth > 0 || decline > 0) {
+                    parts.push(
+                      "<div style='font-size:11px;color:#78716c;margin-bottom:4px'>Added+restored: +" +
+                        growth +
+                        " · Removed: -" +
+                        decline +
+                        "</div>",
+                    );
+                  }
                   parts.push(
                     "<div>Net: " + (net > 0 ? "+" : "") + net + "</div>",
                   );

@@ -12,6 +12,7 @@ underlying functions; the `tests/check_invariants.py` script exercises the same
 properties against the live API container.
 """
 
+import json
 import os
 import sqlite3
 import sys
@@ -70,11 +71,30 @@ class TestCountInvariants(unittest.TestCase):
                 ("k_dropped_coords", 1, "D", None, None, None,
                  "2025-08-06T12:00:00", "2025-08-06", "2025-08-06T12:00:00",
                  "{}", "", "app", 1, "2025-08-06 12:00:00"),
-                # Excluded: inactive.
+                # Excluded from map: inactive (still in chart seed; needs removal event).
                 ("k_inactive", 1, "I", 50.88, 4.38, "Brussels",
                  "2025-08-06T12:00:00", "2025-08-06", "2025-08-06T12:00:00",
                  "{}", "", "app", 0, "2025-08-06 12:00:00"),
             ],
+        )
+        cur.execute(
+            """
+            INSERT INTO node_changes (public_key, change_type, sync_date, old_data)
+            VALUES (?, ?, ?, ?)
+            """,
+            (
+                "k_inactive",
+                "removed",
+                "2025-08-07T10:00:00",
+                json.dumps({
+                    "public_key": "k_inactive",
+                    "adv_lat": 50.88,
+                    "adv_lon": 4.38,
+                    "adv_name": "I",
+                    "type": 1,
+                    "params": {},
+                }),
+            ),
         )
         conn.commit()
         conn.close()

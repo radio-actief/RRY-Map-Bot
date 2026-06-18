@@ -140,14 +140,24 @@ def get_all_belgian_nodes():
 
 def _displayable_predicate(t: str = "b") -> str:
     """
-    The single SQL predicate that defines a "displayable" node: active and with
-    valid map coordinates. Map header, stats chips, the chart's first-seen seed,
-    and timeline playback all filter through this predicate so their totals
-    match by construction.
+    Active nodes with valid map coordinates. Used for the live map, header chips,
+    and ``displayable_map_nodes`` counts.
     """
     return (
         f"({t}.is_active = 1 "
         f"AND {t}.adv_lat IS NOT NULL AND {t}.adv_lon IS NOT NULL)"
+    )
+
+
+def _chart_history_predicate(t: str = "b") -> str:
+    """
+    Nodes eligible for chart history replay: valid coordinates regardless of
+    ``is_active``. Includes inactive (removed) nodes so add/remove/restore
+    lifecycles stay visible; the running ledger still ends at the live map
+    count when events are replayed completely.
+    """
+    return (
+        f"({t}.adv_lat IS NOT NULL AND {t}.adv_lon IS NOT NULL)"
     )
 
 
@@ -312,6 +322,41 @@ def _params_match_radio_partial(params: Optional[dict], custom: dict) -> bool:
         return False
 
 
+def _params_from_event_data(
+    old_data: Optional[dict],
+    new_data: Optional[dict],
+    change_type: Optional[str] = None,
+) -> Optional[dict]:
+    """Extract radio params from a node_changes event payload."""
+    from backend.database import json_deserialize
+
+    if change_type == "removed":
+        data = old_data or new_data
+    else:
+        data = new_data or old_data
+    if not isinstance(data, dict):
+        return None
+    params = data.get("params")
+    if isinstance(params, str):
+        params = json_deserialize(params) if params else None
+    return params if isinstance(params, dict) else None
+
+
+def _event_data_has_chart_coords(data: Optional[dict]) -> bool:
+    """True when event JSON carries coordinates usable for chart playback."""
+    if not isinstance(data, dict):
+        return False
+    lat, lon = data.get("adv_lat"), data.get("adv_lon")
+    if lat is None or lon is None:
+        return False
+    try:
+        float(lat)
+        float(lon)
+        return True
+    except (TypeError, ValueError):
+        return False
+
+
 def _row_matches_frequency_filter(
     params: Optional[dict],
     frequency_preset: Optional[str],
@@ -389,17 +434,13 @@ def get_synthetic_sync_rows(
     radio_custom: Optional[dict] = None,
 ):
     """
-    One row per day with ``nodes_added`` = count of currently-displayable
-    ``belgian_nodes`` whose effective first-seen calendar day is that day.
-
-    "Displayable" matches the main map exactly (see ``_displayable_predicate``)
-    so the chart's running ledger lands on the same total as the map header.
+    One row per day with ``nodes_added`` = count of chart-history nodes
+    (active or inactive, with coordinates) whose effective first-seen day is
+    that day.
 
     The effective day is ``date(COALESCE(trim(inserted_date), created_at))``
-    of each currently-displayable node (see ``_chart_day_expr``).
-
-    ``frequency_preset`` and ``radio_custom`` filter the same way as the
-    statistics endpoint.
+    (see ``_chart_day_expr``). Replay of removals/restores on top lands the
+    running ledger on ``displayable_map_nodes``.
     """
     preset_sql, preset_params = _active_frequency_sql_params(
         frequency_preset, radio_custom
@@ -417,7 +458,7 @@ def get_synthetic_sync_rows(
             + """ AS eff_day
                 FROM belgian_nodes b
                 WHERE """
-            + _displayable_predicate("b")
+            + _chart_history_predicate("b")
             + """
                   AND (1=1"""
             + preset_sql
@@ -454,12 +495,12 @@ def get_sync_history(
     Two sources are merged per day:
 
     - **First-seen seed**: ``get_synthetic_sync_rows`` returns ``nodes_added``
-      counted per first-seen calendar day for currently displayable nodes.
+      per first-seen day for all nodes with coordinates (including inactive).
     - **Forward changes**: ``_get_sync_history_from_node_changes`` aggregates
       removed / restored / updated events from ``node_changes``.
 
-    The chart sums these per day; with the unified displayable predicate,
-    the running total lands on ``displayable_map_nodes``.
+    The chart sums these per day; when lifecycle events are complete the
+    running total lands on ``displayable_map_nodes``.
 
     ``limit`` is accepted for API compatibility but ignored: the returned list
     covers every synthetic day plus every change-event day.
@@ -487,38 +528,26 @@ def _get_sync_history_from_node_changes(
     radio_custom: Optional[dict] = None,
 ):
     """
-    Aggregate removed / restored / updated events per day from ``node_changes``,
-    restricted to events whose node is currently displayable.
+    Aggregate removed / restored / updated events per day from ``node_changes``.
 
-    Both renderer surfaces use the same row set, so the chart's running ledger
-    converges on ``displayable_map_nodes`` regardless of how many forward
-    changes have been recorded.
+    Includes events for inactive nodes and orphan rows (no ``belgian_nodes``
+    row) when the event payload carries coordinates. Frequency filtering uses
+    params from the event snapshot, not the node's current row.
     """
     from backend.database import json_deserialize
     conn = get_connection()
     cursor = conn.cursor()
     by_day = {}
-    preset_sql, preset_params = _active_frequency_sql_params(
-        frequency_preset, radio_custom
-    )
-    preset_b = preset_sql.replace("params", "b.params") if preset_sql else ""
     try:
         cursor.execute(
             """
-            SELECT nc.sync_date, nc.change_type, nc.old_data, nc.new_data
+            SELECT nc.sync_date, nc.change_type, nc.old_data, nc.new_data,
+                   b.adv_lat AS node_lat, b.adv_lon AS node_lon
             FROM node_changes nc
-            INNER JOIN belgian_nodes b ON b.public_key = nc.public_key
-            WHERE nc.change_type IN ('removed', 'updated', 'restored')
-              AND """
-            + _displayable_predicate("b")
-            + """
-              AND (1=1"""
-            + preset_b
-            + """)
+            LEFT JOIN belgian_nodes b ON b.public_key = nc.public_key
+            WHERE nc.change_type IN ('removed', 'restored')
             ORDER BY nc.sync_date ASC
-            LIMIT 50000
-            """,
-            preset_params,
+            """
         )
         for row in cursor.fetchall():
             d = dict_from_row(row)
@@ -526,10 +555,23 @@ def _get_sync_history_from_node_changes(
             if not sync_date:
                 continue
             change_type = d.get("change_type")
-            data = d.get("new_data") or d.get("old_data")
-            params = (data or {}).get("params") if isinstance(data, dict) else None
-            if isinstance(params, str):
-                params = json_deserialize(params) if params else None
+            old_data = d.get("old_data")
+            new_data = d.get("new_data")
+            if isinstance(old_data, str):
+                old_data = json_deserialize(old_data) if old_data else None
+            if isinstance(new_data, str):
+                new_data = json_deserialize(new_data) if new_data else None
+
+            node_has_coords = (
+                d.get("node_lat") is not None and d.get("node_lon") is not None
+            )
+            event_data = new_data if change_type == "restored" else (
+                old_data if change_type == "removed" else (new_data or old_data)
+            )
+            if not node_has_coords and not _event_data_has_chart_coords(event_data):
+                continue
+
+            params = _params_from_event_data(old_data, new_data, change_type)
             if not _row_matches_frequency_filter(
                 params, frequency_preset, radio_custom
             ):
@@ -540,8 +582,39 @@ def _get_sync_history_from_node_changes(
                 by_day[sync_date]["nodes_removed"] += 1
             elif change_type == "restored":
                 by_day[sync_date]["nodes_restored"] += 1
-            elif change_type == "updated":
-                by_day[sync_date]["nodes_updated"] += 1
+
+        cursor.execute(
+            """
+            SELECT nc.sync_date, nc.old_data, nc.new_data
+            FROM node_changes nc
+            LEFT JOIN belgian_nodes b ON b.public_key = nc.public_key
+            WHERE nc.change_type = 'added' AND b.public_key IS NULL
+            ORDER BY nc.sync_date ASC
+            """
+        )
+        for row in cursor.fetchall():
+            d = dict_from_row(row)
+            sync_date = (d.get("sync_date") or "")[:10]
+            if not sync_date:
+                continue
+            old_data = d.get("old_data")
+            new_data = d.get("new_data")
+            event_data = new_data or old_data
+            if not _event_data_has_chart_coords(event_data):
+                continue
+            params = _params_from_event_data(old_data, new_data, "added")
+            if not _row_matches_frequency_filter(
+                params, frequency_preset, radio_custom
+            ):
+                continue
+            if sync_date not in by_day:
+                by_day[sync_date] = {
+                    "nodes_added": 0,
+                    "nodes_removed": 0,
+                    "nodes_restored": 0,
+                    "nodes_updated": 0,
+                }
+            by_day[sync_date]["nodes_added"] += 1
     finally:
         conn.close()
     return [{"sync_date": d, "nodes_added": 0, **rest, "from_sync": True}
@@ -584,9 +657,9 @@ def get_synthetic_node_changes(
     radio_custom: Optional[dict] = None,
 ):
     """
-    One synthetic "added" event per currently-displayable node for the timeline
-    playback. ``sync_date`` is the same effective first-seen day as the chart
-    (see ``_chart_day_expr``).
+    One synthetic "added" event per chart-history node (coords, active or
+    inactive) for timeline playback. ``sync_date`` is the effective first-seen
+    day (see ``_chart_day_expr``).
 
     Real ``node_changes`` rows of type ``added`` are not replayed (avoids
     double-counting). ``frequency_preset`` / ``radio_custom`` filter the result.
@@ -603,7 +676,7 @@ def get_synthetic_node_changes(
         + """ AS d
             FROM belgian_nodes b
             WHERE """
-        + _displayable_predicate("b")
+        + _chart_history_predicate("b")
         + """
         """
     )
@@ -630,6 +703,43 @@ def get_synthetic_node_changes(
         conn.close()
 
 
+def _process_node_change_rows(
+    rows,
+    out: list,
+    frequency_preset: Optional[str] = None,
+    radio_custom: Optional[dict] = None,
+) -> None:
+    """Append playback rows built from ``node_changes`` query results."""
+    from backend.database import json_deserialize
+
+    for row in rows:
+        d = dict_from_row(row)
+        old_data = d.get("old_data")
+        new_data = d.get("new_data")
+        if isinstance(old_data, str):
+            old_data = json_deserialize(old_data) if old_data else None
+        if isinstance(new_data, str):
+            new_data = json_deserialize(new_data) if new_data else None
+        change_type = d.get("change_type")
+        if frequency_preset or radio_custom:
+            params = _params_from_event_data(old_data, new_data, change_type)
+            if not _row_matches_frequency_filter(
+                params, frequency_preset, radio_custom
+            ):
+                continue
+        event_data = new_data if change_type == "restored" else (
+            old_data if change_type == "removed" else (new_data or old_data)
+        )
+        r = _node_change_row(
+            d.get("public_key"),
+            change_type,
+            d.get("sync_date"),
+            event_data or {},
+        )
+        if r:
+            out.append(r)
+
+
 def get_node_changes_since(
     since_date: Optional[str] = None,
     limit: int = 5000,
@@ -640,9 +750,10 @@ def get_node_changes_since(
     Node changes playback: synthetic "added" uses the same effective day as the stats chart
     (see ``get_synthetic_node_changes``). Real node_changes
     used only for removed, updated, restored (so we don't double-count real "added").
-    When frequency_preset or radio_custom is set, filters both synthetic and real changes.
+
+    Removed and restored rows are always fetched in full so they are not crowded out
+    by routine ``updated`` rows when ``limit`` is applied.
     """
-    from backend.database import json_deserialize
     synthetic = get_synthetic_node_changes(
         frequency_preset=frequency_preset, radio_custom=radio_custom
     )
@@ -651,42 +762,66 @@ def get_node_changes_since(
     cursor = conn.cursor()
     try:
         if since_date:
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT public_key, change_type, sync_date, old_data, new_data
                 FROM node_changes
-                WHERE sync_date >= ? AND change_type IN ('removed', 'updated', 'restored')
+                WHERE sync_date >= ? AND change_type IN ('removed', 'restored')
                 ORDER BY sync_date ASC
-                LIMIT ?
-            """, (since_date, limit))
-        else:
-            cursor.execute("""
-                SELECT public_key, change_type, sync_date, old_data, new_data
-                FROM node_changes
-                WHERE change_type IN ('removed', 'updated', 'restored')
-                ORDER BY sync_date ASC
-                LIMIT ?
-            """, (limit,))
-        rows = cursor.fetchall()
-        for row in rows:
-            d = dict_from_row(row)
-            if frequency_preset or radio_custom:
-                data = d.get('new_data') or d.get('old_data')
-                params = (data or {}).get("params") if isinstance(data, dict) else None
-                if isinstance(params, str):
-                    params = json_deserialize(params) if params else None
-                if not _row_matches_frequency_filter(
-                    params, frequency_preset, radio_custom
-                ):
-                    continue
-            data = d.get('new_data') or d.get('old_data')
-            r = _node_change_row(
-                d.get('public_key'),
-                d.get('change_type'),
-                d.get('sync_date'),
-                data or {},
+                """,
+                (since_date,),
             )
-            if r:
-                out.append(r)
+        else:
+            cursor.execute(
+                """
+                SELECT public_key, change_type, sync_date, old_data, new_data
+                FROM node_changes
+                WHERE change_type IN ('removed', 'restored')
+                ORDER BY sync_date ASC
+                """
+            )
+        _process_node_change_rows(
+            cursor.fetchall(), out, frequency_preset, radio_custom
+        )
+
+        cursor.execute(
+            """
+            SELECT nc.public_key, nc.change_type, nc.sync_date, nc.old_data, nc.new_data
+            FROM node_changes nc
+            LEFT JOIN belgian_nodes b ON b.public_key = nc.public_key
+            WHERE nc.change_type = 'added' AND b.public_key IS NULL
+            ORDER BY nc.sync_date ASC
+            """
+        )
+        _process_node_change_rows(
+            cursor.fetchall(), out, frequency_preset, radio_custom
+        )
+
+        if since_date:
+            cursor.execute(
+                """
+                SELECT public_key, change_type, sync_date, old_data, new_data
+                FROM node_changes
+                WHERE sync_date >= ? AND change_type = 'updated'
+                ORDER BY sync_date ASC
+                LIMIT ?
+                """,
+                (since_date, limit),
+            )
+        else:
+            cursor.execute(
+                """
+                SELECT public_key, change_type, sync_date, old_data, new_data
+                FROM node_changes
+                WHERE change_type = 'updated'
+                ORDER BY sync_date ASC
+                LIMIT ?
+                """,
+                (limit,),
+            )
+        _process_node_change_rows(
+            cursor.fetchall(), out, frequency_preset, radio_custom
+        )
     finally:
         conn.close()
 

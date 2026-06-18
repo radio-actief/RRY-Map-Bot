@@ -40,6 +40,11 @@ LOCAL_API_URL = os.getenv('LOCAL_API_URL', 'http://localhost:8000/api/v1')
 
 # Map Web UI (for direct node links)
 MAP_BASE_URL = os.getenv('MAP_BASE_URL', 'https://meshmap.radio-actief.be')
+BRAND_NAME = os.getenv('BRAND_NAME', 'Radio-Actief.be')
+BRAND_LOGO_URL = os.getenv(
+    'BRAND_LOGO_URL',
+    f'{MAP_BASE_URL.rstrip("/")}/img/radio-actief-logo-128.png',
+)
 
 # Sync Configuration
 # Preferred env: SYNC_INTERVAL_MINUTES. Legacy SYNC_INTERVAL_HOURS is still read

@@ -70,6 +70,7 @@ except (ImportError, ModuleNotFoundError):
         {"name": "Vietnam", "freq": 920.250, "sf": 11, "bw": 250, "cr": 5},
     ]
 
+from backend.discord_branding import apply_brand_to_embed
 from backend.database import (
     init_database,
     get_connection,
@@ -100,6 +101,10 @@ bot = commands.Bot(command_prefix='!', intents=intents)
 # ============================================================================
 # Helper Functions
 # ============================================================================
+
+def branded_embed(*args, **kwargs):
+    return apply_brand_to_embed(discord.Embed(*args, **kwargs))
+
 
 def log_command(command_name: str, user: discord.User, query: Optional[str] = None, result: Optional[str] = None) -> None:
     """
@@ -321,7 +326,7 @@ def format_full_node_details(node: Dict[str, Any], show_coordinates: bool = Fals
     else:
         description = f"**{node_name}**"
     
-    embed = discord.Embed(
+    embed = branded_embed(
         title=f"{type_icon} Detailed node info",
         description=description,
         color=discord.Color.blue()
@@ -705,7 +710,7 @@ async def update_bot_instructions_post() -> None:
             embed_title = "📡 Radio-Actieve Bot - MeshCore Node Beheer"
         
         # Create embed with everything in description (like old bot, but better formatted)
-        embed = discord.Embed(
+        embed = branded_embed(
             title=embed_title,
             description=formatted_content,
             color=embed_color
@@ -846,7 +851,7 @@ class UnclaimConfirmView(discord.ui.View):
             source_capitalized = 'N/A'
         
         # Success - public (visible to channel) with embed (same format as /claim)
-        embed = discord.Embed(
+        embed = branded_embed(
             title=f"{type_icon} Node Unclaimed",
             description=f"**{node_name}** `{pub_key_display}` ({type_text.lower()}) has been unclaimed by <@{self.user_id}>",
             color=discord.Color.orange()
@@ -991,7 +996,7 @@ async def search_nodes(
     search_query_str = ", ".join(query_parts) if query_parts else "all nodes"
 
     if not nodes:
-        embed = discord.Embed(
+        embed = branded_embed(
             title="🔍 Search Results",
             description=f"**Search result for:** {search_query_str}\n\nNo nodes found matching your criteria.",
             color=discord.Color.orange()
@@ -1067,7 +1072,7 @@ async def search_nodes(
             if not first_chunk:
                 break
 
-        embed = discord.Embed(title="🔍 Search Results", description=description, color=discord.Color.blue())
+        embed = branded_embed(title="🔍 Search Results", description=description, color=discord.Color.blue())
         if num_messages > 1:
             embed.set_footer(text=f"Showing 1-{len(first_chunk)} of {total_nodes} | Use `/search` to refine, `/mynodes` for your nodes.")
         else:
@@ -1086,7 +1091,7 @@ async def search_nodes(
                 if not chunk:
                     break
             end_idx = start_idx + len(chunk) - 1 if chunk else start_idx
-            followup_embed = discord.Embed(
+            followup_embed = branded_embed(
                 title="🔍 Search Results (continued)",
                 description=followup_header + ("\n\n".join(chunk) if chunk else ""),
                 color=discord.Color.blue()
@@ -1171,7 +1176,7 @@ async def node_claim(interaction: discord.Interaction, query: str):
         source_capitalized = 'N/A'
     
     # Success - public (visible to channel) with embed
-    embed = discord.Embed(
+    embed = branded_embed(
         title=f"{type_icon} Node Claimed",
         description=f"**{node_name}** `{pub_key_display}` ({type_text.lower()}) has been claimed by <@{interaction.user.id}>",
         color=discord.Color.green()
@@ -1199,7 +1204,7 @@ async def mynodes(interaction: discord.Interaction):
     
     if not nodes:
         # Private information - ephemeral (only to sender)
-        embed = discord.Embed(
+        embed = branded_embed(
             title="Your registered Nodes (0)",
             description="You don't own any nodes.",
             color=discord.Color.orange()
@@ -1227,7 +1232,7 @@ async def mynodes(interaction: discord.Interaction):
     nodes_text = "\n\n".join(formatted_nodes)
     
     # Create single embed
-    embed = discord.Embed(
+    embed = branded_embed(
         title=f"Your registered Nodes ({len(nodes)})",
         description=f"Nodes registered to {interaction.user.mention}\n\n{nodes_text}",
         color=discord.Color.blue()
@@ -1326,7 +1331,7 @@ async def stats(interaction: discord.Interaction):
     stats_title = ":flag_be::meshcore: #BEMesh MeshCore statistics :bar_chart:"
     guild = getattr(interaction, 'guild', None)
     stats_title = resolve_custom_emojis_in_text(stats_title, guild)
-    embed1 = discord.Embed(
+    embed1 = branded_embed(
         title=stats_title,
         description="Overview of the Belgian MeshCore network statistics, from [#BEMesh Map](https://meshmap.radio-actief.be).",
         color=discord.Color.blue()

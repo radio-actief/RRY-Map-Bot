@@ -88,6 +88,9 @@
     "get int.thresh",
     "get agc.reset.interval",
     "get multi.acks",
+    "get lat",
+    "get lon",
+    "gps advert",
     "region home",
     "region list allowed",
     "region list denied",
@@ -175,6 +178,10 @@
     D.settingRadioBwEl = document.getElementById("setting-radio-bw");
     D.settingRadioCrEl = document.getElementById("setting-radio-cr");
     D.settingRadioErrorEl = document.getElementById("setting-radio-error");
+    D.settingLatEl = document.getElementById("setting-lat");
+    D.settingLonEl = document.getElementById("setting-lon");
+    D.settingAdvertLocEl = document.getElementById("setting-advert-loc");
+    D.positionMapModalEl = document.getElementById("position-map-modal");
   };
 
   App.openSettingsTier = function (tierId) {

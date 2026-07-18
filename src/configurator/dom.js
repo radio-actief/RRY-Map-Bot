@@ -6,6 +6,10 @@
 
   const App = (global.ConfiguratorApp = global.ConfiguratorApp || {});
 
+  // Shared Belgian region data (src/shared/be-regions.js). Loaded before this
+  // file; the empty-object fallback keeps things defined if it is ever missing.
+  const Regions = global.RRYRegions || {};
+
   App.state = {
     CITIES: [],
     selectionMode: "none",
@@ -29,41 +33,8 @@
     serialConsoleHistoryBrowse: -1,
   };
 
-  App.PROVINCE_NAMES = {
-    "be-van": "Antwerpen",
-    "be-vbr": "Vlaams-Brabant",
-    "be-vov": "Oost-Vlaanderen",
-    "be-vwv": "West-Vlaanderen",
-    "be-vli": "Limburg",
-    "be-bru": "Brussel",
-    "be-wbr": "Waals-Brabant",
-    "be-wht": "Henegouwen",
-    "be-wlg": "Luik",
-    "be-wna": "Namen",
-    "be-wlx": "Luxemburg",
-  };
-
-  App.PROVINCE_ADJACENCY = {
-    "be-van": ["be-vbr", "be-vov", "be-vli"],
-    "be-vbr": [
-      "be-van",
-      "be-vli",
-      "be-vov",
-      "be-wbr",
-      "be-bru",
-      "be-wht",
-      "be-wlg",
-    ],
-    "be-vov": ["be-vwv", "be-van", "be-vbr", "be-vli", "be-wht"],
-    "be-vwv": ["be-vov", "be-wht"],
-    "be-vli": ["be-van", "be-vbr", "be-vov", "be-wlg"],
-    "be-bru": ["be-vbr", "be-wbr"],
-    "be-wbr": ["be-vbr", "be-bru", "be-wht", "be-wna", "be-wlg"],
-    "be-wht": ["be-vwv", "be-vov", "be-vbr", "be-wbr", "be-wna", "be-wlg"],
-    "be-wlg": ["be-vli", "be-vbr", "be-wbr", "be-wna", "be-wlx", "be-wht"],
-    "be-wna": ["be-wbr", "be-wht", "be-wlg", "be-wlx"],
-    "be-wlx": ["be-wna", "be-wlg"],
-  };
+  App.PROVINCE_NAMES = Regions.PROVINCE_NAMES;
+  App.PROVINCE_ADJACENCY = Regions.PROVINCE_ADJACENCY;
 
   App.SERIAL_CONSOLE_HISTORY_MAX = 50;
   App.SERIAL_LOG_VERBOSE_KEY = "configurator.serialShowCommandLog";
@@ -99,18 +70,7 @@
 
   App.dom = {};
 
-  App.rryDataUrl = function (filename) {
-    const p = window.location.pathname || "";
-    if (/\.html?$/i.test(p)) {
-      return "./data/" + filename;
-    }
-    if (
-      /(?:^|\/)(region-map|configurator|region-configurator)(?:\/|$)/.test(p)
-    ) {
-      return "/data/" + filename;
-    }
-    return "./data/" + filename;
-  };
+  App.rryDataUrl = Regions.rryDataUrl;
 
   App.initDom = function () {
     const D = App.dom;

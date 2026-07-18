@@ -1,0 +1,156 @@
+/**
+ * RRY Map Bot — Bootstrap theme shim (#BEmesh brand)
+ *
+ * Loaded AFTER lib/css/bootstrap.min.css and BEFORE the per-page sheet.
+ * Maps Bootstrap 5.3 CSS variables onto the existing --app-* design tokens
+ * (Figtree, warm background, gold accent) so Bootstrap components inherit the
+ * brand instead of the default blue/system look. No Sass build required.
+ *
+ * Relies on --app-* declared on body.map-page (css/style.css).
+ */
+
+:root {
+  /* Brand palette echoed as raw values for Bootstrap's rgb() utilities */
+  --bs-blue: #5865f2;
+  --bs-primary: #d4a017;
+  --bs-primary-rgb: 212, 160, 23;
+  --bs-primary-text-emphasis: #6b520b;
+  --bs-primary-bg-subtle: #faf3dd;
+  --bs-primary-border-subtle: #ecd9a0;
+
+  --bs-secondary: #57534e;
+  --bs-secondary-rgb: 87, 83, 78;
+
+  --bs-success: #15803d;
+  --bs-success-rgb: 21, 128, 61;
+  --bs-danger: #b91c1c;
+  --bs-danger-rgb: 185, 28, 28;
+  --bs-info: #5865f2;
+  --bs-info-rgb: 88, 101, 242;
+
+  /* Typography */
+  --bs-font-sans-serif: "Figtree", system-ui, -apple-system, "Segoe UI", Roboto,
+    sans-serif;
+  --bs-body-font-family: var(--bs-font-sans-serif);
+  --bs-body-color: #1a1917;
+  --bs-body-color-rgb: 26, 25, 23;
+  --bs-body-bg: #f6f5f2;
+  --bs-emphasis-color: #1a1917;
+  --bs-secondary-color: rgba(87, 83, 78, 0.85);
+
+  /* Surfaces / borders / radius to match --app-* */
+  --bs-border-color: #e7e5e4;
+  --bs-border-color-translucent: rgba(26, 25, 23, 0.1);
+  --bs-border-radius: 10px;
+  --bs-border-radius-sm: 6px;
+  --bs-border-radius-lg: 14px;
+  --bs-border-radius-xl: 18px;
+
+  /* Links */
+  --bs-link-color: #b88a14;
+  --bs-link-color-rgb: 184, 138, 20;
+  --bs-link-hover-color: #8f6b0f;
+  --bs-link-hover-color-rgb: 143, 107, 15;
+
+  /* Focus ring in brand gold */
+  --bs-focus-ring-color: rgba(212, 160, 23, 0.35);
+}
+
+/* Keep #BEmesh warm background even though Bootstrap resets body bg.
+   style.css already paints the gradient on body.map-page; just make sure
+   Bootstrap's --bs-body-bg does not flatten it. */
+body.map-page {
+  background-color: transparent;
+}
+
+/* Primary buttons: gold accent with readable dark text */
+.btn-primary {
+  --bs-btn-color: #1a1917;
+  --bs-btn-bg: #d4a017;
+  --bs-btn-border-color: #d4a017;
+  --bs-btn-hover-color: #1a1917;
+  --bs-btn-hover-bg: #b88a14;
+  --bs-btn-hover-border-color: #b88a14;
+  --bs-btn-active-color: #1a1917;
+  --bs-btn-active-bg: #a87e12;
+  --bs-btn-active-border-color: #a87e12;
+  --bs-btn-disabled-color: #1a1917;
+  --bs-btn-disabled-bg: #e7d69f;
+  --bs-btn-disabled-border-color: #e7d69f;
+}
+
+.btn-outline-primary {
+  --bs-btn-color: #8f6b0f;
+  --bs-btn-border-color: #d4a017;
+  --bs-btn-hover-color: #1a1917;
+  --bs-btn-hover-bg: #d4a017;
+  --bs-btn-hover-border-color: #d4a017;
+  --bs-btn-active-color: #1a1917;
+  --bs-btn-active-bg: #d4a017;
+  --bs-btn-active-border-color: #d4a017;
+}
+
+/* Discord-styled utility button (used for OAuth / links) */
+.btn-discord {
+  --bs-btn-color: #fff;
+  --bs-btn-bg: #5865f2;
+  --bs-btn-border-color: #5865f2;
+  --bs-btn-hover-color: #fff;
+  --bs-btn-hover-bg: #4752c4;
+  --bs-btn-hover-border-color: #4752c4;
+  --bs-btn-active-bg: #3c45a5;
+  --bs-btn-active-border-color: #3c45a5;
+}
+
+/* Cards inherit the glass/surface look of the tool pages */
+.card {
+  --bs-card-bg: var(--app-surface, rgba(255, 255, 255, 0.92));
+  --bs-card-border-color: var(--app-border, #e7e5e4);
+  --bs-card-border-radius: 14px;
+  --bs-card-inner-border-radius: 12px;
+  --bs-card-cap-bg: transparent;
+  box-shadow: var(--app-shadow, 0 1px 3px rgba(26, 25, 23, 0.06));
+}
+
+/* Form controls align to brand radius + gold focus */
+.form-control,
+.form-select {
+  --bs-border-radius: 9px;
+}
+.form-control:focus,
+.form-select:focus,
+.form-check-input:focus,
+.btn:focus-visible {
+  border-color: #d4a017;
+  box-shadow: 0 0 0 0.2rem rgba(212, 160, 23, 0.25);
+}
+.form-check-input:checked {
+  background-color: #d4a017;
+  border-color: #d4a017;
+}
+
+/* Nav pills / active states in gold */
+.nav-pills {
+  --bs-nav-pills-link-active-bg: #d4a017;
+  --bs-nav-pills-link-active-color: #1a1917;
+}
+
+/* Badges default to subtle brand tint unless a color class overrides */
+.badge.text-bg-primary {
+  color: #1a1917 !important;
+  background-color: #d4a017 !important;
+}
+
+/* Modal / offcanvas surfaces */
+.modal-content,
+.offcanvas {
+  --bs-modal-bg: var(--app-surface, #fff);
+  --bs-offcanvas-bg: var(--app-surface, #fff);
+  border-color: var(--app-border, #e7e5e4);
+}
+
+/* Bootstrap Icons baseline alignment inside buttons/links */
+.btn .bi,
+.rty-back-link .bi {
+  vertical-align: -0.125em;
+}

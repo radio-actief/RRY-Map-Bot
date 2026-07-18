@@ -1,6 +1,7 @@
 /**
- * Stats page — load order on stats.html: style.css, rry-tool-pages.css, beer.css,
- * then this file (so stats rules override Beer `button` defaults where needed).
+ * Stats page — load order on stats.html: bootstrap.min.css, bootstrap-rry-theme.css,
+ * style.css, rry-tool-pages.css, then this file (so page rules win over Bootstrap
+ * reboot/component defaults where needed). Beer.css was removed in the Bootstrap revamp.
  * --stats-* tokens intentionally alias --app-* from body.map-page for clarity in this file.
  */
       /* Chart palette (Apex); UI tokens bridge main map (style.css body.map-page) */

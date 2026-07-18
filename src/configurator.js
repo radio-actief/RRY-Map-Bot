@@ -4,18 +4,12 @@
     App.initDom();
   }
 
-  function rryDataUrl(filename) {
-    var p = window.location.pathname || "";
-    if (/\.html?$/i.test(p)) {
-      return "./data/" + filename;
-    }
-    if (
-      /(?:^|\/)(region-map|configurator|region-configurator)(?:\/|$)/.test(p)
-    ) {
-      return "/data/" + filename;
-    }
-    return "./data/" + filename;
-  }
+  // Data-path helper is centralized in src/shared/be-regions.js (RRYRegions)
+  // and re-exposed via App.rryDataUrl (src/configurator/dom.js). Delegate here
+  // so the resolver lives in exactly one place.
+  const rryDataUrl =
+    (App && App.rryDataUrl) ||
+    (window.RRYRegions && window.RRYRegions.rryDataUrl);
 
   let CITIES = [];
   fetch(rryDataUrl("be-locode.json"))

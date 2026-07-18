@@ -122,8 +122,7 @@
     D.commandsBlock = document.getElementById("commands-block");
     D.copyBtn = document.getElementById("copy-btn");
     D.cliShowDefaultsEl = document.getElementById("cli-show-defaults");
-    D.serialConnectBtn = document.getElementById("serial-connect-btn");
-    D.serialDisconnectBtn = document.getElementById("serial-disconnect-btn");
+    D.serialUsbBtn = document.getElementById("serial-usb-btn");
     D.serialReadBtn = document.getElementById("serial-read-btn");
     D.serialApplyBtn = document.getElementById("serial-apply-btn");
     D.serialAdvertZerohopBtn = document.getElementById("serial-advert-zerohop-btn");

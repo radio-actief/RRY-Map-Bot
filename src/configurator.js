@@ -89,8 +89,7 @@
   const commandsBlock = document.getElementById("commands-block");
   const copyBtn = document.getElementById("copy-btn");
   const cliShowDefaultsEl = document.getElementById("cli-show-defaults");
-  const serialConnectBtn = document.getElementById("serial-connect-btn");
-  const serialDisconnectBtn = document.getElementById("serial-disconnect-btn");
+  const serialUsbBtn = document.getElementById("serial-usb-btn");
   const serialReadBtn = document.getElementById("serial-read-btn");
   const serialApplyBtn = document.getElementById("serial-apply-btn");
   const serialAdvertZerohopBtn = document.getElementById(
@@ -380,6 +379,47 @@
     return { ok: true };
   }
 
+  function syncSerialUsbToggleButton(connected, busy, supported) {
+    if (!serialUsbBtn) return;
+    const labelEl = serialUsbBtn.querySelector(".serial-usb-btn-label");
+    const connectIcon = serialUsbBtn.querySelector(".serial-btn-icon--connect");
+    const disconnectIcon = serialUsbBtn.querySelector(
+      ".serial-btn-icon--disconnect",
+    );
+    if (connected) {
+      serialUsbBtn.dataset.action = "disconnect";
+      serialUsbBtn.classList.add("serial-btn-secondary");
+      serialUsbBtn.classList.remove("serial-usb-toggle--connect");
+      serialUsbBtn.classList.add("serial-usb-toggle--disconnect");
+      serialUsbBtn.title = "Disconnect the USB serial session";
+      serialUsbBtn.setAttribute("aria-label", "Disconnect USB");
+      if (labelEl) labelEl.textContent = "Disconnect";
+      if (connectIcon) connectIcon.hidden = true;
+      if (disconnectIcon) disconnectIcon.hidden = false;
+    } else {
+      serialUsbBtn.dataset.action = "connect";
+      serialUsbBtn.classList.remove("serial-btn-secondary");
+      serialUsbBtn.classList.add("serial-usb-toggle--connect");
+      serialUsbBtn.classList.remove("serial-usb-toggle--disconnect");
+      serialUsbBtn.title =
+        "Chrome or Edge on HTTPS or localhost; 115200 baud";
+      serialUsbBtn.setAttribute("aria-label", "Connect USB");
+      if (labelEl) labelEl.textContent = "Connect USB";
+      if (connectIcon) connectIcon.hidden = false;
+      if (disconnectIcon) disconnectIcon.hidden = true;
+    }
+    serialUsbBtn.disabled = !supported || busy;
+  }
+
+  function onSerialUsbToggleClick() {
+    if (!serialUsbBtn || serialUsbBtn.disabled) return;
+    if (serialUsbBtn.dataset.action === "disconnect") {
+      disconnectSerialUsb();
+    } else {
+      connectSerialUsb();
+    }
+  }
+
   function updateUsbApplyUi(anchor) {
     const rs = getRepeaterSerial();
     const supported = rs && rs.isSupported();
@@ -389,15 +429,9 @@
     if (serialUnsupportedEl) {
       serialUnsupportedEl.hidden = supported;
     }
-    if (serialConnectBtn) {
-      serialConnectBtn.disabled = !supported || busy;
-    }
-    if (serialDisconnectBtn) {
-      serialDisconnectBtn.disabled =
-        !supported || busy || !(rs && rs.isConnected());
-    }
+    syncSerialUsbToggleButton(connected, busy, supported);
     if (serialReadBtn) {
-      serialReadBtn.disabled = !supported || busy || !(rs && rs.isConnected());
+      serialReadBtn.disabled = !supported || busy || !connected;
     }
     const advertEnabled = supported && !busy && rs && rs.isConnected();
     if (serialAdvertZerohopBtn) {
@@ -465,6 +499,7 @@
       if (serialConsoleInput) {
         serialConsoleInput.focus();
       }
+      promptReadFromRepeater({ afterConnect: true });
     } catch (err) {
       appendSerialLog(
         "Connect failed: " + (err && err.message ? err.message : String(err)),
@@ -736,7 +771,9 @@
     const prefix = anchor ? getEffectivePrefix(anchor) : "";
 
     if (anchor && prefix) {
-      if (name.indexOf(prefix) === 0) {
+      const nameU = name.toUpperCase();
+      const prefixU = prefix.toUpperCase();
+      if (nameU.indexOf(prefixU) === 0) {
         remainder = name.slice(prefix.length);
       } else {
         prefixMismatch = true;
@@ -757,12 +794,273 @@
     return { applied: true, prefixMismatch: prefixMismatch };
   }
 
+  /**
+   * Detect #BEmesh location from a repeater name prefix (BE- / BE-XXX-).
+   * City UN/LOCODE segment preferred over province when both could match (e.g. BRU).
+   */
+  function detectLocationFromDeviceName(deviceName) {
+    const name = String(deviceName || "").trim();
+    if (!name) return null;
+    const nameU = name.toUpperCase();
+    if (nameU.indexOf("BE-") !== 0) return null;
+    if (!CITIES || !CITIES.length) return null;
+
+    for (let i = 0; i < CITIES.length; i++) {
+      const city = CITIES[i];
+      const prefix = buildNamePrefix(
+        {
+          mode: "city",
+          province_code: city.province_code,
+          row: city,
+        },
+        "city",
+      );
+      if (!prefix) continue;
+      if (nameU.indexOf(prefix.toUpperCase()) === 0) {
+        return {
+          choice: {
+            type: "city",
+            city: city,
+            label: city.plaats,
+          },
+          mode: "city",
+          prefix: prefix,
+          locationLabel: city.plaats + " (" + city.city_code + ")",
+          source: "name",
+        };
+      }
+    }
+
+    const provinceCodes = Object.keys(PROVINCE_NAMES);
+    for (let i = 0; i < provinceCodes.length; i++) {
+      const pc = provinceCodes[i];
+      const prefix = buildNamePrefix(
+        { mode: "province", province_code: pc, row: null },
+        "province",
+      );
+      if (!prefix) continue;
+      if (nameU.indexOf(prefix.toUpperCase()) === 0) {
+        return {
+          choice: {
+            type: "province",
+            code: pc,
+            label: PROVINCE_NAMES[pc] || pc,
+          },
+          mode: "province",
+          prefix: prefix,
+          locationLabel: (PROVINCE_NAMES[pc] || pc) + " (" + pc + ")",
+          source: "name",
+        };
+      }
+    }
+
+    if (/^BE-[A-Z0-9]{2,5}-/i.test(name)) {
+      return null;
+    }
+
+    const countryPrefix = buildNamePrefix(
+      { mode: "country", province_code: null, row: null },
+      "country",
+    );
+    if (countryPrefix && nameU.indexOf(countryPrefix.toUpperCase()) === 0) {
+      return {
+        choice: { type: "country", label: "België (be)" },
+        mode: "country",
+        prefix: countryPrefix,
+        locationLabel: "België (be)",
+        source: "name",
+      };
+    }
+    return null;
+  }
+
+  /** Fallback: pick location from region home / allow list when name has no BE- prefix. */
+  function detectLocationFromRegionHints(homeRegion, allowed) {
+    const ordered = [];
+    function pushCode(code) {
+      const c = String(code || "").trim();
+      if (!c || c === "*" || ordered.indexOf(c) >= 0) return;
+      ordered.push(c);
+    }
+    pushCode(homeRegion);
+    (allowed || []).forEach(pushCode);
+    if (!ordered.length) return null;
+
+    for (let i = 0; i < ordered.length; i++) {
+      const city = findCityByCode(ordered[i]);
+      if (city) {
+        return {
+          choice: {
+            type: "city",
+            city: city,
+            label: city.plaats,
+          },
+          mode: "city",
+          prefix: buildNamePrefix(
+            {
+              mode: "city",
+              province_code: city.province_code,
+              row: city,
+            },
+            "city",
+          ),
+          locationLabel: city.plaats + " (" + city.city_code + ")",
+          source: "regions",
+        };
+      }
+    }
+
+    for (let i = 0; i < ordered.length; i++) {
+      const pc = ordered[i];
+      if (!Object.prototype.hasOwnProperty.call(PROVINCE_NAMES, pc)) continue;
+      return {
+        choice: {
+          type: "province",
+          code: pc,
+          label: PROVINCE_NAMES[pc] || pc,
+        },
+        mode: "province",
+        prefix: buildNamePrefix(
+          { mode: "province", province_code: pc, row: null },
+          "province",
+        ),
+        locationLabel: (PROVINCE_NAMES[pc] || pc) + " (" + pc + ")",
+        source: "regions",
+      };
+    }
+
+    if (ordered.indexOf("be") >= 0) {
+      return {
+        choice: { type: "country", label: "België (be)" },
+        mode: "country",
+        prefix: buildNamePrefix(
+          { mode: "country", province_code: null, row: null },
+          "country",
+        ),
+        locationLabel: "België (be)",
+        source: "regions",
+      };
+    }
+    return null;
+  }
+
+  function locationDetectionMatchesAnchor(detection, anchor) {
+    if (!detection || !anchor) return false;
+    if (detection.choice.type === "city" && anchor.mode === "city" && anchor.row) {
+      return anchor.row.city_code === detection.choice.city.city_code;
+    }
+    if (detection.choice.type === "province" && anchor.mode === "province") {
+      return anchor.province_code === detection.choice.code;
+    }
+    if (detection.choice.type === "country" && anchor.mode === "country") {
+      return true;
+    }
+    return false;
+  }
+
+  function applyDetectedLocationFromDevice(detection) {
+    if (!detection || !detection.choice) return getAnchor();
+    if (!locationDetectionMatchesAnchor(detection, getAnchor())) {
+      commitLocationChoice(detection.choice, "keep");
+    }
+    if (detection.mode) {
+      refreshLocationModeOptions(getAnchor());
+      setCurrentLocationMode(detection.mode);
+      syncPrefixField(getAnchor());
+    }
+    return getAnchor();
+  }
+
+  /** Ensure allow/deny rows exist for region codes present on the device but not in the default grids. */
+  function ensureDeviceRegionScopeRows(codes) {
+    if (!policyGridsContainer || !policyCard) return [];
+    const wanted = [];
+    const seen = new Set();
+    (codes || []).forEach(function (code) {
+      const c = String(code || "").trim();
+      if (!c || c === "*" || seen.has(c)) return;
+      seen.add(c);
+      wanted.push(c);
+    });
+    if (!wanted.length) return [];
+
+    const missing = wanted.filter(function (code) {
+      return !policyCard.querySelector(
+        'input.policy-allow[data-code="' + code.replace(/"/g, "") + '"]',
+      );
+    });
+    if (!missing.length) return [];
+
+    let scopesCol = policyGridsContainer.querySelector(
+      ".policy-grids-col--scopes",
+    );
+    if (!scopesCol) {
+      scopesCol = document.createElement("div");
+      scopesCol.className = "policy-grids-col policy-grids-col--scopes";
+      const layout = policyGridsContainer.querySelector(".policy-grids-layout");
+      if (layout) layout.appendChild(scopesCol);
+      else policyGridsContainer.appendChild(scopesCol);
+    }
+
+    let subsection = scopesCol.querySelector(
+      '.policy-subsection[data-policy-scope="device"]',
+    );
+    if (!subsection) {
+      subsection = document.createElement("div");
+      subsection.className = "policy-subsection";
+      subsection.setAttribute("data-policy-scope", "device");
+      subsection.innerHTML =
+        '<div class="policy-subhead"><h3 class="policy-subtitle">Scopes from device</h3></div>' +
+        '<p class="policy-subsection-note">Region codes read from the repeater that are outside the usual neighbour lists for this location.</p>' +
+        '<div class="policy-table-head" role="row">' +
+        '<div class="policy-head-scope" role="columnheader">Scope</div>' +
+        '<div class="policy-head-clear-wrap" role="columnheader"></div>' +
+        '<div class="policy-head-col" role="columnheader"><span class="policy-head-label">Allow</span></div>' +
+        '<div class="policy-head-col" role="columnheader"><span class="policy-head-label">Deny</span></div>' +
+        "</div>";
+      scopesCol.appendChild(subsection);
+    }
+
+    missing.forEach(function (code) {
+      if (
+        subsection.querySelector(
+          'input.policy-allow[data-code="' + code.replace(/"/g, "") + '"]',
+        )
+      ) {
+        return;
+      }
+      const name = expandedNameForRegionCode(code);
+      const label =
+        name !== code
+          ? escapeHtml(name) + " (" + escapeHtml(code) + ")"
+          : escapeHtml(code);
+      subsection.insertAdjacentHTML(
+        "beforeend",
+        policyRow(label, code, { allow: false, deny: false }),
+      );
+    });
+
+    syncScopeMasters(subsection);
+    refreshHomeOverrideSelect();
+    return missing;
+  }
+
   function applyReadRegionsToPolicy(allowed, denied, homeRegion, anchor) {
     if (!policyCard || !anchor) {
-      return { applied: false, reason: "no-location" };
+      return { applied: false, reason: "no-location", missing: [] };
     }
     const allowedSet = new Set(allowed || []);
     const deniedSet = new Set(denied || []);
+    const allCodes = [];
+    allowedSet.forEach(function (c) {
+      allCodes.push(c);
+    });
+    deniedSet.forEach(function (c) {
+      allCodes.push(c);
+    });
+    if (homeRegion) allCodes.push(homeRegion);
+
+    const missing = ensureDeviceRegionScopeRows(allCodes);
 
     policyCard.querySelectorAll("input.policy-allow").forEach(function (el) {
       const code = el.getAttribute("data-code");
@@ -815,7 +1113,7 @@
       sel.disabled = !ov.checked;
     }
 
-    return { applied: true };
+    return { applied: true, missing: missing };
   }
 
   function applyReadResultsToForm(byCmd, anchor) {
@@ -825,6 +1123,7 @@
     const tierFlags = { advanced: false, expert: false };
     let scrollTarget = null;
     let namePrefixMismatch = false;
+    let workingAnchor = anchor || getAnchor();
 
     function mark(label, tier) {
       labels.push(label);
@@ -837,8 +1136,42 @@
     }
 
     const nameValue = takeReadReply(byCmd, "get name", failures);
+    const homeValue = takeReadReply(byCmd, "region home", failures);
+    const allowedValue = takeReadReply(byCmd, "region list allowed", failures);
+    const deniedValue = takeReadReply(byCmd, "region list denied", failures);
+    const homeRegion =
+      homeValue !== undefined ? parseRegionHomeName(homeValue) || homeValue : "";
+    const allowed =
+      allowedValue !== undefined ? parseRegionNameList(allowedValue) : [];
+    const denied =
+      deniedValue !== undefined ? parseRegionNameList(deniedValue) : [];
+
+    const detection =
+      (nameValue !== undefined
+        ? detectLocationFromDeviceName(nameValue)
+        : null) ||
+      (homeValue !== undefined || allowedValue !== undefined
+        ? detectLocationFromRegionHints(homeRegion, allowed)
+        : null);
+
+    if (detection) {
+      workingAnchor = applyDetectedLocationFromDevice(detection);
+      mark("Location", "general");
+      scrollTarget = scrollTarget || "config-identity-block";
+      appendSerialLog(
+        "Detected location from " +
+          (detection.source === "regions"
+            ? "region home / allow list"
+            : "name prefix " + (detection.prefix || "")) +
+          ": " +
+          detection.locationLabel +
+          ".",
+        "is-ok",
+      );
+    }
+
     if (nameValue !== undefined) {
-      const nameResult = applyReadNameToForm(nameValue, anchor);
+      const nameResult = applyReadNameToForm(nameValue, workingAnchor);
       if (nameResult.applied) {
         mark("Name", "general");
         scrollTarget = scrollTarget || "config-identity-block";
@@ -936,25 +1269,23 @@
     }
 
     const pathHashValue = takeReadReply(byCmd, "get path.hash.mode", failures);
-    if (
-      pathHashValue !== undefined &&
-      setSelectIfPresent(settingPathHashModeEl, pathHashValue)
-    ) {
-      mark("Path hash mode", "advanced");
+    if (pathHashValue !== undefined && settingPathHashModeEl) {
+      if (setSelectIfPresent(settingPathHashModeEl, pathHashValue)) {
+        mark("Path hash mode", "advanced");
+      }
     }
 
-    const loopValue = takeReadReply(byCmd, "get loop.detect", failures);
-    if (
-      loopValue !== undefined &&
-      setSelectIfPresent(settingLoopDetectEl, loopValue)
-    ) {
-      mark("Loop detection", "advanced");
+    const loopDetectValue = takeReadReply(byCmd, "get loop.detect", failures);
+    if (loopDetectValue !== undefined && settingLoopDetectEl) {
+      if (setSelectIfPresent(settingLoopDetectEl, loopDetectValue)) {
+        mark("Loop detection", "advanced");
+      }
     }
 
     const txdelayValue = takeReadReply(byCmd, "get txdelay", failures);
     if (txdelayValue !== undefined && settingTxdelayEl) {
       settingTxdelayEl.value = txdelayValue;
-      mark("TX delay", "expert");
+      mark("Tx delay", "expert");
     }
 
     const directTxdelayValue = takeReadReply(
@@ -964,21 +1295,23 @@
     );
     if (directTxdelayValue !== undefined && settingDirectTxdelayEl) {
       settingDirectTxdelayEl.value = directTxdelayValue;
-      mark("Direct TX delay", "expert");
+      mark("Direct tx delay", "expert");
     }
 
     const rxdelayValue = takeReadReply(byCmd, "get rxdelay", failures);
     if (rxdelayValue !== undefined && settingRxdelayEl) {
       settingRxdelayEl.value = rxdelayValue;
-      mark("RX delay", "expert");
+      mark("Rx delay", "expert");
     }
 
-    const rxgainValue = takeReadReply(byCmd, "get radio.rxgain", failures);
-    if (
-      rxgainValue !== undefined &&
-      setSelectIfPresent(settingRadioRxgainEl, rxgainValue)
-    ) {
-      mark("Radio RX gain", "expert");
+    const radioRxgainValue = takeReadReply(byCmd, "get radio.rxgain", failures);
+    if (radioRxgainValue !== undefined && settingRadioRxgainEl) {
+      if (
+        (radioRxgainValue === "on" || radioRxgainValue === "off") &&
+        setSelectIfPresent(settingRadioRxgainEl, radioRxgainValue)
+      ) {
+        mark("Radio RX gain", "expert");
+      }
     }
 
     const intThreshValue = takeReadReply(byCmd, "get int.thresh", failures);
@@ -987,27 +1320,29 @@
       mark("Interference threshold", "expert");
     }
 
-    const agcValue = takeReadReply(byCmd, "get agc.reset.interval", failures);
-    if (agcValue !== undefined && settingAgcResetEl) {
-      settingAgcResetEl.value = agcValue;
-      mark("AGC reset interval", "expert");
+    const agcResetValue = takeReadReply(
+      byCmd,
+      "get agc.reset.interval",
+      failures,
+    );
+    if (agcResetValue !== undefined && settingAgcResetEl) {
+      settingAgcResetEl.value = agcResetValue;
+      mark("AGC reset", "expert");
     }
 
     const multiAcksValue = takeReadReply(byCmd, "get multi.acks", failures);
     if (multiAcksValue !== undefined && settingMultiAcksEl) {
-      const n = parseInt(multiAcksValue, 10);
-      if (Number.isFinite(n)) {
-        setSelectIfPresent(settingMultiAcksEl, n > 0 ? "1" : "0");
+      if (setSelectIfPresent(settingMultiAcksEl, multiAcksValue)) {
         mark("Multi-acks", "expert");
       }
     }
 
+    const api = positionApi();
     const latValue = takeReadReply(byCmd, "get lat", failures);
     const lonValue = takeReadReply(byCmd, "get lon", failures);
     if (latValue !== undefined || lonValue !== undefined) {
       const lat = latValue !== undefined ? parseFloat(latValue) : NaN;
       const lon = lonValue !== undefined ? parseFloat(lonValue) : NaN;
-      const api = positionApi();
       if (api) {
         if (api.hasValidCoords(lat, lon)) {
           api.setCoords(lat, lon, { source: "device" });
@@ -1015,8 +1350,6 @@
           scrollTarget = scrollTarget || "config-identity-block";
         } else if (latValue !== undefined && lonValue !== undefined) {
           api.setCoords(null, null, { source: null });
-          mark("Coordinates", "general");
-          scrollTarget = scrollTarget || "config-identity-block";
         }
       }
     }
@@ -1029,16 +1362,6 @@
         scrollTarget = scrollTarget || "config-identity-block";
       }
     }
-
-    const homeValue = takeReadReply(byCmd, "region home", failures);
-    const allowedValue = takeReadReply(byCmd, "region list allowed", failures);
-    const deniedValue = takeReadReply(byCmd, "region list denied", failures);
-    const homeRegion =
-      homeValue !== undefined ? parseRegionHomeName(homeValue) || homeValue : "";
-    const allowed =
-      allowedValue !== undefined ? parseRegionNameList(allowedValue) : [];
-    const denied =
-      deniedValue !== undefined ? parseRegionNameList(deniedValue) : [];
 
     if (
       homeValue !== undefined ||
@@ -1061,18 +1384,27 @@
           "is-ok",
         );
       }
+      workingAnchor = getAnchor() || workingAnchor;
       const regionResult = applyReadRegionsToPolicy(
         allowed,
         denied,
         homeRegion,
-        anchor,
+        workingAnchor,
       );
       if (regionResult.applied) {
         mark("Region policy", "advanced");
         scrollTarget = scrollTarget || "policy-card";
+        if (regionResult.missing && regionResult.missing.length) {
+          appendSerialLog(
+            "Added device region scope(s) to the form: " +
+              regionResult.missing.join(", ") +
+              ".",
+            "is-ok",
+          );
+        }
       } else if (regionResult.reason === "no-location") {
         appendSerialLog(
-          "Region policy not applied — pick a location above to map allow/deny checkboxes.",
+          "Region policy not applied — name has no BE- location prefix and no matching region home/city; pick a location above to map allow/deny checkboxes.",
           "is-error",
         );
       }
@@ -1090,21 +1422,77 @@
       adminPasswordUnreadable: true,
     };
   }
+  function closeSerialReadConfirmModal() {
+    const modal = document.getElementById("serial-read-confirm-modal");
+    if (modal) modal.hidden = true;
+    document.body.classList.remove("config-confirm-modal-open");
+  }
 
-  async function readFromRepeater() {
+  function promptReadFromRepeater(options) {
+    options = options || {};
     const rs = getRepeaterSerial();
-    if (!rs || !rs.isConnected() || !rs.queryCommands) return;
+    if (!rs || !rs.isConnected() || isSerialBusy()) return;
 
+    const modal = document.getElementById("serial-read-confirm-modal");
+    const hintEl = document.getElementById("serial-read-confirm-hint");
     const anchor = getAnchor();
-    const msg =
-      "Read current settings from the connected repeater?\n\n" +
-      "This updates the form. Admin password cannot be read from the device." +
-      (anchor
-        ? " Region allow/deny lists and home will be applied to the policy for your selected location."
-        : " Choose a location afterward to align region policy with the device.");
-    if (!window.confirm(msg)) {
+    let hint =
+      "This overwrites the form with values from the connected device. Admin password cannot be read from the device.";
+    if (options.afterConnect) {
+      hint =
+        "USB connected. Read settings from the repeater now and overwrite the form? Admin password cannot be read from the device.";
+    }
+    if (anchor) {
+      hint +=
+        " Region allow/deny lists and home will be applied to the policy for your selected location.";
+    } else {
+      hint +=
+        " Choose a location afterward to align region policy with the device.";
+    }
+    if (hintEl) hintEl.textContent = hint;
+    if (!modal) {
+      if (window.confirm(hint)) {
+        performReadFromRepeater();
+      }
       return;
     }
+    modal.hidden = false;
+    document.body.classList.add("config-confirm-modal-open");
+    const confirmBtn = document.getElementById("serial-read-confirm-btn");
+    if (confirmBtn) confirmBtn.focus();
+  }
+
+  function initSerialReadConfirmModal() {
+    const confirmBtn = document.getElementById("serial-read-confirm-btn");
+    const modal = document.getElementById("serial-read-confirm-modal");
+    if (confirmBtn) {
+      confirmBtn.addEventListener("click", function () {
+        closeSerialReadConfirmModal();
+        performReadFromRepeater();
+      });
+    }
+    if (modal) {
+      modal
+        .querySelectorAll("[data-serial-read-confirm-dismiss]")
+        .forEach(function (el) {
+          el.addEventListener("click", closeSerialReadConfirmModal);
+        });
+    }
+    document.addEventListener("keydown", function (e) {
+      if (e.key !== "Escape") return;
+      const m = document.getElementById("serial-read-confirm-modal");
+      if (m && !m.hidden) {
+        closeSerialReadConfirmModal();
+      }
+    });
+  }
+
+  async function performReadFromRepeater() {
+    const rs = getRepeaterSerial();
+    if (!rs || !rs.isConnected() || !rs.queryCommands) return;
+    if (isSerialBusy()) return;
+
+    const anchor = getAnchor();
 
     serialReading = true;
     serialApplyAbort = new AbortController();
@@ -1188,6 +1576,10 @@
       serialApplyAbort = null;
       updateUsbApplyUi(getAnchor());
     }
+  }
+
+  function readFromRepeater() {
+    promptReadFromRepeater({ afterConnect: false });
   }
 
   async function offerRepeaterReboot(rs, appliedLines) {
@@ -1913,6 +2305,106 @@
   const LOOP_DETECT_FORM_DEFAULT = "minimal";
   const PATH_HASH_MODE_FORM_DEFAULT = "1";
   const DUTYCYCLE_FORM_DEFAULT = "10";
+
+  /** #BEmesh recommended settings applied via the confirmation dialog. */
+  const RECOMMENDED_SETTINGS = {
+    radioPresetName: "EU/UK (Narrow)",
+    dutycycle: "10",
+    floodAdvertHours: 47,
+    advertIntervalMinutes: 0,
+    floodMax: 64,
+    floodMaxUnscoped: 3,
+    floodMaxAdvert: 5,
+    pathHashMode: "1",
+    loopDetect: "minimal",
+  };
+
+  function openRecommendedSettingsModal() {
+    const modal = document.getElementById("recommended-settings-modal");
+    if (!modal) return;
+    modal.hidden = false;
+    document.body.classList.add("config-confirm-modal-open");
+    const confirmBtn = document.getElementById(
+      "recommended-settings-confirm-btn",
+    );
+    if (confirmBtn) confirmBtn.focus();
+  }
+
+  function closeRecommendedSettingsModal() {
+    const modal = document.getElementById("recommended-settings-modal");
+    if (!modal) return;
+    modal.hidden = true;
+    document.body.classList.remove("config-confirm-modal-open");
+  }
+
+  function applyRecommendedSettings() {
+    const rec = RECOMMENDED_SETTINGS;
+    const presetIndex = FREQUENCY_PRESETS.findIndex(function (p) {
+      return p.name === rec.radioPresetName;
+    });
+    if (settingRadioPresetEl && presetIndex >= 0) {
+      settingRadioPresetEl.value = String(presetIndex);
+      settingRadioPresetEl.dataset.lastPreset = String(presetIndex);
+    }
+    if (settingDutycycleEl) {
+      settingDutycycleEl.value = rec.dutycycle;
+    }
+    if (settingFloodAdvertIntervalEl) {
+      settingFloodAdvertIntervalEl.value = String(rec.floodAdvertHours);
+    }
+    if (settingAdvertIntervalEl) {
+      settingAdvertIntervalEl.value = String(rec.advertIntervalMinutes);
+    }
+    if (settingFloodMaxEl) {
+      settingFloodMaxEl.value = String(rec.floodMax);
+    }
+    if (settingFloodMaxUnscopedEl) {
+      settingFloodMaxUnscopedEl.value = String(rec.floodMaxUnscoped);
+    }
+    if (settingFloodMaxAdvertEl) {
+      settingFloodMaxAdvertEl.value = String(rec.floodMaxAdvert);
+    }
+    if (settingPathHashModeEl) {
+      settingPathHashModeEl.value = rec.pathHashMode;
+    }
+    if (settingLoopDetectEl) {
+      settingLoopDetectEl.value = rec.loopDetect;
+    }
+    openSettingsTier("settings-tier-general");
+    openSettingsTier("settings-tier-advanced");
+    refreshRadioSettingsUi();
+    refreshConfiguratorOutputs();
+    closeRecommendedSettingsModal();
+    scrollConfiguratorSection("settings-tier-general");
+  }
+
+  function initRecommendedSettingsUi() {
+    const openBtn = document.getElementById("recommended-settings-btn");
+    const confirmBtn = document.getElementById(
+      "recommended-settings-confirm-btn",
+    );
+    const modal = document.getElementById("recommended-settings-modal");
+    if (openBtn) {
+      openBtn.addEventListener("click", openRecommendedSettingsModal);
+    }
+    if (confirmBtn) {
+      confirmBtn.addEventListener("click", applyRecommendedSettings);
+    }
+    if (modal) {
+      modal
+        .querySelectorAll("[data-recommended-settings-dismiss]")
+        .forEach(function (el) {
+          el.addEventListener("click", closeRecommendedSettingsModal);
+        });
+    }
+    document.addEventListener("keydown", function (e) {
+      if (e.key !== "Escape") return;
+      const m = document.getElementById("recommended-settings-modal");
+      if (m && !m.hidden) {
+        closeRecommendedSettingsModal();
+      }
+    });
+  }
 
   function roundToMaxDecimals(value, maxDecimals) {
     const factor = Math.pow(10, maxDecimals);
@@ -3608,7 +4100,7 @@
     refreshConfiguratorOutputs();
   }
 
-  function selectLocation(anchor, label) {
+  function selectLocation(anchor, label, coordMode) {
     if (label != null && input) {
       input.value = label;
     }
@@ -3630,7 +4122,8 @@
     lastHasCoords = hasCoords;
 
     const api = positionApi();
-    if (api && hasCoords) {
+    const mode = coordMode || "seed";
+    if (api && mode === "seed" && hasCoords) {
       api.setCoords(seed.lat, seed.lon, { source: "search" });
     }
 
@@ -3643,25 +4136,205 @@
     refreshConfiguratorOutputs();
   }
 
+  let pendingLocationChoice = null;
+
+  function formatCoordPair(lat, lon) {
+    const api = positionApi();
+    if (api && typeof api.formatCoord === "function") {
+      return api.formatCoord(lat) + ", " + api.formatCoord(lon);
+    }
+    return Number(lat).toFixed(6) + ", " + Number(lon).toFixed(6);
+  }
+
+  function coordsNearlyEqual(a, b) {
+    if (!a || !b) return false;
+    return (
+      Math.abs(Number(a.lat) - Number(b.lat)) < 1e-6 &&
+      Math.abs(Number(a.lon) - Number(b.lon)) < 1e-6
+    );
+  }
+
+  function locationChoiceToAnchor(choice) {
+    if (!choice) return null;
+    if (choice.type === "city" && choice.city) {
+      return {
+        mode: "city",
+        province_code: choice.city.province_code,
+        row: choice.city,
+      };
+    }
+    if (choice.type === "province" && choice.code) {
+      return {
+        mode: "province",
+        province_code: choice.code,
+        row: null,
+      };
+    }
+    if (choice.type === "country") {
+      return { mode: "country", province_code: null, row: null };
+    }
+    return null;
+  }
+
+  function defaultCenterLabel(anchor) {
+    if (anchor && anchor.mode === "city" && anchor.row) {
+      return "City center (" + anchor.row.plaats + ")";
+    }
+    if (anchor && anchor.mode === "province" && anchor.province_code) {
+      return (
+        "Province center (" +
+        (PROVINCE_NAMES[anchor.province_code] || anchor.province_code) +
+        ")"
+      );
+    }
+    return "Belgium center";
+  }
+
+  function commitLocationChoice(choice, coordMode) {
+    if (!choice) return;
+    if (choice.type === "city" && choice.city) {
+      selectionMode = "city";
+      selectedProvinceCode = choice.city.province_code;
+      selectedCity = choice.city;
+    } else if (choice.type === "province" && choice.code) {
+      selectionMode = "province";
+      selectedProvinceCode = choice.code;
+      selectedCity = null;
+    } else if (choice.type === "country") {
+      selectionMode = "country";
+      selectedProvinceCode = null;
+      selectedCity = null;
+    } else {
+      return;
+    }
+    selectLocation(getAnchor(), choice.label, coordMode);
+  }
+
+  function closeLocationCoordsModal() {
+    const modal = document.getElementById("location-coords-modal");
+    if (modal) modal.hidden = true;
+    document.body.classList.remove("config-confirm-modal-open");
+    pendingLocationChoice = null;
+  }
+
+  function openLocationCoordsModal(existing, seed, anchor) {
+    const modal = document.getElementById("location-coords-modal");
+    const currentEl = document.getElementById("location-coords-current");
+    const defaultEl = document.getElementById("location-coords-default");
+    const defaultLabelEl = document.getElementById(
+      "location-coords-default-label",
+    );
+    if (!modal) return;
+    if (currentEl) {
+      currentEl.textContent = formatCoordPair(existing.lat, existing.lon);
+    }
+    if (defaultEl) {
+      defaultEl.textContent = formatCoordPair(seed.lat, seed.lon);
+    }
+    if (defaultLabelEl) {
+      defaultLabelEl.textContent = defaultCenterLabel(anchor);
+    }
+    modal.hidden = false;
+    document.body.classList.add("config-confirm-modal-open");
+    const keepBtn = document.getElementById("location-coords-keep-btn");
+    if (keepBtn) keepBtn.focus();
+  }
+
+  function requestSelectLocation(choice) {
+    const anchor = locationChoiceToAnchor(choice);
+    if (!anchor) return;
+    const seed = neighborSeedRow(anchor);
+    const hasSeed =
+      seed &&
+      seed.lat != null &&
+      seed.lon != null &&
+      Number.isFinite(seed.lat) &&
+      Number.isFinite(seed.lon);
+    const existing = getFormCoords();
+
+    if (
+      existing.valid &&
+      hasSeed &&
+      !coordsNearlyEqual(
+        { lat: existing.lat, lon: existing.lon },
+        { lat: seed.lat, lon: seed.lon },
+      )
+    ) {
+      pendingLocationChoice = { choice: choice, seed: seed, anchor: anchor };
+      openLocationCoordsModal(existing, seed, anchor);
+      return;
+    }
+
+    commitLocationChoice(choice, hasSeed ? "seed" : "keep");
+  }
+
+  function initLocationCoordsModal() {
+    const keepBtn = document.getElementById("location-coords-keep-btn");
+    const useDefaultBtn = document.getElementById(
+      "location-coords-use-default-btn",
+    );
+    const modal = document.getElementById("location-coords-modal");
+    if (keepBtn) {
+      keepBtn.addEventListener("click", function () {
+        const pending = pendingLocationChoice;
+        if (!pending || !pending.choice) return;
+        const choice = pending.choice;
+        pendingLocationChoice = null;
+        const modal = document.getElementById("location-coords-modal");
+        if (modal) modal.hidden = true;
+        document.body.classList.remove("config-confirm-modal-open");
+        commitLocationChoice(choice, "keep");
+      });
+    }
+    if (useDefaultBtn) {
+      useDefaultBtn.addEventListener("click", function () {
+        const pending = pendingLocationChoice;
+        if (!pending || !pending.choice) return;
+        const choice = pending.choice;
+        pendingLocationChoice = null;
+        const modal = document.getElementById("location-coords-modal");
+        if (modal) modal.hidden = true;
+        document.body.classList.remove("config-confirm-modal-open");
+        commitLocationChoice(choice, "seed");
+      });
+    }
+    if (modal) {
+      modal
+        .querySelectorAll("[data-location-coords-dismiss]")
+        .forEach(function (el) {
+          el.addEventListener("click", closeLocationCoordsModal);
+        });
+    }
+    document.addEventListener("keydown", function (e) {
+      if (e.key !== "Escape") return;
+      const m = document.getElementById("location-coords-modal");
+      if (m && !m.hidden) {
+        closeLocationCoordsModal();
+      }
+    });
+  }
+
   function selectProvince(pc) {
-    selectionMode = "province";
-    selectedProvinceCode = pc;
-    selectedCity = null;
-    selectLocation(getAnchor(), PROVINCE_NAMES[pc] || pc);
+    requestSelectLocation({
+      type: "province",
+      code: pc,
+      label: PROVINCE_NAMES[pc] || pc,
+    });
   }
 
   function selectCountryBe() {
-    selectionMode = "country";
-    selectedProvinceCode = null;
-    selectedCity = null;
-    selectLocation(getAnchor(), "België (be)");
+    requestSelectLocation({
+      type: "country",
+      label: "België (be)",
+    });
   }
 
   function selectCity(city) {
-    selectionMode = "city";
-    selectedProvinceCode = city.province_code;
-    selectedCity = city;
-    selectLocation(getAnchor(), city.plaats);
+    requestSelectLocation({
+      type: "city",
+      city: city,
+      label: city.plaats,
+    });
   }
 
   input.addEventListener("input", () => {
@@ -3725,11 +4398,8 @@
     cliShowDefaultsEl.addEventListener("change", refreshConfiguratorOutputs);
   }
 
-  if (serialConnectBtn) {
-    serialConnectBtn.addEventListener("click", connectSerialUsb);
-  }
-  if (serialDisconnectBtn) {
-    serialDisconnectBtn.addEventListener("click", disconnectSerialUsb);
+  if (serialUsbBtn) {
+    serialUsbBtn.addEventListener("click", onSerialUsbToggleClick);
   }
   if (serialReadBtn) {
     serialReadBtn.addEventListener("click", readFromRepeater);
@@ -3824,6 +4494,9 @@
 
   initRadioPresetSelect();
   initSerialShowCommandLogToggle();
+  initRecommendedSettingsUi();
+  initLocationCoordsModal();
+  initSerialReadConfirmModal();
 
   if (App && App.position && App.position.init) {
     App.position.init(function () {

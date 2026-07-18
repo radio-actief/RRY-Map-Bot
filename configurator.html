@@ -70,19 +70,34 @@
           <div class="config-header-serial-toolbar">
             <button
               type="button"
-              class="copy-btn"
-              id="serial-connect-btn"
+              class="copy-btn serial-usb-toggle serial-usb-toggle--connect"
+              id="serial-usb-btn"
+              data-action="connect"
               title="Chrome or Edge on HTTPS or localhost; 115200 baud"
+              aria-label="Connect USB"
             >
-              Connect USB
-            </button>
-            <button
-              type="button"
-              class="copy-btn serial-btn-secondary"
-              id="serial-disconnect-btn"
-              disabled
-            >
-              Disconnect
+              <svg
+                class="serial-btn-icon serial-btn-icon--connect"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                aria-hidden="true"
+              >
+                <path
+                  d="M15 7v4h1v2h-3V7h2m-4 0v6H8v-2h1V7h2m5-4H8c-1.1 0-2 .9-2 2v2H4v6h2v6c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"
+                />
+              </svg>
+              <svg
+                class="serial-btn-icon serial-btn-icon--disconnect"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                aria-hidden="true"
+                hidden
+              >
+                <path
+                  d="M15.5 7v4h1v2h-3.17l2 2H17c.55 0 1-.45 1-1V5c0-1.1-.9-2-2-2h-3.17l2 2H15.5zM2.81 2.81L1.39 4.22 6.17 9H4v2h2v6c0 1.1.9 2 2 2h6.17l3.61 3.61 1.41-1.41L2.81 2.81zM8.17 11l2 2H8v-2h.17zm1.66 6l2-2H13.5v2H9.83z"
+                />
+              </svg>
+              <span class="serial-usb-btn-label">Connect USB</span>
             </button>
             <button
               type="button"
@@ -91,7 +106,15 @@
               disabled
               title="Load name, settings, and region policy from the device (admin password not readable)"
             >
-              Read from repeater
+              <svg
+                class="serial-btn-icon"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                aria-hidden="true"
+              >
+                <path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z" />
+              </svg>
+              <span>Read from repeater</span>
             </button>
             <span
               class="serial-status"
@@ -112,9 +135,19 @@
           id="general-card"
           aria-labelledby="configuration-heading"
         >
-          <h2 id="configuration-heading" class="config-section-title">
-            Configuration
-          </h2>
+          <div class="config-section-head">
+            <h2 id="configuration-heading" class="config-section-title">
+              Configuration
+            </h2>
+            <button
+              type="button"
+              class="copy-btn serial-btn-secondary"
+              id="recommended-settings-btn"
+              title="Fill the form with #BEmesh recommended radio and flood settings"
+            >
+              Apply recommended settings
+            </button>
+          </div>
 
           <div class="config-identity-block" id="config-identity-block">
             <h3 class="config-subsection-title">Location &amp; name</h3>
@@ -894,6 +927,218 @@
           </div>
         </footer>
       </main>
+    </div>
+
+    <div
+      id="recommended-settings-modal"
+      class="config-confirm-modal"
+      hidden
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="recommended-settings-modal-title"
+    >
+      <div
+        class="config-confirm-modal-backdrop"
+        data-recommended-settings-dismiss
+      ></div>
+      <div class="config-confirm-modal-panel">
+        <div class="config-confirm-modal-header">
+          <h2
+            id="recommended-settings-modal-title"
+            class="config-confirm-modal-title"
+          >
+            Apply recommended settings?
+          </h2>
+          <button
+            type="button"
+            class="config-confirm-modal-close"
+            id="recommended-settings-close-btn"
+            aria-label="Close"
+            data-recommended-settings-dismiss
+          >
+            ×
+          </button>
+        </div>
+        <p class="config-confirm-modal-hint">
+          This updates the form fields below. It does not write to the repeater
+          until you use Apply configuration.
+        </p>
+        <ul class="config-confirm-modal-list" id="recommended-settings-list">
+          <li>
+            <span>Radio preset</span>
+            <strong>EU/UK (Narrow)</strong>
+          </li>
+          <li>
+            <span>Duty cycle</span>
+            <strong>10%</strong>
+          </li>
+          <li>
+            <span>Flood advert interval</span>
+            <strong>47 h</strong>
+          </li>
+          <li>
+            <span>Zero-hop advert interval</span>
+            <strong>0 min (disabled)</strong>
+          </li>
+          <li>
+            <span>Flood max hops (all)</span>
+            <strong>64</strong>
+          </li>
+          <li>
+            <span>Flood max unscoped hops</span>
+            <strong>3</strong>
+          </li>
+          <li>
+            <span>Flood max advert hops</span>
+            <strong>5</strong>
+          </li>
+          <li>
+            <span>Path hash mode</span>
+            <strong>2-byte (32 hops)</strong>
+          </li>
+          <li>
+            <span>Loop detection</span>
+            <strong>minimal</strong>
+          </li>
+        </ul>
+        <div class="config-confirm-modal-actions">
+          <button
+            type="button"
+            class="copy-btn serial-btn-secondary"
+            data-recommended-settings-dismiss
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            class="copy-btn serial-btn-apply"
+            id="recommended-settings-confirm-btn"
+          >
+            Apply to form
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div
+      id="serial-read-confirm-modal"
+      class="config-confirm-modal"
+      hidden
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="serial-read-confirm-modal-title"
+    >
+      <div
+        class="config-confirm-modal-backdrop"
+        data-serial-read-confirm-dismiss
+      ></div>
+      <div class="config-confirm-modal-panel">
+        <div class="config-confirm-modal-header">
+          <h2
+            id="serial-read-confirm-modal-title"
+            class="config-confirm-modal-title"
+          >
+            Read settings from repeater?
+          </h2>
+          <button
+            type="button"
+            class="config-confirm-modal-close"
+            aria-label="Close"
+            data-serial-read-confirm-dismiss
+          >
+            ×
+          </button>
+        </div>
+        <p class="config-confirm-modal-hint" id="serial-read-confirm-hint">
+          This overwrites the form with values from the connected device. Admin
+          password cannot be read from the device.
+        </p>
+        <div class="config-confirm-modal-actions">
+          <button
+            type="button"
+            class="copy-btn serial-btn-secondary"
+            data-serial-read-confirm-dismiss
+          >
+            Skip
+          </button>
+          <button
+            type="button"
+            class="copy-btn serial-btn-apply"
+            id="serial-read-confirm-btn"
+          >
+            Read and overwrite form
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div
+      id="location-coords-modal"
+      class="config-confirm-modal"
+      hidden
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="location-coords-modal-title"
+    >
+      <div
+        class="config-confirm-modal-backdrop"
+        data-location-coords-dismiss
+      ></div>
+      <div class="config-confirm-modal-panel">
+        <div class="config-confirm-modal-header">
+          <h2
+            id="location-coords-modal-title"
+            class="config-confirm-modal-title"
+          >
+            Keep existing coordinates?
+          </h2>
+          <button
+            type="button"
+            class="config-confirm-modal-close"
+            aria-label="Close"
+            data-location-coords-dismiss
+          >
+            ×
+          </button>
+        </div>
+        <p class="config-confirm-modal-hint">
+          You already have coordinates set. Choose whether to keep them or use
+          the default center for the new location.
+        </p>
+        <ul class="config-confirm-modal-list">
+          <li>
+            <span>Current coordinates</span>
+            <strong id="location-coords-current">—</strong>
+          </li>
+          <li>
+            <span id="location-coords-default-label">Default center</span>
+            <strong id="location-coords-default">—</strong>
+          </li>
+        </ul>
+        <div class="config-confirm-modal-actions config-confirm-modal-actions--stack">
+          <button
+            type="button"
+            class="copy-btn serial-btn-apply"
+            id="location-coords-keep-btn"
+          >
+            Keep current coordinates
+          </button>
+          <button
+            type="button"
+            class="copy-btn serial-btn-secondary"
+            id="location-coords-use-default-btn"
+          >
+            Use default center
+          </button>
+          <button
+            type="button"
+            class="copy-btn serial-btn-secondary"
+            data-location-coords-dismiss
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
     </div>
 
     <div

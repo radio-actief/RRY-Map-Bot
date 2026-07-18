@@ -17,6 +17,150 @@
   color: var(--cfg-text);
 }
 
+.config-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 0.75rem;
+  margin-bottom: 0.65rem;
+}
+
+.config-section-head .config-section-title {
+  margin-bottom: 0;
+}
+
+.config-section-head .copy-btn {
+  flex: 0 0 auto;
+}
+
+body.config-confirm-modal-open {
+  overflow: hidden;
+}
+
+.config-confirm-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem;
+}
+
+.config-confirm-modal[hidden] {
+  display: none !important;
+}
+
+.config-confirm-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(8, 12, 18, 0.62);
+}
+
+.config-confirm-modal-panel {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  width: min(440px, 100%);
+  max-height: calc(100vh - 1.5rem);
+  overflow: auto;
+  background: var(--cfg-surface, #fff);
+  border: 1px solid var(--cfg-border);
+  border-radius: 0.5rem;
+  padding: 0.85rem 1rem 1rem;
+}
+
+.config-confirm-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.config-confirm-modal-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--cfg-text);
+}
+
+.config-confirm-modal-close {
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.15rem 0.35rem;
+  border-radius: 0.25rem;
+}
+
+.config-confirm-modal-close:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.config-confirm-modal-hint {
+  margin: 0 0 0.65rem;
+  font-size: 0.78rem;
+  color: var(--cfg-text-muted, #6b7280);
+}
+
+.config-confirm-modal-list {
+  list-style: none;
+  margin: 0 0 0.85rem;
+  padding: 0;
+  border: 1px solid var(--cfg-border);
+  border-radius: 0.35rem;
+  overflow: hidden;
+}
+
+.config-confirm-modal-list li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.45rem 0.65rem;
+  font-size: 0.82rem;
+  border-bottom: 1px solid var(--cfg-border);
+}
+
+.config-confirm-modal-list li:last-child {
+  border-bottom: none;
+}
+
+.config-confirm-modal-list li span {
+  color: var(--cfg-text-muted, #6b7280);
+}
+
+.config-confirm-modal-list li strong {
+  font-weight: 600;
+  text-align: right;
+  color: var(--cfg-text);
+}
+
+.config-confirm-modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.4rem;
+}
+
+.config-confirm-modal-actions--stack {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.config-confirm-modal-actions--stack .copy-btn {
+  width: 100%;
+  white-space: normal;
+  height: auto;
+  min-height: 2.15rem;
+  padding: 0.45rem 0.65rem;
+}
+
 .config-subsection-title {
   margin: 0 0 0.45rem;
   font-size: 0.72rem;
@@ -254,6 +398,22 @@ body.position-map-modal-open {
 
 .config-header .config-header-serial .copy-btn {
   margin-top: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.config-header .config-header-serial .serial-btn-icon {
+  width: 1.05rem;
+  height: 1.05rem;
+  flex: 0 0 auto;
+  display: block;
+}
+
+.config-header .config-header-serial .serial-usb-toggle--disconnect {
+  background: var(--cfg-secondary, rgba(0, 0, 0, 0.04));
+  color: var(--cfg-text-muted, #6b7280);
+  border: 1px solid var(--cfg-border, rgba(0, 0, 0, 0.12));
 }
 
 /* Policy + deploy: full-width stack (override side-by-side row) */
@@ -694,6 +854,7 @@ code.config-naming-preview-advert {
 .config-body .config-main .copy-btn,
 .config-body .config-main .policy-global-btn,
 .config-body .position-map-modal .copy-btn,
+.config-body .config-confirm-modal .copy-btn,
 .config-body a.config-footer-map-link {
   margin-top: 0;
   height: 2.15rem;
@@ -718,6 +879,7 @@ code.config-naming-preview-advert {
 
 .config-body .config-main .copy-btn:hover,
 .config-body .position-map-modal .copy-btn:hover,
+.config-body .config-confirm-modal .copy-btn:hover,
 .config-body a.config-footer-map-link:hover {
   transform: none;
   box-shadow: none;
@@ -727,7 +889,8 @@ code.config-naming-preview-advert {
 }
 
 .config-body .config-main .copy-btn.copied,
-.config-body .position-map-modal .copy-btn.copied {
+.config-body .position-map-modal .copy-btn.copied,
+.config-body .config-confirm-modal .copy-btn.copied {
   background: rgba(21, 128, 61, 0.08);
 }
 
@@ -870,7 +1033,8 @@ code.config-naming-preview-advert {
 }
 
 .config-body .config-main .copy-btn.serial-btn-secondary:hover,
-.config-body .position-map-modal .copy-btn.serial-btn-secondary:hover {
+.config-body .position-map-modal .copy-btn.serial-btn-secondary:hover,
+.config-body .config-confirm-modal .copy-btn.serial-btn-secondary:hover {
   background: var(--cfg-surface-hover, var(--cfg-secondary));
   color: var(--cfg-text);
   border-color: var(--cfg-border);
@@ -883,7 +1047,8 @@ code.config-naming-preview-advert {
 }
 
 .config-body .config-main .copy-btn.serial-btn-apply:hover,
-.config-body .position-map-modal .copy-btn.serial-btn-apply:hover {
+.config-body .position-map-modal .copy-btn.serial-btn-apply:hover,
+.config-body .config-confirm-modal .copy-btn.serial-btn-apply:hover {
   background: #0f6e56;
   color: #fff;
   border-color: #0f6e56;

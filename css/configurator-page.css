@@ -1777,11 +1777,24 @@ body.position-map-modal-open {
   margin: 0 0 0.35rem;
 }
 
+/* Each device-action group sits on its own line (connection / deploy / form). */
 .config-header-serial-toolbar {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.5rem;
+}
+
+.config-action-group {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.32rem;
+}
+
+.config-action-group + .config-action-group {
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--cfg-border, rgba(0, 0, 0, 0.12));
 }
 
 .config-header .config-header-serial .copy-btn {
@@ -2337,9 +2350,18 @@ code.config-naming-preview-advert {
 
 .config-form-field > span[title],
 .config-settings-tier-summary[title],
+.config-subsection-title[title],
+.config-section-title[title],
+.device-info-item dt[title],
 .policy-master[title],
+.policy-home-override-label[title],
+.policy-home-override-hint[title],
+.policy-home-override-select-label[title],
+.policy-row-label[title],
+.policy-head-label[title],
 .serial-show-command-log[title],
-.config-cli-show-defaults[title] {
+.config-cli-show-defaults[title],
+.search-input[title] {
   cursor: help;
 }
 
@@ -2470,14 +2492,22 @@ code.config-naming-preview-advert {
   color: #9a6700;
 }
 
+/* Terminal-style console: log + inline prompt input share one dark surface. */
+.serial-terminal {
+  border: 1px solid var(--cfg-border);
+  border-radius: var(--cfg-radius-sm);
+  background: #1a1d21;
+  overflow: hidden;
+}
+
 .serial-apply-log {
   margin: 0;
   max-height: 14rem;
   overflow: auto;
-  padding: 0.55rem 0.65rem;
-  border-radius: var(--cfg-radius-sm);
-  border: 1px solid var(--cfg-border);
-  background: #1a1d21;
+  padding: 0.55rem 0.7rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   color: #e8eaed;
   font-family: ui-monospace, "Consolas", "Monaco", monospace;
   font-size: 0.78rem;
@@ -2498,36 +2528,43 @@ code.config-naming-preview-advert {
   color: #9aa0a6;
 }
 
-.serial-console-form {
-  margin-top: 0.35rem;
-}
-
-.serial-console-label {
-  display: block;
-  margin-bottom: 0.3rem;
-  font-size: 0.82rem;
-  font-weight: 700;
-  color: var(--cfg-text);
-}
-
-.serial-console-row {
+/* Inline prompt row at the bottom of the terminal. */
+.serial-terminal-input-row {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 0.32rem;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0.35rem 0.6rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: #16191d;
+}
+
+.serial-terminal-prompt {
+  flex: 0 0 auto;
+  color: var(--cfg-accent, #d4a017);
+  font-family: ui-monospace, "Consolas", "Monaco", monospace;
+  font-weight: 700;
+  line-height: 1;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .serial-console-input {
-  flex: 1 1 12rem;
-  height: 2.15rem;
+  flex: 1 1 8rem;
+  height: 1.9rem;
   min-height: 0;
-  padding: 0 0.55rem;
-  border: 1px solid var(--cfg-border);
-  border-radius: var(--cfg-radius-sm);
-  background: #1a1d21;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   color: #e8eaed;
+  caret-color: var(--cfg-accent, #d4a017);
   font-family: ui-monospace, "Consolas", "Monaco", monospace;
   font-size: 0.82rem;
+}
+
+.serial-console-input::placeholder {
+  color: #6b7178;
 }
 
 .serial-console-input:disabled {
@@ -2535,6 +2572,139 @@ code.config-naming-preview-advert {
 }
 
 .serial-console-input:focus {
-  outline: 2px solid #0f6e56;
-  outline-offset: 1px;
+  outline: none;
+}
+
+/* Compact icon buttons inside the terminal row. */
+.serial-terminal-input-row .serial-console-btn {
+  flex: 0 0 auto;
+  gap: 0.3rem;
+}
+
+/* Command-preview actions: Apply + Copy side by side. */
+.cli-preview-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.6rem;
+}
+
+/* Inactive-feature note beside the Home override toggle. */
+.policy-home-override-inactive-note {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--cfg-text-muted, #6b7280);
+  font-style: italic;
+  padding: 0.1rem 0.4rem;
+  border: 1px dashed var(--cfg-border, rgba(0, 0, 0, 0.2));
+  border-radius: 999px;
+}
+
+/* Functional settings groups (Access / Radio / Advertising / Owner info). */
+.config-settings-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  margin-top: 0.5rem;
+}
+
+.config-subsection + .config-subsection {
+  padding-top: 1rem;
+  border-top: 1px solid var(--cfg-border, rgba(0, 0, 0, 0.08));
+}
+
+.config-subsection > .config-subsection-title {
+  margin-top: 0;
+  margin-bottom: 0.6rem;
+}
+
+/* ---------------------------------------------------------------------------
+   Device tools card (info, identity, backup, maintenance)
+   --------------------------------------------------------------------------- */
+.device-info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.6rem 0.9rem;
+  margin: 0 0 0.9rem;
+}
+
+.device-info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.device-info-item--wide {
+  grid-column: 1 / -1;
+}
+
+.device-info-item dt {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--cfg-text-muted, #6b7280);
+}
+
+.device-info-item dd {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--cfg-text, #1a1917);
+  word-break: break-word;
+}
+
+.device-info-mono {
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+}
+
+.device-tools-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0 0 1rem;
+}
+
+.device-identity-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.5rem 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.device-identity-row .config-form-field {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+.device-identity-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.device-danger-title {
+  color: var(--app-error, #b91c1c);
+}
+
+.device-danger-zone {
+  padding: 0.75rem;
+  border: 1px solid rgba(185, 28, 28, 0.28);
+  border-radius: var(--cfg-radius-sm, 8px);
+  background: rgba(185, 28, 28, 0.05);
+}
+
+.config-body .copy-btn.serial-btn-danger {
+  color: #fff;
+  background: var(--app-error, #b91c1c);
+  border-color: var(--app-error, #b91c1c);
+}
+.config-body .copy-btn.serial-btn-danger:hover:not(:disabled) {
+  background: #a11818;
+  border-color: #a11818;
+}
+.config-body .copy-btn.serial-btn-danger:disabled {
+  opacity: 0.55;
 }

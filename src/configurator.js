@@ -86,6 +86,7 @@
   const serialUsbBtn = document.getElementById("serial-usb-btn");
   const serialReadBtn = document.getElementById("serial-read-btn");
   const serialApplyBtn = document.getElementById("serial-apply-btn");
+  const serialApplyBtn2 = document.getElementById("serial-apply-btn-2");
   const serialAdvertZerohopBtn = document.getElementById(
     "serial-advert-zerohop-btn",
   );
@@ -159,7 +160,28 @@
   const settingRadioSfEl = document.getElementById("setting-radio-sf");
   const settingRadioBwEl = document.getElementById("setting-radio-bw");
   const settingRadioCrEl = document.getElementById("setting-radio-cr");
+  const settingRadioTxpowerEl = document.getElementById("setting-radio-txpower");
   const settingRadioErrorEl = document.getElementById("setting-radio-error");
+  const deviceInfoVersionEl = document.getElementById("device-info-version");
+  const deviceInfoRoleEl = document.getElementById("device-info-role");
+  const deviceInfoPubkeyEl = document.getElementById("device-info-pubkey");
+  const deviceInfoClockEl = document.getElementById("device-info-clock");
+  const deviceSyncClockBtn = document.getElementById("device-sync-clock-btn");
+  const deviceCopyPubkeyBtn = document.getElementById("device-copy-pubkey-btn");
+  const devicePrvkeyEl = document.getElementById("device-prvkey");
+  const devicePrvkeyRevealBtn = document.getElementById(
+    "device-prvkey-reveal-btn",
+  );
+  const devicePrvkeyCopyBtn = document.getElementById("device-prvkey-copy-btn");
+  const deviceVanityBtn = document.getElementById("device-vanity-btn");
+  const deviceRebootBtn = document.getElementById("device-reboot-btn");
+  const deviceOtaBtn = document.getElementById("device-ota-btn");
+  const deviceFactoryResetBtn = document.getElementById(
+    "device-factory-reset-btn",
+  );
+  const configExportBtn = document.getElementById("config-export-btn");
+  const configImportBtn = document.getElementById("config-import-btn");
+  const configImportFileEl = document.getElementById("config-import-file");
   const settingLatEl = document.getElementById("setting-lat");
   const settingLonEl = document.getElementById("setting-lon");
   const settingAdvertLocEl = document.getElementById("setting-advert-loc");
@@ -266,6 +288,7 @@
     "get direct.txdelay",
     "get rxdelay",
     "get radio.rxgain",
+    "get tx",
     "get int.thresh",
     "get agc.reset.interval",
     "get multi.acks",
@@ -275,6 +298,10 @@
     "region home",
     "region list allowed",
     "region list denied",
+    "ver",
+    "get role",
+    "get public.key",
+    "clock",
   ];
 
   const NAME_POWER_EMOJI_VALUES = ["🌞", "⚡", "🔋", "👀"];
@@ -313,11 +340,9 @@
   }
 
   function expandSettingsTiersAfterRead(flags) {
-    if (flags && flags.advanced) {
+    // Expert fields were merged into the Advanced group; open it for either.
+    if (flags && (flags.advanced || flags.expert)) {
       openSettingsTier("settings-tier-advanced");
-    }
-    if (flags && flags.expert) {
-      openSettingsTier("settings-tier-expert");
     }
   }
 
@@ -443,6 +468,16 @@
     if (serialConsoleClearBtn) {
       serialConsoleClearBtn.disabled = !connected;
     }
+    // Device-tools maintenance actions require an active connection.
+    const deviceActionEnabled = supported && connected && !busy;
+    [
+      deviceSyncClockBtn,
+      deviceRebootBtn,
+      deviceOtaBtn,
+      deviceFactoryResetBtn,
+    ].forEach(function (btn) {
+      if (btn) btn.disabled = !deviceActionEnabled;
+    });
     if (serialApplyBtn) {
       const applyLines = buildConfiguratorCommandLines(anchor, {
         enforceFirmwareDefaults: true,
@@ -464,6 +499,15 @@
         serialApplyBtn.title = "Choose a location for region scopes.";
       } else {
         serialApplyBtn.title = "";
+      }
+    }
+    // Mirror the primary Apply button's state onto the preview-area duplicate.
+    if (serialApplyBtn2) {
+      if (serialApplyBtn) {
+        serialApplyBtn2.disabled = serialApplyBtn.disabled;
+        serialApplyBtn2.title = serialApplyBtn.title;
+      } else {
+        serialApplyBtn2.disabled = true;
       }
     }
     if (serialReading) {
@@ -491,7 +535,7 @@
       }
       updateUsbApplyUi(getAnchor());
       if (serialConsoleInput) {
-        serialConsoleInput.focus();
+        serialConsoleInput.focus({ preventScroll: true });
       }
       promptReadFromRepeater({ afterConnect: true });
     } catch (err) {
@@ -588,7 +632,7 @@
       serialConsoleSending = false;
       updateUsbApplyUi(getAnchor());
       if (serialConsoleInput) {
-        serialConsoleInput.focus();
+        serialConsoleInput.focus({ preventScroll: true });
       }
     }
   }
@@ -1308,6 +1352,30 @@
       }
     }
 
+    const txPowerValue = takeReadReply(byCmd, "get tx", failures);
+    if (txPowerValue !== undefined && settingRadioTxpowerEl) {
+      settingRadioTxpowerEl.value = txPowerValue;
+      mark("TX power", "expert");
+    }
+
+    // Read-only device info (display only; not part of the config form).
+    const verValue = takeReadReply(byCmd, "ver", failures);
+    if (verValue !== undefined && deviceInfoVersionEl) {
+      deviceInfoVersionEl.textContent = verValue || "—";
+    }
+    const roleValue = takeReadReply(byCmd, "get role", failures);
+    if (roleValue !== undefined && deviceInfoRoleEl) {
+      deviceInfoRoleEl.textContent = roleValue || "—";
+    }
+    const pubkeyValue = takeReadReply(byCmd, "get public.key", failures);
+    if (pubkeyValue !== undefined && deviceInfoPubkeyEl) {
+      deviceInfoPubkeyEl.textContent = pubkeyValue || "—";
+    }
+    const clockValue = takeReadReply(byCmd, "clock", failures);
+    if (clockValue !== undefined && deviceInfoClockEl) {
+      deviceInfoClockEl.textContent = clockValue || "—";
+    }
+
     const intThreshValue = takeReadReply(byCmd, "get int.thresh", failures);
     if (intThreshValue !== undefined && settingIntThreshEl) {
       settingIntThreshEl.value = intThreshValue;
@@ -1453,7 +1521,7 @@
     modal.hidden = false;
     document.body.classList.add("config-confirm-modal-open");
     const confirmBtn = document.getElementById("serial-read-confirm-btn");
-    if (confirmBtn) confirmBtn.focus();
+    if (confirmBtn) confirmBtn.focus({ preventScroll: true });
   }
 
   function initSerialReadConfirmModal() {
@@ -2321,7 +2389,7 @@
     const confirmBtn = document.getElementById(
       "recommended-settings-confirm-btn",
     );
-    if (confirmBtn) confirmBtn.focus();
+    if (confirmBtn) confirmBtn.focus({ preventScroll: true });
   }
 
   function closeRecommendedSettingsModal() {
@@ -2609,11 +2677,23 @@
         p.bw +
         " kHz / CR" +
         p.cr;
+      opt.title =
+        "LoRa " +
+        p.freq +
+        " MHz, SF" +
+        p.sf +
+        ", BW " +
+        p.bw +
+        " kHz, CR" +
+        p.cr +
+        " — applied via set radio (reboot required)";
       settingRadioPresetEl.appendChild(opt);
     }
     const customOpt = document.createElement("option");
     customOpt.value = "custom";
     customOpt.textContent = "Custom";
+    customOpt.title =
+      "Enter frequency, SF, BW, CR, and TX power yourself (set radio / set tx)";
     settingRadioPresetEl.appendChild(customOpt);
     settingRadioPresetEl.value = String(DEFAULT_RADIO_PRESET_INDEX);
     settingRadioPresetEl.dataset.lastPreset = String(
@@ -2813,6 +2893,17 @@
       : fw.radioRxgain;
     if (showDefaults || radioRxgain !== fw.radioRxgain) {
       lines.push("set radio.rxgain " + radioRxgain);
+    }
+
+    // TX power (dBm): CLI `set tx <n>`. Emit when the user entered a value.
+    const txPowerRaw = settingRadioTxpowerEl
+      ? String(settingRadioTxpowerEl.value).trim()
+      : "";
+    if (txPowerRaw !== "") {
+      const txPowerNum = parseInt(txPowerRaw, 10);
+      if (Number.isFinite(txPowerNum)) {
+        lines.push("set tx " + txPowerNum);
+      }
     }
 
     const intThresh = parseIntThresh(settingIntThreshEl, fw.intThresh);
@@ -3157,7 +3248,9 @@
     const esc = escapeHtml(code);
     return (
       '<div class="policy-row">' +
-      '<span class="policy-row-label">' +
+      '<span class="policy-row-label" title="Region transport code ' +
+      esc +
+      ' — Allow/Deny maps to region allowf / denyf">' +
       labelHtml +
       '</span><div class="policy-row-clear-slot" aria-hidden="true"></div><div class="policy-cell policy-cell--allow"><input type="checkbox" class="policy-allow" data-code="' +
       esc +
@@ -3167,7 +3260,11 @@
       allowChk +
       ' aria-label="Allow flood for ' +
       esc +
-      '"></div><div class="policy-cell policy-cell--deny"><input type="checkbox" class="policy-deny" data-code="' +
+      '" title="Allow flood for ' +
+      esc +
+      ' (CLI: region allowf ' +
+      esc +
+      ')"></div><div class="policy-cell policy-cell--deny"><input type="checkbox" class="policy-deny" data-code="' +
       esc +
       '" id="' +
       idBase +
@@ -3175,7 +3272,11 @@
       denyChk +
       ' aria-label="Deny flood for ' +
       esc +
-      '"></div></div>'
+      '" title="Deny flood for ' +
+      esc +
+      ' (CLI: region denyf ' +
+      esc +
+      ')"></div></div>'
     );
   }
 
@@ -3514,19 +3615,19 @@
         '<div class="policy-head-clear-wrap" role="columnheader">' +
         '<button type="button" class="policy-head-clear-link" data-bulk="clear" aria-label="' +
         escapeHtml(title + " — clear all checkboxes in this scope") +
-        '" title="Clear Allow and Deny in this scope">Clear scope</button>' +
+        '" title="Clear Allow and Deny in this scope (neither allowf nor denyf for these codes)">Clear scope</button>' +
         "</div>" +
         '<div class="policy-head-col" role="columnheader">' +
-        '<span class="policy-head-label">Allow</span>' +
+        '<span class="policy-head-label" title="Allow flood packets tagged with this region (CLI: region allowf)">Allow</span>' +
         '<input type="checkbox" class="policy-scope-master-allow" aria-label="' +
         escapeHtml(title + " — allow all in this scope") +
-        '" title="Allow all in this scope">' +
+        '" title="Allow flood for every row in this scope (region allowf)">' +
         "</div>" +
         '<div class="policy-head-col" role="columnheader">' +
-        '<span class="policy-head-label">Deny</span>' +
+        '<span class="policy-head-label" title="Block flood packets tagged with this region (CLI: region denyf)">Deny</span>' +
         '<input type="checkbox" class="policy-scope-master-deny" aria-label="' +
         escapeHtml(title + " — deny all in this scope") +
-        '" title="Deny all in this scope">' +
+        '" title="Deny flood for every row in this scope (region denyf)">' +
         "</div></div>";
       rows.forEach(function (row) {
         const allow =
@@ -4231,7 +4332,7 @@
     modal.hidden = false;
     document.body.classList.add("config-confirm-modal-open");
     const keepBtn = document.getElementById("location-coords-keep-btn");
-    if (keepBtn) keepBtn.focus();
+    if (keepBtn) keepBtn.focus({ preventScroll: true });
   }
 
   function requestSelectLocation(choice) {
@@ -4411,6 +4512,9 @@
   if (serialApplyBtn) {
     serialApplyBtn.addEventListener("click", applyToRepeater);
   }
+  if (serialApplyBtn2) {
+    serialApplyBtn2.addEventListener("click", applyToRepeater);
+  }
   if (serialConsoleForm) {
     serialConsoleForm.addEventListener("submit", onSerialConsoleSubmit);
   }
@@ -4421,9 +4525,363 @@
     serialConsoleClearBtn.addEventListener("click", function () {
       clearSerialLog();
       if (serialConsoleInput) {
-        serialConsoleInput.focus();
+        serialConsoleInput.focus({ preventScroll: true });
       }
     });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Device tools: info, identity, config backup, and maintenance actions.
+  // ---------------------------------------------------------------------------
+  function setButtonSpanText(btn, text) {
+    if (!btn) return;
+    const span = btn.querySelector("span");
+    if (span) span.textContent = text;
+  }
+
+  function flashButtonSpan(btn, text, revertText, ms) {
+    if (!btn) return;
+    const span = btn.querySelector("span");
+    if (!span) return;
+    const original = revertText || span.textContent;
+    span.textContent = text;
+    setTimeout(function () {
+      span.textContent = original;
+    }, ms || 1600);
+  }
+
+  async function runDeviceCommand(cmd, opts) {
+    opts = opts || {};
+    const rs = getRepeaterSerial();
+    if (!rs || !rs.isConnected()) {
+      appendSerialLog("Connect over USB first.", "is-err");
+      return null;
+    }
+    if (isSerialBusy()) {
+      appendSerialLog("Busy — wait for the current action to finish.", "is-err");
+      return null;
+    }
+    try {
+      appendSerialLog("> " + cmd);
+      const res = await rs.sendLine(cmd, opts.sendOptions);
+      if (res.reply) {
+        appendSerialLog(res.reply, res.ok ? "is-ok" : "is-err");
+      }
+      if (!res.ok) {
+        appendSerialLog((opts.label || "Command") + " failed.", "is-err");
+      } else if (opts.successMsg) {
+        appendSerialLog(opts.successMsg, "is-ok");
+      }
+      return res;
+    } catch (err) {
+      appendSerialLog(
+        (opts.label || "Command") +
+          " error: " +
+          (err && err.message ? err.message : String(err)),
+        "is-err",
+      );
+      return null;
+    } finally {
+      updateUsbApplyUi(getAnchor());
+    }
+  }
+
+  if (deviceSyncClockBtn) {
+    deviceSyncClockBtn.addEventListener("click", async function () {
+      const epoch = Math.floor(Date.now() / 1000);
+      await runDeviceCommand("time " + epoch, {
+        label: "Clock sync",
+        successMsg: "Device clock set to computer time.",
+      });
+      const r = await runDeviceCommand("clock", { label: "Clock" });
+      if (r && r.ok && r.reply && deviceInfoClockEl) {
+        deviceInfoClockEl.textContent = r.reply;
+      }
+    });
+  }
+
+  if (deviceCopyPubkeyBtn) {
+    deviceCopyPubkeyBtn.addEventListener("click", function () {
+      const pk = deviceInfoPubkeyEl
+        ? deviceInfoPubkeyEl.textContent.trim()
+        : "";
+      if (!pk || pk === "—") {
+        appendSerialLog(
+          "Read from the device first to load the public key.",
+          "is-err",
+        );
+        return;
+      }
+      navigator.clipboard.writeText(pk);
+      flashButtonSpan(deviceCopyPubkeyBtn, "Copied", "Copy public key");
+    });
+  }
+
+  async function ensurePrivateKeyLoaded() {
+    if (!devicePrvkeyEl) return "";
+    if (devicePrvkeyEl.value) return devicePrvkeyEl.value;
+    const res = await runDeviceCommand("get prv.key", {
+      label: "Read private key",
+    });
+    if (res && res.ok && res.reply) {
+      devicePrvkeyEl.value = res.reply.trim();
+    }
+    return devicePrvkeyEl.value || "";
+  }
+
+  if (devicePrvkeyRevealBtn) {
+    devicePrvkeyRevealBtn.addEventListener("click", async function () {
+      if (!devicePrvkeyEl) return;
+      if (devicePrvkeyEl.type === "password") {
+        await ensurePrivateKeyLoaded();
+        devicePrvkeyEl.type = "text";
+        setButtonSpanText(devicePrvkeyRevealBtn, "Hide");
+      } else {
+        devicePrvkeyEl.type = "password";
+        setButtonSpanText(devicePrvkeyRevealBtn, "Reveal");
+      }
+    });
+  }
+
+  if (devicePrvkeyCopyBtn) {
+    devicePrvkeyCopyBtn.addEventListener("click", async function () {
+      const key = await ensurePrivateKeyLoaded();
+      if (!key) {
+        appendSerialLog(
+          "No private key available (connect and read first).",
+          "is-err",
+        );
+        return;
+      }
+      navigator.clipboard.writeText(key);
+      flashButtonSpan(devicePrvkeyCopyBtn, "Copied", "Copy");
+    });
+  }
+
+  if (deviceRebootBtn) {
+    deviceRebootBtn.addEventListener("click", function () {
+      if (!window.confirm("Reboot the device now?")) return;
+      runDeviceCommand("reboot", {
+        label: "Reboot",
+        successMsg: "Reboot sent (device may disconnect).",
+        sendOptions: { timeoutMs: 3000 },
+      });
+    });
+  }
+
+  if (deviceOtaBtn) {
+    deviceOtaBtn.addEventListener("click", function () {
+      if (
+        !window.confirm(
+          "Start over-the-air firmware update?\n\nThe device enters OTA mode; follow your board's firmware upload steps (see MeshCore FAQ).",
+        )
+      ) {
+        return;
+      }
+      runDeviceCommand("start ota", {
+        label: "Start OTA",
+        successMsg: "OTA mode requested.",
+      });
+    });
+  }
+
+  if (deviceFactoryResetBtn) {
+    deviceFactoryResetBtn.addEventListener("click", function () {
+      if (
+        !window.confirm(
+          "FACTORY RESET\n\nThis erases the identity (private key) and ALL settings from the device. This cannot be undone. Continue?",
+        )
+      ) {
+        return;
+      }
+      if (
+        !window.confirm(
+          "Are you absolutely sure? The device identity will be permanently lost.",
+        )
+      ) {
+        return;
+      }
+      runDeviceCommand("erase", {
+        label: "Factory reset",
+        successMsg: "Erase sent. Reboot the device to finish.",
+      });
+    });
+  }
+
+  // Config backup: export/import the form fields as JSON.
+  function collectConfigFieldValues() {
+    const data = {};
+    const main = document.getElementById("config-main");
+    if (!main) return data;
+    main
+      .querySelectorAll("input[id], select[id], textarea[id]")
+      .forEach(function (el) {
+        if (el.type === "file" || el.type === "button") return;
+        if (el.readOnly) return;
+        if (el.type === "checkbox") {
+          data[el.id] = el.checked;
+        } else {
+          data[el.id] = el.value;
+        }
+      });
+    return data;
+  }
+
+  function applyConfigFieldValues(data) {
+    if (!data || typeof data !== "object") return;
+    Object.keys(data).forEach(function (id) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      if (el.type === "checkbox") {
+        el.checked = Boolean(data[id]);
+      } else {
+        el.value = data[id];
+      }
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+      el.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    if (typeof refreshConfiguratorOutputs === "function") {
+      refreshConfiguratorOutputs();
+    }
+  }
+
+  if (configExportBtn) {
+    configExportBtn.addEventListener("click", function () {
+      const payload = {
+        app: "bemesh-configurator",
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        fields: collectConfigFieldValues(),
+      };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], {
+        type: "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "bemesh-repeater-config.json";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(function () {
+        URL.revokeObjectURL(url);
+      }, 1000);
+    });
+  }
+
+  if (configImportBtn && configImportFileEl) {
+    configImportBtn.addEventListener("click", function () {
+      configImportFileEl.click();
+    });
+    configImportFileEl.addEventListener("change", function () {
+      const file = configImportFileEl.files && configImportFileEl.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function () {
+        try {
+          const parsed = JSON.parse(String(reader.result || "{}"));
+          const fields = parsed && parsed.fields ? parsed.fields : parsed;
+          applyConfigFieldValues(fields);
+          appendSerialLog("Configuration imported from file.", "is-ok");
+        } catch (err) {
+          appendSerialLog(
+            "Import failed: " +
+              (err && err.message ? err.message : String(err)),
+            "is-err",
+          );
+        }
+        configImportFileEl.value = "";
+      };
+      reader.readAsText(file);
+    });
+  }
+
+  // Vanity public key generation (Ed25519 via tweetnacl).
+  function bytesToHex(bytes) {
+    let s = "";
+    for (let i = 0; i < bytes.length; i++) {
+      s += bytes[i].toString(16).padStart(2, "0");
+    }
+    return s;
+  }
+
+  function generateVanityKey() {
+    const nacl = window.nacl;
+    if (!nacl || !nacl.sign || !nacl.sign.keyPair) {
+      appendSerialLog("Key generation library not loaded.", "is-err");
+      return;
+    }
+    const raw = window.prompt(
+      "Vanity public key: enter a hex prefix (1-4 chars, 0-9 a-f). Longer prefixes take much longer.",
+      "",
+    );
+    if (raw == null) return;
+    const prefix = raw.trim().toLowerCase();
+    if (!/^[0-9a-f]{1,4}$/.test(prefix)) {
+      appendSerialLog("Invalid prefix — use 1-4 hex characters.", "is-err");
+      return;
+    }
+    appendSerialLog(
+      "Generating an identity whose public key starts with '" +
+        prefix +
+        "'… this can take a while.",
+    );
+    if (deviceVanityBtn) deviceVanityBtn.disabled = true;
+    const maxAttempts = 5000000;
+    let attempts = 0;
+    const start = Date.now();
+    function finish() {
+      if (deviceVanityBtn) deviceVanityBtn.disabled = false;
+    }
+    function batch() {
+      for (let i = 0; i < 400; i++) {
+        attempts++;
+        const kp = nacl.sign.keyPair();
+        const pubHex = bytesToHex(kp.publicKey);
+        if (pubHex.startsWith(prefix)) {
+          const prvHex = bytesToHex(kp.secretKey);
+          const secs = ((Date.now() - start) / 1000).toFixed(1);
+          appendSerialLog(
+            "Found after " + attempts + " tries in " + secs + "s.",
+            "is-ok",
+          );
+          appendSerialLog("New public key: " + pubHex, "is-ok");
+          finish();
+          const write = window.confirm(
+            "Found a matching key!\n\nPublic key:\n" +
+              pubHex +
+              "\n\nWrite this new identity to the connected device now? " +
+              "(runs 'set prv.key', then reboot to apply)",
+          );
+          if (write) {
+            runDeviceCommand("set prv.key " + prvHex, {
+              label: "Set identity",
+              successMsg: "Identity written. Reboot the device to apply.",
+            });
+          } else {
+            appendSerialLog("Generated key discarded.");
+          }
+          return;
+        }
+        if (attempts >= maxAttempts) {
+          appendSerialLog(
+            "Gave up after " + attempts + " attempts. Try a shorter prefix.",
+            "is-err",
+          );
+          finish();
+          return;
+        }
+      }
+      if (attempts % 8000 === 0) {
+        appendSerialLog("… " + attempts + " keys tried");
+      }
+      setTimeout(batch, 0);
+    }
+    batch();
+  }
+
+  if (deviceVanityBtn) {
+    deviceVanityBtn.addEventListener("click", generateVanityKey);
   }
 
   window.addEventListener("beforeunload", function () {
@@ -4460,7 +4918,6 @@
         settingRadioPresetEl
       ) {
         if (isCustomRadioPreset()) {
-          openSettingsTier("settings-tier-expert");
           const idx = parseInt(
             settingRadioPresetEl.dataset.lastPreset || "",
             10,

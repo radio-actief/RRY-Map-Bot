@@ -13,12 +13,14 @@
       href="https://fonts.googleapis.com/css2?family=Figtree:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap"
       rel="stylesheet"
     />
+    <link rel="stylesheet" href="./lib/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="./lib/css/bootstrap-icons.css" />
+    <link rel="stylesheet" href="./css/bootstrap-rry-theme.css" />
     <link rel="stylesheet" href="./css/style.css" />
-    <link rel="stylesheet" href="./lib/css/beer.css" />
     <link rel="stylesheet" href="./lib/css/leaflet.css" />
     <link rel="stylesheet" href="./lib/css/MarkerCluster.css" />
     <link rel="stylesheet" href="./lib/css/MarkerCluster.Default.css" />
-    <script src="./lib/beer.min.js" type="module"></script>
+    <script src="./lib/js/bootstrap.bundle.min.js" defer></script>
     <script src="./lib/leaflet.js" defer></script>
     <script src="./lib/leaflet.markercluster.js" defer></script>
     <meta
@@ -49,8 +51,9 @@
           title="Add node to map"
           target="_blank"
           href="https://github.com/meshcore-dev/MeshCore/blob/main/docs/faq.md#512-q-how-do-i-add-a-node-to-the-meshcore-map"
-          ><i class="extra">add</i></a
-        >
+          ><i class="bi bi-plus-lg" aria-hidden="true"></i
+        ></a>
+        
         <div class="float-action-grid">
           <a
             href="https://radio-actief.be"
@@ -71,7 +74,7 @@
             </svg>
           </a>
           <a
-            href="https://docs.radio-actief.be"
+            href="https://meshwiki.radio-actief.be"
             title="Documentation"
             target="_blank"
             rel="noopener noreferrer"
@@ -143,6 +146,15 @@
               ></span>
             </div>
           </div>
+          <!-- Quick access to the repeater configurator (left of the auth block, same row) -->
+          <a
+            href="/configurator"
+            class="stats-icon-wrap stats-config-link"
+            title="Open the repeater configurator"
+            aria-label="Go to configurator page"
+          >
+            <i class="bi bi-sliders" aria-hidden="true"></i>
+          </a>
           <!-- Auth: right column, spans both rows -->
           <div class="stats-auth">
             <span v-if="auth.authenticated" class="auth-display">
@@ -188,8 +200,12 @@
             </div>
           </div>
         </div>
-        <form class="search no-margin" data-ui action="javascript:;">
-          <menu class="left no-wrap" id="node-filter">
+        <form class="search no-margin" action="javascript:;">
+          <menu
+            class="left no-wrap"
+            id="node-filter"
+            :class="{ active: app.filterMenuOpen }"
+          >
             <li class="filter-section">
               <span class="filter-section-title">Type</span>
               <div class="filter-section-options">
@@ -263,14 +279,14 @@
             </li>
             <li class="padding">
               <div class="field label prefix fill small">
-                <i>today</i>
+                <i class="bi bi-calendar-event" aria-hidden="true"></i>
                 <input type="date" v-model="app.fromDate" placeholder=" " />
                 <label>Last updated</label>
               </div>
             </li>
             <li class="padding">
               <div class="field label prefix fill small">
-                <i>today</i>
+                <i class="bi bi-calendar-event" aria-hidden="true"></i>
                 <input
                   type="date"
                   v-model="app.fromInsertDate"
@@ -339,9 +355,13 @@
               type="button"
               class="filter"
               :class="{ circle: !filtersActive, transparent: !filtersActive, 'error-container': filtersActive }"
-              data-ui="#node-filter"
+              :aria-expanded="app.filterMenuOpen"
+              aria-haspopup="true"
+              aria-controls="node-filter"
+              aria-label="Toggle node filters"
+              @click.stop="app.filterMenuOpen = !app.filterMenuOpen"
             >
-              <i>filter_alt</i>
+              <i class="bi bi-funnel" aria-hidden="true"></i>
               <span v-if="filtersActive">Filters active</span>
             </button>
           </div>

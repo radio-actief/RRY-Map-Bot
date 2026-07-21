@@ -61,15 +61,15 @@ const types = {
   4: "Sensor",
 };
 
-/** Material Symbols ligatures (Beer.css / map page font). */
+/** Bootstrap Icons classes for node types (shown in popup header). */
 function getNodeTypeMeta(node) {
   const raw = parseInt(String(node?.type ?? 1), 10);
   const typeNum = Number.isFinite(raw) && raw >= 1 && raw <= 4 ? raw : 1;
   const iconByType = {
-    1: "smartphone",
-    2: "hub",
-    3: "groups",
-    4: "sensors",
+    1: "bi bi-phone",
+    2: "bi bi-broadcast-pin",
+    3: "bi bi-people-fill",
+    4: "bi bi-thermometer-half",
   };
   return {
     typeNum,
@@ -85,26 +85,26 @@ function getNodeSourceHeaderMeta(node) {
   const lowerVal = String(raw).toLowerCase().trim();
   const safeClass = /^[a-z0-9_-]+$/.test(lowerVal) ? lowerVal : "other";
   let tooltipText = "";
-  let icon = "label";
+  let icon = "bi bi-tag";
   /** Optional link (e.g. uploader repo), same as table column. */
   let href = null;
 
   if (lowerVal === "uploader") {
     tooltipText = "Uploader: Auto-uploaded via MeshCore map uploader tool";
-    icon = "cloud_upload";
+    icon = "bi bi-cloud-upload";
   } else if (lowerVal === "app") {
     tooltipText = "App: Added via a MeshCore app";
-    icon = "apps";
+    icon = "bi bi-grid-3x3-gap-fill";
   } else if (lowerVal === "web") {
     tooltipText = "Web: Added via legacy official map";
-    icon = "language";
+    icon = "bi bi-globe";
   } else if (lowerVal === "discord") {
     tooltipText = "Discord: Added via Discord";
-    icon = "forum";
+    icon = "bi bi-chat-dots-fill";
   } else {
     const cap = lowerVal.charAt(0).toUpperCase() + lowerVal.slice(1);
     tooltipText = `Source: ${cap}`;
-    icon = "database";
+    icon = "bi bi-database";
   }
 
   return { safeClass, icon, tooltipText, href };
@@ -219,8 +219,8 @@ function copyToClipboardWithQrWrapFeedback(text, wrapEl) {
       ? " node-qr-wrap-feedback--inline"
       : "";
     const inner = ok
-      ? `<span class="node-qr-wrap-feedback node-qr-wrap-feedback--ok${inlineCls}"><i aria-hidden="true">check</i> Copied!</span>`
-      : `<span class="node-qr-wrap-feedback node-qr-wrap-feedback--err${inlineCls}"><i aria-hidden="true">error</i> Failed</span>`;
+      ? `<span class="node-qr-wrap-feedback node-qr-wrap-feedback--ok${inlineCls}"><i class="bi bi-check-lg" aria-hidden="true"></i> Copied!</span>`
+      : `<span class="node-qr-wrap-feedback node-qr-wrap-feedback--err${inlineCls}"><i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i> Failed</span>`;
     let frozenH = null;
     if (fieldEl.classList.contains("node-qr-card__field-text")) {
       frozenH = fieldEl.getBoundingClientRect().height;
@@ -841,7 +841,7 @@ function buildAnalyzerFooterMenu(node, letsMeshUrl) {
   const o8 = escapeAttrHtml(on8arUrl);
   return (
     `<span class="coords-menu-wrap node-popup-analyzer-menu">` +
-    `<a href="#" class="node-popup-action node-popup-action--external node-popup-action--icon-only node-popup-analyzer-menu__toggle" onclick="event.preventDefault();event.stopPropagation();this.parentElement.classList.toggle('open');return false;" title="Choose network analyzer" aria-label="Choose network analyzer"><i aria-hidden="true">search</i></a>` +
+    `<a href="#" class="node-popup-action node-popup-action--external node-popup-action--icon-only node-popup-analyzer-menu__toggle" onclick="event.preventDefault();event.stopPropagation();this.parentElement.classList.toggle('open');return false;" title="Choose network analyzer" aria-label="Choose network analyzer"><i class="bi bi-search" aria-hidden="true"></i></a>` +
     `<span class="coords-menu" role="menu">` +
     `<a role="menuitem" href="${lm}" target="_blank" rel="noopener noreferrer">Let\u2019s Mesh Analyzer</a>` +
     `<a role="menuitem" href="${o8}" target="_blank" rel="noopener noreferrer">ON8AR Analyzer</a>` +
@@ -1138,17 +1138,17 @@ function buildNodeActivityStripHtml(node) {
     {
       key: "inserted_date",
       label: "Inserted",
-      icon: "rocket_launch",
+      icon: "bi bi-rocket-takeoff",
     },
     {
       key: "updated_date",
       label: "Updated",
-      icon: "autorenew",
+      icon: "bi bi-arrow-repeat",
     },
     {
       key: "last_advert",
       label: "Last advert",
-      icon: "rss_feed",
+      icon: "bi bi-rss",
     },
   ];
 
@@ -1165,7 +1165,7 @@ function buildNodeActivityStripHtml(node) {
             : escapeAttrHtml(String(val ?? ""));
       return (
         `<div class="node-popup__activity-item" role="listitem">` +
-        `<span class="node-popup__activity-icon" aria-hidden="true"><i>${icon}</i></span>` +
+        `<span class="node-popup__activity-icon" aria-hidden="true"><i class="${icon}"></i></span>` +
         `<span class="node-popup__activity-copy">` +
         `<span class="node-popup__activity-label">${escapeAttrHtml(label)}</span>` +
         `<span class="node-popup__activity-value">${valueHtml}</span>` +
@@ -1186,7 +1186,7 @@ function buildRadioParamsPanelHtml(node) {
   ) {
     return (
       `<div class="node-popup__panel-block">` +
-      `<div class="node-popup__panel-kicker"><span class="node-popup__panel-icon" aria-hidden="true"><i>tune</i></span><span>Radio</span></div>` +
+      `<div class="node-popup__panel-kicker"><span class="node-popup__panel-icon" aria-hidden="true"><i class="bi bi-sliders" aria-hidden="true"></i></span><span>Radio</span></div>` +
       `<div class="node-popup__panel-body"><span class="node-popup__muted">Not specified</span></div></div>`
     );
   }
@@ -1195,7 +1195,7 @@ function buildRadioParamsPanelHtml(node) {
     const presetTitle = escapeAttrHtml(presetHoverDetailsText(preset));
     return (
       `<div class="node-popup__panel-block">` +
-      `<div class="node-popup__panel-kicker"><span class="node-popup__panel-icon" aria-hidden="true"><i>tune</i></span><span>Radio</span></div>` +
+      `<div class="node-popup__panel-kicker"><span class="node-popup__panel-icon" aria-hidden="true"><i class="bi bi-sliders" aria-hidden="true"></i></span><span>Radio</span></div>` +
       `<div class="node-popup__panel-body"><span class="node-popup__radio-preset" title="${presetTitle}">${escapeAttrHtml(preset.name)}</span></div></div>`
     );
   }
@@ -1235,7 +1235,7 @@ function buildRadioParamsPanelHtml(node) {
     : `<span class="node-popup__muted">Not specified</span>`;
   return (
     `<div class="node-popup__panel-block">` +
-    `<div class="node-popup__panel-kicker"><span class="node-popup__panel-icon" aria-hidden="true"><i>tune</i></span><span>Radio</span></div>` +
+    `<div class="node-popup__panel-kicker"><span class="node-popup__panel-icon" aria-hidden="true"><i class="bi bi-sliders" aria-hidden="true"></i></span><span>Radio</span></div>` +
     `<div class="node-popup__panel-body">${inner}</div></div>`
   );
 }
@@ -1253,7 +1253,7 @@ function buildNodeIdentityPanelHtml(
     const copyHtml = createCopyableElement(pk, display);
     blocks.push(
       `<div class="node-popup__panel-block">` +
-        `<div class="node-popup__panel-kicker"><span class="node-popup__panel-icon" aria-hidden="true"><i>key</i></span><span>Public key</span></div>` +
+        `<div class="node-popup__panel-kicker"><span class="node-popup__panel-icon" aria-hidden="true"><i class="bi bi-key" aria-hidden="true"></i></span><span>Public key</span></div>` +
         `<div class="node-popup__panel-body"><div class="node-popup__pk-wrap" title="${escapeAttrHtml("Copy public key")}">${copyHtml}</div></div></div>`,
     );
   }
@@ -1282,7 +1282,7 @@ function buildNodeIdentityPanelHtml(
     }
     blocks.push(
       `<div class="node-popup__panel-block">` +
-        `<div class="node-popup__panel-kicker"><span class="node-popup__panel-icon" aria-hidden="true"><i>history</i></span><span>Uploader identity</span></div>` +
+        `<div class="node-popup__panel-kicker"><span class="node-popup__panel-icon" aria-hidden="true"><i class="bi bi-clock-history" aria-hidden="true"></i></span><span>Uploader identity</span></div>` +
         `<div class="node-popup__panel-body node-popup__panel-body--prov">${inner}</div></div>`,
     );
   }
@@ -1297,7 +1297,7 @@ function buildNodeIdentityPanelHtml(
         : `<span class="node-popup__discord-user node-popup__discord-user--bare">@${at}</span>`;
     blocks.push(
       `<div class="node-popup__panel-block node-popup__panel-block--owner">` +
-        `<div class="node-popup__panel-kicker"><span class="node-popup__panel-icon node-popup__panel-icon--discord" aria-hidden="true"><i>verified_user</i></span><span>Claimed by</span></div>` +
+        `<div class="node-popup__panel-kicker"><span class="node-popup__panel-icon node-popup__panel-icon--discord" aria-hidden="true"><i class="bi bi-shield-check" aria-hidden="true"></i></span><span>Claimed by</span></div>` +
         `<div class="node-popup__panel-body">${linkBody}</div></div>`,
     );
   }
@@ -1360,7 +1360,7 @@ function getTable(node, authState = null, nodes = []) {
   const sourceMeta = getNodeSourceHeaderMeta(node);
   const sourceHeaderEl = sourceMeta
     ? (() => {
-        const inner = `<i aria-hidden="true">${sourceMeta.icon}</i>`;
+        const inner = `<i class="${sourceMeta.icon}" aria-hidden="true"></i>`;
         const cls = `node-popup__source-icon node-popup__source-icon--${sourceMeta.safeClass}`;
         const t = escapeAttrHtml(`Source type: ${sourceMeta.tooltipText}`);
         return sourceMeta.href
@@ -1371,7 +1371,7 @@ function getTable(node, authState = null, nodes = []) {
 
   const headerHtml =
     `<header class="node-popup__header">` +
-    `<span class="node-popup__type-icon" title="${escapeAttrHtml(typeMeta.label)}" aria-label="${escapeAttrHtml(typeMeta.label)}"><i aria-hidden="true">${typeMeta.icon}</i></span>` +
+    `<span class="node-popup__type-icon" title="${escapeAttrHtml(typeMeta.label)}" aria-label="${escapeAttrHtml(typeMeta.label)}"><i class="${typeMeta.icon}" aria-hidden="true"></i></span>` +
     `<span class="node-popup__freshness" title="${escapeAttrHtml(`Freshness: ${statusDesc}`)}" aria-label="${escapeAttrHtml(`Freshness: ${statusDesc}`)}"><span class="status-dot ${statusDotClass}"></span></span>` +
     `<div class="node-popup__head-text">` +
     `<h3 class="node-popup__title" title="${escapeAttrHtml(`Name: ${displayName}`)}" aria-label="${escapeAttrHtml(`Name: ${displayName}`)}">${escapeAttrHtml(displayName)}</h3>` +
@@ -1441,7 +1441,7 @@ function getTable(node, authState = null, nodes = []) {
 
       const delUrl = escapeAttrHtml(getDeletionMailUrl(node));
       const footerEnd = isNotDiscordSource
-        ? `<a href="${delUrl}" class="node-popup-action node-popup-action--danger node-popup-action--icon-only" title="Request deletion" aria-label="Request deletion"><i aria-hidden="true">delete</i></a>`
+        ? `<a href="${delUrl}" class="node-popup-action node-popup-action--danger node-popup-action--icon-only" title="Request deletion" aria-label="Request deletion"><i class="bi bi-trash" aria-hidden="true"></i></a>`
         : "";
 
       return `<nav class="node-popup-actions" aria-label="Node actions"><div class="node-popup-actions__row"><div class="node-popup-actions__slot node-popup-actions__slot--start">${footerStart}</div><div class="node-popup-actions__slot node-popup-actions__slot--center">${footerCenter}</div><div class="node-popup-actions__slot node-popup-actions__slot--end">${footerEnd}</div></div></nav>`;
@@ -1646,6 +1646,7 @@ createApp({
       loading: false,
       freqFilter: [],
       availableFreqs: [],
+      filterMenuOpen: false,
     }));
 
     Object.defineProperty(app, "nodes", {
@@ -2605,9 +2606,9 @@ createApp({
       const sensorsCount = nodes.filter((n) => n.type === 4).length;
 
       let statsString = `<span>all nodes: <b>${nodes.length}</b></span>&nbsp;|`;
-      statsString += ` <i class="node-type pointer-help" title="Total client nodes">person</i><b>${companionsCount}</b>&nbsp;|`;
-      statsString += ` <i class="node-type pointer-help" title="Total repeater nodes">cell_tower</i><b>${repeatersCount}</b>&nbsp;|`;
-      statsString += ` <i class="node-type pointer-help" title="Total room server nodes">forum</i><b>${roomServersCount}</b>`;
+      statsString += ` <img src="img/node_types/1.svg" class="node-type pointer-help" style="width: 24px; height: 24px; vertical-align: middle; margin-left: 7px; margin-right: 4px;" title="Total client nodes" alt="Client"><b>${companionsCount}</b>&nbsp;|`;
+      statsString += ` <img src="img/node_types/2.svg" class="node-type pointer-help" style="width: 24px; height: 24px; vertical-align: middle; margin-left: 7px; margin-right: 4px;" title="Total repeater nodes" alt="Repeater"><b>${repeatersCount}</b>&nbsp;|`;
+      statsString += ` <img src="img/node_types/3.svg" class="node-type pointer-help" style="width: 24px; height: 24px; vertical-align: middle; margin-left: 7px; margin-right: 4px;" title="Total room server nodes" alt="Room server"><b>${roomServersCount}</b>`;
 
       if (sensorsCount > 0) {
         statsString += `&nbsp;| <img src="img/node_types/4.svg" class="node-type pointer-help" style="width: 24px; height: 24px; vertical-align: middle; margin-left: 7px; margin-right: 4px;" title="Total sensor nodes" alt="Sensor"><b>${sensorsCount}</b>`;
@@ -2657,13 +2658,13 @@ createApp({
       // Build personal stats string (black color, not green)
       let statsString = `<span class="pointer-help" title="Your owned nodes">my nodes: <b>${userNodes.length}</b></span>&nbsp;|`;
       if (companionsCount > 0) {
-        statsString += ` <i class="node-type pointer-help" title="Your client nodes">person</i><b>${companionsCount}</b>`;
+        statsString += ` <img src="img/node_types/1.svg" class="node-type pointer-help" style="width: 24px; height: 24px; vertical-align: middle; margin-left: 7px; margin-right: 4px;" title="Your client nodes" alt="Client"><b>${companionsCount}</b>`;
       }
       if (repeatersCount > 0) {
-        statsString += `&nbsp;| <i class="node-type pointer-help" title="Your repeater nodes">cell_tower</i><b>${repeatersCount}</b>`;
+        statsString += `&nbsp;| <img src="img/node_types/2.svg" class="node-type pointer-help" style="width: 24px; height: 24px; vertical-align: middle; margin-left: 7px; margin-right: 4px;" title="Your repeater nodes" alt="Repeater"><b>${repeatersCount}</b>`;
       }
       if (roomServersCount > 0) {
-        statsString += `&nbsp;| <i class="node-type pointer-help" title="Your room server nodes">forum</i><b>${roomServersCount}</b>`;
+        statsString += `&nbsp;| <img src="img/node_types/3.svg" class="node-type pointer-help" style="width: 24px; height: 24px; vertical-align: middle; margin-left: 7px; margin-right: 4px;" title="Your room server nodes" alt="Room server"><b>${roomServersCount}</b>`;
       }
       if (sensorsCount > 0) {
         statsString += `&nbsp;| <img src="img/node_types/4.svg" class="node-type pointer-help" style="width: 24px; height: 24px; vertical-align: middle; margin-left: 7px; margin-right: 4px;" title="Your sensor nodes" alt="Sensor"><b>${sensorsCount}</b>`;
@@ -2973,49 +2974,28 @@ createApp({
         }
       });
 
-      // Fix slider fill: Beer CSS updates ---start/---end on input; when menu opens
-      // the slider may not have been painted yet. Trigger input to refresh the fill.
-      const menu = document.getElementById("node-filter");
-      if (menu) {
-        const observer = new MutationObserver(() => {
-          if (menu.classList.contains("active")) {
-            const slider = document.getElementById("clustering-zoom-slider");
-            if (slider) {
-              // Small delay so Beer CSS can measure after menu is visible
-              setTimeout(() => {
-                slider.dispatchEvent(new Event("input", { bubbles: true }));
-              }, 10);
-            }
-          }
-        });
-        observer.observe(menu, {
-          attributes: true,
-          attributeFilter: ["class"],
-        });
-        onBeforeUnmount(() => observer.disconnect());
-      }
-
-      // Beer adds document.body "click" in CAPTURE phase (beer.min.js addEventListener(..., true)).
-      // Its handler runs before the event reaches checkboxes inside #node-filter and schedules
-      // closing the menu ~90ms later — so the drawer vanished on every in-menu click/release.
-      // Register our listener at mount (before Beer attaches when the menu opens) with
-      // capture: true so we run first on body; stopImmediatePropagation skips only Beer's
-      // body listener — propagation continues to descendants so inputs still work.
-      function filterMenuBodyClickGuard(e) {
+      // Filter menu open/close (replaces the former Beer `data-ui` behavior).
+      // The menu visibility is bound to app.filterMenuOpen via :class="{active}".
+      // Close it on an outside click or Escape. The toggle button uses
+      // @click.stop, so its own clicks never reach these document listeners;
+      // clicks inside the menu (checkboxes, sliders) keep it open.
+      function filterMenuOutsideClose(e) {
+        if (!app.filterMenuOpen) return;
         const menu = document.getElementById("node-filter");
-        if (!menu?.classList.contains("active")) return;
-        if (menu.contains(e.target)) {
-          e.stopImmediatePropagation();
+        if (menu && menu.contains(e.target)) return;
+        app.filterMenuOpen = false;
+      }
+      function filterMenuEscClose(e) {
+        if (e.key === "Escape" && app.filterMenuOpen) {
+          app.filterMenuOpen = false;
         }
       }
-      document.body.addEventListener("click", filterMenuBodyClickGuard, true);
+      document.addEventListener("click", filterMenuOutsideClose);
+      document.addEventListener("keydown", filterMenuEscClose);
 
       removeFilterMenuInteractionGuards = () => {
-        document.body.removeEventListener(
-          "click",
-          filterMenuBodyClickGuard,
-          true,
-        );
+        document.removeEventListener("click", filterMenuOutsideClose);
+        document.removeEventListener("keydown", filterMenuEscClose);
       };
     });
 

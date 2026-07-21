@@ -1529,6 +1529,89 @@ body.config-confirm-modal-open {
   color: var(--cfg-text);
 }
 
+.recommended-flood-allowance {
+  margin: 0 0 0.75rem;
+  padding: 0.4rem 0.5rem 0.45rem;
+  border: 1px solid var(--cfg-border);
+  border-radius: 0.35rem;
+  min-width: 0;
+}
+
+.recommended-flood-allowance-legend {
+  float: none;
+  width: auto;
+  padding: 0;
+  margin: 0 0 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--cfg-text);
+}
+
+.recommended-flood-allowance-hint {
+  margin-left: 0.35rem;
+  font-size: 0.68rem;
+  font-weight: 500;
+  color: var(--cfg-text-muted, #6b7280);
+}
+
+.recommended-flood-allowance-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.25rem;
+}
+
+.recommended-flood-option {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0.28rem 0.4rem;
+  border: 1px solid transparent;
+  border-radius: 0.25rem;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.recommended-flood-option:hover {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.recommended-flood-option:has(input:checked) {
+  border-color: var(--cfg-accent, #d4a017);
+  background: color-mix(in srgb, var(--cfg-accent, #d4a017) 10%, transparent);
+}
+
+.recommended-flood-option input {
+  margin: 0;
+  flex: 0 0 auto;
+  accent-color: var(--cfg-accent, #d4a017);
+}
+
+.recommended-flood-option-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--cfg-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.recommended-flood-option-meta {
+  flex: 0 0 auto;
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--cfg-text-muted, #6b7280);
+  white-space: nowrap;
+}
+
+@media (max-width: 420px) {
+  .recommended-flood-allowance-options {
+    grid-template-columns: 1fr;
+  }
+}
+
 .config-confirm-modal-actions {
   display: flex;
   flex-wrap: wrap;
@@ -1556,6 +1639,34 @@ body.config-confirm-modal-open {
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--cfg-text-muted);
+}
+
+.config-subsection-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem 0.65rem;
+  margin: 0 0 0.45rem;
+}
+
+.config-subsection-head .config-subsection-title {
+  margin: 0;
+}
+
+.recommended-settings-btn-compact {
+  flex: 0 0 auto;
+  gap: 0.3rem;
+  min-height: 1.7rem;
+  height: auto;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.recommended-settings-btn-compact .bi {
+  font-size: 0.78rem;
 }
 
 .config-general-card {
@@ -2480,16 +2591,53 @@ code.config-naming-preview-advert {
   letter-spacing: 0.03em;
   background: var(--cfg-secondary);
   color: var(--cfg-text-muted);
+  box-shadow: none;
+  transition: box-shadow 0.25s ease, background 0.2s ease, color 0.2s ease;
 }
 
 .serial-status[data-state="connected"] {
   background: #e6f4ee;
   color: #0f6e56;
+  box-shadow:
+    0 0 0 1px rgba(15, 110, 86, 0.28),
+    0 0 10px rgba(21, 128, 61, 0.45),
+    0 0 18px rgba(21, 128, 61, 0.22);
+}
+
+.serial-status[data-state="reading"] {
+  background: #fff4e5;
+  color: #9a6700;
+  animation: serial-status-breathe 1.8s ease-in-out infinite;
 }
 
 .serial-status[data-state="applying"] {
   background: #fff4e5;
   color: #9a6700;
+}
+
+@keyframes serial-status-breathe {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px rgba(154, 103, 0, 0.22),
+      0 0 6px rgba(212, 160, 23, 0.28),
+      0 0 12px rgba(212, 160, 23, 0.12);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px rgba(154, 103, 0, 0.4),
+      0 0 14px rgba(212, 160, 23, 0.55),
+      0 0 26px rgba(212, 160, 23, 0.28);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .serial-status[data-state="reading"] {
+    animation: none;
+    box-shadow:
+      0 0 0 1px rgba(154, 103, 0, 0.35),
+      0 0 10px rgba(212, 160, 23, 0.4);
+  }
 }
 
 /* Terminal-style console: log + inline prompt input share one dark surface. */
@@ -2613,7 +2761,8 @@ code.config-naming-preview-advert {
   border-top: 1px solid var(--cfg-border, rgba(0, 0, 0, 0.08));
 }
 
-.config-subsection > .config-subsection-title {
+.config-subsection > .config-subsection-title,
+.config-subsection > .config-subsection-head {
   margin-top: 0;
   margin-bottom: 0.6rem;
 }

@@ -462,12 +462,23 @@
             </div>
 
             <div class="config-subsection">
-              <h3
-                class="config-subsection-title"
-                title="LoRa frequency plan, duty cycle, and TX power (set radio / set tx / set dutycycle)"
-              >
-                Radio settings
-              </h3>
+              <div class="config-subsection-head">
+                <h3
+                  class="config-subsection-title"
+                  title="LoRa frequency plan, duty cycle, and TX power (set radio / set tx / set dutycycle)"
+                >
+                  Radio settings
+                </h3>
+                <button
+                  type="button"
+                  class="copy-btn serial-btn-secondary recommended-settings-btn-compact"
+                  id="recommended-settings-btn-2"
+                  title="Fill radio + flood fields with #BEmesh recommendations (form only — nothing is written until you Apply)"
+                >
+                  <i class="bi bi-magic" aria-hidden="true"></i>
+                  <span>Recommended</span>
+                </button>
+              </div>
               <div class="config-form-grid">
                 <label
                   class="config-form-field config-form-field--full"
@@ -1431,6 +1442,26 @@
               <i class="bi bi-clipboard" aria-hidden="true"></i>
               <span>Copy public key</span>
             </button>
+            <button
+              type="button"
+              class="copy-btn serial-btn-secondary"
+              id="serial-advert-zerohop-btn-2"
+              disabled
+              title="Advertise once to local RF neighbours only — not rebroadcast (CLI: advert.zerohop)"
+            >
+              <i class="bi bi-broadcast" aria-hidden="true"></i>
+              <span>Zero-hop advert</span>
+            </button>
+            <button
+              type="button"
+              class="copy-btn serial-btn-secondary"
+              id="serial-advert-flood-btn-2"
+              disabled
+              title="Immediately flood-advertise this node once (CLI: advert) — name, key, and position go out and get rebroadcast within hop limits"
+            >
+              <i class="bi bi-broadcast-pin" aria-hidden="true"></i>
+              <span>Flood advert</span>
+            </button>
           </div>
 
           <h3
@@ -1638,14 +1669,6 @@
             <strong>64</strong>
           </li>
           <li>
-            <span>Flood max unscoped hops</span>
-            <strong>3</strong>
-          </li>
-          <li>
-            <span>Flood max advert hops</span>
-            <strong>5</strong>
-          </li>
-          <li>
             <span>Path hash mode</span>
             <strong>2-byte (32 hops)</strong>
           </li>
@@ -1654,6 +1677,57 @@
             <strong>minimal</strong>
           </li>
         </ul>
+        <fieldset class="recommended-flood-allowance">
+          <legend class="recommended-flood-allowance-legend">
+            Flood hop allowance
+            <span class="recommended-flood-allowance-hint"
+              >(unscoped / advert)</span
+            >
+          </legend>
+          <div
+            class="recommended-flood-allowance-options"
+            role="radiogroup"
+            aria-label="Flood hop allowance"
+          >
+            <label class="recommended-flood-option">
+              <input
+                type="radio"
+                name="recommended-flood-allowance"
+                value="minimal"
+              />
+              <span class="recommended-flood-option-title">Minimal</span>
+              <span class="recommended-flood-option-meta">4 / 6</span>
+            </label>
+            <label class="recommended-flood-option">
+              <input
+                type="radio"
+                name="recommended-flood-allowance"
+                value="average"
+                checked
+              />
+              <span class="recommended-flood-option-title">Average</span>
+              <span class="recommended-flood-option-meta">8 / 12</span>
+            </label>
+            <label class="recommended-flood-option">
+              <input
+                type="radio"
+                name="recommended-flood-allowance"
+                value="extended"
+              />
+              <span class="recommended-flood-option-title">Extended</span>
+              <span class="recommended-flood-option-meta">16 / 24</span>
+            </label>
+            <label class="recommended-flood-option">
+              <input
+                type="radio"
+                name="recommended-flood-allowance"
+                value="full"
+              />
+              <span class="recommended-flood-option-title">Full</span>
+              <span class="recommended-flood-option-meta">64 / 64</span>
+            </label>
+          </div>
+        </fieldset>
         <div class="config-confirm-modal-actions">
           <button
             type="button"

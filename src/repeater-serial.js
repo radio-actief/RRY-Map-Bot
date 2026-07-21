@@ -9,12 +9,16 @@
   const DEFAULT_BAUD = 115200;
   const INTER_COMMAND_DELAY_MS = 150;
   const BOOT_DRAIN_MS = 500;
+  const DISCONNECT_SETTLE_MS = 250;
 
   let port = null;
   let reader = null;
   let readLoopRunning = false;
   let readBuffer = "";
   let sendChain = Promise.resolve();
+  let onDisconnectCb = null;
+  let disconnectListener = null;
+  let notifyingLost = false;
 
   function enqueueSend(task) {
     const run = sendChain.then(task);
@@ -34,8 +38,82 @@
     });
   }
 
+  /** True only while the Web Serial port streams are still open. */
   function isConnected() {
-    return port !== null;
+    return !!(port && port.readable && port.writable);
+  }
+
+  /**
+   * Commands that reboot / wipe / enter modes that drop the USB link.
+   * After these we clear local connection state so the UI cannot pretend
+   * the previous session is still live.
+   */
+  function expectsDeviceDisconnect(line) {
+    const cmd = String(line || "")
+      .trim()
+      .toLowerCase();
+    return (
+      cmd === "reboot" ||
+      cmd === "erase" ||
+      cmd === "start ota" ||
+      cmd === "poweroff" ||
+      cmd === "shutdown" ||
+      cmd === "clkreboot"
+    );
+  }
+
+  function setOnDisconnect(cb) {
+    onDisconnectCb = typeof cb === "function" ? cb : null;
+  }
+
+  function detachDisconnectListener() {
+    if (port && disconnectListener) {
+      try {
+        port.removeEventListener("disconnect", disconnectListener);
+      } catch (_e) {
+        /* ignore */
+      }
+    }
+    disconnectListener = null;
+  }
+
+  /**
+   * Tear down local port state and notify the UI. Safe to call repeatedly.
+   * @param {string} [reason]
+   */
+  async function notifyConnectionLost(reason) {
+    if (notifyingLost) return;
+    notifyingLost = true;
+    try {
+      detachDisconnectListener();
+      readLoopRunning = false;
+      if (reader) {
+        try {
+          await reader.cancel();
+        } catch (_e) {
+          /* ignore */
+        }
+        reader = null;
+      }
+      if (port) {
+        try {
+          await port.close();
+        } catch (_e) {
+          /* ignore */
+        }
+        port = null;
+      }
+      readBuffer = "";
+      if (onDisconnectCb) {
+        try {
+          onDisconnectCb(reason || "lost");
+        } catch (_e) {
+          /* ignore UI errors */
+        }
+      }
+    } finally {
+      notifyingLost = false;
+    }
   }
 
   function isErrorReply(reply) {
@@ -70,11 +148,13 @@
       }
     } catch (err) {
       if (readLoopRunning) {
-        throw err;
+        // Stream closed unexpectedly (unplug / reboot).
+        notifyConnectionLost("read-error");
+        return;
       }
     } finally {
       try {
-        reader.releaseLock();
+        if (reader) reader.releaseLock();
       } catch (_e) {
         /* ignore */
       }
@@ -87,6 +167,10 @@
     return new Promise(function (resolve) {
       const deadline = Date.now() + timeoutMs;
       function tick() {
+        if (!isConnected()) {
+          resolve("");
+          return;
+        }
         const reply = extractReply();
         if (reply !== null) {
           resolve(reply);
@@ -112,6 +196,10 @@
       baudRate: (options && options.baudRate) || DEFAULT_BAUD,
     });
     readBuffer = "";
+    disconnectListener = function () {
+      notifyConnectionLost("device-disconnect");
+    };
+    port.addEventListener("disconnect", disconnectListener);
     readLoop().catch(function () {
       /* disconnect races */
     });
@@ -121,6 +209,7 @@
   }
 
   async function disconnect() {
+    detachDisconnectListener();
     readLoopRunning = false;
     if (reader) {
       try {
@@ -140,15 +229,40 @@
     readBuffer = "";
   }
 
+  /**
+   * Verify the port is still usable before a serial action.
+   * Returns true if connected; otherwise clears stale state and returns false.
+   */
+  async function ensureConnected() {
+    if (isConnected()) return true;
+    if (port) {
+      await notifyConnectionLost("stale");
+    }
+    return false;
+  }
+
   async function writeRaw(text) {
-    if (!port || !port.writable) {
+    if (!(await ensureConnected())) {
       throw new Error("Serial port is not connected.");
     }
-    const writer = port.writable.getWriter();
+    let writer;
     try {
+      writer = port.writable.getWriter();
       await writer.write(new TextEncoder().encode(text));
+    } catch (err) {
+      await notifyConnectionLost("write-error");
+      throw new Error(
+        "Serial connection lost" +
+          (err && err.message ? ": " + err.message : "."),
+      );
     } finally {
-      writer.releaseLock();
+      if (writer) {
+        try {
+          writer.releaseLock();
+        } catch (_e) {
+          /* ignore */
+        }
+      }
     }
   }
 
@@ -157,6 +271,9 @@
       const trimmed = String(line || "").trim();
       if (!trimmed) {
         return { ok: true, reply: "" };
+      }
+      if (!(await ensureConnected())) {
+        throw new Error("Serial port is not connected.");
       }
       if (trimmed.length > MAX_LINE_LEN) {
         throw new Error(
@@ -169,10 +286,22 @@
             "…",
         );
       }
+      const willDisconnect = expectsDeviceDisconnect(trimmed);
       const timeoutMs =
-        (options && options.timeoutMs) || commandTimeout(trimmed);
+        (options && options.timeoutMs) ||
+        (willDisconnect ? 2000 : commandTimeout(trimmed));
       await writeRaw(trimmed + "\r");
+      if (willDisconnect) {
+        // Device is about to drop USB — do not wait for a full reply window.
+        await sleep(DISCONNECT_SETTLE_MS);
+        await notifyConnectionLost("command:" + trimmed.split(/\s+/)[0]);
+        return { ok: true, reply: "", disconnected: true };
+      }
       const reply = await waitForReply(timeoutMs);
+      if (!isConnected()) {
+        await notifyConnectionLost("lost-during-reply");
+        throw new Error("Serial connection lost while waiting for reply.");
+      }
       if (isErrorReply(reply)) {
         return { ok: false, reply: reply, error: reply };
       }
@@ -190,6 +319,11 @@
     for (let i = 0; i < lines.length; i++) {
       if (signal && signal.aborted) {
         throw new DOMException("Cancelled.", "AbortError");
+      }
+      if (!(await ensureConnected())) {
+        const err = new Error("Serial connection lost.");
+        err.index = i;
+        throw err;
       }
       const line = String(lines[i] || "").trim();
       if (!line || line.charAt(0) === "#") {
@@ -235,6 +369,9 @@
   global.RepeaterSerial = {
     isSupported: isSupported,
     isConnected: isConnected,
+    ensureConnected: ensureConnected,
+    expectsDeviceDisconnect: expectsDeviceDisconnect,
+    setOnDisconnect: setOnDisconnect,
     connect: connect,
     disconnect: disconnect,
     sendLine: sendLine,

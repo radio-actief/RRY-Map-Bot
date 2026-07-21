@@ -90,8 +90,14 @@
   const serialAdvertZerohopBtn = document.getElementById(
     "serial-advert-zerohop-btn",
   );
+  const serialAdvertZerohopBtn2 = document.getElementById(
+    "serial-advert-zerohop-btn-2",
+  );
   const serialAdvertFloodBtn = document.getElementById(
     "serial-advert-flood-btn",
+  );
+  const serialAdvertFloodBtn2 = document.getElementById(
+    "serial-advert-flood-btn-2",
   );
   const serialConsoleForm = document.getElementById("serial-console-form");
   const serialConsoleInput = document.getElementById("serial-console-input");
@@ -357,6 +363,94 @@
     return typeof window !== "undefined" ? window.RepeaterSerial : null;
   }
 
+  /**
+   * Confirm the USB serial session is still live before a command or button
+   * action. Clears stale "Connected" UI when the port/streams are gone
+   * (e.g. after an unacknowledged reboot or unplug).
+   * @param {string} [actionLabel]
+   * @returns {Promise<object|null>} RepeaterSerial or null
+   */
+  async function ensureSerialReady(actionLabel) {
+    const rs = getRepeaterSerial();
+    if (!rs || !rs.isSupported()) {
+      appendSerialLog("Web Serial is not available in this browser.", "is-error");
+      return null;
+    }
+    if (isSerialBusy()) {
+      appendSerialLog(
+        "Busy — wait for the current action to finish.",
+        "is-error",
+      );
+      return null;
+    }
+    let ok = false;
+    try {
+      ok = rs.ensureConnected
+        ? await rs.ensureConnected()
+        : Boolean(rs.isConnected && rs.isConnected());
+    } catch (_e) {
+      ok = false;
+    }
+    if (!ok) {
+      appendSerialLog(
+        (actionLabel ? actionLabel + ": " : "") +
+          "Device is not connected. Connect over USB first.",
+        "is-error",
+      );
+      serialApplying = false;
+      serialReading = false;
+      serialConsoleSending = false;
+      setSerialStatus("disconnected", "Disconnected");
+      updateUsbApplyUi(getAnchor());
+      return null;
+    }
+    return rs;
+  }
+
+  function handleSerialConnectionLost(reason) {
+    serialApplying = false;
+    serialReading = false;
+    serialConsoleSending = false;
+    if (serialApplyAbort) {
+      try {
+        serialApplyAbort.abort();
+      } catch (_e) {
+        /* ignore */
+      }
+      serialApplyAbort = null;
+    }
+    setSerialStatus("disconnected", "Disconnected");
+    updateUsbApplyUi(getAnchor());
+    const why = String(reason || "");
+    // Intentional post-command drops are logged by the action handler.
+    if (why.indexOf("command:") === 0) {
+      return;
+    }
+    if (why === "device-disconnect") {
+      appendSerialLog(
+        "USB device disconnected. Reconnect over USB to continue.",
+        "is-error",
+      );
+    } else if (why === "stale") {
+      appendSerialLog(
+        "Serial session was stale (no longer connected). Reconnect over USB.",
+        "is-error",
+      );
+    } else {
+      appendSerialLog(
+        "USB serial connection lost. Reconnect over USB to continue.",
+        "is-error",
+      );
+    }
+  }
+
+  function initSerialDisconnectWatch() {
+    const rs = getRepeaterSerial();
+    if (rs && typeof rs.setOnDisconnect === "function") {
+      rs.setOnDisconnect(handleSerialConnectionLost);
+    }
+  }
+
   function appendSerialLog(text, className) {
     if (!serialApplyLogEl) return;
     const line = document.createElement("div");
@@ -453,12 +547,12 @@
       serialReadBtn.disabled = !supported || busy || !connected;
     }
     const advertEnabled = supported && !busy && rs && rs.isConnected();
-    if (serialAdvertZerohopBtn) {
-      serialAdvertZerohopBtn.disabled = !advertEnabled;
-    }
-    if (serialAdvertFloodBtn) {
-      serialAdvertFloodBtn.disabled = !advertEnabled;
-    }
+    [serialAdvertZerohopBtn, serialAdvertZerohopBtn2].forEach(function (btn) {
+      if (btn) btn.disabled = !advertEnabled;
+    });
+    [serialAdvertFloodBtn, serialAdvertFloodBtn2].forEach(function (btn) {
+      if (btn) btn.disabled = !advertEnabled;
+    });
     if (serialConsoleInput) {
       serialConsoleInput.disabled = !consoleEnabled;
     }
@@ -511,7 +605,7 @@
       }
     }
     if (serialReading) {
-      setSerialStatus("applying", "Reading…");
+      setSerialStatus("reading", "Reading…");
     } else if (rs && rs.isConnected() && !serialApplying) {
       setSerialStatus("connected", "Connected");
     } else if (serialApplying) {
@@ -604,11 +698,10 @@
   }
 
   async function sendSerialConsoleCommand(line) {
-    const rs = getRepeaterSerial();
     const cmd = String(line || "").trim();
-    if (!rs || !rs.isConnected() || isSerialBusy() || !cmd) {
-      return;
-    }
+    if (!cmd) return;
+    const rs = await ensureSerialReady("Console");
+    if (!rs) return;
 
     const maxLen = rs.MAX_LINE_LEN || 151;
     if (cmd.length > maxLen) {
@@ -624,6 +717,15 @@
 
     try {
       const result = await rs.sendLine(cmd);
+      if (result && result.disconnected) {
+        appendSerialLog("> " + cmd);
+        appendSerialLog(
+          "Command sent; device is disconnecting.",
+          "is-ok",
+        );
+        pushSerialConsoleHistory(cmd);
+        return;
+      }
       logSerialCommandReply(cmd, result);
       pushSerialConsoleHistory(cmd);
     } catch (err) {
@@ -631,7 +733,7 @@
     } finally {
       serialConsoleSending = false;
       updateUsbApplyUi(getAnchor());
-      if (serialConsoleInput) {
+      if (serialConsoleInput && rs.isConnected()) {
         serialConsoleInput.focus({ preventScroll: true });
       }
     }
@@ -678,10 +780,10 @@
   }
 
   async function sendRepeaterAdvert(kind) {
-    const rs = getRepeaterSerial();
-    if (!rs || !rs.isConnected() || isSerialBusy()) {
-      return;
-    }
+    const rs = await ensureSerialReady(
+      kind === "zerohop" ? "Zero-hop advert" : "Flood advert",
+    );
+    if (!rs) return;
 
     const cmd = kind === "zerohop" ? "advert.zerohop" : "advert";
 
@@ -1493,7 +1595,17 @@
   function promptReadFromRepeater(options) {
     options = options || {};
     const rs = getRepeaterSerial();
-    if (!rs || !rs.isConnected() || isSerialBusy()) return;
+    if (!rs || !rs.isConnected() || isSerialBusy()) {
+      if (!rs || !rs.isConnected()) {
+        appendSerialLog(
+          "Device is not connected. Connect over USB first.",
+          "is-error",
+        );
+        setSerialStatus("disconnected", "Disconnected");
+        updateUsbApplyUi(getAnchor());
+      }
+      return;
+    }
 
     const modal = document.getElementById("serial-read-confirm-modal");
     const hintEl = document.getElementById("serial-read-confirm-hint");
@@ -1550,9 +1662,8 @@
   }
 
   async function performReadFromRepeater() {
-    const rs = getRepeaterSerial();
-    if (!rs || !rs.isConnected() || !rs.queryCommands) return;
-    if (isSerialBusy()) return;
+    const rs = await ensureSerialReady("Read settings");
+    if (!rs || !rs.queryCommands) return;
 
     const anchor = getAnchor();
 
@@ -1645,7 +1756,14 @@
   }
 
   async function offerRepeaterReboot(rs, appliedLines) {
-    if (!rs || !rs.isConnected()) return;
+    if (!rs || !(await rs.ensureConnected())) {
+      appendSerialLog(
+        "Cannot reboot: device is no longer connected.",
+        "is-error",
+      );
+      updateUsbApplyUi(getAnchor());
+      return;
+    }
 
     const needsRebootHint =
       appliedLines &&
@@ -1664,10 +1782,21 @@
       return;
     }
 
+    if (!(await rs.ensureConnected())) {
+      appendSerialLog(
+        "Cannot reboot: device is no longer connected.",
+        "is-error",
+      );
+      updateUsbApplyUi(getAnchor());
+      return;
+    }
+
     appendSerialLog("> reboot");
     try {
       const result = await rs.sendLine("reboot", { timeoutMs: 3000 });
-      if (result.reply) {
+      if (result && result.disconnected) {
+        appendSerialLog("Reboot sent; device is disconnecting.", "is-ok");
+      } else if (result && result.reply) {
         appendSerialLog(
           "  -> " + result.reply,
           result.ok ? "is-ok" : "is-error",
@@ -1681,11 +1810,12 @@
         "is-error",
       );
     }
+    updateUsbApplyUi(getAnchor());
   }
 
   async function applyToRepeater() {
-    const rs = getRepeaterSerial();
-    if (!rs || !rs.isConnected()) return;
+    const rs = await ensureSerialReady("Apply configuration");
+    if (!rs) return;
 
     const anchor = getAnchor();
     if (!anchor) {
@@ -2375,15 +2505,42 @@
     floodAdvertHours: 47,
     advertIntervalMinutes: 0,
     floodMax: 64,
-    floodMaxUnscoped: 3,
-    floodMaxAdvert: 5,
     pathHashMode: "1",
     loopDetect: "minimal",
   };
 
+  /**
+   * Flood hop allowance presets for the recommendation dialog.
+   * Values are [flood.max.unscoped, flood.max.advert].
+   */
+  const RECOMMENDED_FLOOD_ALLOWANCE = {
+    minimal: { label: "Minimal", floodMaxUnscoped: 4, floodMaxAdvert: 6 },
+    average: { label: "Average", floodMaxUnscoped: 8, floodMaxAdvert: 12 },
+    extended: { label: "Extended", floodMaxUnscoped: 16, floodMaxAdvert: 24 },
+    full: { label: "Full", floodMaxUnscoped: 64, floodMaxAdvert: 64 },
+  };
+  const DEFAULT_RECOMMENDED_FLOOD_ALLOWANCE = "average";
+
+  function getSelectedRecommendedFloodAllowance() {
+    const checked = document.querySelector(
+      'input[name="recommended-flood-allowance"]:checked',
+    );
+    const key =
+      checked && RECOMMENDED_FLOOD_ALLOWANCE[checked.value]
+        ? checked.value
+        : DEFAULT_RECOMMENDED_FLOOD_ALLOWANCE;
+    return RECOMMENDED_FLOOD_ALLOWANCE[key];
+  }
+
   function openRecommendedSettingsModal() {
     const modal = document.getElementById("recommended-settings-modal");
     if (!modal) return;
+    const defaultRadio = modal.querySelector(
+      'input[name="recommended-flood-allowance"][value="' +
+        DEFAULT_RECOMMENDED_FLOOD_ALLOWANCE +
+        '"]',
+    );
+    if (defaultRadio) defaultRadio.checked = true;
     modal.hidden = false;
     document.body.classList.add("config-confirm-modal-open");
     const confirmBtn = document.getElementById(
@@ -2401,6 +2558,7 @@
 
   function applyRecommendedSettings() {
     const rec = RECOMMENDED_SETTINGS;
+    const flood = getSelectedRecommendedFloodAllowance();
     const presetIndex = FREQUENCY_PRESETS.findIndex(function (p) {
       return p.name === rec.radioPresetName;
     });
@@ -2421,10 +2579,10 @@
       settingFloodMaxEl.value = String(rec.floodMax);
     }
     if (settingFloodMaxUnscopedEl) {
-      settingFloodMaxUnscopedEl.value = String(rec.floodMaxUnscoped);
+      settingFloodMaxUnscopedEl.value = String(flood.floodMaxUnscoped);
     }
     if (settingFloodMaxAdvertEl) {
-      settingFloodMaxAdvertEl.value = String(rec.floodMaxAdvert);
+      settingFloodMaxAdvertEl.value = String(flood.floodMaxAdvert);
     }
     if (settingPathHashModeEl) {
       settingPathHashModeEl.value = rec.pathHashMode;
@@ -2441,14 +2599,19 @@
   }
 
   function initRecommendedSettingsUi() {
-    const openBtn = document.getElementById("recommended-settings-btn");
+    const openBtns = [
+      document.getElementById("recommended-settings-btn"),
+      document.getElementById("recommended-settings-btn-2"),
+    ];
     const confirmBtn = document.getElementById(
       "recommended-settings-confirm-btn",
     );
     const modal = document.getElementById("recommended-settings-modal");
-    if (openBtn) {
-      openBtn.addEventListener("click", openRecommendedSettingsModal);
-    }
+    openBtns.forEach(function (openBtn) {
+      if (openBtn) {
+        openBtn.addEventListener("click", openRecommendedSettingsModal);
+      }
+    });
     if (confirmBtn) {
       confirmBtn.addEventListener("click", applyRecommendedSettings);
     }
@@ -4504,8 +4667,18 @@
       sendRepeaterAdvert("zerohop");
     });
   }
+  if (serialAdvertZerohopBtn2) {
+    serialAdvertZerohopBtn2.addEventListener("click", function () {
+      sendRepeaterAdvert("zerohop");
+    });
+  }
   if (serialAdvertFloodBtn) {
     serialAdvertFloodBtn.addEventListener("click", function () {
+      sendRepeaterAdvert("flood");
+    });
+  }
+  if (serialAdvertFloodBtn2) {
+    serialAdvertFloodBtn2.addEventListener("click", function () {
       sendRepeaterAdvert("flood");
     });
   }
@@ -4552,18 +4725,18 @@
 
   async function runDeviceCommand(cmd, opts) {
     opts = opts || {};
-    const rs = getRepeaterSerial();
-    if (!rs || !rs.isConnected()) {
-      appendSerialLog("Connect over USB first.", "is-err");
-      return null;
-    }
-    if (isSerialBusy()) {
-      appendSerialLog("Busy — wait for the current action to finish.", "is-err");
-      return null;
-    }
+    const rs = await ensureSerialReady(opts.label || "Device command");
+    if (!rs) return null;
     try {
       appendSerialLog("> " + cmd);
       const res = await rs.sendLine(cmd, opts.sendOptions);
+      if (res && res.disconnected) {
+        appendSerialLog(
+          (opts.successMsg || "Command sent; device is disconnecting."),
+          "is-ok",
+        );
+        return res;
+      }
       if (res.reply) {
         appendSerialLog(res.reply, res.ok ? "is-ok" : "is-err");
       }
@@ -4663,7 +4836,8 @@
       if (!window.confirm("Reboot the device now?")) return;
       runDeviceCommand("reboot", {
         label: "Reboot",
-        successMsg: "Reboot sent (device may disconnect).",
+        successMsg:
+          "Reboot sent. Connection closed — reconnect over USB when the device is back.",
         sendOptions: { timeoutMs: 3000 },
       });
     });
@@ -4680,7 +4854,8 @@
       }
       runDeviceCommand("start ota", {
         label: "Start OTA",
-        successMsg: "OTA mode requested.",
+        successMsg:
+          "OTA started. Connection closed — use your flasher, then reconnect.",
       });
     });
   }
@@ -4703,7 +4878,8 @@
       }
       runDeviceCommand("erase", {
         label: "Factory reset",
-        successMsg: "Erase sent. Reboot the device to finish.",
+        successMsg:
+          "Erase sent. Connection closed — reconnect after the device restarts.",
       });
     });
   }
@@ -4945,6 +5121,7 @@
 
   initRadioPresetSelect();
   initSerialShowCommandLogToggle();
+  initSerialDisconnectWatch();
   initRecommendedSettingsUi();
   initLocationCoordsModal();
   initSerialReadConfirmModal();

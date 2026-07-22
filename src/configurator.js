@@ -245,6 +245,10 @@
   let serialConsoleSending = false;
   let serialConsoleHistory = [];
   let serialConsoleHistoryBrowse = -1;
+  /** Named region codes last read from the device (for region remove on apply). */
+  let deviceNamedRegionsFromRead = null;
+  /** Home region name last read from the device (null / "" / "*"). */
+  let deviceHomeRegionFromRead = null;
   const SERIAL_CONSOLE_HISTORY_MAX = 50;
   const SERIAL_LOG_VERBOSE_KEY = "configurator.serialShowCommandLog";
 
@@ -411,6 +415,7 @@
     serialApplying = false;
     serialReading = false;
     serialConsoleSending = false;
+    clearDeviceRegionReadSnapshot();
     if (serialApplyAbort) {
       try {
         serialApplyAbort.abort();
@@ -661,6 +666,7 @@
     serialApplying = false;
     serialReading = false;
     serialConsoleSending = false;
+    clearDeviceRegionReadSnapshot();
     setSerialStatus("disconnected", "Disconnected");
     updateUsbApplyUi(getAnchor());
   }
@@ -815,6 +821,57 @@
       }
     });
     return map;
+  }
+
+  function clearDeviceRegionReadSnapshot() {
+    deviceNamedRegionsFromRead = null;
+    deviceHomeRegionFromRead = null;
+  }
+
+  function rememberDeviceRegionsFromRead(allowed, denied, homeRegion) {
+    const set = new Set();
+    (allowed || []).forEach(function (c) {
+      const code = String(c || "").trim();
+      if (code && code !== "*") set.add(code);
+    });
+    (denied || []).forEach(function (c) {
+      const code = String(c || "").trim();
+      if (code && code !== "*") set.add(code);
+    });
+    const home = String(homeRegion || "").trim();
+    if (home && home !== "*") set.add(home);
+    deviceNamedRegionsFromRead = set;
+    deviceHomeRegionFromRead = home || null;
+  }
+
+  /**
+   * MeshCore requires child regions removed before parents.
+   * Prefer city → province → country → bx → eu, then longer names.
+   */
+  function regionHierarchyDepth(code) {
+    if (findCityByCode(code)) return 40;
+    if (Object.prototype.hasOwnProperty.call(PROVINCE_NAMES, code)) return 30;
+    if (
+      code === "be" ||
+      code === "nl" ||
+      code === "lu" ||
+      code === "fr" ||
+      code === "de"
+    ) {
+      return 20;
+    }
+    if (code === "bx") return 10;
+    if (code === "eu") return 5;
+    return 25 + Math.min(String(code).length, 20);
+  }
+
+  function orderRegionRemovesDeepestFirst(codes) {
+    return codes.slice().sort(function (a, b) {
+      const d = regionHierarchyDepth(b) - regionHierarchyDepth(a);
+      if (d !== 0) return d;
+      if (b.length !== a.length) return b.length - a.length;
+      return a.localeCompare(b);
+    });
   }
 
   function parseRegionNameList(reply) {
@@ -1186,6 +1243,7 @@
   }
 
   function applyReadRegionsToPolicy(allowed, denied, homeRegion, anchor) {
+    rememberDeviceRegionsFromRead(allowed, denied, homeRegion);
     if (!policyCard || !anchor) {
       return { applied: false, reason: "no-location", missing: [] };
     }
@@ -1887,6 +1945,7 @@
       });
       applySucceeded = true;
       appendSerialLog("Apply complete.", "is-ok");
+      syncDeviceRegionSnapshotFromForm(anchor);
     } catch (err) {
       if (err && err.name === "AbortError") {
         appendSerialLog("Apply cancelled.", "is-error");
@@ -3274,7 +3333,7 @@
   /**
    * Add province/be ancestors for cities and be for provinces when those
    * codes appear in policy selections. Skips auto-adding ancestors for the
-   * selected home city and home province so region put lines follow home
+   * selected home city and home province so region def lines follow home
    * Allow checkboxes only.
    */
   function expandRegionNeeded(needed, anchor) {
@@ -3312,9 +3371,10 @@
   }
 
   /**
-   * Parent for country-level region put lines (nl, lu, fr, de, be).
-   * Without eu/bx: omit parent (not under *). With eu/bx: Benelux members
+   * Parent for country-level region nodes (nl, lu, fr, de, be).
+   * Without eu/bx: omit parent (under *). With eu/bx: Benelux members
    * under bx when both exist, else under eu or bx; FR/DE under eu only.
+   * @returns {string|null} parent code, or null for wildcard *
    */
   function countryPutParent(co, needed) {
     const benelux = co === "nl" || co === "be" || co === "lu";
@@ -3334,21 +3394,25 @@
     return null;
   }
 
-  function buildOrderedRegionPutLines(needed, homeCityRow) {
-    const lines = [];
+  /**
+   * Build ordered { code, parent } entries (parent null = under *).
+   * Same hierarchy as the former region put sequence.
+   */
+  function buildOrderedRegionEntries(needed, homeCityRow) {
+    const entries = [];
     const structured = new Set();
 
+    function addEntry(code, parent) {
+      if (!code || structured.has(code)) return;
+      entries.push({ code: code, parent: parent || null });
+      structured.add(code);
+    }
+
     if (needed.has("eu")) {
-      lines.push("region put eu");
-      structured.add("eu");
+      addEntry("eu", null);
     }
     if (needed.has("bx")) {
-      if (needed.has("eu")) {
-        lines.push("region put bx eu");
-      } else {
-        lines.push("region put bx");
-      }
-      structured.add("bx");
+      addEntry("bx", needed.has("eu") ? "eu" : null);
     }
 
     sortCodesForCli(
@@ -3356,13 +3420,7 @@
         return needed.has(co);
       }),
     ).forEach(function (co) {
-      const parent = countryPutParent(co, needed);
-      if (parent === null) {
-        lines.push("region put " + co);
-      } else {
-        lines.push("region put " + co + " " + parent);
-      }
-      structured.add(co);
+      addEntry(co, countryPutParent(co, needed));
     });
 
     sortCodesForCli(
@@ -3370,8 +3428,7 @@
         return needed.has(p);
       }),
     ).forEach(function (p) {
-      lines.push("region put " + p + " be");
-      structured.add(p);
+      addEntry(p, "be");
     });
 
     const cityRows = [];
@@ -3387,8 +3444,7 @@
       return a.code.localeCompare(b.code);
     });
     cityRows.forEach(function (pair) {
-      lines.push("region put " + pair.code + " " + pair.prov);
-      structured.add(pair.code);
+      addEntry(pair.code, pair.prov);
     });
 
     const misc = [];
@@ -3397,10 +3453,204 @@
     });
     misc.sort();
     misc.forEach(function (c) {
-      lines.push("region put " + c + " *");
+      addEntry(c, null);
     });
 
-    return lines;
+    return entries;
+  }
+
+  /**
+   * MeshCore `region def` tokens for a parent→children tree.
+   * Uses name|jump to pop back when starting another branch.
+   * @param {Array<{code:string,parent:string|null}>} entries
+   * @returns {string[]}
+   */
+  function buildRegionDefTokens(entries) {
+    const childrenOf = Object.create(null);
+    childrenOf["*"] = [];
+    entries.forEach(function (e) {
+      const parent = e.parent || "*";
+      if (!childrenOf[parent]) childrenOf[parent] = [];
+      childrenOf[parent].push(e.code);
+      if (!childrenOf[e.code]) childrenOf[e.code] = [];
+    });
+
+    const tokens = [];
+
+    function emitUnder(parentKey) {
+      const kids = childrenOf[parentKey] || [];
+      for (let i = 0; i < kids.length; i++) {
+        const child = kids[i];
+        const moreSiblings = i < kids.length - 1;
+        const grandkids = childrenOf[child] || [];
+        if (grandkids.length > 0) {
+          tokens.push(child);
+          emitUnder(child);
+          if (moreSiblings && tokens.length) {
+            tokens[tokens.length - 1] =
+              tokens[tokens.length - 1] + "|" + parentKey;
+          }
+        } else if (moreSiblings) {
+          tokens.push(child + "|" + parentKey);
+        } else {
+          tokens.push(child);
+        }
+      }
+    }
+
+    emitUnder("*");
+    return tokens;
+  }
+
+  /**
+   * Pack region def tokens into CLI lines (≤ RepeaterSerial.MAX_LINE_LEN / 160).
+   * One line per root child of * when possible. Within a long subtree, cut only
+   * after a `name|jump` token; strip that jump (line ends) and start the next
+   * line with path reposition `a|a b|b …` (cursor resets to * between commands).
+   */
+  function packRegionDefLines(tokens, entries) {
+    const PREFIX = "region def ";
+    const rs = getRepeaterSerial();
+    const maxLen = Math.min((rs && rs.MAX_LINE_LEN) || 151, 160);
+    if (!tokens.length) return [];
+
+    function lineFor(toks) {
+      return PREFIX + toks.join(" ");
+    }
+
+    function tokenJump(tok) {
+      const i = tok.indexOf("|");
+      return i < 0 ? null : tok.slice(i + 1);
+    }
+
+    function lastJumpIndex(arr) {
+      for (let j = arr.length - 1; j >= 0; j--) {
+        if (tokenJump(arr[j])) return j;
+      }
+      return -1;
+    }
+
+    function isRootToken(tok, root) {
+      return tok === root || tok.indexOf(root + "|") === 0;
+    }
+
+    const parentOf = Object.create(null);
+    entries.forEach(function (e) {
+      parentOf[e.code] = e.parent || "*";
+    });
+
+    /** Walk * → code via name|name so putRegion keeps existing parents. */
+    function repositionTokens(code) {
+      const chain = [];
+      let cur = code;
+      let guard = 0;
+      while (cur && cur !== "*") {
+        chain.unshift(cur);
+        cur = parentOf[cur] || null;
+        if (++guard > 32) break;
+      }
+      return chain.map(function (c) {
+        return c + "|" + c;
+      });
+    }
+
+    if (lineFor(tokens).length <= maxLen) {
+      return [lineFor(tokens)];
+    }
+
+    const rootChildren = entries
+      .filter(function (e) {
+        return !e.parent;
+      })
+      .map(function (e) {
+        return e.code;
+      });
+
+    /** Split one root subtree; resume mid-tree with path reposition. */
+    function packChunk(chunk) {
+      if (!chunk.length) return [];
+      if (lineFor(chunk).length <= maxLen) return [lineFor(chunk)];
+
+      const out = [];
+      let buf = [];
+      let resumeAt = null;
+
+      function withResume(toks) {
+        return resumeAt ? repositionTokens(resumeAt).concat(toks) : toks;
+      }
+
+      function flushAt(splitIdx) {
+        const keep = buf.slice(0, splitIdx + 1);
+        const rest = buf.slice(splitIdx + 1);
+        const last = keep[keep.length - 1];
+        const jump = tokenJump(last);
+        if (jump) keep[keep.length - 1] = last.slice(0, last.indexOf("|"));
+        out.push(lineFor(withResume(keep)));
+        resumeAt = jump;
+        buf = rest;
+      }
+
+      function flushWhileTooLong() {
+        while (buf.length > 1 && lineFor(withResume(buf)).length > maxLen) {
+          const idx = lastJumpIndex(buf);
+          if (idx < 0 || idx === buf.length - 1) break;
+          flushAt(idx);
+        }
+      }
+
+      chunk.forEach(function (tok) {
+        const trial = buf.concat([tok]);
+        if (buf.length && lineFor(withResume(trial)).length > maxLen) {
+          const splitIdx = lastJumpIndex(buf);
+          if (splitIdx >= 0) {
+            flushAt(splitIdx);
+            buf = buf.concat([tok]);
+            flushWhileTooLong();
+          } else {
+            // Linear prefix with no jump yet — cannot cut mid-block.
+            buf = trial;
+          }
+        } else {
+          buf = trial;
+        }
+      });
+      if (buf.length) out.push(lineFor(withResume(buf)));
+      return out;
+    }
+
+    const lines = [];
+    rootChildren.forEach(function (root) {
+      const start = tokens.findIndex(function (t) {
+        return isRootToken(t, root);
+      });
+      if (start < 0) return;
+      let end = tokens.length;
+      rootChildren.forEach(function (other) {
+        if (other === root) return;
+        const idx = tokens.findIndex(function (t) {
+          return isRootToken(t, other);
+        });
+        if (idx > start && idx < end) end = idx;
+      });
+      let chunk = tokens.slice(start, end);
+      // Trailing |* only linked sibling roots on one line — drop per-chunk.
+      if (chunk.length) {
+        const last = chunk[chunk.length - 1];
+        if (last.slice(-2) === "|*") {
+          chunk = chunk.slice(0, -1).concat([last.slice(0, -2)]);
+        }
+      }
+      Array.prototype.push.apply(lines, packChunk(chunk));
+    });
+
+    return lines.length ? lines : [lineFor(tokens)];
+  }
+
+  /** Build region def CLI line(s) for the needed region set (FW 1.16+). */
+  function buildOrderedRegionDefLines(needed, homeCityRow) {
+    const entries = buildOrderedRegionEntries(needed, homeCityRow);
+    const tokens = buildRegionDefTokens(entries);
+    return packRegionDefLines(tokens, entries);
   }
 
   function policyRow(labelHtml, code, opts) {
@@ -4037,10 +4287,20 @@
     }
   }
 
-  function buildRegionCommandLines(anchor) {
-    if (!anchor) return [];
+  function collectPolicyNeededRegionCodes(anchor, allowCodes, denyCodes) {
+    const needed = new Set();
+    if (!anchor) return needed;
+    withoutStar(allowCodes || []).forEach(function (c) {
+      needed.add(c);
+    });
+    withoutStar(denyCodes || []).forEach(function (c) {
+      needed.add(c);
+    });
+    expandRegionNeeded(needed, anchor);
+    return needed;
+  }
 
-    refreshHomeOverrideSelect();
+  function readPolicyAllowDenyCodes() {
     const allowCodes = [];
     const denyCodes = [];
     if (policyCard) {
@@ -4055,33 +4315,78 @@
           denyCodes.push(el.getAttribute("data-code"));
         });
     }
+    return { allowCodes: allowCodes, denyCodes: denyCodes };
+  }
+
+  function syncDeviceRegionSnapshotFromForm(anchor) {
+    const pol = readPolicyAllowDenyCodes();
+    deviceNamedRegionsFromRead = collectPolicyNeededRegionCodes(
+      anchor,
+      pol.allowCodes,
+      pol.denyCodes,
+    );
+    const homeLine = regionHomeLineForCli(anchor);
+    if (homeLine && /^region home\s+/.test(homeLine)) {
+      deviceHomeRegionFromRead = homeLine.replace(/^region home\s+/, "").trim();
+    } else {
+      deviceHomeRegionFromRead = "*";
+    }
+  }
+
+  function buildRegionCommandLines(anchor) {
+    if (!anchor) return [];
+
+    refreshHomeOverrideSelect();
+    const pol = readPolicyAllowDenyCodes();
     const untaggedEl = document.getElementById("policy-untagged-flood");
     const allowUntagged = !untaggedEl || untaggedEl.checked;
-    let allowForCli = withoutStar(allowCodes);
-    let denyForCli = withoutStar(denyCodes);
-    if (allowUntagged) {
-      allowForCli.push("*");
-    } else {
+    let denyForCli = withoutStar(pol.denyCodes);
+    if (!allowUntagged) {
       denyForCli.push("*");
     }
-    const allowSorted = starFirst(sortCodesForCli(allowForCli));
     const denySorted = starFirst(sortCodesForCli(denyForCli));
 
-    const needed = new Set();
-    withoutStar(allowForCli).forEach(function (c) {
-      needed.add(c);
-    });
-    withoutStar(denyForCli).forEach(function (c) {
-      needed.add(c);
-    });
-    expandRegionNeeded(needed, anchor);
+    const needed = collectPolicyNeededRegionCodes(
+      anchor,
+      pol.allowCodes,
+      pol.denyCodes,
+    );
     const homeCityRow =
       anchor.mode === "city" && anchor.row ? anchor.row : null;
-    const putLines = buildOrderedRegionPutLines(needed, homeCityRow);
-    const lines = putLines.slice();
-    allowSorted.forEach(function (r) {
-      lines.push("region allowf " + r);
+    const defLines = buildOrderedRegionDefLines(needed, homeCityRow);
+    const lines = [];
+
+    // Drop named regions that were on the device at last read but are no
+    // longer selected (Allow/Deny) and not required as ancestors. Children
+    // before parents — MeshCore removeRegion fails if children remain.
+    const toRemove = [];
+    if (deviceNamedRegionsFromRead && deviceNamedRegionsFromRead.size) {
+      deviceNamedRegionsFromRead.forEach(function (code) {
+        if (!code || code === "*") return;
+        if (!needed.has(code)) toRemove.push(code);
+      });
+    }
+    if (
+      deviceHomeRegionFromRead &&
+      deviceHomeRegionFromRead !== "*" &&
+      toRemove.indexOf(deviceHomeRegionFromRead) >= 0
+    ) {
+      lines.push("region home *");
+    }
+    orderRegionRemovesDeepestFirst(toRemove).forEach(function (code) {
+      lines.push("region remove " + code);
     });
+
+    defLines.forEach(function (line) {
+      lines.push(line);
+    });
+
+    // region def sets flood-allowed (flags = 0). Skip redundant allowf for
+    // named regions. Wildcard * is not created by def — still needs allowf/denyf.
+    // Deny rows still need region denyf (def would leave them allowed).
+    if (allowUntagged) {
+      lines.push("region allowf *");
+    }
     denySorted.forEach(function (r) {
       lines.push("region denyf " + r);
     });

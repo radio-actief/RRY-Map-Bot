@@ -2737,6 +2737,18 @@ code.config-naming-preview-advert {
   margin-top: 0.6rem;
 }
 
+.cli-firmware-note {
+  margin: 0.45rem 0 0;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: var(--cfg-text-muted, #6b7280);
+}
+
+.cli-firmware-note strong {
+  font-weight: 700;
+  color: var(--cfg-text, #1a1917);
+}
+
 /* Inactive-feature note beside the Home override toggle. */
 .policy-home-override-inactive-note {
   font-size: 0.72rem;

@@ -1060,6 +1060,36 @@
                   <option value="">Default</option>
                 </select>
               </div>
+              <div
+                class="policy-default-scope-wrap"
+                role="group"
+                aria-label="Default flood scope"
+              >
+                <label
+                  class="policy-default-scope-label"
+                  for="policy-default-scope-select"
+                  title="Tags this node's own flood adverts with a region transport code (CLI: region default). With flood.max.advert above flood.max.unscoped, scoped adverts get more hop budget than untagged noise."
+                >
+                  Default flood scope
+                </label>
+                <p
+                  class="policy-default-scope-hint"
+                  title="Apply writes region default so flood adverts use the advert hop budget. #BEmesh baseline prefers be when it is Allow-checked."
+                >
+                  Apply writes <code>region default …</code> so our flood
+                  adverts use the advert hop budget (e.g. 12) instead of the
+                  unscoped limit (e.g. 8). Automatic prefers
+                  <code>be</code> when Allow is checked.
+                </p>
+                <select
+                  id="policy-default-scope-select"
+                  class="policy-default-scope-select"
+                  aria-label="Default flood scope region"
+                >
+                  <option value="">Automatic (prefer be)</option>
+                  <option value="__none__">None (&lt;null&gt;)</option>
+                </select>
+              </div>
             </div>
           </div>
         </section>
@@ -1333,8 +1363,14 @@
           </div>
 
           <details class="cli-preview-details" id="cli-preview-panel">
-            <summary class="deploy-subheading cli-preview-summary">
-              Command preview
+            <summary class="cli-preview-summary">
+              <span class="cli-preview-summary-label">Command preview</span>
+              <span class="cli-preview-summary-hint cli-preview-hint-closed"
+                >Show CLI script</span
+              >
+              <span class="cli-preview-summary-hint cli-preview-hint-open"
+                >Hide</span
+              >
             </summary>
             <label
               class="config-cli-show-defaults"

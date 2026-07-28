@@ -249,6 +249,8 @@
   let deviceNamedRegionsFromRead = null;
   /** Home region name last read from the device (null / "" / "*"). */
   let deviceHomeRegionFromRead = null;
+  /** Default flood scope last read from the device (null / "" / "<null>"). */
+  let deviceDefaultRegionFromRead = null;
   const SERIAL_CONSOLE_HISTORY_MAX = 50;
   const SERIAL_LOG_VERBOSE_KEY = "configurator.serialShowCommandLog";
 
@@ -306,6 +308,7 @@
     "get lon",
     "gps advert",
     "region home",
+    "region default",
     "region list allowed",
     "region list denied",
     "ver",
@@ -826,9 +829,15 @@
   function clearDeviceRegionReadSnapshot() {
     deviceNamedRegionsFromRead = null;
     deviceHomeRegionFromRead = null;
+    deviceDefaultRegionFromRead = null;
   }
 
-  function rememberDeviceRegionsFromRead(allowed, denied, homeRegion) {
+  function rememberDeviceRegionsFromRead(
+    allowed,
+    denied,
+    homeRegion,
+    defaultRegion,
+  ) {
     const set = new Set();
     (allowed || []).forEach(function (c) {
       const code = String(c || "").trim();
@@ -840,8 +849,12 @@
     });
     const home = String(homeRegion || "").trim();
     if (home && home !== "*") set.add(home);
+    const def = String(defaultRegion || "").trim();
+    if (def && def !== "*" && def.toLowerCase() !== "<null>") set.add(def);
     deviceNamedRegionsFromRead = set;
     deviceHomeRegionFromRead = home || null;
+    deviceDefaultRegionFromRead =
+      !def || def.toLowerCase() === "<null>" ? null : def;
   }
 
   /**
@@ -888,6 +901,13 @@
   function parseRegionHomeName(reply) {
     const s = stripCliReply(reply);
     const m = s.match(/^home is\s+(.+)$/i);
+    if (!m) return "";
+    return m[1].trim();
+  }
+
+  function parseRegionDefaultName(reply) {
+    const s = stripCliReply(reply);
+    const m = s.match(/^default scope is\s+(.+)$/i);
     if (!m) return "";
     return m[1].trim();
   }
@@ -1239,11 +1259,18 @@
 
     syncScopeMasters(subsection);
     refreshHomeOverrideSelect();
+    refreshDefaultScopeSelect();
     return missing;
   }
 
-  function applyReadRegionsToPolicy(allowed, denied, homeRegion, anchor) {
-    rememberDeviceRegionsFromRead(allowed, denied, homeRegion);
+  function applyReadRegionsToPolicy(
+    allowed,
+    denied,
+    homeRegion,
+    anchor,
+    defaultRegion,
+  ) {
+    rememberDeviceRegionsFromRead(allowed, denied, homeRegion, defaultRegion);
     if (!policyCard || !anchor) {
       return { applied: false, reason: "no-location", missing: [] };
     }
@@ -1257,6 +1284,12 @@
       allCodes.push(c);
     });
     if (homeRegion) allCodes.push(homeRegion);
+    if (
+      defaultRegion &&
+      String(defaultRegion).toLowerCase() !== "<null>"
+    ) {
+      allCodes.push(defaultRegion);
+    }
 
     const missing = ensureDeviceRegionScopeRows(allCodes);
 
@@ -1278,6 +1311,7 @@
 
     finalizePolicyUiChange();
     refreshHomeOverrideSelect();
+    refreshDefaultScopeSelect();
 
     const ov = document.getElementById("policy-home-override");
     const sel = document.getElementById("policy-home-override-select");
@@ -1311,6 +1345,45 @@
       sel.disabled = !ov.checked;
     }
 
+    const defSel = document.getElementById("policy-default-scope-select");
+    if (defSel) {
+      const autoCode = recommendedDefaultScopeCode(anchor);
+      const defNorm = String(defaultRegion || "")
+        .trim()
+        .toLowerCase();
+      if (!defNorm || defNorm === "<null>") {
+        if (!autoCode) {
+          defSel.value = "";
+        } else {
+          defSel.value = DEFAULT_SCOPE_NONE;
+        }
+      } else if (defaultRegion === autoCode) {
+        defSel.value = "";
+      } else {
+        let found = false;
+        for (let i = 0; i < defSel.options.length; i++) {
+          if (defSel.options[i].value === defaultRegion) {
+            defSel.value = defaultRegion;
+            found = true;
+            break;
+          }
+        }
+        if (!found) {
+          const o = document.createElement("option");
+          o.value = defaultRegion;
+          o.textContent = homeOverrideOptionLabel(defaultRegion);
+          defSel.appendChild(o);
+          defSel.value = defaultRegion;
+          appendSerialLog(
+            "Default scope " +
+              defaultRegion +
+              " is not currently Allow-checked; kept as an explicit override.",
+            "is-ok",
+          );
+        }
+      }
+    }
+
     return { applied: true, missing: missing };
   }
 
@@ -1335,10 +1408,15 @@
 
     const nameValue = takeReadReply(byCmd, "get name", failures);
     const homeValue = takeReadReply(byCmd, "region home", failures);
+    const defaultScopeValue = takeReadReply(byCmd, "region default", failures);
     const allowedValue = takeReadReply(byCmd, "region list allowed", failures);
     const deniedValue = takeReadReply(byCmd, "region list denied", failures);
     const homeRegion =
       homeValue !== undefined ? parseRegionHomeName(homeValue) || homeValue : "";
+    const defaultRegion =
+      defaultScopeValue !== undefined
+        ? parseRegionDefaultName(defaultScopeValue) || defaultScopeValue
+        : "";
     const allowed =
       allowedValue !== undefined ? parseRegionNameList(allowedValue) : [];
     const denied =
@@ -1587,6 +1665,7 @@
 
     if (
       homeValue !== undefined ||
+      defaultScopeValue !== undefined ||
       allowedValue !== undefined ||
       deniedValue !== undefined
     ) {
@@ -1606,12 +1685,22 @@
           "is-ok",
         );
       }
+      if (defaultScopeValue !== undefined) {
+        appendSerialLog(
+          "Default flood scope: " +
+            (defaultRegion && String(defaultRegion).toLowerCase() !== "<null>"
+              ? defaultRegion
+              : "(none)"),
+          "is-ok",
+        );
+      }
       workingAnchor = getAnchor() || workingAnchor;
       const regionResult = applyReadRegionsToPolicy(
         allowed,
         denied,
         homeRegion,
         workingAnchor,
+        defaultRegion,
       );
       if (regionResult.applied) {
         mark("Region policy", "advanced");
@@ -3301,6 +3390,8 @@
 
   /** Home-override select: omit `region home` from generated CLI entirely. */
   const HOME_OVERRIDE_OMIT = "__nohome__";
+  /** Default-scope select: emit `region default <null>` to clear. */
+  const DEFAULT_SCOPE_NONE = "__none__";
 
   function expandedNameForRegionCode(code) {
     if (code === "*") return "wildcard root";
@@ -3814,6 +3905,27 @@
     return "*";
   }
 
+  function anyAllowChecked(code) {
+    if (!policyCard || !code) return false;
+    const el = policyCard.querySelector(
+      'input.policy-allow[data-code="' +
+        String(code).replace(/"/g, "") +
+        '"]:checked',
+    );
+    return Boolean(el && !el.disabled);
+  }
+
+  /**
+   * #BEmesh automatic default flood scope: prefer `be` when Allow-checked,
+   * else deepest home Allow (city → province → be). Returns null when none.
+   */
+  function recommendedDefaultScopeCode(anchor) {
+    if (anyAllowChecked("be")) return "be";
+    const deepest = deepestAllowedHomeRegionCode(anchor);
+    if (deepest && deepest !== "*") return deepest;
+    return null;
+  }
+
   /**
    * Repopulate the home-override dropdown: No home, Default, every
    * Allow-checked scope, plus * (wildcard root). Option text shows full name
@@ -3865,6 +3977,59 @@
   }
 
   /**
+   * Repopulate Default flood scope select from Allow-checked named regions.
+   * Empty value = automatic (prefer be). __none__ = region default <null>.
+   */
+  function refreshDefaultScopeSelect() {
+    const sel = document.getElementById("policy-default-scope-select");
+    if (!sel || !policyCard) return;
+    const prev = sel.value;
+    const codes = [];
+    const seen = new Set();
+    policyCard
+      .querySelectorAll("input.policy-allow:checked")
+      .forEach(function (el) {
+        const c = el.getAttribute("data-code");
+        if (!c || c === "*" || seen.has(c)) return;
+        seen.add(c);
+        codes.push(c);
+      });
+    const sorted = sortCodesForCli(codes);
+    sel.innerHTML = "";
+    const optAuto = document.createElement("option");
+    optAuto.value = "";
+    const autoCode = recommendedDefaultScopeCode(getAnchor());
+    optAuto.textContent = autoCode
+      ? "Automatic (prefer be → " + autoCode + ")"
+      : "Automatic (prefer be)";
+    sel.appendChild(optAuto);
+    const optNone = document.createElement("option");
+    optNone.value = DEFAULT_SCOPE_NONE;
+    optNone.textContent = "None (<null>)";
+    sel.appendChild(optNone);
+    sorted.forEach(function (c) {
+      const o = document.createElement("option");
+      o.value = c;
+      o.textContent = homeOverrideOptionLabel(c);
+      sel.appendChild(o);
+    });
+    if (prev === DEFAULT_SCOPE_NONE) {
+      sel.value = DEFAULT_SCOPE_NONE;
+    } else if (prev && seen.has(prev)) {
+      sel.value = prev;
+    } else if (prev && prev !== "") {
+      // Keep an explicit override that is no longer Allow-checked visible.
+      const o = document.createElement("option");
+      o.value = prev;
+      o.textContent = homeOverrideOptionLabel(prev) + " (not Allow)";
+      sel.appendChild(o);
+      sel.value = prev;
+    } else {
+      sel.value = "";
+    }
+  }
+
+  /**
    * Full `region home …` line for the CLI, or null to omit the command.
    * Override off, or on with empty select → automatic smallest home Allow, else *.
    * Override on with "No home" → omit line. Override on with a code → that code.
@@ -3883,6 +4048,26 @@
       return "region home " + v;
     }
     return "region home " + deepestAllowedHomeRegionCode(anchor);
+  }
+
+  /**
+   * Full `region default …` line for the CLI.
+   * Empty select → automatic (prefer be). __none__ → <null>. Else explicit code.
+   */
+  function regionDefaultLineForCli(anchor) {
+    const sel = document.getElementById("policy-default-scope-select");
+    const v = sel ? sel.value : "";
+    if (v === DEFAULT_SCOPE_NONE) {
+      return "region default <null>";
+    }
+    if (v) {
+      return "region default " + v;
+    }
+    const auto = recommendedDefaultScopeCode(anchor);
+    if (auto) {
+      return "region default " + auto;
+    }
+    return "region default <null>";
   }
 
   /**
@@ -3963,6 +4148,8 @@
     const anchor = getAnchor();
     if (anchor) applyNeighborPolicyGating(anchor);
     policyCard.querySelectorAll(".policy-subsection").forEach(syncScopeMasters);
+    refreshHomeOverrideSelect();
+    refreshDefaultScopeSelect();
     refreshFoundCodesAndCli();
   }
 
@@ -4216,6 +4403,7 @@
       .querySelectorAll(".policy-subsection")
       .forEach(syncScopeMasters);
     refreshHomeOverrideSelect();
+    refreshDefaultScopeSelect();
   }
 
   function applyPolicyDefaults() {
@@ -4253,6 +4441,8 @@
     const hs = document.getElementById("policy-home-override-select");
     if (ho) ho.checked = false;
     if (hs) hs.value = "";
+    const ds = document.getElementById("policy-default-scope-select");
+    if (ds) ds.value = "";
     finalizePolicyUiChange();
   }
 
@@ -4331,12 +4521,21 @@
     } else {
       deviceHomeRegionFromRead = "*";
     }
+    const defLine = regionDefaultLineForCli(anchor);
+    if (defLine && /^region default\s+/.test(defLine)) {
+      const d = defLine.replace(/^region default\s+/, "").trim();
+      deviceDefaultRegionFromRead =
+        !d || d.toLowerCase() === "<null>" ? null : d;
+    } else {
+      deviceDefaultRegionFromRead = null;
+    }
   }
 
   function buildRegionCommandLines(anchor) {
     if (!anchor) return [];
 
     refreshHomeOverrideSelect();
+    refreshDefaultScopeSelect();
     const pol = readPolicyAllowDenyCodes();
     const untaggedEl = document.getElementById("policy-untagged-flood");
     const allowUntagged = !untaggedEl || untaggedEl.checked;
@@ -4351,6 +4550,14 @@
       pol.allowCodes,
       pol.denyCodes,
     );
+    const defLine = regionDefaultLineForCli(anchor);
+    if (defLine && /^region default\s+/.test(defLine)) {
+      const defCode = defLine.replace(/^region default\s+/, "").trim();
+      if (defCode && defCode.toLowerCase() !== "<null>") {
+        needed.add(defCode);
+        expandRegionNeeded(needed, anchor);
+      }
+    }
     const homeCityRow =
       anchor.mode === "city" && anchor.row ? anchor.row : null;
     const defLines = buildOrderedRegionDefLines(needed, homeCityRow);
@@ -4365,6 +4572,12 @@
         if (!code || code === "*") return;
         if (!needed.has(code)) toRemove.push(code);
       });
+    }
+    if (
+      deviceDefaultRegionFromRead &&
+      toRemove.indexOf(deviceDefaultRegionFromRead) >= 0
+    ) {
+      lines.push("region default <null>");
     }
     if (
       deviceHomeRegionFromRead &&
@@ -4393,6 +4606,9 @@
     const homeLine = regionHomeLineForCli(anchor);
     if (homeLine) {
       lines.push(homeLine);
+    }
+    if (defLine) {
+      lines.push(defLine);
     }
     lines.push("region save");
     return lines;
@@ -5456,7 +5672,8 @@
       const t = e.target;
       if (
         t instanceof HTMLSelectElement &&
-        t.id === "policy-home-override-select"
+        (t.id === "policy-home-override-select" ||
+          t.id === "policy-default-scope-select")
       ) {
         finalizePolicyUiChange();
         return;
@@ -5648,6 +5865,8 @@
           const hs = document.getElementById("policy-home-override-select");
           if (ho) ho.checked = false;
           if (hs) hs.value = "";
+          const ds = document.getElementById("policy-default-scope-select");
+          if (ds) ds.value = "";
         }
         finalizePolicyUiChange();
         return;
@@ -5678,6 +5897,8 @@
           const hs = document.getElementById("policy-home-override-select");
           if (ho) ho.checked = false;
           if (hs) hs.value = "";
+          const ds = document.getElementById("policy-default-scope-select");
+          if (ds) ds.value = "";
         }
         syncScopeMasters(subsection);
       }

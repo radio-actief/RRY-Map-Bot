@@ -63,6 +63,7 @@
     "get lon",
     "gps advert",
     "region home",
+    "region default",
     "region list allowed",
     "region list denied",
   ];

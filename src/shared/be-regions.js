@@ -70,6 +70,32 @@
     "be-wlx": ["be-wna", "be-wlg"],
   };
 
+  /**
+   * Belgian gewesten (regions) — optional tier between country (be) and
+   * province. Brussels has no separate gewest entry: be-bru already IS the
+   * Brussels-Capital Region, so it stays a direct child of be.
+   */
+  var GEWEST_NAMES = {
+    "be-vlg": "Vlaams Gewest",
+    "be-wal": "Waals Gewest",
+  };
+
+  var GEWEST_CODES = ["be-vlg", "be-wal"];
+
+  /** Province code -> parent gewest code. No entry for be-bru (see above). */
+  var GEWEST_OF_PROVINCE = {
+    "be-van": "be-vlg",
+    "be-vbr": "be-vlg",
+    "be-vov": "be-vlg",
+    "be-vwv": "be-vlg",
+    "be-vli": "be-vlg",
+    "be-wbr": "be-wal",
+    "be-wht": "be-wal",
+    "be-wlg": "be-wal",
+    "be-wna": "be-wal",
+    "be-wlx": "be-wal",
+  };
+
   /** Province label tooltips anchor at the administrative capital (from be-locode pins). */
   var PROVINCE_CAPITAL_LATLNG = {
     "be-van": [51.22111, 4.39971],
@@ -91,5 +117,8 @@
     PROVINCE_CODES: PROVINCE_CODES,
     PROVINCE_ADJACENCY: PROVINCE_ADJACENCY,
     PROVINCE_CAPITAL_LATLNG: PROVINCE_CAPITAL_LATLNG,
+    GEWEST_NAMES: GEWEST_NAMES,
+    GEWEST_CODES: GEWEST_CODES,
+    GEWEST_OF_PROVINCE: GEWEST_OF_PROVINCE,
   };
 })(window);

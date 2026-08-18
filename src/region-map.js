@@ -6,9 +6,12 @@
         var PROVINCE_NAMES = Regions.PROVINCE_NAMES;
         var PROVINCE_CODES = Regions.PROVINCE_CODES;
         var PROVINCE_CAPITAL_LATLNG = Regions.PROVINCE_CAPITAL_LATLNG;
+        var GEWEST_NAMES = Regions.GEWEST_NAMES;
+        var GEWEST_OF_PROVINCE = Regions.GEWEST_OF_PROVINCE;
 
         let locations = [];
         let provinceBoundariesFC = null;
+        let gewestBoundariesFC = null;
         let map = null;
         let markerCluster = null;
         let provincesLayer = null;
@@ -124,6 +127,41 @@
           );
         }
 
+        /** Optional tier: gewest name/code + the provinces nested under it. */
+        function gewestPopupHtml(gewestCode) {
+          var gc = (gewestCode || "").trim();
+          var gewestName = escapeHtml((GEWEST_NAMES[gc] || "").trim());
+          var gewestCodeCell = gc
+            ? "<code>" + escapeHtml(gc) + "</code>"
+            : '<span class="node-popup__muted">—</span>';
+          var provinceCodes = PROVINCE_CODES.filter(function (pc) {
+            return GEWEST_OF_PROVINCE[pc] === gc;
+          });
+          var provinceNames = provinceCodes
+            .map(function (pc) {
+              return PROVINCE_NAMES[pc] || pc;
+            })
+            .join(", ");
+          var rows = [
+            locodePopupPair(
+              gewestName || '<span class="node-popup__muted">—</span>',
+              gewestCodeCell,
+            ),
+            locodePopupPair(escapeHtml("Belgium"), "<code>be</code>"),
+            locodePopupPair(
+              escapeHtml("Provinces (optional under gewest)"),
+              escapeHtml(provinceNames),
+            ),
+          ];
+          return (
+            '<div class="node-popup region-map-locode-popup--compact" data-status="none">' +
+            '<div class="node-popup__body">' +
+            '<div class="region-map-locode-popup__grid">' +
+            rows.join("") +
+            "</div></div></div>"
+          );
+        }
+
         var REGION_LOCODE_POPUP_OPTS = {
           /* Leaflet measures content width with nowrap; minWidth avoids a 1-char-wide box */
           minWidth: 280,
@@ -143,7 +181,7 @@
          */
         function attachProvinceHoverTooltip(layer, provinceCode) {
           var code = provinceCode;
-          var label = PROVINCE_NAMES[code] || code;
+          var label = PROVINCE_NAMES[code] || GEWEST_NAMES[code] || code;
           var cap = PROVINCE_CAPITAL_LATLNG[code];
           function clearTip() {
             if (layer._rmProvinceHoverTip && map) {
@@ -251,7 +289,7 @@
           return layers;
         }
 
-        /** One distinct fill + outline per province (not by region / gewest). */
+        /** One distinct fill + outline per province, or per gewest in gewesten mode. */
         function getOverlayStyle(code) {
           var palette = {
             "be-van": { fill: "#e63946", line: "rgba(157, 34, 53, 0.45)" },
@@ -265,6 +303,8 @@
             "be-wlg": { fill: "#bc6c25", line: "rgba(107, 61, 21, 0.45)" },
             "be-wna": { fill: "#7b2cbf", line: "rgba(74, 20, 140, 0.45)" },
             "be-wlx": { fill: "#06d6a0", line: "rgba(4, 122, 92, 0.45)" },
+            "be-vlg": { fill: "#2a9d8f", line: "rgba(23, 107, 98, 0.5)" },
+            "be-wal": { fill: "#bc6c25", line: "rgba(107, 61, 21, 0.5)" },
           };
           var p = palette[code];
           if (!p) {
@@ -413,6 +453,27 @@
                 );
                 map.addLayer(provincesLayer);
               }
+            }
+          } else if (overlayMode === "gewesten") {
+            if (
+              gewestBoundariesFC &&
+              gewestBoundariesFC.features &&
+              gewestBoundariesFC.features.length
+            ) {
+              provincesLayer = L.geoJSON(gewestBoundariesFC, {
+                style: function (feat) {
+                  return getOverlayStyle(feat.properties.code);
+                },
+                onEachFeature: function (feat, layer) {
+                  var c = feat.properties.code;
+                  attachProvinceHoverTooltip(layer, c);
+                  layer.bindPopup(
+                    gewestPopupHtml(c),
+                    REGION_LOCODE_POPUP_OPTS,
+                  );
+                },
+              });
+              map.addLayer(provincesLayer);
             }
           }
           if (showPlaces && lastMatches.length) {
@@ -793,10 +854,17 @@
                 return null;
               });
             }),
+            fetch(rryDataUrl("be-gewesten.geojson")).then(function (r) {
+              if (!r.ok) return null;
+              return r.json().catch(function () {
+                return null;
+              });
+            }),
           ])
             .then(function (results) {
               locations = results[0] || [];
               provinceBoundariesFC = results[1];
+              gewestBoundariesFC = results[2];
               var pr = document.querySelector(
                 'input[name="overlay"][value="provinces"]',
               );
@@ -811,6 +879,7 @@
             .catch(function () {
               locations = [];
               provinceBoundariesFC = null;
+              gewestBoundariesFC = null;
               document.getElementById("counter-text").textContent =
                 "Could not load locations.";
             });

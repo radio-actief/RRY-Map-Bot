@@ -49,6 +49,30 @@
   };
 
   /**
+   * Gewesten (regions) — optional tier between country (be) and province.
+   * Brussels has no gewest entry: be-bru already IS the Brussels-Capital
+   * Region, so it stays a direct child of be.
+   */
+  const GEWEST_NAMES = App && App.GEWEST_NAMES ? App.GEWEST_NAMES : {
+    "be-vlg": "Vlaams Gewest",
+    "be-wal": "Waals Gewest",
+  };
+
+  /** Province code -> parent gewest code. No entry for be-bru. */
+  const GEWEST_OF_PROVINCE = App && App.GEWEST_OF_PROVINCE ? App.GEWEST_OF_PROVINCE : {
+    "be-van": "be-vlg",
+    "be-vbr": "be-vlg",
+    "be-vov": "be-vlg",
+    "be-vwv": "be-vlg",
+    "be-vli": "be-vlg",
+    "be-wbr": "be-wal",
+    "be-wht": "be-wal",
+    "be-wlg": "be-wal",
+    "be-wna": "be-wal",
+    "be-wlx": "be-wal",
+  };
+
+  /**
    * Land borders between Belgian provinces (ISO 3166-2:BE MeshCore codes).
    * Used for neighbour-province policy rows instead of centroid + radius,
    * which missed real borders (e.g. West Flanders ↔ East Flanders).
@@ -859,11 +883,12 @@
 
   /**
    * MeshCore requires child regions removed before parents.
-   * Prefer city → province → country → bx → eu, then longer names.
+   * Prefer city → province → gewest → country → eu, then longer names.
    */
   function regionHierarchyDepth(code) {
     if (findCityByCode(code)) return 40;
     if (Object.prototype.hasOwnProperty.call(PROVINCE_NAMES, code)) return 30;
+    if (Object.prototype.hasOwnProperty.call(GEWEST_NAMES, code)) return 25;
     if (
       code === "be" ||
       code === "nl" ||
@@ -873,9 +898,8 @@
     ) {
       return 20;
     }
-    if (code === "bx") return 10;
     if (code === "eu") return 5;
-    return 25 + Math.min(String(code).length, 20);
+    return 22 + Math.min(String(code).length, 20);
   }
 
   function orderRegionRemovesDeepestFirst(codes) {
@@ -2358,7 +2382,7 @@
 
   const NEIGHBOR_COUNTRY_CODES = ["nl", "lu", "fr", "de"];
 
-  const CLI_ORDER_FIRST = ["eu", "bx", "nl", "lu", "fr", "de", "be"];
+  const CLI_ORDER_FIRST = ["eu", "nl", "lu", "fr", "de", "be", "be-vlg", "be-wal"];
 
   /** Flood advert with lat/lon: 32 − 1 − 8 = 23 UTF-8 bytes for the name. */
   const NAME_ADVERT_MAX_UTF8 = 23;
@@ -3396,9 +3420,11 @@
   function expandedNameForRegionCode(code) {
     if (code === "*") return "wildcard root";
     if (code === "eu") return "European Union";
-    if (code === "bx") return "Benelux";
     if (Object.prototype.hasOwnProperty.call(PROVINCE_NAMES, code)) {
       return PROVINCE_NAMES[code];
+    }
+    if (Object.prototype.hasOwnProperty.call(GEWEST_NAMES, code)) {
+      return GEWEST_NAMES[code];
     }
     const cc = neighborCountryLabel(code);
     if (cc !== code) return cc;
@@ -3457,31 +3483,20 @@
             if (addRegionCode(needed, "be")) changed = true;
           }
         }
+        if (Object.prototype.hasOwnProperty.call(GEWEST_NAMES, c)) {
+          if (addRegionCode(needed, "be")) changed = true;
+        }
       }
     }
   }
 
   /**
    * Parent for country-level region nodes (nl, lu, fr, de, be).
-   * Without eu/bx: omit parent (under *). With eu/bx: Benelux members
-   * under bx when both exist, else under eu or bx; FR/DE under eu only.
+   * Without eu: omit parent (under *). With eu: every country nests under eu.
    * @returns {string|null} parent code, or null for wildcard *
    */
   function countryPutParent(co, needed) {
-    const benelux = co === "nl" || co === "be" || co === "lu";
-    const frde = co === "fr" || co === "de";
-    if (!needed.has("eu") && !needed.has("bx")) {
-      return null;
-    }
-    if (benelux) {
-      if (needed.has("eu") && needed.has("bx")) return "bx";
-      if (needed.has("bx")) return "bx";
-      if (needed.has("eu")) return "eu";
-    }
-    if (frde) {
-      if (needed.has("eu")) return "eu";
-      return null;
-    }
+    if (needed.has("eu")) return "eu";
     return null;
   }
 
@@ -3502,9 +3517,6 @@
     if (needed.has("eu")) {
       addEntry("eu", null);
     }
-    if (needed.has("bx")) {
-      addEntry("bx", needed.has("eu") ? "eu" : null);
-    }
 
     sortCodesForCli(
       ["nl", "lu", "fr", "de", "be"].filter(function (co) {
@@ -3515,11 +3527,20 @@
     });
 
     sortCodesForCli(
+      Object.keys(GEWEST_NAMES).filter(function (g) {
+        return needed.has(g);
+      }),
+    ).forEach(function (g) {
+      addEntry(g, "be");
+    });
+
+    sortCodesForCli(
       Object.keys(PROVINCE_NAMES).filter(function (p) {
         return needed.has(p);
       }),
     ).forEach(function (p) {
-      addEntry(p, "be");
+      const gewest = GEWEST_OF_PROVINCE[p];
+      addEntry(p, gewest && needed.has(gewest) ? gewest : "be");
     });
 
     const cityRows = [];
@@ -4242,12 +4263,29 @@
       columnHtml[column] += subsectionHtml;
     }
 
+    function gewestRowForProvince(pc) {
+      const g = GEWEST_OF_PROVINCE[pc];
+      if (!g) return null;
+      return {
+        label:
+          escapeHtml(GEWEST_NAMES[g] || g) + " (" + escapeHtml(g) + ")",
+        code: g,
+        allow: false,
+      };
+    }
+
     const homeRows = [{ label: "Belgium (be)", code: "be", allow: true }];
     let homeTitle = "Home scopes: country \u2192 province";
+    let hasGewestRow = false;
     if (anchor.mode === "country") {
       /* only be */
     } else if (anchor.mode === "province" && anchor.province_code) {
       const pc = anchor.province_code;
+      const gewestRow = gewestRowForProvince(pc);
+      if (gewestRow) {
+        homeRows.push(gewestRow);
+        hasGewestRow = true;
+      }
       homeRows.push({
         label:
           escapeHtml(PROVINCE_NAMES[pc] || pc) + " (" + escapeHtml(pc) + ")",
@@ -4257,6 +4295,11 @@
     } else if (anchor.mode === "city" && anchor.row) {
       const city = anchor.row;
       homeTitle += " \u2192 municipality (UN/LOCODE)";
+      const gewestRow = gewestRowForProvince(city.province_code);
+      if (gewestRow) {
+        homeRows.push(gewestRow);
+        hasGewestRow = true;
+      }
       homeRows.push({
         label:
           escapeHtml(PROVINCE_NAMES[city.province_code] || city.province_code) +
@@ -4276,6 +4319,14 @@
 
     addSubsection(homeTitle, homeRows, undefined, "home", {
       column: "home",
+      subNoteHtml: hasGewestRow
+        ? escapeHtml(
+            "The gewest row (Vlaams/Waals Gewest) is optional \u2014 country + province is the recommended primary setup. Check its Allow box only if you also want to nest this province under its gewest. " +
+              "It's recommended to configure and allow your country + province scopes even in a quiet area: as long as \u2018region allowf *\u2019 (unscoped) stays enabled, doing so never blocks traffic \u2014 it just stops your repeater from being needlessly flooded by distant dense regions, while still passing through local unscoped traffic.",
+          )
+        : escapeHtml(
+            "It's recommended to configure and allow your country + province scopes even in a quiet area: as long as \u2018region allowf *\u2019 (unscoped) stays enabled, doing so never blocks traffic \u2014 it just stops your repeater from being needlessly flooded by distant dense regions, while still passing through local unscoped traffic.",
+          ),
     });
 
     const nEmptyGeo = !hasCoords
@@ -4383,7 +4434,6 @@
       "Wider regions (CLI)",
       [
         { label: "European Union (eu)", code: "eu" },
-        { label: "Benelux (bx)", code: "bx" },
       ],
       undefined,
       "wider",

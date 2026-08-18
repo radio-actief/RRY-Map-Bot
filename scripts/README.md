@@ -95,6 +95,23 @@ Optional flags:
 
 **Output schema (per feature):** `properties.nis5`, `properties.plaats`, `properties.gemeente`, `properties.province_code`, `properties.city_code`; `geometry` is a `Polygon` or `MultiPolygon` in EPSG:4326.
 
+## `generate-be-gewesten-geojson.py`
+
+Builds [`data/be-gewesten.geojson`](../data/be-gewesten.geojson): the 2 Belgian gewesten with a province-level parent (Vlaams Gewest, Waals Gewest), dissolved from [`data/be-provinces.geojson`](../data/be-provinces.geojson) with `shapely.ops.unary_union`. Brussels Hoofdstedelijk Gewest has no separate polygon — `be-bru`'s own province boundary already **is** the region boundary.
+
+Consumed by the [region map](../region-map.html)'s optional "Gewesten" overlay. Region scopes stay **country → province** as the primary/recommended setup; gewest is an optional extra tier (see the [Repeater Configurator](../configurator.html)).
+
+**Dependencies:** `shapely` (already in [`requirements.txt`](../requirements.txt)).
+
+```bash
+cd RRY-Map-Bot
+.venv/bin/python3 scripts/generate-be-gewesten-geojson.py
+```
+
+Run it again only when `data/be-provinces.geojson` changes.
+
+**Output schema (per feature):** `properties.code` (`be-vlg` / `be-wal`), `properties.name`; `geometry` is a `Polygon` or `MultiPolygon` in EPSG:4326 (same CRS as the source).
+
 ## One-shot DB backfills
 
 ### `backfill_cities.py`

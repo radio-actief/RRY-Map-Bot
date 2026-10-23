@@ -659,6 +659,7 @@
       if (probe.reply) {
         appendSerialLog("Device: " + probe.reply);
       }
+      logFirmwareSupport(App.firmware.parseVersion(probe.reply));
       updateUsbApplyUi(getAnchor());
       if (serialConsoleInput) {
         serialConsoleInput.focus({ preventScroll: true });
@@ -1984,6 +1985,60 @@
     updateUsbApplyUi(getAnchor());
   }
 
+  /** Log whether the connected firmware can take the generated region commands. */
+  function logFirmwareSupport(version) {
+    if (!version) {
+      appendSerialLog(
+        "Could not read the firmware version; region commands need MeshCore " +
+          App.firmware.REGION_DEF_MIN_TEXT +
+          " or newer.",
+        "is-error",
+      );
+    } else if (!App.firmware.supportsRegionDef(version)) {
+      appendSerialLog(
+        "Firmware " +
+          version.text +
+          " is too old for this configurator: region commands need MeshCore " +
+          App.firmware.REGION_DEF_MIN_TEXT +
+          " or newer. Update it at flasher.meshcore.io.",
+        "is-error",
+      );
+    }
+  }
+
+  /**
+   * Ask the device for its version right before Apply (the board may have been
+   * swapped since connecting). Returns false when Apply must not go ahead.
+   */
+  async function confirmFirmwareForApply(rs) {
+    let reply = "";
+    try {
+      reply = (await rs.sendLine("ver")).reply || "";
+    } catch (_err) {
+      reply = "";
+    }
+    const version = App.firmware.parseVersion(reply);
+    if (version && App.firmware.supportsRegionDef(version)) return true;
+    logFirmwareSupport(version);
+    if (version) {
+      window.alert(
+        "This repeater runs MeshCore " +
+          version.text +
+          ".\n\nThe region commands need MeshCore " +
+          App.firmware.REGION_DEF_MIN_TEXT +
+          " or newer, so nothing was sent. Update the firmware at flasher.meshcore.io first.",
+      );
+      return false;
+    }
+    return window.confirm(
+      "The firmware version could not be read" +
+        (reply ? " (reply: " + reply + ")" : "") +
+        ".\n\nThe region commands need MeshCore " +
+        App.firmware.REGION_DEF_MIN_TEXT +
+        " or newer; on older firmware Apply stops partway.\n\nApply anyway?",
+    );
+  }
+
   async function applyToRepeater() {
     const rs = await ensureSerialReady("Apply configuration");
     if (!rs) return;
@@ -2018,10 +2073,19 @@
       return;
     }
 
+    if (!(await confirmFirmwareForApply(rs))) {
+      return;
+    }
+
     const previewLines = buildConfiguratorCommandLines(anchor, {
       enforceFirmwareDefaults: false,
     });
     const extraCount = Math.max(0, lines.length - previewLines.length);
+    const passwordNote = App.adminPasswordCliLine(
+      settingAdminPasswordEl ? settingAdminPasswordEl.value : "",
+    )
+      ? "The admin password will be changed to the one you entered."
+      : "The admin password is left as it is on the repeater (factory default: \u201cpassword\u201d).";
     const msg =
       "Apply " +
       lines.length +
@@ -2031,6 +2095,8 @@
       (extraCount > 0
         ? " (" + extraCount + " more than the CLI preview)."
         : ".") +
+      "\n\n" +
+      passwordNote +
       "\n\nContinue?";
     if (!window.confirm(msg)) {
       return;
@@ -2152,21 +2218,6 @@
       .replace(/[\u0300-\u036f]/g, "");
   }
 
-  function cityMatchesQuery(c, q) {
-    if (
-      normalize(c.plaats).includes(q) ||
-      normalize(c.gemeente).includes(q) ||
-      normalize(c.city_code).includes(q)
-    )
-      return true;
-    const al = c.search_aliases;
-    if (!al || !Array.isArray(al) || !al.length) return false;
-    for (let i = 0; i < al.length; i++) {
-      if (normalize(al[i]).includes(q)) return true;
-    }
-    return false;
-  }
-
   function filterLocationChoices(query) {
     if (!query || query.length < 2) return [];
     const q = normalize(query);
@@ -2204,23 +2255,22 @@
       }
     }
 
-    for (let ci = 0; ci < CITIES.length && out.length < 16; ci++) {
-      const c = CITIES[ci];
-      if (cityMatchesQuery(c, q)) {
-        if (seen.has("c:" + c.city_code)) continue;
-        seen.add("c:" + c.city_code);
-        out.push({
-          type: "place",
-          code: c.city_code,
-          row: c,
-          label:
-            c.plaats +
-            " (" +
-            c.city_code +
-            ") · " +
-            (PROVINCE_NAMES[c.province_code] || c.province_code),
-        });
-      }
+    const rankedCities = App.search.rankPlaces(CITIES, query);
+    for (let ci = 0; ci < rankedCities.length && out.length < 16; ci++) {
+      const c = rankedCities[ci];
+      if (seen.has("c:" + c.city_code)) continue;
+      seen.add("c:" + c.city_code);
+      out.push({
+        type: "place",
+        code: c.city_code,
+        row: c,
+        label:
+          c.plaats +
+          " (" +
+          c.city_code +
+          ") · " +
+          (PROVINCE_NAMES[c.province_code] || c.province_code),
+      });
     }
     return out;
   }
@@ -2646,7 +2696,6 @@
     intThresh: 0,
     agcResetInterval: 0,
     multiAcks: "0",
-    adminPassword: "password",
   };
 
   /**
@@ -3132,13 +3181,11 @@
       lines.push("set owner.info " + ownerInfo);
     }
 
-    const adminPassword = settingAdminPasswordEl
-      ? String(settingAdminPasswordEl.value || "").trim()
-      : "";
-    if (showDefaults) {
-      lines.push("password " + (adminPassword || fw.adminPassword));
-    } else if (adminPassword && adminPassword !== fw.adminPassword) {
-      lines.push("password " + adminPassword);
+    const passwordLine = App.adminPasswordCliLine(
+      settingAdminPasswordEl ? settingAdminPasswordEl.value : "",
+    );
+    if (passwordLine) {
+      lines.push(passwordLine);
     }
 
     const guestPassword = settingGuestPasswordEl
@@ -5568,6 +5615,13 @@
       appendSerialLog("Invalid prefix — use 1-4 hex characters.", "is-err");
       return;
     }
+    if (!App.vanity.isAllowedPrefix(prefix)) {
+      appendSerialLog(
+        "Prefixes starting with 00 or ff are not allowed — MeshCore rejects those keys.",
+        "is-err",
+      );
+      return;
+    }
     appendSerialLog(
       "Generating an identity whose public key starts with '" +
         prefix +
@@ -5583,10 +5637,13 @@
     function batch() {
       for (let i = 0; i < 400; i++) {
         attempts++;
-        const kp = nacl.sign.keyPair();
+        const seed = nacl.randomBytes(32);
+        const kp = nacl.sign.keyPair.fromSeed(seed);
         const pubHex = bytesToHex(kp.publicKey);
         if (pubHex.startsWith(prefix)) {
-          const prvHex = bytesToHex(kp.secretKey);
+          const prvHex = bytesToHex(
+            App.vanity.meshcorePrivateKeyFromSeed(seed, nacl.hash),
+          );
           const secs = ((Date.now() - start) / 1000).toFixed(1);
           appendSerialLog(
             "Found after " + attempts + " tries in " + secs + "s.",
@@ -5603,7 +5660,26 @@
           if (write) {
             runDeviceCommand("set prv.key " + prvHex, {
               label: "Set identity",
-              successMsg: "Identity written. Reboot the device to apply.",
+            }).then(function (res) {
+              if (!res || !res.ok) return;
+              const devicePub = App.vanity.pubkeyFromSetReply(res.reply);
+              if (devicePub === pubHex) {
+                appendSerialLog(
+                  "Identity written; the device confirms public key " +
+                    pubHex +
+                    ". Reboot the device to apply.",
+                  "is-ok",
+                );
+              } else {
+                appendSerialLog(
+                  "The device reports a different public key (" +
+                    (devicePub || "none in reply") +
+                    ") than expected (" +
+                    pubHex +
+                    "). It has saved that key: generate and write a new one before it restarts.",
+                  "is-err",
+                );
+              }
             });
           } else {
             appendSerialLog("Generated key discarded.");

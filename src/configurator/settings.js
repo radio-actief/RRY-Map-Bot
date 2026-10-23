@@ -27,4 +27,14 @@
     { id: "setting-lon", readCmd: "get lon", cliKey: "lon", tier: "general" },
     { id: "setting-advert-loc", readCmd: "gps advert", cliKey: "gps advert", tier: "general" },
   ];
+
+  /**
+   * `password …` line for the admin password field, or null when it is empty.
+   * The firmware never reveals the current password, so an empty field must
+   * leave it alone rather than reset it to the factory "password".
+   */
+  App.adminPasswordCliLine = function (value) {
+    const pw = String(value || "").trim();
+    return pw ? "password " + pw : null;
+  };
 })(window.ConfiguratorApp);

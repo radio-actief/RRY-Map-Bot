@@ -43,6 +43,12 @@ Run the test suite inside the image:
 docker compose run --rm api pytest -q tests/
 ```
 
+Run the configurator's JavaScript tests (Node 20+, no install needed):
+
+```bash
+npm test
+```
+
 Verify the four count surfaces agree against the running API:
 
 ```bash

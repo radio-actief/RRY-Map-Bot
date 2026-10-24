@@ -178,6 +178,71 @@ describe("MapView", () => {
     expect(regionsGroup().children.map((g) => g.options.className)).toEqual(["map-region-allowed", "map-region-denied"]);
   });
 
+  it("draws a country outline per country when borders are on", () => {
+    store.data.value = {
+      failed: new Set(),
+      countries: {
+        type: "FeatureCollection",
+        features: [
+          { type: "Feature", properties: { code: "be", name: "Belgium" }, geometry: square(3, 50) },
+          { type: "Feature", properties: { code: "fr", name: "France" }, geometry: square(0, 46) },
+        ],
+      },
+    };
+    render(<MapView />);
+    expect(bordersGroup().children.filter((g) => g.options.className === "map-outline-country")).toHaveLength(2);
+    fireEvent.click(screen.getByRole("checkbox", { name: "Borders" }));
+    expect(bordersGroup().children).toHaveLength(0);
+  });
+
+  it("fills allowed countries under the gewest, province and municipality fills", () => {
+    store.step.value = 3;
+    store.plan.value = {
+      ...defaultPlan(),
+      regions: {
+        rows: [
+          { code: "beaaa", labelKey: "", label: "A", group: "municipality", allow: false, deny: true },
+          { code: "be-vov", labelKey: "", label: "P", group: "province", allow: true, deny: false },
+          { code: "be", labelKey: "", label: "Belgium", group: "country", allow: true, deny: false },
+          { code: "fr", labelKey: "", label: "France", group: "country", allow: true, deny: false },
+        ],
+        untaggedFlood: false,
+        homeOverride: null,
+        defaultScope: null,
+      },
+    };
+    store.data.value = {
+      failed: new Set(),
+      municipalities: { type: "FeatureCollection", features: [muni("beaaa", 3, 50)] } as never,
+      provinces: { type: "FeatureCollection", features: [{ type: "Feature", properties: { code: "be-vov" }, geometry: square(3, 50) }] },
+      countries: {
+        type: "FeatureCollection",
+        features: [
+          { type: "Feature", properties: { code: "be", name: "Belgium" }, geometry: square(2, 49) },
+          { type: "Feature", properties: { code: "fr", name: "France" }, geometry: square(0, 46) },
+        ],
+      },
+    };
+    render(<MapView />);
+    const kids = regionsGroup().children;
+    expect(kids.map((g) => g.options.className)).toEqual([
+      "map-region-allowed",
+      "map-region-allowed",
+      "map-region-allowed",
+      "map-region-denied",
+    ]);
+    const codes = kids.map((g) => String((g.args[0] as any).properties.code ?? (g.args[0] as any).properties.city_code));
+    expect(codes.slice(0, 2).sort()).toEqual(["be", "fr"]);
+    expect(codes.slice(2)).toEqual(["be-vov", "beaaa"]);
+  });
+
+  it("renders the map without countries when they failed to load", () => {
+    store.data.value = { failed: new Set(["countries"]) };
+    render(<MapView />);
+    expect(bordersGroup().children).toHaveLength(0);
+    expect((screen.getByRole("checkbox", { name: "Borders" }) as HTMLInputElement).disabled).toBe(false);
+  });
+
   it("re-measures the map when it is shown again", () => {
     store.step.value = 4;
     render(<MapView />);

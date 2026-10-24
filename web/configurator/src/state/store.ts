@@ -52,6 +52,7 @@ export type AppData = {
   municipalities?: MunicipalityFeature[] | GeoJsonCollection;
   provinces?: GeoJsonCollection;
   gewesten?: GeoJsonCollection;
+  countries?: GeoJsonCollection;
   nodes?: MeshNode[];
   failed: Set<string>;
 };

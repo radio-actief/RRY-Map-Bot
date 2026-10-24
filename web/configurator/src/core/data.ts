@@ -15,4 +15,5 @@ export const loadMunicipalities = () =>
   getJson<{ type: "FeatureCollection"; features: MunicipalityFeature[] }>("/data/be-municipalities.geojson");
 export const loadProvinces = () => getJson<GeoJsonCollection>("/data/be-provinces.geojson");
 export const loadGewesten = () => getJson<GeoJsonCollection>("/data/be-gewesten.geojson");
+export const loadCountries = () => getJson<GeoJsonCollection>("/data/countries.geojson");
 export const loadNodes = () => getJson<MeshNode[]>("/api/v1/belgian-nodes");

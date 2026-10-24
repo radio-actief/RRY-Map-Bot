@@ -1,5 +1,5 @@
 /** Loads the runtime data into store.data; every failure is recorded by name and the rest still loads. */
-import { loadGewesten, loadMunicipalities, loadNodes, loadPlaces, loadProvinces } from "../core/data";
+import { loadCountries, loadGewesten, loadMunicipalities, loadNodes, loadPlaces, loadProvinces } from "../core/data";
 import { store, type AppData } from "./store";
 
 export type Loaders = {
@@ -7,6 +7,7 @@ export type Loaders = {
   municipalities: typeof loadMunicipalities;
   provinces: typeof loadProvinces;
   gewesten: typeof loadGewesten;
+  countries: typeof loadCountries;
   nodes: typeof loadNodes;
 };
 
@@ -15,6 +16,7 @@ const defaultLoaders: Loaders = {
   municipalities: loadMunicipalities,
   provinces: loadProvinces,
   gewesten: loadGewesten,
+  countries: loadCountries,
   nodes: loadNodes,
 };
 
@@ -36,7 +38,7 @@ export async function loadAppData(
   defer: (run: () => void) => void = deferToIdle,
 ): Promise<void> {
   defer(() => void load("municipalities", loaders));
-  await Promise.all((["places", "provinces", "gewesten", "nodes"] as const).map((n) => load(n, loaders)));
+  await Promise.all((["places", "provinces", "gewesten", "countries", "nodes"] as const).map((n) => load(n, loaders)));
 }
 
 function deferToIdle(run: () => void): void {

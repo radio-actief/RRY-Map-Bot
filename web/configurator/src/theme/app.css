@@ -478,6 +478,12 @@ path.map-outline {
   fill: none;
 }
 
+path.map-outline-country {
+  stroke: var(--mut);
+  stroke-width: 2;
+  fill: none;
+}
+
 path.map-municipality {
   stroke: var(--gold);
   stroke-width: 2;

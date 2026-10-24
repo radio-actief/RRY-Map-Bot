@@ -10,6 +10,7 @@ function loaders(overrides: Partial<Loaders> = {}): Loaders {
     municipalities: async () => ({ type: "FeatureCollection", features: [] }),
     provinces: async () => collection,
     gewesten: async () => collection,
+    countries: async () => collection,
     nodes: async () => [],
     ...overrides,
   };
@@ -26,6 +27,7 @@ describe("loadAppData", () => {
     expect(store.data.value.places).toEqual([]);
     expect(store.data.value.nodes).toEqual([]);
     expect(store.data.value.provinces).toBe(collection);
+    expect(store.data.value.countries).toBe(collection);
     expect(store.data.value.municipalities).toBeUndefined();
     deferred.forEach((run) => run());
     await new Promise((r) => setTimeout(r, 0));

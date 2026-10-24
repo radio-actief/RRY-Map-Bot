@@ -138,16 +138,19 @@ export function MapView() {
     }
   }, [nearby, layers.nodes]);
 
-  // Province and gewest outlines; they do not change with the pin.
+  // Country, province and gewest outlines; they do not change with the pin.
   useEffect(() => {
     const g = groups.current?.borders;
     if (!g) return;
     g.clearLayers();
     if (!layers.borders) return;
+    for (const f of featuresOf(data.countries)) {
+      L.geoJSON(f as GeoJsonObject, pathClass("map-outline-country", { style: () => ({ fill: false, weight: 2 }) })).addTo(g);
+    }
     for (const c of [data.provinces, data.gewesten]) {
       if (c) L.geoJSON(c as GeoJsonObject, pathClass("map-outline", { style: () => ({ fill: false, weight: 1 }) })).addTo(g);
     }
-  }, [layers.borders, data.provinces, data.gewesten]);
+  }, [layers.borders, data.countries, data.provinces, data.gewesten]);
 
   // The municipality under the pin.
   useEffect(() => {
@@ -172,9 +175,10 @@ export function MapView() {
       byCity.set(c, [...(byCity.get(c) ?? []), f]);
     }
     const byCode = new Map<string, Feature>();
-    for (const f of [...featuresOf(data.provinces), ...featuresOf(data.gewesten)]) byCode.set(String(f.properties?.code), f);
-    // Largest area first (gewest, province, municipality), so a smaller area stays visible on top.
-    const level = (code: string) => (byCity.has(code) ? 2 : GEWEST_NAMES[code] ? 0 : 1);
+    for (const f of [...featuresOf(data.countries), ...featuresOf(data.provinces), ...featuresOf(data.gewesten)]) byCode.set(String(f.properties?.code), f);
+    // Largest area first (country, gewest, province, municipality), so a smaller area stays visible on top.
+    const countryCodes = new Set(featuresOf(data.countries).map((f) => String(f.properties?.code)));
+    const level = (code: string) => (byCity.has(code) ? 2 : GEWEST_NAMES[code] ? 0 : countryCodes.has(code) ? -1 : 1);
     const wanted = [
       ...denied.map((code) => ({ code, className: "map-region-denied" })),
       ...allowed.map((code) => ({ code, className: "map-region-allowed" })),
@@ -183,7 +187,7 @@ export function MapView() {
       const fs = byCity.get(code) ?? (byCode.has(code) ? [byCode.get(code)!] : []);
       for (const f of fs) L.geoJSON(f as GeoJsonObject, pathClass(className)).addTo(g);
     }
-  }, [step, plan.regions, municipalities, data.provinces, data.gewesten]);
+  }, [step, plan.regions, municipalities, data.countries, data.provinces, data.gewesten]);
 
   // The container is hidden on steps 4-5; Leaflet must re-measure when it comes back.
   useEffect(() => {
@@ -191,7 +195,7 @@ export function MapView() {
   }, [step <= 3]);
 
   const nodesFailed = failed.has("nodes");
-  const bordersFailed = ["provinces", "gewesten", "municipalities"].every((n) => failed.has(n));
+  const bordersFailed = ["countries", "provinces", "gewesten", "municipalities"].every((n) => failed.has(n));
   const toggle = (key: "nodes" | "borders") => (store.layers.value = { ...store.layers.peek(), [key]: !store.layers.peek()[key] });
 
   return (

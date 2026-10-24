@@ -67,7 +67,7 @@ export const store = {
   data: signal<AppData>({ failed: new Set() }),
 };
 
-const visited = signal<ReadonlySet<Step>>(new Set<Step>([store.step.peek()]));
+export const visited = signal<ReadonlySet<Step>>(new Set<Step>([store.step.peek()]));
 
 effect(() => {
   const s = store.step.value;
@@ -90,9 +90,10 @@ export function stepStatus(n: Step): StepStatus {
   if (n === 2) attention = has("name", "location");
   else if (n === 3) attention = store.plan.value.anchor === null;
   else if (n === 4) attention = errors.some((e) => e.key !== "name" && e.key !== "location");
-  if (attention) return "attention";
   if (store.step.value === n) return "current";
-  return visited.value.has(n) ? "done" : "todo";
+  const seen = visited.value;
+  if (attention) return seen.has(n) || seen.has(5) ? "attention" : "todo";
+  return seen.has(n) ? "done" : "todo";
 }
 
 export const canApply = computed(() => {

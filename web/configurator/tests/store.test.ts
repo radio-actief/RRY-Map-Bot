@@ -1,31 +1,44 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { defaultPlan } from "../src/core/plan";
-import { canApply, prefs, stepStatus, store } from "../src/state/store";
+import { canApply, prefs, stepStatus, store, visited } from "../src/state/store";
 
 afterEach(() => {
   vi.restoreAllMocks();
   store.plan.value = defaultPlan();
   store.step.value = 1;
+  visited.value = new Set([1]);
   store.device.value = { status: "none", link: null, firmware: null };
 });
 
 describe("stepStatus", () => {
-  it("flags step 3 when there is no anchor", () => {
+  it("shows current for the step the user is on, even with a problem", () => {
+    expect(stepStatus(1)).toBe("current");
+    store.step.value = 3;
+    expect(stepStatus(3)).toBe("current");
+  });
+  it("flags a visited step with a problem (no anchor on step 3)", () => {
     expect(store.plan.value.anchor).toBeNull();
+    store.step.value = 3;
+    store.step.value = 1;
     expect(stepStatus(3)).toBe("attention");
   });
-  it("flags step 2 for an empty name and marks the current step", () => {
-    expect(stepStatus(2)).toBe("attention");
-    expect(stepStatus(1)).toBe("current");
+  it("leaves an unvisited step with a problem as todo", () => {
+    expect(stepStatus(2)).toBe("todo");
   });
   it("marks a visited, problem-free step done", () => {
     store.step.value = 5;
     store.step.value = 1;
     expect(stepStatus(5)).toBe("done");
-    expect(stepStatus(2)).toBe("attention");
   });
-  it("flags step 4 for an invalid setting", () => {
+  it("once step 5 was reached, every step with a problem is attention", () => {
+    store.step.value = 5;
+    expect(stepStatus(2)).toBe("attention");
+    expect(stepStatus(3)).toBe("attention");
+  });
+  it("flags step 4 for an invalid setting once visited", () => {
     store.plan.value = { ...defaultPlan(), settings: { floodMax: "abc" } };
+    store.step.value = 4;
+    store.step.value = 1;
     expect(stepStatus(4)).toBe("attention");
   });
 });

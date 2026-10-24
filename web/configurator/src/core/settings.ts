@@ -1,4 +1,5 @@
 /** Settings registry: CLI keys, read commands, ranges, defaults and validation. */
+import { encodeOwnerInfo, hasControlChars, utf8Bytes } from "./naming";
 import { BEMESH_PRESET_TITLE } from "./presets";
 
 export type SettingKey =
@@ -84,6 +85,8 @@ export const SETTINGS: SettingDef[] = [
 const BY_KEY = new Map(SETTINGS.map((s) => [s.key, s]));
 
 export const ADMIN_PASSWORD_MAX_BYTES = 15;
+/** guest_password[16] holds 15 bytes plus the terminator. */
+export const GUEST_PASSWORD_MAX_BYTES = 15;
 
 export type ValidateResult = { ok: true; value: string | number | null } | { ok: false; errorKey: string };
 
@@ -102,10 +105,21 @@ export function validateSetting(key: SettingKey, raw: string): ValidateResult {
 
   if (key === "adminPassword") {
     const pw = text.trim();
-    if (new TextEncoder().encode(pw).length > ADMIN_PASSWORD_MAX_BYTES) return fail("tooLong");
+    if (hasControlChars(pw)) return fail("controlChars");
+    if (utf8Bytes(pw) > ADMIN_PASSWORD_MAX_BYTES) return fail("tooLong");
     return { ok: true, value: pw };
   }
-  if (key === "ownerInfo" || key === "guestPassword") return { ok: true, value: text.trim() };
+  if (key === "guestPassword") {
+    const pw = text.trim();
+    if (hasControlChars(pw)) return fail("controlChars");
+    if (utf8Bytes(pw) > GUEST_PASSWORD_MAX_BYTES) return fail("guestPasswordTooLong");
+    return { ok: true, value: pw };
+  }
+  // Newlines are sent as '|'; any other control character would break the command line.
+  if (key === "ownerInfo") {
+    const info = text.trim();
+    return hasControlChars(encodeOwnerInfo(info)) ? fail("controlChars") : { ok: true, value: info };
+  }
 
   const v = text.trim();
   if (s.options) {

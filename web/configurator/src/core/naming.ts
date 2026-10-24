@@ -11,6 +11,8 @@ export const OWNER_INFO_MAX = 119;
 const PREFIX_MAX = 7;
 /** Characters `set name` rejects ("Error, bad chars"). */
 const BAD_NAME_CHARS = ["[", "]", "\\", ":", ",", "?", "*"];
+/** Control characters: the firmware ends a command at CR, so none may sit inside a value. */
+const CONTROL_CHARS = /[\x00-\x1f\x7f]/g;
 
 export type PrefixFormat = "city" | "province" | "country" | "none";
 export type PowerEmoji = "🌞" | "⚡" | "🔋" | "👀" | "";
@@ -94,14 +96,25 @@ export function splitNameSuffixAndEmoji(name: string): { suffix: string; power: 
   return { suffix: name, power: "" };
 }
 
+/** Whether `text` holds a control character (a newline is allowed when `newlineOk`). */
+export function hasControlChars(text: string, newlineOk = false): boolean {
+  const found = text.match(CONTROL_CHARS) ?? [];
+  return found.some((c) => !(newlineOk && c === "\n"));
+}
+
+/**
+ * A name against the firmware limits. `badChars` lists the characters `set name` rejects and any
+ * control character (`controlChars` tells the two apart for the message).
+ */
 export function checkName(
   name: string,
   advertHasLocation: boolean,
-): { bytes: number; max: number; badChars: string[]; ok: boolean } {
+): { bytes: number; max: number; badChars: string[]; controlChars: boolean; ok: boolean } {
   const bytes = utf8Bytes(name);
   const max = advertHasLocation ? NAME_MAX_WITH_LOCATION : NAME_MAX;
-  const badChars = BAD_NAME_CHARS.filter((c) => name.includes(c));
-  return { bytes, max, badChars, ok: bytes <= max && badChars.length === 0 };
+  const controls = [...new Set(name.match(CONTROL_CHARS) ?? [])];
+  const badChars = [...BAD_NAME_CHARS.filter((c) => name.includes(c)), ...controls];
+  return { bytes, max, badChars, controlChars: controls.length > 0, ok: bytes <= max && badChars.length === 0 };
 }
 
 /** The firmware turns '|' into a newline, so newlines are sent as '|'. */

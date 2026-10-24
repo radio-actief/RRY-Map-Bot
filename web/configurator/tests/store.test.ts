@@ -44,6 +44,16 @@ describe("stepStatus", () => {
     store.step.value = 1;
     expect(stepStatus(4)).toBe("attention");
   });
+  it("flags step 3, not step 4, for a region code with a control character", () => {
+    const row = { code: "be\rerase", labelKey: "", label: "", group: "country" as const, allow: true, deny: false };
+    const regions = { rows: [row], untaggedFlood: true, homeOverride: null, defaultScope: null };
+    store.plan.value = { ...defaultPlan(), anchor: BELGIUM, regions };
+    store.step.value = 5;
+    store.step.value = 1;
+    expect(stepStatus(3)).toBe("attention");
+    expect(stepStatus(4)).not.toBe("attention");
+    expect(canApply.value.reasons).toContain("error.regionControlChars");
+  });
 });
 
 describe("canApply", () => {

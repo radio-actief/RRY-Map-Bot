@@ -1,7 +1,7 @@
 /** The command log and the interactive CLI console (old serial terminal), in a dialog. */
 import { useEffect, useRef, useState } from "preact/hooks";
 import { CLI_COMMANDS } from "../core/cli-commands";
-import { MAX_LINE_LEN } from "../device/serial";
+import { lineBytes, MAX_LINE_LEN } from "../device/serial";
 import { t } from "../i18n/t";
 import { clearLog, sendConsole, SHOW_COMMAND_LOG_PREF } from "../state/device";
 import { busy, prefs, store } from "../state/store";
@@ -39,7 +39,7 @@ export function Console({ open, onClose }: { open: boolean; onClose: () => void 
     setValue("");
     setBrowse(-1);
     if (!cmd) return;
-    if (cmd.length <= MAX_LINE_LEN) remember(cmd);
+    if (lineBytes(cmd) <= MAX_LINE_LEN) remember(cmd);
     await sendConsole(cmd);
     inputRef.current?.focus({ preventScroll: true });
   }

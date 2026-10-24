@@ -2,7 +2,7 @@
  * Backup files: v2 holds the plan; v1 is the old page's export (form field ids → values),
  * which still imports.
  */
-import { POWER_EMOJIS, prefixFormatFromLegacy, type PowerEmoji } from "./naming";
+import { hasControlChars, POWER_EMOJIS, prefixFormatFromLegacy, type PowerEmoji } from "./naming";
 import { defaultPlan, hasValidCoords, type Plan, type Radio } from "./plan";
 import { checkRadioValue, RADIO_FIELD_SPECS, type RadioFieldId } from "./presets";
 import { anchorFromChoice, applyLegacyPolicyFields, policyFor } from "./regions";
@@ -36,6 +36,17 @@ export function importBackup(json: unknown, places: Place[]): Plan {
 }
 
 const isNum = (v: unknown) => typeof v === "number" && Number.isFinite(v);
+
+/**
+ * Whether any string in `v` (at any depth) holds a control character. The firmware ends a command
+ * at CR, so such a value would run its tail as a command of its own; `newlineOk` allows newlines.
+ */
+function controlText(v: unknown, newlineOk = false): boolean {
+  if (typeof v === "string") return hasControlChars(v, newlineOk);
+  if (Array.isArray(v)) return v.some((x) => controlText(x));
+  if (isObject(v)) return Object.values(v).some((x) => controlText(x));
+  return false;
+}
 const oneOf = (v: unknown, values: readonly unknown[]) => values.includes(v);
 
 function validAnchor(a: unknown): boolean {
@@ -62,6 +73,10 @@ function planFromV2(raw: unknown): Plan {
     validAnchor(raw.anchor) &&
     (raw.regions === null || (isObject(raw.regions) && Array.isArray(raw.regions.rows)));
   if (!ok) throw new BackupError("backup.error.invalid");
+  // Owner info may hold newlines (sent as '|'); nothing else may hold a control character.
+  const { settings, ...rest } = raw;
+  const badSetting = Object.entries(settings as Record<string, unknown>).some(([k, v]) => controlText(v, k === "ownerInfo"));
+  if (badSetting || controlText(rest)) throw new BackupError("backup.error.invalid");
   return structuredClone(raw) as Plan;
 }
 
@@ -155,6 +170,9 @@ function radioFromFields(f: Record<string, unknown>): Radio | null {
  * `city-search` text; the radio follows radioFromV1 (the plan's EU/UK Narrow when it gives none).
  */
 function planFromV1(f: Record<string, unknown>, places: Place[]): Plan {
+  if (Object.entries(f).some(([id, v]) => controlText(v, id === "setting-owner-info"))) {
+    throw new BackupError("backup.error.invalid");
+  }
   const plan = defaultPlan();
   const text = (id: string) => (typeof f[id] === "string" ? (f[id] as string) : "");
 

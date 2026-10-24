@@ -6,10 +6,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("leaflet", async () => await import("./fakes/leaflet"));
 
 /** Switches for the two cases the real modules can't produce: an empty script and an apply() that throws. */
-const force = vi.hoisted(() => ({ emptyScript: false, applyThrows: false }));
+const force = vi.hoisted(() => ({ emptyScript: false, applyThrows: false, extraLine: "" }));
 vi.mock("../src/core/cli", async (importOriginal) => {
   const real = await importOriginal<typeof import("../src/core/cli")>();
-  return { ...real, buildScript: (...a: Parameters<typeof real.buildScript>) => (force.emptyScript ? [] : real.buildScript(...a)) };
+  const buildScript = (...a: Parameters<typeof real.buildScript>) => {
+    if (force.emptyScript) return [];
+    const groups = real.buildScript(...a);
+    return force.extraLine ? [...groups, { titleKey: "settings" as const, lines: [force.extraLine] }] : groups;
+  };
+  return { ...real, buildScript };
 });
 vi.mock("../src/device/repeater", async (importOriginal) => {
   const real = await importOriginal<typeof import("../src/device/repeater")>();
@@ -82,6 +87,7 @@ beforeEach(() => {
   store.commandBusy.value = false;
   force.emptyScript = false;
   force.applyThrows = false;
+  force.extraLine = "";
   store.apply.value = { phase: "idle" };
   store.log.value = [];
   store.step.value = 5;
@@ -243,15 +249,22 @@ describe("Review step: Apply", () => {
     expect(screen.queryByRole("dialog", { name: "Firmware version unreadable" })).toBeNull();
   });
 
-  it("a line over 151 characters blocks Apply before anything is sent", async () => {
-    const guest = "g".repeat(160);
-    store.plan.value = { ...store.plan.value, settings: { ...store.plan.value.settings, guestPassword: guest } };
+  it("a line over 151 bytes blocks Apply before anything is sent", async () => {
+    // 85 characters, 155 bytes
+    force.extraLine = `set owner.info ${"é".repeat(70)}`;
     const { port } = await connect(okReplies(applyLines()));
     render(<Review />);
     fireEvent.click(applyButton());
-    expect(await screen.findByText(/longer than the 151 characters/)).toBeTruthy();
-    expect(screen.getByText(`set guest.password ${guest}`, { selector: "code" })).toBeTruthy();
+    expect(await screen.findByText(/longer than the 151 bytes/)).toBeTruthy();
+    expect(screen.getByText(force.extraLine, { selector: "code" })).toBeTruthy();
     expect(port.received).toEqual([]);
+  });
+
+  it("shows a control character in the script as a visible symbol", () => {
+    force.extraLine = "set name x\rerase";
+    render(<Review />);
+    expect(scriptText()).toContain("set name x␍erase");
+    expect(scriptText()).not.toContain("\r");
   });
 
   it("an empty script is not applied", async () => {

@@ -55,6 +55,11 @@ describe("names", () => {
     expect(checkName("a:b", false).ok).toBe(false);
     expect(checkName("[]\\:,?*", false).badChars).toEqual(["[", "]", "\\", ":", ",", "?", "*"]);
   });
+  it("treats control characters as bad characters", () => {
+    const r = checkName("x\rerase\t", false);
+    expect(r).toMatchObject({ ok: false, controlChars: true, badChars: ["\r", "\t"] });
+    expect(checkName("a:b", false).controlChars).toBe(false);
+  });
   it("splits a trailing power emoji", () => {
     expect(splitNameSuffixAndEmoji("BE-RON-X🔋")).toEqual({ suffix: "BE-RON-X", power: "🔋" });
     expect(splitNameSuffixAndEmoji("plain")).toEqual({ suffix: "plain", power: "" });

@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { Notice } from "../app/Notice";
 import { PROVINCE_NAMES } from "../core/be-regions";
 import { municipalityAt, nodesWithin, NEIGHBOR_RADIUS_KM, type MeshNode } from "../core/geo";
-import { checkName, POWER_EMOJIS, splitNameSuffixAndEmoji, type PowerEmoji, type PrefixFormat } from "../core/naming";
+import { checkName, hasControlChars, POWER_EMOJIS, splitNameSuffixAndEmoji, type PowerEmoji, type PrefixFormat } from "../core/naming";
 import {
   effectivePrefixFormat,
   hasValidCoords,
@@ -323,7 +323,8 @@ export function PlaceName() {
         />
       </div>
       <p class={`bytes${name.bytes > name.max ? " bad" : ""}`}>{t("place.bytes", { bytes: name.bytes, max: name.max })}</p>
-      {name.badChars.length ? <p class="field-error">{t("error.nameBadChars")}</p> : null}
+      {name.badChars.some((c) => !hasControlChars(c)) ? <p class="field-error">{t("error.nameBadChars")}</p> : null}
+      {name.controlChars ? <p class="field-error">{t("error.nameControlChars")}</p> : null}
       {name.bytes > name.max ? <p class="field-error">{t("error.nameTooLong")}</p> : null}
       {!plan.nameSuffix.trim() ? <p class="sub">{t("error.nameEmpty")}</p> : null}
       {nearby ? <p class={`check ${nearby.kind}`}>{nearby.text}</p> : null}

@@ -23,6 +23,10 @@ const GROUPS: { key: string; of: Change["group"][] }[] = [
 
 const groupTitle = (k: ScriptGroup["titleKey"]) => t(`script.group.${k}`);
 
+/** A control character as its visible Unicode picture (CR as ␍), so the shown script hides nothing. */
+const visible = (line: string) =>
+  line.replace(/[\x00-\x1f\x7f]/g, (c) => (c === "\x7f" ? "\u2421" : String.fromCharCode(0x2400 + c.charCodeAt(0))));
+
 function Changes() {
   const { changes, adminPassword } = summarize(store.plan.value, store.snapshot.value ?? undefined);
   return (
@@ -129,7 +133,10 @@ export function Review() {
   const places = store.data.value.places ?? [];
   const device = store.deviceRegions.value;
   const shown = buildScript(plan, places, { includeDefaults, device });
-  const text = scriptText(shown, groupTitle);
+  const text = scriptText(
+    shown.map((g) => ({ ...g, lines: g.lines.map(visible) })),
+    groupTitle,
+  );
   // Apply sends the full script, unchanged defaults included, as the old page did.
   const applyCount = commandLines(includeDefaults ? shown : buildScript(plan, places, { includeDefaults: true, device })).length;
   const shownCount = commandLines(shown).length;

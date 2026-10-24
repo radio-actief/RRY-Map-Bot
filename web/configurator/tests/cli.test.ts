@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { importBackup } from "../src/core/backup";
+import { BackupError, exportBackup, importBackup } from "../src/core/backup";
 import { buildScript, commandLines, scriptText, SETTINGS_ORDER } from "../src/core/cli";
 import { defaultPlan, planErrors, type Plan } from "../src/core/plan";
 import { anchorFromChoice, deviceRegionsFromRead, policyFor } from "../src/core/regions";
@@ -176,5 +176,78 @@ describe("scriptText", () => {
     const text = scriptText(groups);
     expect(text.startsWith("# Name\nset name BE-RON-Kluisberg🌞\n\n# Settings\n")).toBe(true);
     expect(expectedLines(text)).toEqual(commandLines(groups));
+  });
+});
+
+describe("control characters (command injection)", () => {
+  const SUFFIX = "x\rerase";
+  const GUEST = "g\rset prv.key aa";
+  const withSettings = (settings: Plan["settings"]): Plan => ({ ...ronsePlan(), settings: { ...ronsePlan().settings, ...settings } });
+  const v1 = (fields: Record<string, string>) => {
+    const b = JSON.parse(read("ronse-solar", "backup.json"));
+    return { ...b, fields: { ...b.fields, ...fields } };
+  };
+  const invalid = (json: unknown) => {
+    try {
+      importBackup(json, PLACES);
+    } catch (err) {
+      return err instanceof BackupError && err.key === "backup.error.invalid";
+    }
+    return false;
+  };
+
+  it("a v2 or v1 backup carrying a CR in the name suffix or guest password is rejected", () => {
+    const roundTrip = (plan: Plan) => JSON.parse(JSON.stringify(exportBackup(plan)));
+    expect(invalid(roundTrip({ ...ronsePlan(), nameSuffix: SUFFIX }))).toBe(true);
+    expect(invalid(roundTrip(withSettings({ guestPassword: GUEST })))).toBe(true);
+    expect(invalid(v1({ "name-suffix": SUFFIX }))).toBe(true);
+    expect(invalid(v1({ "setting-guest-password": GUEST }))).toBe(true);
+  });
+
+  it("rejects control characters in passwords, owner info, region codes and the anchor, but keeps owner info newlines", () => {
+    const plan = ronsePlan();
+    const json = () => JSON.parse(JSON.stringify(exportBackup(plan)));
+    const tampered = (edit: (p: Record<string, any>) => void) => {
+      const b = json();
+      edit(b.plan);
+      return b;
+    };
+    expect(invalid(tampered((p) => (p.settings.adminPassword = "a\rb")))).toBe(true);
+    expect(invalid(tampered((p) => (p.settings.ownerInfo = "a\tb")))).toBe(true);
+    expect(invalid(tampered((p) => (p.regions.rows[0].code = "be\rerase")))).toBe(true);
+    expect(invalid(tampered((p) => (p.regions.homeOverride = "be\r")))).toBe(true);
+    expect(invalid(tampered((p) => (p.anchor.place.city_code = "beron\rerase")))).toBe(true);
+    expect(invalid(v1({ "setting-admin-password": "a\x00b" }))).toBe(true);
+    expect(invalid(v1({ "policy-default-scope-select": "be\rerase" }))).toBe(true);
+    expect(importBackup(tampered((p) => (p.settings.ownerInfo = "Line 1\nLine 2")), PLACES).settings.ownerInfo).toBe(
+      "Line 1\nLine 2",
+    );
+    expect(importBackup(v1({ "setting-owner-info": "Line 1\nLine 2" }), PLACES).settings.ownerInfo).toBe("Line 1\nLine 2");
+  });
+
+  it("planErrors flags them and the script never sends them", () => {
+    const named = { ...ronsePlan(), nameSuffix: SUFFIX };
+    expect(planErrors(named)).toEqual([{ key: "name", errorKey: "nameControlChars" }]);
+    const guest = withSettings({ guestPassword: GUEST });
+    expect(planErrors(guest)).toEqual([{ key: "guestPassword", errorKey: "controlChars" }]);
+    for (const plan of [named, guest]) {
+      const lines = commandLines(buildScript(plan, PLACES, { includeDefaults: true }));
+      expect(lines.some((l) => /[\x00-\x1f\x7f]/.test(l) || l.includes("erase") || l.includes("prv.key"))).toBe(false);
+    }
+    expect(planErrors(withSettings({ adminPassword: "a\rb" }))).toEqual([{ key: "adminPassword", errorKey: "controlChars" }]);
+    expect(planErrors(withSettings({ ownerInfo: "a\tb" }))).toEqual([{ key: "ownerInfo", errorKey: "controlChars" }]);
+    expect(planErrors(withSettings({ ownerInfo: "Line 1\nLine 2" }))).toEqual([]);
+    const plan = ronsePlan();
+    const rows = plan.regions!.rows.map((r, i) => (i === 0 ? { ...r, code: "be\rerase" } : r));
+    expect(planErrors({ ...plan, regions: { ...plan.regions!, rows } })).toEqual([
+      { key: "regions", errorKey: "regionControlChars" },
+    ]);
+  });
+
+  it("limits the guest password to 15 UTF-8 bytes", () => {
+    expect(planErrors(withSettings({ guestPassword: "é".repeat(8) }))).toEqual([
+      { key: "guestPassword", errorKey: "guestPasswordTooLong" },
+    ]);
+    expect(planErrors(withSettings({ guestPassword: "é".repeat(7) + "a" }))).toEqual([]);
   });
 });

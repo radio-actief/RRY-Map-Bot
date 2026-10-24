@@ -12,6 +12,7 @@ import { apply, checkFirmware, readAll, READ_COMMANDS, run } from "../device/rep
 import {
   expectsDeviceDisconnect,
   isErrorReply,
+  lineBytes,
   MAX_LINE_LEN,
   requestUsbPort,
   SerialLink,
@@ -203,7 +204,7 @@ export async function applyPlan({ skipFirmwareCheck = false } = {}): Promise<voi
       store.apply.value = { phase: "empty" };
       return;
     }
-    const tooLong = lines.filter((l) => l.length > MAX_LINE_LEN);
+    const tooLong = lines.filter((l) => lineBytes(l) > MAX_LINE_LEN);
     if (tooLong.length) {
       store.apply.value = { phase: "tooLong", lines: tooLong };
       return;
@@ -386,8 +387,8 @@ export async function sendConsole(line: string): Promise<void> {
   const cmd = line.trim();
   const link = store.device.peek().link;
   if (!cmd || !link?.connected || busy.peek()) return;
-  if (cmd.length > MAX_LINE_LEN) {
-    appendLog({ text: t("log.tooLong", { length: cmd.length, max: MAX_LINE_LEN }), kind: "error" });
+  if (lineBytes(cmd) > MAX_LINE_LEN) {
+    appendLog({ text: t("log.tooLong", { length: lineBytes(cmd), max: MAX_LINE_LEN }), kind: "error" });
     return;
   }
   await sendHeld(link, cmd);

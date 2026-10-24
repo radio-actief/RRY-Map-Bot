@@ -8,6 +8,7 @@ import {
   buildPrefix,
   checkName,
   checkOwnerInfo,
+  hasControlChars,
   splitNameSuffixAndEmoji,
   type PowerEmoji,
   type PrefixFormat,
@@ -165,19 +166,33 @@ export function settingValue(plan: Plan, key: SettingKey): string | number | nul
   return r.value;
 }
 
-export type PlanError = { key: SettingKey | "name" | "ownerInfo" | "location" | "radio"; errorKey: string };
+export type PlanError = {
+  key: SettingKey | "name" | "ownerInfo" | "location" | "radio" | "regions";
+  errorKey: string;
+};
+
+/** The region codes the script can send: every row, the home and default choices, the anchor's own. */
+function regionCodes(plan: Plan): string[] {
+  const p = plan.regions;
+  const codes = p ? [...p.rows.map((r) => r.code), p.homeOverride ?? "", p.defaultScope ?? ""] : [];
+  const a = plan.anchor;
+  if (a) codes.push(a.province_code ?? "", a.place?.city_code ?? "", a.place?.province_code ?? "");
+  return codes.map(String);
+}
 
 /**
- * Everything in the plan the script cannot send as entered: invalid settings, a name that is
- * empty or breaks a firmware limit, owner info over 119 bytes, invalid coordinates. errorKey is
- * the en.json key without its `error.` prefix.
+ * Everything in the plan the script cannot send as entered: invalid settings (control characters
+ * included), a name that is empty or breaks a firmware limit, owner info over 119 bytes, invalid
+ * coordinates (or none while the advert uses the stored position), a region code with a control
+ * character. errorKey is the en.json key without its `error.` prefix.
  */
 export function planErrors(plan: Plan): PlanError[] {
   const errors: PlanError[] = [];
   if (!plan.nameSuffix.trim()) errors.push({ key: "name", errorKey: "nameEmpty" });
   else {
     const c = checkName(planName(plan), plan.advertLoc !== "none");
-    if (c.badChars.length) errors.push({ key: "name", errorKey: "nameBadChars" });
+    if (c.badChars.some((ch) => !hasControlChars(ch))) errors.push({ key: "name", errorKey: "nameBadChars" });
+    if (c.controlChars) errors.push({ key: "name", errorKey: "nameControlChars" });
     if (c.bytes > c.max) errors.push({ key: "name", errorKey: "nameTooLong" });
   }
   for (const def of SETTINGS) {
@@ -193,6 +208,7 @@ export function planErrors(plan: Plan): PlanError[] {
     errors.push({ key: "radio", errorKey: "radioInvalid" });
   }
   if (plan.location && !sendableLocation(plan)) errors.push({ key: "location", errorKey: "coords" });
+  if (regionCodes(plan).some((c) => hasControlChars(c))) errors.push({ key: "regions", errorKey: "regionControlChars" });
   return errors;
 }
 

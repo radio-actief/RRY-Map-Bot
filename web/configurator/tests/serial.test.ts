@@ -43,3 +43,27 @@ describe("reply framing", () => {
     expect(await link.command("get name")).toBe("> Room");
   });
 });
+
+describe("what send refuses", () => {
+  it.each([
+    "set name x\rerase",
+    "set guest.password g\rset prv.key aa",
+    "set owner.info a\nb",
+    "set owner.info a\tb",
+    "set owner.info a\x7fb",
+  ])("a line with a control character: %j", async (line) => {
+    const { link, port } = await linkTo({});
+    await expect(link.command(line)).rejects.toThrow(/control character/);
+    expect(port.received).toEqual([]);
+  });
+
+  it("measures the line limit in UTF-8 bytes", async () => {
+    const { link, port } = await linkTo({});
+    const line = `set owner.info ${"é".repeat(70)}`;
+    expect(line.length).toBeLessThan(151);
+    await expect(link.command(line)).rejects.toThrow(/too long \(155 > 151/i);
+    expect(port.received).toEqual([]);
+    const fits = `set owner.info ${"é".repeat(68)}`;
+    expect(await link.command(fits)).toBe("unknown config: owner.info");
+  });
+});

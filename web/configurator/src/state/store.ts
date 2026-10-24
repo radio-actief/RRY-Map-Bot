@@ -155,8 +155,8 @@ export function stepStatus(n: Step): StepStatus {
   const has = (...keys: string[]) => errors.some((e) => keys.includes(e.key));
   let attention = false;
   if (n === 2) attention = has("name", "location");
-  else if (n === 3) attention = store.plan.value.anchor === null;
-  else if (n === 4) attention = errors.some((e) => e.key !== "name" && e.key !== "location");
+  else if (n === 3) attention = store.plan.value.anchor === null || has("regions");
+  else if (n === 4) attention = errors.some((e) => !["name", "location", "regions"].includes(e.key));
   if (store.step.value === n) return "current";
   const seen = visited.value;
   if (attention) return seen.has(n) || seen.has(5) ? "attention" : "todo";

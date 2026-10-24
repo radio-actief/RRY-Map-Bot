@@ -13,9 +13,17 @@ export interface PortLike {
   removeEventListener?(t: "disconnect", f: () => void): void;
 }
 
+/** The longest line sent, in UTF-8 bytes. */
 export const MAX_LINE_LEN = 151;
+/** The firmware ends a command at CR; no control character may reach it inside a line. */
+const CONTROL_CHAR = /[\x00-\x1f\x7f]/;
 
 const encoder = new TextEncoder();
+
+/** A line's length as the firmware counts it: UTF-8 bytes. */
+export function lineBytes(line: string): number {
+  return encoder.encode(line).length;
+}
 export const DEFAULT_BAUD = 115200;
 const INTER_COMMAND_DELAY_MS = 150;
 const BOOT_DRAIN_MS = 500;
@@ -143,8 +151,10 @@ export class SerialLink {
     const line = cmd.trim();
     if (!line) return "";
     if (!this.connected) throw new Error("Serial port is not connected.");
-    if (line.length > MAX_LINE_LEN) {
-      throw new Error(`Line too long (${line.length} > ${MAX_LINE_LEN}): ${line.slice(0, 48)}…`);
+    if (CONTROL_CHAR.test(line)) throw new Error("Line contains a control character; not sent.");
+    const bytes = lineBytes(line);
+    if (bytes > MAX_LINE_LEN) {
+      throw new Error(`Line too long (${bytes} > ${MAX_LINE_LEN} bytes): ${line.slice(0, 48)}…`);
     }
     const leaving = expectsDeviceDisconnect(line);
     this.buffer = "";

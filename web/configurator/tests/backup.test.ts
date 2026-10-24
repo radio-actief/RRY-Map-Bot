@@ -125,8 +125,8 @@ describe("v2 export and import", () => {
 
   it("round-trips free regions (code, parent, allow/deny)", () => {
     const start = importBackup(backup("neighbour-deny"), PLACES);
-    let regions = addFreeRegion(start.regions!, "zone", "be-wht");
-    regions = setRowState(addFreeRegion(regions, "sub", "zone"), "sub", "deny");
+    let regions = addFreeRegion(start.regions!, "zone", "be-wht", start.anchor!);
+    regions = setRowState(addFreeRegion(regions, "sub", "zone", start.anchor!), "sub", "deny");
     const plan = { ...start, regions };
     const imported = importBackup(JSON.parse(JSON.stringify(exportBackup(plan))), PLACES);
     expect(imported).toEqual(plan);

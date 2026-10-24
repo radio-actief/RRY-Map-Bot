@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/preact";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/preact";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { defaultPlan } from "../src/core/plan";
 import { regionCommandLines, regionsByState, addFreeRegion, policyFor, MAX_REGIONS } from "../src/core/regions";
@@ -180,10 +180,36 @@ describe("Regions step", () => {
       expect([...sel.options].map((o) => o.value)).toContain("zone");
     });
 
+    it("does not keep a parent that was removed from the choices", () => {
+      chooseLocation({ type: "city", label: "Ronse", place: RONSE } as never);
+      render(<Regions />);
+      addZone("xx");
+      fireEvent.change(screen.getByLabelText("Under"), { target: { value: "xx" } });
+      fireEvent.click(within(rowFor("xx")).getByRole("button", { name: "Remove xx" }));
+      expect((screen.getByLabelText("Under") as HTMLSelectElement).selectedOptions[0]?.textContent).toBe("Top level");
+      addZone("zz");
+      expect(store.plan.value.regions!.rows.find((r) => r.code === "zz")!.parent).toBeNull();
+      const lines = regionCommandLines(ronse(), store.plan.value.regions!, PLACES);
+      expect(lines.join("\n")).not.toMatch(/\bxx\b/);
+    });
+
+    it("does not keep a parent the moved pin no longer offers", () => {
+      chooseLocation({ type: "city", label: "Ronse", place: RONSE } as never);
+      render(<Regions />);
+      fireEvent.change(screen.getByLabelText("Under"), { target: { value: "beron" } });
+      const kortrijk = PLACES.find((p) => p.city_code === "bekjk")!;
+      act(() => chooseLocation({ type: "city", label: "Kortrijk", place: kortrijk } as never));
+      expect((screen.getByLabelText("Under") as HTMLSelectElement).selectedOptions[0]?.textContent).toBe("Top level");
+      addZone("zz");
+      expect(store.plan.value.regions!.rows.find((r) => r.code === "zz")!.parent).toBeNull();
+      const lines = regionCommandLines(ronse(), store.plan.value.regions!, PLACES);
+      expect(lines.join("\n")).not.toMatch(/\bberon\b/);
+    });
+
     it("shows the count notice above the limit", () => {
       chooseLocation({ type: "city", label: "Ronse", place: RONSE } as never);
       let p = store.plan.value.regions!;
-      for (let i = 0; i < MAX_REGIONS; i++) p = addFreeRegion(p, `zone${i}`, null);
+      for (let i = 0; i < MAX_REGIONS; i++) p = addFreeRegion(p, `zone${i}`, null, store.plan.value.anchor!);
       store.plan.value = { ...store.plan.value, regions: p };
       render(<Regions />);
       expect(screen.getByText(`The repeater holds at most 32 regions; this plan needs ${regionCount.value}.`)).toBeTruthy();

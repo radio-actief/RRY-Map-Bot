@@ -446,10 +446,13 @@ export function setDefaultScope(policy: RegionPolicy, value: string | null): Reg
 
 const isFreeRow = (r: RegionRow) => r.group === "free";
 
-/** Whether `code` can be added as a free region: 1–30 of a–z, 0–9 and -, and not `*` or a listed row. */
+/**
+ * Whether `code` can be added as a free region: 1–30 of a–z, 0–9 and -, and not `*` or a listed
+ * row. A code read from the device (a device row) can be added: the free row takes its place.
+ */
 export function checkFreeCode(policy: RegionPolicy, code: string): "ok" | "empty" | "tooLong" | "chars" | "taken" {
   if (!code) return "empty";
-  if (code === "*" || policy.rows.some((r) => r.code === code)) return "taken";
+  if (code === "*" || policy.rows.some((r) => r.code === code && r.group !== "device")) return "taken";
   if (code.length > 30) return "tooLong";
   return FREE_CODE.test(code) ? "ok" : "chars";
 }
@@ -474,11 +477,18 @@ export function freeParentOptions(policy: RegionPolicy, anchor: Anchor): ScopeOp
   ];
 }
 
-/** Add a free region under `parent` (null or "" = top level); it starts on Allow. Invalid codes are ignored. */
-export function addFreeRegion(policy: RegionPolicy, code: string, parent: string | null): RegionPolicy {
+/**
+ * Add a free region under `parent` (null or "" = top level; a parent freeParentOptions does not
+ * offer is top level too). It starts on Allow; one that replaces a device row keeps that row's
+ * Allow or Deny. Invalid codes are ignored.
+ */
+export function addFreeRegion(policy: RegionPolicy, code: string, parent: string | null, anchor: Anchor): RegionPolicy {
   if (checkFreeCode(policy, code) !== "ok") return policy;
-  const added = row(code, code, "free", "region.kind.free", { allow: true, parent: parent || null });
-  return finalize({ ...policy, rows: [...policy.rows, added] });
+  const offered = !!parent && freeParentOptions(policy, anchor).some((o) => o.code === parent);
+  const device = policy.rows.find((r) => r.code === code);
+  const state = device && isSet(device) ? { allow: device.allow, deny: device.deny } : { allow: true };
+  const added = row(code, code, "free", "region.kind.free", { ...state, parent: offered ? parent : null });
+  return finalize({ ...policy, rows: [...policy.rows.filter((r) => r !== device), added] });
 }
 
 /** Whether another free region sits under `code`. */
@@ -486,10 +496,14 @@ export function isFreeParent(policy: RegionPolicy, code: string): boolean {
   return policy.rows.some((r) => isFreeRow(r) && r.parent === code);
 }
 
-/** Remove a free region; a no-op while another free region sits under it. */
+/** Remove a free region (and the default scope when it is that region); a no-op while another free region sits under it. */
 export function removeFreeRegion(policy: RegionPolicy, code: string): RegionPolicy {
   if (isFreeParent(policy, code)) return policy;
-  return finalize({ ...policy, rows: policy.rows.filter((r) => !(isFreeRow(r) && r.code === code)) });
+  return finalize({
+    ...policy,
+    rows: policy.rows.filter((r) => !(isFreeRow(r) && r.code === code)),
+    defaultScope: policy.defaultScope === code ? null : policy.defaultScope,
+  });
 }
 
 /**
@@ -898,13 +912,34 @@ function regionHierarchyDepth(code: string, cities: Map<string, Place>): number 
   return 22 + Math.min(String(code).length, 20);
 }
 
-function orderRegionRemovesDeepestFirst(codes: string[], cities: Map<string, Place>): string[] {
-  return codes.slice().sort((a, b) => {
+/**
+ * Removal order: by regionHierarchyDepth, except that a free row of the plan goes before the
+ * parent it sits under when both are removed (the plan knows that parent; for other device
+ * codes the tree is not known, so the depth heuristic stands).
+ */
+function orderRegionRemovesDeepestFirst(codes: string[], cities: Map<string, Place>, freeParents: FreeParents): string[] {
+  const sorted = codes.slice().sort((a, b) => {
     const d = regionHierarchyDepth(b, cities) - regionHierarchyDepth(a, cities);
     if (d !== 0) return d;
     if (b.length !== a.length) return b.length - a.length;
     return a.localeCompare(b);
   });
+  const removing = new Set(codes);
+  const children = new Map<string, string[]>();
+  for (const c of sorted) {
+    const parent = freeParents.get(c);
+    if (parent && parent !== c && removing.has(parent)) children.set(parent, [...(children.get(parent) ?? []), c]);
+  }
+  const out: string[] = [];
+  const done = new Set<string>();
+  const emit = (c: string) => {
+    if (done.has(c)) return;
+    done.add(c);
+    for (const child of children.get(c) ?? []) emit(child);
+    out.push(c);
+  };
+  for (const c of sorted) emit(c);
+  return out;
 }
 
 /** Allow/Deny codes plus the ancestors they need (no default scope). */
@@ -970,7 +1005,9 @@ export function regionCommandLines(
     const toRemove = device.named.filter((c) => c && c !== "*" && c.toLowerCase() !== "<null>" && !needed.has(c));
     if (device.default && toRemove.includes(device.default)) lines.push("region default <null>");
     if (device.home && device.home !== "*" && toRemove.includes(device.home)) lines.push("region home *");
-    for (const c of orderRegionRemovesDeepestFirst(toRemove, cities)) lines.push(`region remove ${c}`);
+    for (const c of orderRegionRemovesDeepestFirst(toRemove, cities, freeParentsOf(policy))) {
+      lines.push(`region remove ${c}`);
+    }
   }
 
   const homeCity = anchor.mode === "city" && anchor.place ? anchor.place : null;

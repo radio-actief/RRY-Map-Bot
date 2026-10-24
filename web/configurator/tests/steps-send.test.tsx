@@ -307,7 +307,7 @@ describe("Send step: Apply", () => {
     await connect({});
     let regions = store.plan.value.regions!;
     const anchor = store.plan.value.anchor!;
-    for (let i = 0; regionCountAfterApply(anchor, regions, PLACES) < 33; i++) regions = addFreeRegion(regions, `zone${i}`, null);
+    for (let i = 0; regionCountAfterApply(anchor, regions, PLACES) < 33; i++) regions = addFreeRegion(regions, `zone${i}`, null, anchor);
     store.plan.value = { ...store.plan.value, regions };
     render(<Send />);
     expect(applyButton().disabled).toBe(true);

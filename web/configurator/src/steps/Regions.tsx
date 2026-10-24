@@ -99,11 +99,14 @@ function RegionRowView({ row, home, policy }: { row: RegionRow; home: boolean; p
 
 function FreeForm({ policy, anchor }: { policy: RegionPolicy; anchor: Anchor }) {
   const [code, setCode] = useState("");
-  const [parent, setParent] = useState("");
+  const [chosen, setParent] = useState("");
+  const options = freeParentOptions(policy, anchor);
+  // A choice that is no longer offered (removed, or the pin moved) means top level.
+  const parent = options.some((o) => o.code === chosen) ? chosen : "";
   const result = checkFreeCode(policy, code);
   const add = () => {
     if (result !== "ok") return;
-    update((p) => addFreeRegion(p, code, parent || null));
+    update((p) => addFreeRegion(p, code, parent || null, anchor));
     setCode("");
   };
   return (
@@ -126,7 +129,7 @@ function FreeForm({ policy, anchor }: { policy: RegionPolicy; anchor: Anchor }) 
       <label class="field">
         <span class="sub">{t("regions.free.parent")}</span>
         <select value={parent} onChange={(e) => setParent(e.currentTarget.value)}>
-          {freeParentOptions(policy, anchor).map((o) => (
+          {options.map((o) => (
             <option key={o.code} value={o.code}>
               {o.label}
             </option>

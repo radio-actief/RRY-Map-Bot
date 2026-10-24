@@ -38,6 +38,8 @@
   "region.kind.wider": "Wider region",
   "region.kind.device": "Scope read from the device",
   "region.kind.free": "Your own region",
+  "region.kind.freeUnder": "Your own region · under {parent}",
+  "region.kind.freeTop": "Your own region · top level",
   "script.group.name": "Name",
   "script.group.settings": "Settings",
   "script.group.location": "Location",

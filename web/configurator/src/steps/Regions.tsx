@@ -53,10 +53,20 @@ const update = (f: (p: RegionPolicy) => RegionPolicy) => {
   if (plan.regions) store.plan.value = { ...plan, regions: f(plan.regions) };
 };
 
+/** A row's sub-label; a free row also says where it sits. */
+function kindLabel(row: RegionRow, policy: RegionPolicy): string {
+  if (row.group !== "free") return t(row.labelKey);
+  if (!row.parent) return t("region.kind.freeTop");
+  const parent = policy.rows.find((r) => r.code === row.parent)?.label ?? row.parent;
+  return t("region.kind.freeUnder", { parent });
+}
+
 function RegionRowView({ row, home, policy }: { row: RegionRow; home: boolean; policy: RegionPolicy }) {
   const locked = !!(row.disabled?.allow || row.disabled?.deny);
   const state = row.allow ? "allow" : row.deny ? "deny" : "none";
   const reason = locked ? lockedReason(row) : undefined;
+  const inUse = row.group === "free" && isFreeParent(policy, row.code);
+  const inUseId = `free-in-use-${row.code}`;
   return (
     <li class="region-row" data-code={row.code}>
       <span class="region-name">
@@ -64,7 +74,7 @@ function RegionRowView({ row, home, policy }: { row: RegionRow; home: boolean; p
           {row.label}
           {home ? <span class="badge home">{t("regions.home.badge")}</span> : null}
         </span>
-        <span class="sub">{t(row.labelKey)}</span>
+        <span class="sub">{kindLabel(row, policy)}</span>
       </span>
       <div class="segmented region-state" role="group" aria-label={row.label} title={reason}>
         {STATES.map((s) => (
@@ -86,12 +96,18 @@ function RegionRowView({ row, home, policy }: { row: RegionRow; home: boolean; p
           type="button"
           class="icon"
           aria-label={t("regions.free.remove", { code: row.code })}
-          disabled={isFreeParent(policy, row.code)}
-          title={isFreeParent(policy, row.code) ? t("regions.free.parentInUse") : undefined}
+          aria-describedby={inUse ? inUseId : undefined}
+          disabled={inUse}
+          title={inUse ? t("regions.free.parentInUse") : undefined}
           onClick={() => update((p) => removeFreeRegion(p, row.code))}
         >
           ✕
         </button>
+      ) : null}
+      {inUse ? (
+        <span id={inUseId} class="sr">
+          {t("regions.free.parentInUse")}
+        </span>
       ) : null}
     </li>
   );
@@ -104,6 +120,7 @@ function FreeForm({ policy, anchor }: { policy: RegionPolicy; anchor: Anchor }) 
   // A choice that is no longer offered (removed, or the pin moved) means top level.
   const parent = options.some((o) => o.code === chosen) ? chosen : "";
   const result = checkFreeCode(policy, code);
+  const error = code && result !== "ok" ? t(`error.freeCode.${result}`) : null;
   const add = () => {
     if (result !== "ok") return;
     update((p) => addFreeRegion(p, code, parent || null, anchor));
@@ -117,6 +134,8 @@ function FreeForm({ policy, anchor }: { policy: RegionPolicy; anchor: Anchor }) 
           type="text"
           value={code}
           maxLength={60} // above the 30-character limit on purpose, so the tooLong error can show
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? "free-code-error" : undefined}
           onInput={(e) => setCode(e.currentTarget.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
@@ -139,7 +158,11 @@ function FreeForm({ policy, anchor }: { policy: RegionPolicy; anchor: Anchor }) 
       <button type="button" class="btn small" disabled={result !== "ok"} onClick={add}>
         {t("regions.free.add")}
       </button>
-      {code && result !== "ok" ? <p class="sub free-error">{t(`error.freeCode.${result}`)}</p> : null}
+      {error ? (
+        <p id="free-code-error" class="sub free-error">
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }

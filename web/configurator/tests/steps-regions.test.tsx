@@ -206,6 +206,39 @@ describe("Regions step", () => {
       expect(lines.join("\n")).not.toMatch(/\bberon\b/);
     });
 
+    it("links the code error to the input and marks it invalid", () => {
+      chooseLocation({ type: "city", label: "Ronse", place: RONSE } as never);
+      render(<Regions />);
+      const input = screen.getByLabelText("Code");
+      expect(input.hasAttribute("aria-invalid")).toBe(false);
+      expect(input.hasAttribute("aria-describedby")).toBe(false);
+      fireEvent.input(input, { target: { value: "Zone" } });
+      expect(input.getAttribute("aria-invalid")).toBe("true");
+      const error = document.getElementById(input.getAttribute("aria-describedby")!)!;
+      expect(error.textContent).toBe("Use lowercase a–z, digits and -.");
+    });
+
+    it("gives the disabled remove button its reason without hover", () => {
+      chooseLocation({ type: "city", label: "Ronse", place: RONSE } as never);
+      render(<Regions />);
+      addZone("zone");
+      addZone("child", "zone");
+      const x = within(rowFor("zone")).getByRole("button", { name: "Remove zone" });
+      const reason = document.getElementById(x.getAttribute("aria-describedby")!)!;
+      expect(reason.textContent).toBe("Another region sits under this one.");
+      expect(reason.classList.contains("sr")).toBe(true);
+      expect(within(rowFor("child")).getByRole("button", { name: "Remove child" }).hasAttribute("aria-describedby")).toBe(false);
+    });
+
+    it("shows where each free region sits in its sub-label", () => {
+      chooseLocation({ type: "city", label: "Ronse", place: RONSE } as never);
+      render(<Regions />);
+      addZone("top");
+      addZone("zone", "be-wht");
+      expect(within(rowFor("zone")).getByText("Your own region · under Henegouwen (be-wht)")).toBeTruthy();
+      expect(within(rowFor("top")).getByText("Your own region · top level")).toBeTruthy();
+    });
+
     it("shows the count notice above the limit", () => {
       chooseLocation({ type: "city", label: "Ronse", place: RONSE } as never);
       let p = store.plan.value.regions!;

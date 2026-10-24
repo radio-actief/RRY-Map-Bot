@@ -117,6 +117,12 @@ function provinceCentroid(pc: string, places: Place[]): { lat: number; lon: numb
   return { lat: sumLat / n, lon: sumLon / n };
 }
 
+/** Where the pin goes for an anchor (old neighborSeedRow): the place, a province centroid, or mid-Belgium. */
+export function anchorCenter(anchor: Anchor, places: Place[]): { lat: number; lon: number } {
+  const { lat, lon } = neighborSeed(anchor, places);
+  return { lat, lon };
+}
+
 /** Where neighbour distances are measured from: the place, a province centroid, or mid-Belgium. */
 function neighborSeed(anchor: Anchor, places: Place[]): Place {
   if (anchor.mode === "city" && anchor.place) return anchor.place;

@@ -3,10 +3,10 @@ import * as L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { GeoJsonObject } from "geojson";
 import { useEffect, useMemo, useRef } from "preact/hooks";
-import { municipalityAt, nodesWithin, NEIGHBOR_RADIUS_KM, type LatLon, type MunicipalityFeature } from "../core/geo";
+import { municipalityAt, nodesWithin, NEIGHBOR_RADIUS_KM, type LatLon } from "../core/geo";
 import { regionsByState } from "../core/regions";
 import { t } from "../i18n/t";
-import { store } from "../state/store";
+import { municipalities as municipalityList, setLocation, store } from "../state/store";
 
 const TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
 const ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
@@ -41,7 +41,9 @@ function tooltipFor(name: string): HTMLElement {
 export function MapView() {
   const host = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
-  const groups = useRef<{ nodes: L.LayerGroup; borders: L.LayerGroup; regions: L.LayerGroup } | null>(null);
+  const groups = useRef<{ nodes: L.LayerGroup; borders: L.LayerGroup; highlight: L.LayerGroup; regions: L.LayerGroup } | null>(
+    null,
+  );
   const pin = useRef<{ marker: L.Marker; ring: L.Circle } | null>(null);
   const fromMap = useRef<unknown>(null);
 
@@ -56,7 +58,7 @@ export function MapView() {
     () => (location && data.nodes ? nodesWithin(data.nodes, location, NEIGHBOR_RADIUS_KM) : []),
     [location, data.nodes],
   );
-  const municipalities = useMemo(() => featuresOf(data.municipalities) as unknown as MunicipalityFeature[], [data.municipalities]);
+  const municipalities = municipalityList.value;
 
   useEffect(() => {
     const map = L.map(host.current!, { zoomControl: true });
@@ -65,10 +67,11 @@ export function MapView() {
     L.tileLayer(TILE_URL, { attribution: ATTRIBUTION, maxZoom: 19 }).addTo(map);
     groups.current = {
       borders: L.layerGroup().addTo(map),
+      highlight: L.layerGroup().addTo(map),
       regions: L.layerGroup().addTo(map),
       nodes: L.layerGroup().addTo(map),
     };
-    map.on("click", (e: L.LeafletMouseEvent) => setLocation(e.latlng.lat, e.latlng.lng));
+    map.on("click", (e: L.LeafletMouseEvent) => pick(e.latlng.lat, e.latlng.lng));
     mapRef.current = map;
     return () => {
       map.remove();
@@ -78,10 +81,11 @@ export function MapView() {
     };
   }, []);
 
-  function setLocation(lat: number, lon: number) {
+  /** A map click or pin drag: the pin stays where the user put it, without recentring. */
+  function pick(lat: number, lon: number) {
     const next = { lat, lon };
     fromMap.current = next;
-    store.plan.value = { ...store.plan.peek(), location: next };
+    setLocation(next);
   }
 
   // Pin and ring follow plan.location.
@@ -106,7 +110,7 @@ export function MapView() {
       }).addTo(map);
       marker.on("dragend", () => {
         const p = marker.getLatLng();
-        setLocation(p.lat, p.lng);
+        pick(p.lat, p.lng);
       });
       const ring = L.circle(ll, {
         radius: NEIGHBOR_RADIUS_KM * 1000,
@@ -133,7 +137,7 @@ export function MapView() {
     }
   }, [nearby, layers.nodes]);
 
-  // Outlines, plus the matched municipality.
+  // Province and gewest outlines; they do not change with the pin.
   useEffect(() => {
     const g = groups.current?.borders;
     if (!g) return;
@@ -142,9 +146,17 @@ export function MapView() {
     for (const c of [data.provinces, data.gewesten]) {
       if (c) L.geoJSON(c as GeoJsonObject, pathClass("map-outline", { style: () => ({ fill: false, weight: 1 }) })).addTo(g);
     }
+  }, [layers.borders, data.provinces, data.gewesten]);
+
+  // The municipality under the pin.
+  useEffect(() => {
+    const g = groups.current?.highlight;
+    if (!g) return;
+    g.clearLayers();
+    if (!layers.borders) return;
     const match = location && municipalities.length ? municipalityAt(location, municipalities) : null;
     if (match) L.geoJSON(match as unknown as GeoJsonObject, pathClass("map-municipality")).addTo(g);
-  }, [layers.borders, data.provinces, data.gewesten, municipalities, location]);
+  }, [layers.borders, municipalities, location]);
 
   // Step 3: allowed / denied region polygons.
   useEffect(() => {

@@ -1,11 +1,13 @@
 /** App-wide state: Preact signals, step status, apply gate, theme and safe preference storage. */
 import { computed, effect, signal } from "@preact/signals";
-import type { MeshNode, MunicipalityFeature } from "../core/geo";
-import type { Place } from "../core/search";
+import { municipalityAt, type LatLon, type MeshNode, type MunicipalityFeature } from "../core/geo";
+import type { LocationChoice, Place } from "../core/search";
 import { parseVersion, supportsRegionDef } from "../core/firmware";
 import { defaultPlan, planErrors, type DeviceSnapshot, type Plan } from "../core/plan";
+import { anchorCenter, anchorFromChoice, policyFor, type Anchor, type DeviceRegions } from "../core/regions";
 import type { SerialLink } from "../device/serial";
 import type { GeoJsonCollection } from "../core/data";
+import type { NoticeKind } from "../app/Notice";
 
 const memory = new Map<string, string>();
 
@@ -68,9 +70,19 @@ function storedLayers(): { nodes: boolean; borders: boolean } {
   return { nodes: true, borders: true };
 }
 
+/** A message shown above the step body, whatever the step (e.g. the repeater was unplugged). */
+export type AppNotice = { kind: NoticeKind; text: string };
+
+const initialPlan = defaultPlan();
+
 export const store = {
-  plan: signal<Plan>(defaultPlan()),
+  plan: signal<Plan>(initialPlan),
+  /** The plan as the last default or Read left it; any other plan counts as edited. */
+  planBase: signal<Plan>(initialPlan),
   snapshot: signal<DeviceSnapshot | null>(null),
+  /** Region state of the device at the last Read, for the script's removals. */
+  deviceRegions: signal<DeviceRegions | undefined>(undefined),
+  notice: signal<AppNotice | null>(null),
   device: signal<DeviceState>({ status: "none", link: null, firmware: null }),
   step: signal<Step>(1),
   sheet: signal<"peek" | "half" | "full">("half"),
@@ -125,3 +137,72 @@ export const canApply = computed(() => {
   if (version && !supportsRegionDef(version)) reasons.push("apply.firmwareTooOld");
   return { ok: reasons.length === 0, reasons };
 });
+
+/** True once the plan differs from what the last default or Read gave. */
+export const dirty = computed(() => store.plan.value !== store.planBase.value);
+
+/** Replace the plan with a fresh one (default or Read) that does not count as edited. */
+export function resetPlan(plan: Plan): void {
+  store.plan.value = plan;
+  store.planBase.value = plan;
+}
+
+/** The municipality polygons, whether loaded as a list or a FeatureCollection. */
+export const municipalities = computed<MunicipalityFeature[]>(() => {
+  const m = store.data.value.municipalities;
+  return Array.isArray(m) ? m : ((m?.features ?? []) as MunicipalityFeature[]);
+});
+
+const deviceCodes = () => store.deviceRegions.peek()?.named ?? [];
+
+const sameAnchor = (a: Anchor | null, b: Anchor | null) =>
+  a === b ||
+  (!!a &&
+    !!b &&
+    a.mode === b.mode &&
+    a.province_code === b.province_code &&
+    (a.place?.city_code ?? null) === (b.place?.city_code ?? null));
+
+/** The municipality at a point as a city anchor; null outside every municipality, undefined while the data is missing. */
+export function anchorAt(p: LatLon): Anchor | null | undefined {
+  const places = store.data.peek().places;
+  const munis = municipalities.peek();
+  if (!places?.length || !munis.length) return undefined;
+  const f = municipalityAt(p, munis);
+  const place = f ? places.find((x) => x.city_code === f.properties.city_code) : undefined;
+  return place ? { mode: "city", province_code: place.province_code, place } : null;
+}
+
+/**
+ * Move the pin (map click or drag, "Use my location"). The anchor follows the municipality under
+ * the pin, and the region policy is rebuilt when it changes; outside every municipality the
+ * anchor is cleared and the location kept. Before the borders have loaded only the pin moves.
+ */
+export function setLocation(p: LatLon | null): void {
+  const plan = store.plan.peek();
+  const anchor = p ? anchorAt(p) : undefined;
+  if (anchor === undefined || sameAnchor(anchor, plan.anchor)) {
+    store.plan.value = { ...plan, location: p };
+    return;
+  }
+  const places = store.data.peek().places ?? [];
+  store.plan.value = {
+    ...plan,
+    location: p,
+    anchor,
+    regions: anchor ? policyFor(anchor, places, deviceCodes()) : null,
+  };
+}
+
+/** A search result: its anchor, the pin on the place (or the province / country centre), fresh regions and its prefix level. */
+export function chooseLocation(choice: LocationChoice): void {
+  const places = store.data.peek().places ?? [];
+  const anchor = anchorFromChoice(choice);
+  store.plan.value = {
+    ...store.plan.peek(),
+    anchor,
+    location: anchorCenter(anchor, places),
+    regions: policyFor(anchor, places, deviceCodes()),
+    prefixFormat: anchor.mode,
+  };
+}

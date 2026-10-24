@@ -27,8 +27,9 @@ const muni = (city_code: string, x: number, y: number) => ({
 
 // Groups are created once per map, in this order.
 const bordersGroup = () => ofKind("group")[0];
-const regionsGroup = () => ofKind("group")[1];
-const nodesGroup = () => ofKind("group")[2];
+const highlightGroup = () => ofKind("group")[1];
+const regionsGroup = () => ofKind("group")[2];
+const nodesGroup = () => ofKind("group")[3];
 
 beforeEach(() => {
   resetFake();
@@ -88,11 +89,29 @@ describe("MapView", () => {
     expect(bordersGroup().children).toHaveLength(0);
   });
 
+  it("keeps the outlines when the pin moves; only the highlight follows it", () => {
+    store.plan.value = { ...defaultPlan(), location: { lat: 50.5, lon: 3.5 } };
+    store.data.value = {
+      failed: new Set(),
+      provinces: { type: "FeatureCollection", features: [{ type: "Feature", properties: { code: "be-vov" }, geometry: square(3, 50) }] },
+      municipalities: { type: "FeatureCollection", features: [muni("beaaa", 3, 50), muni("bebbb", 8, 50)] } as never,
+    };
+    render(<MapView />);
+    const outline = bordersGroup().children[0];
+    expect(highlightGroup().children).toHaveLength(1);
+    act(() => {
+      store.plan.value = { ...store.plan.value, location: { lat: 50.5, lon: 8.5 } };
+    });
+    expect(bordersGroup().children).toHaveLength(1);
+    expect(bordersGroup().children[0]).toBe(outline);
+    expect((highlightGroup().children[0].args[0] as any).properties.city_code).toBe("bebbb");
+  });
+
   it("highlights only the matched municipality", () => {
     store.plan.value = { ...defaultPlan(), location: { lat: 50.5, lon: 3.5 } };
     store.data.value = { failed: new Set(), municipalities: { type: "FeatureCollection", features: [muni("beaaa", 3, 50), muni("bebbb", 8, 50)] } as never };
     render(<MapView />);
-    const highlighted = bordersGroup().children.filter((g) => g.options.className === "map-municipality");
+    const highlighted = highlightGroup().children.filter((g) => g.options.className === "map-municipality");
     expect(highlighted).toHaveLength(1);
     expect((highlighted[0].args[0] as any).properties.city_code).toBe("beaaa");
   });

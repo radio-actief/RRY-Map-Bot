@@ -87,12 +87,23 @@ const FORMATS_FOR: Record<Anchor["mode"], PrefixFormat[]> = {
   country: ["country", "none"],
 };
 
+/** The prefix formats an anchor offers (old availableLocationModes). */
+export function prefixFormatsFor(anchor: Anchor): PrefixFormat[] {
+  return FORMATS_FOR[anchor.mode];
+}
+
+/** The format in effect: the plan's, or the anchor's own level when the anchor lacks it. */
+export function effectivePrefixFormat(plan: Plan): PrefixFormat {
+  const a = plan.anchor;
+  if (!a) return plan.prefixFormat;
+  return FORMATS_FOR[a.mode].includes(plan.prefixFormat) ? plan.prefixFormat : a.mode;
+}
+
 /** Name prefix for the plan: empty without a location; a format the anchor lacks falls back to its own level. */
 export function planPrefix(plan: Plan): string {
   const a = plan.anchor;
   if (!a) return "";
-  const format = FORMATS_FOR[a.mode].includes(plan.prefixFormat) ? plan.prefixFormat : a.mode;
-  return buildPrefix(format, a.place, a.province_code);
+  return buildPrefix(effectivePrefixFormat(plan), a.place, a.province_code);
 }
 
 export function planName(plan: Plan): string {

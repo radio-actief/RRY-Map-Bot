@@ -148,5 +148,11 @@
   "power.battery": "🔋 Battery",
   "power.observer": "👀 Observer",
   "power.none": "—",
-  "power.noneLabel": "No power emoji"
+  "power.noneLabel": "No power emoji",
+  "read.linkLost": "the repeater was disconnected during the Read. Nothing was changed.",
+  "place.lat": "Latitude",
+  "place.lon": "Longitude",
+  "place.clear": "Clear",
+  "place.clearHint": "Remove the coordinates: no position is sent to the repeater. The chosen place stays.",
+  "place.noBorders": "The municipality borders didn't load, so the place can't be detected from the map. Use the search to choose it."
 }

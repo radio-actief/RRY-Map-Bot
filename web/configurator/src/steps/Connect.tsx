@@ -1,75 +1,13 @@
 /** Step 1: connect over USB, the device card, Read (asks before overwriting edits), or go on without a device. */
 import { useState } from "preact/hooks";
 import { Dialog } from "../app/Dialog";
-import { Notice, type NoticeKind } from "../app/Notice";
+import { Notice } from "../app/Notice";
 import { parseVersion, REGION_DEF_MIN_TEXT, supportsRegionDef } from "../core/firmware";
-import { deviceRegionsFromSnapshot, hasValidCoords, planFromSnapshot } from "../core/plan";
-import { checkFirmware, readAll, READ_COMMANDS } from "../device/repeater";
-import { hasWebSerial, requestUsbPort, SerialLink, type LinkTiming, type PortLike } from "../device/serial";
+import { hasValidCoords } from "../core/plan";
+import { hasWebSerial } from "../device/serial";
 import { t } from "../i18n/t";
-import { dirty, resetPlan, store } from "../state/store";
-
-const reasonOf = (err: unknown) => (err instanceof Error && err.message ? err.message : String(err));
-
-type ConnectDeps = { requestPort?: () => Promise<PortLike>; timing?: Partial<LinkTiming> };
-
-/** Ask for a port, open it and check the firmware once (old connectSerialUsb). */
-export async function connectUsb({ requestPort = requestUsbPort, timing }: ConnectDeps = {}): Promise<void> {
-  let port: PortLike;
-  try {
-    port = await requestPort();
-  } catch (err) {
-    // The user closed the port picker: nothing to report.
-    if (err instanceof Error && err.name === "NotFoundError") return;
-    store.notice.value = { kind: "error", text: t("connect.failed", { reason: reasonOf(err) }) };
-    return;
-  }
-  store.notice.value = null;
-  store.device.value = { status: "connecting", link: null, firmware: null };
-  const link = new SerialLink(port, timing);
-  link.onDisconnect(() => {
-    if (store.device.peek().link !== link) return;
-    store.device.value = { status: "none", link: null, firmware: null };
-    store.deviceRegions.value = undefined;
-    store.notice.value = { kind: "error", text: t("connect.unplugged") };
-  });
-  try {
-    await link.open();
-  } catch (err) {
-    store.device.value = { status: "none", link: null, firmware: null };
-    store.notice.value = { kind: "error", text: t("connect.failed", { reason: reasonOf(err) }) };
-    return;
-  }
-  store.device.value = { status: "connected", link, firmware: null };
-  const fw = await checkFirmware(link);
-  if (store.device.peek().link === link) store.device.value = { ...store.device.peek(), firmware: fw.version };
-}
-
-/** Close on purpose (old disconnectSerialUsb): no unplug notice, and the device's regions are forgotten. */
-export async function disconnectUsb(): Promise<void> {
-  const link = store.device.peek().link;
-  store.device.value = { status: "none", link: null, firmware: null };
-  store.deviceRegions.value = undefined;
-  await link?.close();
-}
-
-/** Every read command, then the plan from the reply (old performReadFromRepeater). */
-async function readDevice(): Promise<{ kind: NoticeKind; text: string }[]> {
-  const link = store.device.peek().link;
-  if (!link) return [];
-  try {
-    const snapshot = await readAll(link);
-    store.snapshot.value = snapshot;
-    store.deviceRegions.value = deviceRegionsFromSnapshot(snapshot);
-    resetPlan(planFromSnapshot(snapshot, store.data.peek().places ?? []));
-    const count = READ_COMMANDS.length - snapshot.missing.length;
-    const out: { kind: NoticeKind; text: string }[] = [{ kind: "ok", text: t("read.done", { count }) }];
-    if (snapshot.missing.length) out.push({ kind: "warn", text: t("read.missing", { commands: snapshot.missing.join(", ") }) });
-    return out;
-  } catch (err) {
-    return [{ kind: "error", text: t("read.failed", { reason: reasonOf(err) }) }];
-  }
-}
+import { connectUsb, readDevice } from "../state/device";
+import { dirty, store } from "../state/store";
 
 const shortKey = (k: string) => (k.length > 12 ? `${k.slice(0, 4)}…${k.slice(-4)}` : k);
 
@@ -101,19 +39,28 @@ function DeviceCard() {
   );
 }
 
+/** The outcome of the last Read: how much was read and what got no reply, or why it failed. */
+function ReadResult() {
+  const r = store.lastRead.value;
+  if (!r) return null;
+  if (!r.ok) return <Notice kind="error">{t("read.failed", { reason: r.reason })}</Notice>;
+  return (
+    <>
+      <Notice kind="ok">{t("read.done", { count: r.count })}</Notice>
+      {r.missing.length ? <Notice kind="warn">{t("read.missing", { commands: r.missing.join(", ") })}</Notice> : null}
+    </>
+  );
+}
+
 export function Connect() {
   const [asking, setAsking] = useState(false);
-  const [reading, setReading] = useState(false);
-  const [results, setResults] = useState<{ kind: NoticeKind; text: string }[]>([]);
   const { status } = store.device.value;
+  const reading = store.reading.value;
   const serial = hasWebSerial();
 
-  async function read() {
+  function read() {
     setAsking(false);
-    setReading(true);
-    setResults([]);
-    setResults(await readDevice());
-    setReading(false);
+    void readDevice();
   }
 
   return (
@@ -133,20 +80,16 @@ export function Connect() {
             type="button"
             class="btn primary block"
             disabled={reading}
-            onClick={() => (dirty.value ? setAsking(true) : void read())}
+            onClick={() => (dirty.value ? setAsking(true) : read())}
           >
             {reading ? t("read.reading") : t("read.button")}
           </button>
         </>
       ) : null}
-      {results.map((r) => (
-        <Notice key={r.text} kind={r.kind}>
-          {r.text}
-        </Notice>
-      ))}
+      <ReadResult />
       <p class="continue">
         {serial ? `${t("connect.noRepeater")} ` : null}
-        <button type="button" class="link" onClick={() => (store.step.value = 2)}>
+        <button type="button" class="link" disabled={reading} onClick={() => (store.step.value = 2)}>
           {t("connect.continue")}
         </button>
       </p>
@@ -159,7 +102,7 @@ export function Connect() {
             <button type="button" class="btn" onClick={() => setAsking(false)}>
               {t("read.skip")}
             </button>
-            <button type="button" class="btn primary" onClick={() => void read()}>
+            <button type="button" class="btn primary" onClick={read}>
               {t("read.confirm")}
             </button>
           </>

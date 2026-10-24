@@ -10,7 +10,8 @@ import { Panel } from "../src/app/Panel";
 import { defaultPlan } from "../src/core/plan";
 import type { Place } from "../src/core/search";
 import { SerialLink } from "../src/device/serial";
-import { Connect, connectUsb } from "../src/steps/Connect";
+import { Connect } from "../src/steps/Connect";
+import { connectUsb, disconnectUsb } from "../src/state/device";
 import { PlaceName } from "../src/steps/PlaceName";
 import { canApply, resetPlan, setLocation, store } from "../src/state/store";
 import { FakePort } from "./fakes/fake-port";
@@ -36,6 +37,8 @@ beforeEach(() => {
   store.snapshot.value = null;
   store.deviceRegions.value = undefined;
   store.notice.value = null;
+  store.reading.value = false;
+  store.lastRead.value = null;
   store.step.value = 2;
   store.device.value = { status: "none", link: null, firmware: null };
   store.data.value = { failed: new Set(), places: PLACES, municipalities: MUNIS };
@@ -121,6 +124,49 @@ describe("Connect step", () => {
     expect(await screen.findByText(/No reply to: get tx, get multi\.acks/)).toBeTruthy();
   });
 
+  it("unplugged while opening: back to no device with a notice", async () => {
+    const port = { readable: null, writable: null, open: async () => {}, close: async () => {} };
+    await connectUsb({ requestPort: async () => port, timing: FAST });
+    expect(store.device.value.status).toBe("none");
+    expect(store.notice.value?.kind).toBe("error");
+  });
+
+  it("a Read cut short by an unplug changes nothing and says it failed", async () => {
+    // The 6th read command loses the link.
+    const port = new FakePort(read, { disconnectAfter: 6 });
+    const link = new SerialLink(port, FAST);
+    await link.open();
+    store.device.value = { status: "connected", link, firmware: "v1.17.1" };
+    const before = store.plan.value;
+    render(<Connect />);
+    fireEvent.click(screen.getByRole("button", { name: "Read settings from repeater" }));
+    expect(await screen.findByText(/Read failed: the repeater was disconnected/)).toBeTruthy();
+    expect(store.plan.value).toBe(before);
+    expect(store.snapshot.value).toBeNull();
+    expect(store.deviceRegions.value).toBeUndefined();
+  });
+
+  it("Disconnect during a Read changes nothing", async () => {
+    const { link } = await connectedLink();
+    store.device.value = { status: "connected", link, firmware: "v1.17.1" };
+    const before = store.plan.value;
+    render(<Connect />);
+    fireEvent.click(screen.getByRole("button", { name: "Read settings from repeater" }));
+    expect(store.reading.value).toBe(true);
+    await disconnectUsb();
+    await waitFor(() => expect(store.reading.value).toBe(false));
+    expect(store.plan.value).toBe(before);
+    expect(store.snapshot.value).toBeNull();
+    expect(store.lastRead.value?.ok).toBe(false);
+  });
+
+  it("while reading, step navigation is disabled", () => {
+    store.reading.value = true;
+    render(<Panel />);
+    expect((screen.getByRole("button", { name: /Next: Regions/ }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "← Back" }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
   it("shows Disconnect in the panel footer on step 1 while connected", async () => {
     const { link } = await connectedLink();
     store.device.value = { status: "connected", link, firmware: "v1.17.1" };
@@ -144,6 +190,72 @@ describe("Place & name step", () => {
     expect(plan.location).toEqual({ lat: RONSE.lat, lon: RONSE.lon });
     expect(plan.regions?.rows.some((r) => r.code === "beron")).toBe(true);
     expect(screen.getByText("BE-RON-")).toBeTruthy();
+  });
+
+  it("picking the municipality the pin is already in keeps the precise location", () => {
+    store.plan.value = { ...store.plan.value, location: { lat: 50.745, lon: 3.6 } };
+    render(<PlaceName />);
+    fireEvent.input(screen.getByRole("combobox", { name: "Search a place" }), { target: { value: "Ronse" } });
+    fireEvent.click(screen.getAllByRole("option")[0]);
+    expect(store.plan.value.anchor?.place?.city_code).toBe("beron");
+    expect(store.plan.value.location).toEqual({ lat: 50.745, lon: 3.6 });
+  });
+
+  it("on blur the search shows the chosen place again", () => {
+    act(() => setLocation({ lat: 50.745, lon: 3.6 }));
+    render(<PlaceName />);
+    const box = screen.getByRole("combobox", { name: "Search a place" }) as HTMLInputElement;
+    fireEvent.input(box, { target: { value: "Gen" } });
+    fireEvent.blur(box);
+    expect(box.value).toBe("Ronse");
+  });
+
+  it("typed coordinates (comma decimals) move the pin and resolve the place", () => {
+    render(<PlaceName />);
+    const lat = screen.getByRole("textbox", { name: "Latitude" });
+    const lon = screen.getByRole("textbox", { name: "Longitude" });
+    fireEvent.input(lat, { target: { value: "50,745" } });
+    fireEvent.change(lat, { target: { value: "50,745" } });
+    expect(store.plan.value.location).toBeNull();
+    fireEvent.input(lon, { target: { value: "3.6" } });
+    fireEvent.change(lon, { target: { value: "3.6" } });
+    expect(store.plan.value.location).toEqual({ lat: 50.745, lon: 3.6 });
+    expect(store.plan.value.anchor?.place?.city_code).toBe("beron");
+  });
+
+  it("invalid typed coordinates show an error and keep the pin", () => {
+    act(() => setLocation({ lat: 50.745, lon: 3.6 }));
+    render(<PlaceName />);
+    const lat = screen.getByRole("textbox", { name: "Latitude" });
+    fireEvent.input(lat, { target: { value: "95" } });
+    fireEvent.change(lat, { target: { value: "95" } });
+    expect(screen.getByText("Enter valid coordinates.")).toBeTruthy();
+    expect(store.plan.value.location).toEqual({ lat: 50.745, lon: 3.6 });
+  });
+
+  it("Clear removes the coordinates and keeps the place", () => {
+    act(() => setLocation({ lat: 50.745, lon: 3.6 }));
+    render(<PlaceName />);
+    fireEvent.click(screen.getByRole("button", { name: "Clear" }));
+    expect(store.plan.value.location).toBeNull();
+    expect(store.plan.value.anchor?.place?.city_code).toBe("beron");
+  });
+
+  it("a pin set before the borders load gets its place once they arrive", () => {
+    store.data.value = { failed: new Set(), places: PLACES };
+    act(() => setLocation({ lat: 50.745, lon: 3.6 }));
+    expect(store.plan.value.anchor).toBeNull();
+    act(() => {
+      store.data.value = { ...store.data.value, municipalities: MUNIS };
+    });
+    expect(store.plan.value.anchor?.place?.city_code).toBe("beron");
+    expect(store.plan.value.location).toEqual({ lat: 50.745, lon: 3.6 });
+  });
+
+  it("says the place can't be detected from the map when the borders failed", () => {
+    store.data.value = { failed: new Set(["municipalities"]), places: PLACES };
+    render(<PlaceName />);
+    expect(screen.getByText(/can't be detected from the map/)).toBeTruthy();
   });
 
   it("a map pick outside Belgium keeps the location, leaves the anchor null and says so", () => {
@@ -194,6 +306,16 @@ describe("Place & name step", () => {
     expect(screen.getByText(/already used nearby/)).toBeTruthy();
   });
 
+  it("does not count the own repeater (public key read in capitals) as a nearby name", () => {
+    store.data.value = { ...store.data.value, nodes: [{ ...node("BE-RON-Kluisberg", 50.76, 3.61), public_key: "3f5a9c0e" }] };
+    store.snapshot.value = { settings: {}, missing: [], publicKey: "3F5A9C0E" };
+    act(() => setLocation({ lat: 50.745, lon: 3.6 }));
+    store.plan.value = { ...store.plan.value, nameSuffix: "Kluisberg", power: "🌞" };
+    render(<PlaceName />);
+    expect(screen.queryByText(/already used nearby/)).toBeNull();
+    expect(screen.getByText(/No node within 25 km/)).toBeTruthy();
+  });
+
   it("says when nearby names could not be checked", () => {
     store.data.value = { ...store.data.value, failed: new Set(["nodes"]) };
     act(() => setLocation({ lat: 50.745, lon: 3.6 }));
@@ -208,6 +330,39 @@ describe("Place & name step", () => {
     expect(store.plan.value.advertLoc).toBe("none");
     fireEvent.click(screen.getByRole("button", { name: /Solar/ }));
     expect(store.plan.value.power).toBe("🌞");
+  });
+
+  it("hides Use my location on a secure origin without geolocation", () => {
+    vi.stubGlobal("isSecureContext", true);
+    render(<PlaceName />);
+    expect(screen.queryByRole("button", { name: "Use my location" })).toBeNull();
+  });
+
+  it("hides Use my location with geolocation on an insecure origin", () => {
+    vi.stubGlobal("isSecureContext", false);
+    Object.defineProperty(navigator, "geolocation", { value: { getCurrentPosition: vi.fn() }, configurable: true });
+    try {
+      render(<PlaceName />);
+      expect(screen.queryByRole("button", { name: "Use my location" })).toBeNull();
+    } finally {
+      delete (navigator as unknown as Record<string, unknown>).geolocation;
+    }
+  });
+
+  it("drops a location that arrives after the user left the step", () => {
+    vi.stubGlobal("isSecureContext", true);
+    let answer: PositionCallback = () => {};
+    const getCurrentPosition = vi.fn((ok: PositionCallback) => void (answer = ok));
+    Object.defineProperty(navigator, "geolocation", { value: { getCurrentPosition }, configurable: true });
+    try {
+      render(<PlaceName />);
+      fireEvent.click(screen.getByRole("button", { name: "Use my location" }));
+      store.step.value = 3;
+      answer({ coords: { latitude: 50.745, longitude: 3.6 } } as GeolocationPosition);
+      expect(store.plan.value.location).toBeNull();
+    } finally {
+      delete (navigator as unknown as Record<string, unknown>).geolocation;
+    }
   });
 
   it("offers Use my location only on a secure origin with geolocation", () => {

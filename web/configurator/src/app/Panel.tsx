@@ -1,7 +1,8 @@
 import { useEffect, useState } from "preact/hooks";
 import { t } from "../i18n/t";
 import { store, type Step } from "../state/store";
-import { Connect, disconnectUsb } from "../steps/Connect";
+import { disconnectUsb } from "../state/device";
+import { Connect } from "../steps/Connect";
 import { PlaceName } from "../steps/PlaceName";
 import { Notice } from "./Notice";
 import { Stepper, stepName } from "./Stepper";
@@ -45,6 +46,7 @@ export function Panel() {
   const mode = sheet ? `sheet ${height}` : wide ? "wide" : "docked";
   const next = step < 5 ? ((step + 1) as Step) : null;
   const notice = store.notice.value;
+  const reading = store.reading.value;
   return (
     <section class={`panel ${mode}`}>
       {sheet ? (
@@ -71,7 +73,7 @@ export function Panel() {
       <StepBody step={step} />
       <footer class="panel-foot">
         {step > 1 ? (
-          <button type="button" class="btn" onClick={() => (store.step.value = (step - 1) as Step)}>
+          <button type="button" class="btn" disabled={reading} onClick={() => (store.step.value = (step - 1) as Step)}>
             {t("step.back")}
           </button>
         ) : store.device.value.status === "connected" ? (
@@ -82,7 +84,7 @@ export function Panel() {
           <span />
         )}
         {next ? (
-          <button type="button" class="btn primary" onClick={() => (store.step.value = next)}>
+          <button type="button" class="btn primary" disabled={reading} onClick={() => (store.step.value = next)}>
             {t("step.nextButton", { name: stepName(next) })}
           </button>
         ) : null}

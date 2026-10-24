@@ -73,6 +73,9 @@ function storedLayers(): { nodes: boolean; borders: boolean } {
 /** A message shown above the step body, whatever the step (e.g. the repeater was unplugged). */
 export type AppNotice = { kind: NoticeKind; text: string };
 
+/** The last Read: how many commands answered and which did not, or why it failed. */
+export type LastRead = { ok: true; count: number; missing: string[] } | { ok: false; reason: string };
+
 const initialPlan = defaultPlan();
 
 export const store = {
@@ -83,6 +86,9 @@ export const store = {
   /** Region state of the device at the last Read, for the script's removals. */
   deviceRegions: signal<DeviceRegions | undefined>(undefined),
   notice: signal<AppNotice | null>(null),
+  /** A Read is running: step navigation and Read are disabled. */
+  reading: signal(false),
+  lastRead: signal<LastRead | null>(null),
   device: signal<DeviceState>({ status: "none", link: null, firmware: null }),
   step: signal<Step>(1),
   sheet: signal<"peek" | "half" | "full">("half"),
@@ -173,14 +179,19 @@ export function anchorAt(p: LatLon): Anchor | null | undefined {
   return place ? { mode: "city", province_code: place.province_code, place } : null;
 }
 
+/** A pin set before the borders loaded; its anchor is resolved once they arrive. */
+let unresolved: LatLon | null = null;
+
 /**
- * Move the pin (map click or drag, "Use my location"). The anchor follows the municipality under
- * the pin, and the region policy is rebuilt when it changes; outside every municipality the
- * anchor is cleared and the location kept. Before the borders have loaded only the pin moves.
+ * Move the pin (map click or drag, typed coordinates, "Use my location"); null clears it and
+ * keeps the anchor. The anchor follows the municipality under the pin, and the region policy is
+ * rebuilt when it changes; outside every municipality the anchor is cleared and the location
+ * kept. Before the borders have loaded only the pin moves, and the anchor follows when they arrive.
  */
 export function setLocation(p: LatLon | null): void {
   const plan = store.plan.peek();
   const anchor = p ? anchorAt(p) : undefined;
+  unresolved = p && anchor === undefined ? p : null;
   if (anchor === undefined || sameAnchor(anchor, plan.anchor)) {
     store.plan.value = { ...plan, location: p };
     return;
@@ -194,14 +205,38 @@ export function setLocation(p: LatLon | null): void {
   };
 }
 
-/** A search result: its anchor, the pin on the place (or the province / country centre), fresh regions and its prefix level. */
+effect(() => {
+  void store.data.value;
+  void municipalities.value;
+  const p = unresolved;
+  if (!p || store.plan.peek().location !== p || anchorAt(p) === undefined) return;
+  setLocation(p);
+});
+
+/** Whether a point lies in the chosen municipality, province or (any municipality) Belgium. */
+function insideAnchor(p: LatLon, anchor: Anchor): boolean {
+  const f = municipalityAt(p, municipalities.peek());
+  if (!f) return false;
+  if (anchor.mode === "city") return f.properties.city_code === anchor.place?.city_code;
+  if (anchor.mode === "province") return f.properties.province_code === anchor.province_code;
+  return true;
+}
+
+/**
+ * A search result: its anchor, fresh regions and its prefix level. The pin moves to the place
+ * (or the province / country centre) unless it already lies inside the chosen area, so precise
+ * coordinates (e.g. read from the device) are kept.
+ */
 export function chooseLocation(choice: LocationChoice): void {
   const places = store.data.peek().places ?? [];
+  const plan = store.plan.peek();
   const anchor = anchorFromChoice(choice);
+  const keep = plan.location && insideAnchor(plan.location, anchor);
+  if (!keep) unresolved = null;
   store.plan.value = {
-    ...store.plan.peek(),
+    ...plan,
     anchor,
-    location: anchorCenter(anchor, places),
+    location: keep ? plan.location : anchorCenter(anchor, places),
     regions: policyFor(anchor, places, deviceCodes()),
     prefixFormat: anchor.mode,
   };

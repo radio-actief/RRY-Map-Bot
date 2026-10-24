@@ -1,10 +1,18 @@
 /** Step 2: where the repeater is (search, map, "Use my location"), advert location, name and power. */
-import { useEffect, useMemo, useState } from "preact/hooks";
+import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { Notice } from "../app/Notice";
 import { PROVINCE_NAMES } from "../core/be-regions";
 import { municipalityAt, nodesWithin, NEIGHBOR_RADIUS_KM, type MeshNode } from "../core/geo";
 import { checkName, POWER_EMOJIS, splitNameSuffixAndEmoji, type PowerEmoji, type PrefixFormat } from "../core/naming";
-import { effectivePrefixFormat, planName, planPrefix, prefixFormatsFor, type AdvertLoc, type Plan } from "../core/plan";
+import {
+  effectivePrefixFormat,
+  hasValidCoords,
+  planName,
+  planPrefix,
+  prefixFormatsFor,
+  type AdvertLoc,
+  type Plan,
+} from "../core/plan";
 import type { Anchor } from "../core/regions";
 import { locationChoices, type LocationChoice } from "../core/search";
 import { t } from "../i18n/t";
@@ -95,7 +103,10 @@ function LocationSearch() {
           setOpen(true);
         }}
         onFocus={() => setOpen(true)}
-        onBlur={() => setOpen(false)}
+        onBlur={() => {
+          setOpen(false);
+          setQuery(anchorLabel(anchor));
+        }}
         onKeyDown={onKey}
       />
       {showList ? (
@@ -126,15 +137,21 @@ function LocationSearch() {
 /** "Use my location" (only on a secure origin with geolocation); a failure becomes a notice. */
 function UseMyLocation({ onError }: { onError: (text: string) => void }) {
   const [busy, setBusy] = useState(false);
+  const mounted = useRef(true);
+  useEffect(() => () => void (mounted.current = false), []);
   if (!canLocate()) return null;
   function locate() {
     setBusy(true);
+    // A late answer is dropped once the user has left the step.
+    const current = () => mounted.current && store.step.peek() === 2;
     navigator.geolocation.getCurrentPosition(
       (pos) => {
+        if (!current()) return;
         setBusy(false);
         setLocation({ lat: pos.coords.latitude, lon: pos.coords.longitude });
       },
       (err) => {
+        if (!current()) return;
         setBusy(false);
         onError(t("place.geoFailed", { reason: err.message || String(err.code) }));
       },
@@ -145,6 +162,77 @@ function UseMyLocation({ onError }: { onError: (text: string) => void }) {
     <button type="button" class="btn small" disabled={busy} onClick={locate}>
       {busy ? t("place.locating") : t("place.useMyLocation")}
     </button>
+  );
+}
+
+/** Typed coordinate text as a number: a comma counts as the decimal point; empty or junk is NaN. */
+const parseCoord = (s: string) => (s.trim() ? Number(s.trim().replace(",", ".")) : NaN);
+const formatCoord = (n: number) => String(Math.round(n * 1e6) / 1e6);
+
+/** Latitude / longitude inputs and Clear (old position fields); a valid pair goes through setLocation. */
+function CoordinateFields() {
+  const location = store.plan.value.location;
+  const [lat, setLat] = useState("");
+  const [lon, setLon] = useState("");
+  const [invalid, setInvalid] = useState(false);
+
+  // The pin moved elsewhere (map, search, Read): show where it is now.
+  useEffect(() => {
+    setLat(location ? formatCoord(location.lat) : "");
+    setLon(location ? formatCoord(location.lon) : "");
+    setInvalid(false);
+  }, [location]);
+
+  function commit(nextLat: string, nextLon: string) {
+    const filled = [nextLat, nextLon].filter((v) => v.trim());
+    // Junk is flagged at once; a pair is only checked (and sent) once both fields are filled.
+    if (filled.some((v) => !Number.isFinite(parseCoord(v)))) return setInvalid(true);
+    if (filled.length < 2) return setInvalid(false);
+    const a = parseCoord(nextLat);
+    const b = parseCoord(nextLon);
+    if (!hasValidCoords(a, b)) return setInvalid(true);
+    setInvalid(false);
+    if (location && location.lat === a && location.lon === b) return;
+    setLocation({ lat: a, lon: b });
+  }
+
+  return (
+    <>
+      <div class="coord-row">
+        <label class="field">
+          <span class="sub">{t("place.lat")}</span>
+          <input
+            type="text"
+            inputMode="decimal"
+            autocomplete="off"
+            placeholder="50.8503"
+            aria-invalid={invalid}
+            value={lat}
+            onInput={(e) => setLat(e.currentTarget.value)}
+            onChange={(e) => commit(e.currentTarget.value, lon)}
+          />
+        </label>
+        <label class="field">
+          <span class="sub">{t("place.lon")}</span>
+          <input
+            type="text"
+            inputMode="decimal"
+            autocomplete="off"
+            placeholder="4.3517"
+            aria-invalid={invalid}
+            value={lon}
+            onInput={(e) => setLon(e.currentTarget.value)}
+            onChange={(e) => commit(lat, e.currentTarget.value)}
+          />
+        </label>
+        {location ? (
+          <button type="button" class="btn small" title={t("place.clearHint")} onClick={() => setLocation(null)}>
+            {t("place.clear")}
+          </button>
+        ) : null}
+      </div>
+      {invalid ? <p class="field-error">{t("error.coords")}</p> : null}
+    </>
   );
 }
 
@@ -177,6 +265,7 @@ export function PlaceName() {
   const prefix = planPrefix(plan);
   const name = checkName(planName(plan), plan.advertLoc !== "none");
   const formats = anchor ? prefixFormatsFor(anchor) : [];
+  const bordersFailed = data.failed.has("municipalities") || data.failed.has("places");
   const nearby = nearbyCheck(plan, data.nodes, data.failed.has("nodes"), store.snapshot.value?.publicKey);
 
   return (
@@ -186,16 +275,15 @@ export function PlaceName() {
 
       <LocationSearch />
       <div class="place-line">
-        {location ? (
-          <span class="coords">
-            {`📍 ${location.lat.toFixed(4)}, ${location.lon.toFixed(4)}`}
-            {anchor ? ` · ${anchorPlace(anchor)}` : ""}
-          </span>
+        {anchor ? (
+          <span class="coords">{`📍 ${anchorPlace(anchor)}`}</span>
         ) : (
-          <span class="sub">{t("place.noLocation")}</span>
+          <span class="sub">{location ? "" : t("place.noLocation")}</span>
         )}
         <UseMyLocation onError={setGeoError} />
       </div>
+      <CoordinateFields />
+      {bordersFailed ? <Notice kind="warn">{t("place.noBorders")}</Notice> : null}
       {outside ? <Notice kind="warn">{t("place.outside")}</Notice> : null}
       {geoError ? <Notice kind="error">{geoError}</Notice> : null}
 

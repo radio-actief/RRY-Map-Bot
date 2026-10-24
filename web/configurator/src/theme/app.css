@@ -602,7 +602,8 @@ path.map-region-denied {
 
 .search input,
 .name-row input,
-.field select {
+.field select,
+.coord-row input {
   width: 100%;
   padding: 7px 9px;
   border: 1px solid var(--line);
@@ -749,4 +750,24 @@ path.map-region-denied {
 
 .check.warn {
   color: var(--warn);
+}
+
+.coord-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.coord-row .field {
+  flex: 1;
+  min-width: 0;
+  margin-bottom: 0;
+}
+
+.coord-row input[aria-invalid="true"] {
+  border-color: var(--bad);
+}
+
+.coord-row .btn {
+  margin-bottom: 4px;
 }

@@ -22,6 +22,7 @@ export function Stepper({ wide }: { wide: boolean }) {
               key={n}
               class={`seg ${status}`}
               aria-current={n === current ? "step" : undefined}
+              disabled={store.reading.value}
               onClick={() => (store.step.value = n)}
             >
               {wide ? <span class="seg-label" aria-hidden="true">{`${status === "done" ? "✓" : n} ${stepName(n)}`}</span> : null}

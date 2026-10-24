@@ -25,7 +25,6 @@ const EXPERT = SETTINGS.filter((d) => blockKeys("advanced").includes(d.key));
 const HOP_KEYS: SettingKey[] = ["floodMaxUnscoped", "floodMaxAdvert"];
 const DEFAULTS = defaultPlan();
 
-const BY_KEY = new Map(SETTINGS.map((d) => [d.key, d]));
 const defaultOf = (key: SettingKey): string => String(DEFAULTS.settings[key] ?? "");
 
 const setSetting = (key: SettingKey, value: string | number) => {

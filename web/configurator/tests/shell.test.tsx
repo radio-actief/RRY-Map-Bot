@@ -81,6 +81,40 @@ describe("app shell", () => {
     expect(store.sheet.value).toBe("full");
   });
 
+  it("forces the sheet to full height on steps 4 and 5 and restores the user's height after", () => {
+    stubWidth(500);
+    store.sheet.value = "peek";
+    const { container } = render(<App />);
+    const panel = () => container.querySelector(".panel")!;
+    expect(panel().classList.contains("peek")).toBe(true);
+    act(() => {
+      store.step.value = 4;
+    });
+    expect(panel().classList.contains("full")).toBe(true);
+    act(() => {
+      store.step.value = 2;
+    });
+    expect(panel().classList.contains("peek")).toBe(true);
+    store.sheet.value = "half";
+  });
+
+  it("lets the top bar chips shrink at 360 px", () => {
+    stubWidth(360);
+    store.plan.value = { ...defaultPlan(), anchor: ronse, nameSuffix: "Kluisberg" };
+    store.step.value = 4;
+    const { container } = render(<App />);
+    const chips = container.querySelectorAll(".topbar .chip");
+    expect(chips.length).toBe(2);
+    chips.forEach((c) => expect(c.classList.contains("trunc")).toBe(true));
+  });
+
+  it("exposes step status to assistive tech", () => {
+    store.step.value = 3;
+    store.step.value = 1;
+    const { container } = render(<App />);
+    expect(container.querySelectorAll(".stepper .seg")[2].textContent).toContain("Regions — needs attention");
+  });
+
   it("shows connection state and toggles the drawer and theme", () => {
     render(<App />);
     expect(screen.getByText("Not connected")).toBeTruthy();
@@ -100,10 +134,10 @@ describe("app shell", () => {
 
   it("Back and Next move between steps", () => {
     render(<App />);
-    expect(screen.queryByRole("button", { name: "Back" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Next: Place & name" }));
+    expect(screen.queryByRole("button", { name: "← Back" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Next: Place & name →" }));
     expect(store.step.value).toBe(2);
-    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    fireEvent.click(screen.getByRole("button", { name: "← Back" }));
     expect(store.step.value).toBe(1);
   });
 });

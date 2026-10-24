@@ -31,14 +31,17 @@ export function TopBar() {
   const chip = [name, place].filter(Boolean).join(" · ");
   return (
     <header class="topbar">
-      <span class="wordmark">{t("app.name")}</span>
-      <span class="chip">
+      <span class="wordmark">
+        <b>{t("app.nameGold")}</b>
+        {t("app.nameRest")}
+      </span>
+      <span class="chip trunc">
         <span class={`dot${conn.on ? "" : " off"}`} />
-        {conn.text}
+        <span class="chip-text">{conn.text}</span>
       </span>
       {step >= 4 && chip ? (
-        <button type="button" class="chip place" title={t("top.place")} onClick={() => (store.step.value = 2)}>
-          {`📍 ${chip}`}
+        <button type="button" class="chip place trunc" title={t("top.place")} onClick={() => (store.step.value = 2)}>
+          <span class="chip-text">{`📍 ${chip}`}</span>
         </button>
       ) : null}
       <span class="spacer" />

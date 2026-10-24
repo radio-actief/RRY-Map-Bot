@@ -9,10 +9,12 @@ body {
   background: var(--page);
   color: var(--ink);
   font-family: "Figtree", system-ui, sans-serif;
+  font-size: 13px;
 }
 
 button {
   font: inherit;
+  font-size: inherit;
   color: inherit;
 }
 
@@ -29,12 +31,17 @@ button {
   padding: 6px 12px;
   background: var(--bar);
   border-bottom: 1px solid var(--line);
-  font-size: 13px;
+  flex-wrap: wrap;
   z-index: 5;
 }
 
 .wordmark {
   font-weight: 700;
+  flex-shrink: 0;
+}
+
+.wordmark b {
+  color: var(--gold);
 }
 
 .spacer {
@@ -51,6 +58,18 @@ button {
   border: 1px solid var(--line);
   font-size: 12px;
   white-space: nowrap;
+  min-width: 0;
+}
+
+.chip.trunc {
+  flex: 0 1 auto;
+  max-width: 100%;
+}
+
+.chip-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .chip.place {
@@ -174,7 +193,7 @@ button {
 
 .panel-body h2 {
   margin: 0 0 4px;
-  font-size: 15px;
+  font-size: 14px;
 }
 
 .sub {
@@ -218,6 +237,27 @@ button {
   border-radius: 3px;
   background: var(--line);
   cursor: pointer;
+  position: relative;
+}
+
+.seg::before {
+  content: "";
+  position: absolute;
+  inset: -10px 0;
+}
+
+.seg:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+.sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .seg.done {
@@ -305,7 +345,7 @@ button {
 }
 
 .dialog::backdrop {
-  background: rgb(15 20 25 / 0.4);
+  background: var(--backdrop);
 }
 
 .dialog-head {
@@ -318,7 +358,7 @@ button {
 
 .dialog-head h2 {
   margin: 0;
-  font-size: 15px;
+  font-size: 14px;
 }
 
 .dialog-body {

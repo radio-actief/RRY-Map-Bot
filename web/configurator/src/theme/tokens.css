@@ -12,6 +12,7 @@
   --page: #ffffff;
   --on-gold: #1f1600;
   --shadow: rgb(0 0 0 / 0.12);
+  --backdrop: rgb(15 20 25 / 0.4);
   color-scheme: light dark;
 }
 
@@ -27,6 +28,8 @@
     --panel: #161b22;
     --bar: #0d1117;
     --page: #0d1117;
+    --shadow: rgb(0 0 0 / 0.5);
+    --backdrop: rgb(0 0 0 / 0.6);
   }
 }
 
@@ -46,4 +49,6 @@
   --panel: #161b22;
   --bar: #0d1117;
   --page: #0d1117;
+  --shadow: rgb(0 0 0 / 0.5);
+  --backdrop: rgb(0 0 0 / 0.6);
 }

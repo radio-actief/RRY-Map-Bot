@@ -36,7 +36,8 @@ export function Panel() {
   const step = store.step.value;
   const sheet = useMediaQuery(NARROW);
   const wide = step >= 4 && !sheet;
-  const mode = sheet ? `sheet ${store.sheet.value}` : wide ? "wide" : "docked";
+  const height = step >= 4 ? "full" : store.sheet.value;
+  const mode = sheet ? `sheet ${height}` : wide ? "wide" : "docked";
   const next = step < 5 ? ((step + 1) as Step) : null;
   return (
     <section class={`panel ${mode}`}>
@@ -62,7 +63,7 @@ export function Panel() {
         )}
         {next ? (
           <button type="button" class="btn primary" onClick={() => (store.step.value = next)}>
-            {t("step.next", { name: stepName(next) })}
+            {t("step.nextButton", { name: stepName(next) })}
           </button>
         ) : null}
       </footer>

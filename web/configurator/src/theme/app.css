@@ -227,11 +227,27 @@ button {
 }
 
 .btn {
+  white-space: nowrap;
   padding: 6px 12px;
   border-radius: 8px;
   border: 1px solid var(--line);
   background: var(--panel);
   cursor: pointer;
+}
+
+.panel.docked .panel-foot {
+  flex-wrap: wrap;
+}
+
+/* Docked: the Advanced link takes its own right-aligned line above Back / Next. */
+.panel.docked .foot-end {
+  display: contents;
+}
+
+.panel.docked .foot-end .link {
+  order: -1;
+  flex-basis: 100%;
+  text-align: right;
 }
 
 .btn.primary {
@@ -943,15 +959,18 @@ path.map-region-denied {
 
 .label-line {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: 4px 6px;
 }
 
 .repeater-value {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  flex: none;
   margin-left: auto;
+  white-space: nowrap;
   padding: 1px 6px;
   border-radius: 999px;
   background: var(--info-bg);
@@ -1542,15 +1561,31 @@ button.site-card {
 }
 
 .free-form {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr) auto;
+  align-items: end;
   gap: 8px;
   margin-top: 8px;
 }
 
+.free-form .field {
+  min-width: 0;
+}
+
+.free-form .field input,
+.free-form .field select {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.free-form .btn.small {
+  align-self: end;
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
 .free-error {
-  flex-basis: 100%;
+  grid-column: 1 / -1;
   margin: 0;
   color: var(--bad);
 }

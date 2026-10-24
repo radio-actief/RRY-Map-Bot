@@ -4,6 +4,7 @@ import { store, type Step } from "../state/store";
 import { disconnectUsb } from "../state/device";
 import { Connect } from "../steps/Connect";
 import { PlaceName } from "../steps/PlaceName";
+import { Regions } from "../steps/Regions";
 import { Notice } from "./Notice";
 import { Stepper, stepName } from "./Stepper";
 
@@ -26,10 +27,11 @@ export function useMediaQuery(query: string): boolean {
 
 const SHEET_NEXT = { peek: "half", half: "full", full: "peek" } as const;
 
-/** Steps 3-5 arrive in later tasks. */
+/** Steps 4-5 arrive in later tasks. */
 function StepBody({ step }: { step: Step }) {
   if (step === 1) return <Connect />;
   if (step === 2) return <PlaceName />;
+  if (step === 3) return <Regions />;
   return (
     <div class="panel-body">
       <h2>{stepName(step)}</h2>

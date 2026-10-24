@@ -2,6 +2,11 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  defaultScopeOptions,
+  homeOverrideOptions,
+  setDefaultScope,
+  setHomeOverride,
+  setUntaggedFlood,
   anchorFromChoice,
   applyLegacyPolicyFields,
   bulk,
@@ -443,3 +448,35 @@ const DENY_ALL_RONSE = [
   "region default <null>",
   "region save",
 ];
+
+describe("scope options", () => {
+  const ronse = cityAnchor("Ronse");
+
+  it("lists Allow rows plus * for the home override, in CLI order", () => {
+    const p = policyFor(ronse, PLACES);
+    expect(homeOverrideOptions(p).map((o) => o.code)).toEqual(["*", "be", "be-vov"]);
+    expect(homeOverrideOptions(p).find((o) => o.code === "be")!.label).toBe("Belgium (be)");
+  });
+
+  it("lists named Allow rows for the default scope and keeps a stale override", () => {
+    let p = policyFor(ronse, PLACES);
+    expect(defaultScopeOptions(p).map((o) => o.code)).toEqual(["be", "be-vov"]);
+    p = setDefaultScope(p, "be-vov");
+    p = setRowState(p, "be-vov", "none");
+    expect(defaultScopeOptions(p)).toEqual([
+      { code: "be", label: "Belgium (be)" },
+      { code: "be-vov", label: "Oost-Vlaanderen (be-vov)", notAllowed: true },
+    ]);
+  });
+
+  it("falls back to automatic home when the chosen code loses Allow", () => {
+    let p = setHomeOverride(policyFor(ronse, PLACES), "be-vov");
+    expect(p.homeOverride).toBe("be-vov");
+    p = setRowState(p, "be-vov", "deny");
+    expect(p.homeOverride).toBeNull();
+  });
+
+  it("toggles untagged flood", () => {
+    expect(setUntaggedFlood(policyFor(ronse, PLACES), false).untaggedFlood).toBe(false);
+  });
+});

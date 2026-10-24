@@ -771,3 +771,66 @@ path.map-region-denied {
 .coord-row .btn {
   margin-bottom: 4px;
 }
+
+/* Step 3 */
+.bulk {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0;
+}
+
+.region-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.region-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.region-name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  font-size: 13px;
+}
+
+.region-state {
+  flex: none;
+  width: 150px;
+}
+
+.region-options {
+  margin-top: 12px;
+}
+
+.region-options summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.region-options .field,
+.region-options .check-line {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 10px;
+}
+
+.region-options .check-line {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+
+.segmented button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}

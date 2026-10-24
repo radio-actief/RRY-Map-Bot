@@ -3,6 +3,7 @@ import * as L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { GeoJsonObject } from "geojson";
 import { useEffect, useMemo, useRef } from "preact/hooks";
+import { GEWEST_NAMES } from "../core/be-regions";
 import { municipalityAt, nodesWithin, NEIGHBOR_RADIUS_KM, type LatLon } from "../core/geo";
 import { regionsByState } from "../core/regions";
 import { t } from "../i18n/t";
@@ -172,14 +173,16 @@ export function MapView() {
     }
     const byCode = new Map<string, Feature>();
     for (const f of [...featuresOf(data.provinces), ...featuresOf(data.gewesten)]) byCode.set(String(f.properties?.code), f);
-    const draw = (codes: string[], className: string) => {
-      for (const code of codes) {
-        const fs = byCity.get(code) ?? (byCode.has(code) ? [byCode.get(code)!] : []);
-        for (const f of fs) L.geoJSON(f as GeoJsonObject, pathClass(className)).addTo(g);
-      }
-    };
-    draw(denied, "map-region-denied");
-    draw(allowed, "map-region-allowed");
+    // Largest area first (gewest, province, municipality), so a smaller area stays visible on top.
+    const level = (code: string) => (byCity.has(code) ? 2 : GEWEST_NAMES[code] ? 0 : 1);
+    const wanted = [
+      ...denied.map((code) => ({ code, className: "map-region-denied" })),
+      ...allowed.map((code) => ({ code, className: "map-region-allowed" })),
+    ].sort((a, b) => level(a.code) - level(b.code));
+    for (const { code, className } of wanted) {
+      const fs = byCity.get(code) ?? (byCode.has(code) ? [byCode.get(code)!] : []);
+      for (const f of fs) L.geoJSON(f as GeoJsonObject, pathClass(className)).addTo(g);
+    }
   }, [step, plan.regions, municipalities, data.provinces, data.gewesten]);
 
   // The container is hidden on steps 4-5; Leaflet must re-measure when it comes back.

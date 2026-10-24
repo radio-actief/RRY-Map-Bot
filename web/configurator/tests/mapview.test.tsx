@@ -145,6 +145,29 @@ describe("MapView", () => {
     expect(regionsGroup().children).toHaveLength(0);
   });
 
+  it("draws larger regions first so a denied municipality shows on top of an allowed province", () => {
+    store.step.value = 3;
+    store.plan.value = {
+      ...defaultPlan(),
+      regions: {
+        rows: [
+          { code: "beaaa", labelKey: "", label: "A", group: "municipality", allow: false, deny: true },
+          { code: "be-vov", labelKey: "", label: "P", group: "province", allow: true, deny: false },
+        ],
+        untaggedFlood: false,
+        homeOverride: null,
+        defaultScope: null,
+      },
+    };
+    store.data.value = {
+      failed: new Set(),
+      municipalities: { type: "FeatureCollection", features: [muni("beaaa", 3, 50)] } as never,
+      provinces: { type: "FeatureCollection", features: [{ type: "Feature", properties: { code: "be-vov" }, geometry: square(3, 50) }] },
+    };
+    render(<MapView />);
+    expect(regionsGroup().children.map((g) => g.options.className)).toEqual(["map-region-allowed", "map-region-denied"]);
+  });
+
   it("re-measures the map when it is shown again", () => {
     store.step.value = 4;
     render(<MapView />);

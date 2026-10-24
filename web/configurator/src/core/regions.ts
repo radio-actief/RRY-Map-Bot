@@ -4,6 +4,7 @@
  * buildRegionCommandLines (src/configurator.js), with the checkbox DOM replaced by RegionPolicy.
  */
 import { GEWEST_NAMES, GEWEST_OF_PROVINCE, PROVINCE_ADJACENCY, PROVINCE_NAMES } from "./be-regions";
+import { t } from "../i18n/t";
 import { findGeographicNeighbors, neighborsInRadius } from "./geo";
 import type { LocationChoice, Place } from "./search";
 
@@ -57,11 +58,11 @@ export const HOME_OVERRIDE_OMIT = "__nohome__";
 export const DEFAULT_SCOPE_NONE = "__none__";
 
 const COUNTRY_NAMES: Record<string, string> = {
-  nl: "Netherlands",
-  lu: "Luxembourg",
-  fr: "France",
-  de: "Germany",
-  be: "Belgium",
+  nl: "region.name.nl",
+  lu: "region.name.lu",
+  fr: "region.name.fr",
+  de: "region.name.de",
+  be: "region.name.be",
 };
 const NEIGHBOR_COUNTRY_CODES = ["nl", "lu", "fr", "de"];
 const CLI_ORDER_FIRST = ["eu", "nl", "lu", "fr", "de", "be", "be-vlg", "be-wal"];
@@ -79,11 +80,11 @@ function cityIndex(places: Place[]): Map<string, Place> {
 }
 
 function expandedNameForRegionCode(code: string, cities: Map<string, Place>): string {
-  if (code === "*") return "wildcard root";
-  if (code === "eu") return "European Union";
+  if (code === "*") return t("region.name.wildcard");
+  if (code === "eu") return t("region.name.eu");
   if (isProvince(code)) return PROVINCE_NAMES[code];
   if (isGewest(code)) return GEWEST_NAMES[code];
-  if (has(COUNTRY_NAMES, code)) return COUNTRY_NAMES[code];
+  if (has(COUNTRY_NAMES, code)) return t(COUNTRY_NAMES[code]);
   const row = cities.get(code);
   if (row && row.plaats) return row.plaats;
   return code;
@@ -157,7 +158,7 @@ function homeProvinceOf(anchor: Anchor): string | null {
 }
 
 function homeRows(anchor: Anchor): RegionRow[] {
-  const rows = [row("be", named("Belgium", "be"), "country", "region.kind.country", { home: true, allow: true })];
+  const rows = [row("be", named(t("region.name.be"), "be"), "country", "region.kind.country", { home: true, allow: true })];
   const pc =
     anchor.mode === "province" && anchor.province_code
       ? anchor.province_code
@@ -206,7 +207,7 @@ export function policyFor(anchor: Anchor, places: Place[], deviceCodes: string[]
     ...neighborsScope.map(({ place, km }) =>
       row(
         place.city_code,
-        `${place.plaats} (~${Math.round(km)} km) (${place.city_code})`,
+        t("region.label.neighbourKm", { name: place.plaats, km: Math.round(km), code: place.city_code }),
         "neighbour",
         "region.kind.neighbourMunicipality",
       ),
@@ -215,9 +216,9 @@ export function policyFor(anchor: Anchor, places: Place[], deviceCodes: string[]
       row(pc, named(PROVINCE_NAMES[pc] || pc, pc), "neighbour", "region.kind.neighbourProvince"),
     ),
     ...NEIGHBOR_COUNTRY_CODES.map((c) =>
-      row(c, named(COUNTRY_NAMES[c], c), "neighbour", "region.kind.neighbourCountry"),
+      row(c, named(t(COUNTRY_NAMES[c]), c), "neighbour", "region.kind.neighbourCountry"),
     ),
-    row("eu", named("European Union", "eu"), "country", "region.kind.wider"),
+    row("eu", named(t("region.name.eu"), "eu"), "country", "region.kind.wider"),
   ];
   rows.push(...deviceRows(deviceCodes, rows, places));
   return finalize({ rows, untaggedFlood: true, homeOverride: null, defaultScope: null });
@@ -350,7 +351,7 @@ export function defaultRegionCode(policy: RegionPolicy): string | null {
 }
 
 /** #BEmesh automatic default scope: be when allowed, else the deepest home Allow; null when none. */
-function recommendedDefaultScopeCode(p: RegionPolicy): string | null {
+export function recommendedDefaultScopeCode(p: RegionPolicy): string | null {
   if (p.rows.some((r) => r.code === "be" && r.allow && !locked(r))) return "be";
   const deepest = deepestAllowedHomeRegionCode(p);
   return deepest !== "*" ? deepest : null;
@@ -362,6 +363,48 @@ function defaultLineCode(p: RegionPolicy): string {
   if (v === DEFAULT_SCOPE_NONE) return "<null>";
   if (v) return v;
   return recommendedDefaultScopeCode(p) || "<null>";
+}
+
+export type ScopeOption = { code: string; label: string; notAllowed?: boolean };
+
+function optionLabel(policy: RegionPolicy, code: string): string {
+  if (code === "*") return `* (${t("region.name.wildcard")})`;
+  return policy.rows.find((r) => r.code === code)?.label ?? code;
+}
+
+/** Choices for the home override (old refreshHomeOverrideSelect): every Allow row plus `*`, in CLI order. */
+export function homeOverrideOptions(policy: RegionPolicy): ScopeOption[] {
+  const codes = starFirst(sortCodesForCli(new Set([...policy.rows.filter((r) => r.allow).map((r) => r.code), "*"])));
+  return codes.map((code) => ({ code, label: optionLabel(policy, code) }));
+}
+
+/**
+ * Choices for the default flood scope (old refreshDefaultScopeSelect): every named Allow row in CLI
+ * order; an explicit override that is no longer Allow stays listed, marked `notAllowed`.
+ */
+export function defaultScopeOptions(policy: RegionPolicy): ScopeOption[] {
+  const codes = sortCodesForCli(policy.rows.filter((r) => r.allow && r.code !== "*").map((r) => r.code));
+  const keep = policy.defaultScope;
+  const stale = keep && keep !== DEFAULT_SCOPE_NONE && !codes.includes(keep) ? keep : null;
+  return [
+    ...codes.map((code) => ({ code, label: optionLabel(policy, code) })),
+    ...(stale ? [{ code: stale, label: optionLabel(policy, stale), notAllowed: true }] : []),
+  ];
+}
+
+/** Turn the untagged-flood (`*`) option on or off. */
+export function setUntaggedFlood(policy: RegionPolicy, on: boolean): RegionPolicy {
+  return { ...policy, untaggedFlood: on };
+}
+
+/** Pick the home override (null = automatic, HOME_OVERRIDE_OMIT = no line, else a code). */
+export function setHomeOverride(policy: RegionPolicy, value: string | null): RegionPolicy {
+  return finalize({ ...policy, homeOverride: value || null });
+}
+
+/** Pick the default flood scope (null = automatic, DEFAULT_SCOPE_NONE = `<null>`, else a code). */
+export function setDefaultScope(policy: RegionPolicy, value: string | null): RegionPolicy {
+  return { ...policy, defaultScope: value || null };
 }
 
 // ---------------------------------------------------------------------------

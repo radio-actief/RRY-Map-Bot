@@ -8,12 +8,19 @@ architecture). It builds on part 1 as it stands on `feat/configurator-rebuild` a
 
 Someone setting up a repeater gets a short guided path with recommended values:
 **Place → Name → Site → Regions → Send**. Today's full settings page stays available as an
-optional Advanced step. Two features come with it:
+optional Advanced step. These features come with it:
 
 - **Site profiles:** one choice (Hilltop, Foothills, Suburban, Local, or keep the device's
   own) sets the repeater's three timing values.
 - **Free regions:** besides the Belgian region tree, people can add their own region codes
   under a parent of their choice.
+- **Neighbouring countries:** the United Kingdom joins the list, and the map draws the
+  outlines of Belgium and the five neighbouring countries.
+- **Recommended settings per block:** each settings block gets its own "Use #BEmesh
+  recommended settings" button, plus one button for all of them. A new hop allowance level,
+  stricter than Minimal, is added.
+- **The repeater's current value** gets its own look and wording, separate from the help
+  text.
 
 Part 2 is done when:
 
@@ -32,6 +39,9 @@ Part 2 is done when:
 - **Site values:** MeshNO's table, unchanged (see Site below). Tuning later means editing
   one table.
 - **Free regions:** any code, with a parent the user picks.
+- **United Kingdom:** region code `gb` (ISO 3166, like `be`, `nl`, `fr`, `de`, `lu`).
+- **The repeater's current value:** a tag on the label line with a "Keep" link (see
+  Advanced).
 - English only; every new text goes through the translation layer.
 
 ## The steps
@@ -76,9 +86,57 @@ The stepper shows six steps plus Advanced:
    - TX power, duty cycle and the radio preset as read-only text, each with a link that
      opens Advanced.
 
-**Advanced** is part 1's Settings step unchanged (cards, Advanced section open, mini map,
-summary), except that the fields moved to Name (owner info) and Send (passwords) are not
-repeated there.
+**Advanced** is part 1's Settings step (cards, Advanced section open, mini map, summary),
+except that the fields moved to Name (owner info) and Send (passwords) are not repeated
+there, and with the changes below.
+
+### Blocks and their recommended settings
+
+Every setting belongs to exactly one block. The hop limits `flood.max.unscoped` and
+`flood.max.advert` move from Repeating into Advertising & hops, next to the hop allowance
+pills that set them.
+
+| Block | Settings | "Use #BEmesh recommended settings" sets |
+|-------|----------|------------------------------------------|
+| Radio | preset / frequency / SF / bandwidth / CR, duty cycle, TX power | EU/UK (Narrow), duty cycle 10 %. TX power is left alone (it depends on the hardware). |
+| Advertising & hops | flood advert, zero-hop advert, hop allowance, the two hop limits | flood advert 47 h, zero-hop advert 0 (off); the hop allowance keeps the current level when the two limits match one, otherwise Average 8/12. |
+| Repeating | repeat, `flood.max`, loop detect | repeat on, `flood.max` 64, loop detect minimal. |
+| Advanced | path hash mode, the three timing values, RX gain, interference threshold, AGC reset, multi-acks | path hash mode 1, RX gain on, interference threshold 0, AGC reset 0, multi-acks 0; the timing keeps the current Site profile when the three values match one of the four, otherwise Suburban. |
+
+- Each of the four blocks has the button at its foot. It changes only that block's settings.
+- The button is labelled "Use #BEmesh recommended settings" in every block (today's Radio and
+  Advertising buttons read "Use #BEmesh recommendation").
+- A block's "recommended" badge shows when all its settings equal what its button would set.
+- Beside the step title, "Use #BEmesh recommended settings for all" applies the four blocks
+  at once. Owner info and the passwords are never touched by any of these buttons.
+
+### Hop allowance
+
+A fifth level, **Tight 2/3** (`flood.max.unscoped` 2, `flood.max.advert` 3), comes before
+Minimal 4/6. The pills read Tight 2/3, Minimal 4/6, Average 8/12, Extended 16/24, Full
+64/64. Its help: floods reach only the repeaters close by.
+
+### Timing presets in Advanced
+
+Above the three timing values (`txdelay`, `direct.txdelay`, `rxdelay`), a row of pills offers
+the Site choices: Hilltop, Foothills, Suburban, Local, Its own, plus Custom (shown, not
+clickable) when no profile matches. They use the same table and the same derivation as the
+Site step (see Site), so picking a pill there and a card in Site are the same action.
+
+### The repeater's current value
+
+When a Read gave a value and the plan differs from it, the field's label line shows a tag at
+its right edge:
+
+    Flood advert (hours)              [ On repeater: 3 · ↺ Keep ]
+
+- The tag has its own tinted background (the info tone), the value in the monospace font,
+  so it no longer looks like the help line below the field.
+- "Keep" sets the field back to the repeater's value (aria-label "Keep the repeater's value,
+  3").
+- It replaces today's "Was 3 on the repeater." line, for the settings and the radio fields.
+  It never shows for the admin password, and it is hidden when the plan equals the
+  repeater's value, as now.
 
 ## Site
 
@@ -122,6 +180,28 @@ repeated there.
 - Codes read from a device that are not in the tree keep showing under "Read from the
   device", as in part 1.
 
+## Neighbouring countries and country borders
+
+- The neighbouring countries group gains **United Kingdom (`gb`)**, after Germany: Netherlands,
+  Luxembourg, France, Germany, United Kingdom. `gb` is defined under `eu` like the others and
+  sorts after `de` in the script. It is gated like the other neighbouring countries ("Allow or
+  deny Belgium first").
+- **Border data:** a new `data/countries.geojson` holds the outlines of Belgium, the
+  Netherlands, Luxembourg, France, Germany and the United Kingdom, with the same
+  `{code, name}` properties as `be-provinces.geojson` (codes `be`, `nl`, `lu`, `fr`, `de`,
+  `gb`).
+  - Source: Natural Earth 1:10m admin-0 countries (public domain), picked by `ADM0_A3`
+    (BEL, NLD, LUX, FRA, DEU, GBR), since Natural Earth's ISO code for France is `-99`.
+  - Clipped to European mainland and islands (longitude −11 to 16, latitude 41 to 61), which
+    drops France's overseas territories, and simplified so the file stays under 300 KB.
+  - Built by a new `scripts/generate-countries-geojson.py`, which downloads the Natural Earth
+    file, like the gewesten script builds `be-gewesten.geojson`. The output is committed; the
+    app never downloads it from Natural Earth.
+- **Map:** with the borders layer on, the country outlines draw with the province and gewest
+  outlines, a little heavier. On Regions, allowed and denied countries (including `be`) fill
+  like the other regions, under the gewest, province and municipality fills.
+- If the file fails to load, the map works as now without the country outlines.
+
 ### Region count
 
 - The firmware holds at most **32 regions** (`MAX_REGION_ENTRIES`, not counting `*`) and
@@ -131,6 +211,8 @@ repeated there.
   and the limit. Regions shows attention and Send lists it as a reason Apply is blocked.
 
 ## Backups
+
+- A backup with `gb` imports as before; backups without it leave `gb` not set.
 
 - The v2 backup stores the free regions (code, parent, state). Importing restores them.
 - v1 backups and v2 backups from part 1 import unchanged (no free regions).
@@ -152,11 +234,17 @@ the old key until then).
 - `core/site.ts` (new): the profile table, `siteOf(timing, reference)` and
   `timingFor(choice, reference)`; `reference` is the device's values or the firmware
   defaults.
-- `core/regions.ts`: free region rows (group `free`, with a `parent`), code validation,
+- `data/countries.geojson`, `scripts/generate-countries-geojson.py` (new); `core/data.ts`
+  and `state/appdata.ts` load it as `countries`; `app/MapView.tsx` draws it.
+- `core/regions.ts`: `gb` in the neighbouring countries and the CLI order; free region rows (group `free`, with a `parent`), code validation,
   their place in the `region def` tree, and the region count.
 - `core/plan.ts`: the region count error and the "coordinates required" timing; the new-plan
   default timing.
 - `core/backup.ts`: free regions in v2.
+- `core/settings.ts`: the block of each setting, each block's recommended values, the Tight
+  level in `FLOOD_ALLOWANCE`.
+- `steps/settings/`: the shared recommended button, the timing pills (from `core/site.ts`)
+  and the "On repeater" tag.
 - `steps/`: `Place.tsx` and `Name.tsx` (split from `PlaceName.tsx`), `Site.tsx`, `Send.tsx`
   (from `Review.tsx`), `Advanced.tsx` (from `Settings.tsx`); `Regions.tsx` gains the free
   group.
@@ -168,11 +256,15 @@ the old key until then).
 - **Unit:** `siteOf` / `timingFor` for every profile, Its own and Custom; new-plan vs
   imported-plan timing; free code validation (length, characters, duplicates, `*`); free
   regions in the `region def` tree under each parent kind; the 32-region error; v2 backup
-  round trip with free regions; the 7 parity fixtures unchanged.
+  round trip with free regions; the 7 parity fixtures unchanged; `gb` in the def tree under
+  `eu`; each block's recommended values and that a block's button leaves the other blocks
+  alone; the Tight level.
 - **Components:** the stepper (six steps plus optional Advanced, counter, footer links);
   Site cards selecting and following Advanced edits; Add a region (errors, Add, remove);
   Send's "Before you send" card; no "coordinates required" on a fresh plan; no "already
-  used nearby" for the repeater's own name after a key write.
+  used nearby" for the repeater's own name after a key write; the four block buttons and
+  the all-blocks button; the timing pills following edits; the "On repeater" tag and Keep;
+  the map drawing an allowed country.
 - **Hardware (Mac dev environment, spare repeater):** guided flow → Hilltop and one free
   region → Apply → Read back shows the Hilltop timing and the free region; an empty admin
   password keeps the current one.

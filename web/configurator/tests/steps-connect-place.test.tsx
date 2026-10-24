@@ -16,7 +16,7 @@ import { connectUsb, disconnectUsb, readDevice } from "../src/state/device";
 import { Name } from "../src/steps/Name";
 import { Place } from "../src/steps/Place";
 import { Send } from "../src/steps/Send";
-import { canApply, resetPlan, setLocation, stepStatus, store } from "../src/state/store";
+import { canApply, placeChosen, placeLeft, resetPlan, setLocation, stepStatus, store } from "../src/state/store";
 import { FakePort } from "./fakes/fake-port";
 import { ofKind, resetFake } from "./fakes/leaflet";
 import read from "./fixtures/read-ronse.json";
@@ -332,8 +332,8 @@ describe("Place step", () => {
     fireEvent.click(screen.getByRole("button", { name: "Clear" }));
     expect(canApply.value.ok).toBe(false);
     expect(canApply.value.reasons).toEqual([{ key: "error.coordsRequired" }]);
-    act(() => void (store.step.value = "send"));
     expect(screen.getByText(/with Fixed position the advert sends the stored coordinates/)).toBeTruthy();
+    store.step.value = "send";
     expect(stepStatus("place")).toBe("attention");
     act(() => void (store.plan.value = { ...store.plan.value, advertLoc: "none" }));
     expect(canApply.value.ok).toBe(true);
@@ -449,6 +449,18 @@ describe("Place step: coordinates required", () => {
   });
 });
 
+describe("Place step: latches", () => {
+  it("resetPlan clears both", () => {
+    act(() => setLocation({ lat: 50.745, lon: 3.6 }));
+    store.step.value = "name";
+    expect(placeChosen.value).toBe(true);
+    expect(placeLeft.value).toBe(true);
+    resetPlan(defaultPlan());
+    expect(placeChosen.value).toBe(false);
+    expect(placeLeft.value).toBe(false);
+  });
+});
+
 describe("Name step", () => {
   beforeEach(() => {
     store.step.value = "name";
@@ -491,7 +503,7 @@ describe("Name step", () => {
   });
 
   it("ignores both the old and the new key after a key write", () => {
-    store.snapshot.value = { settings: {}, missing: [], publicKey: "NEWKEY", previousPublicKey: "OLDKEY" };
+    store.snapshot.value = { settings: {}, missing: [], publicKey: "NEWKEY", previousPublicKeys: ["OLDKEY"] };
     act(() => setLocation({ lat: 50.745, lon: 3.6 }));
     store.plan.value = { ...store.plan.value, nameSuffix: "Kluisberg", power: "🌞" };
     for (const key of ["oldkey", "newkey"]) {

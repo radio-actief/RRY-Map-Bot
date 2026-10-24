@@ -67,8 +67,8 @@ export type DeviceSnapshot = {
   publicKey?: string;
   /** The public key was written with `set prv.key` (from its reply) and applies after a reboot. */
   publicKeyPending?: boolean;
-  /** The public key before the last key write; it is still the repeater's own name-wise (nearby check). */
-  previousPublicKey?: string;
+  /** Every other public key the repeater had this session (old keys, and a written key the reply did not confirm). */
+  previousPublicKeys?: string[];
   clock?: string;
   missing: string[];
 };

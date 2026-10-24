@@ -928,25 +928,25 @@ path.map-region-denied {
 }
 
 .card .field,
-.step-name .field {
+.step-name .field[data-key="ownerInfo"] {
   padding: 4px 6px;
   border: 1px solid transparent;
   border-radius: 8px;
 }
 
 .card .field.changed,
-.step-name .field.changed {
+.step-name .field[data-key="ownerInfo"].changed {
   border-color: var(--gold);
   background: var(--gold-bg);
 }
 
 .card .field.invalid,
-.step-name .field.invalid {
+.step-name .field[data-key="ownerInfo"].invalid {
   border-color: var(--bad);
 }
 
 .card .field-label,
-.step-name .field-label {
+.step-name .field[data-key="ownerInfo"] .field-label {
   margin: 6px 0 2px;
 }
 

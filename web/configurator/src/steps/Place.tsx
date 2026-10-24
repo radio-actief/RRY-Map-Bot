@@ -7,7 +7,7 @@ import { hasValidCoords, type AdvertLoc } from "../core/plan";
 import type { Anchor } from "../core/regions";
 import { locationChoices, type LocationChoice } from "../core/search";
 import { t } from "../i18n/t";
-import { chooseLocation, editPlan, municipalities, placeLeft, setLocation, store } from "../state/store";
+import { chooseLocation, editPlan, municipalities, placeChosen, placeLeft, setLocation, store } from "../state/store";
 
 const ADVERT_LOCS: AdvertLoc[] = ["none", "prefs", "share"];
 
@@ -215,7 +215,7 @@ function CoordinateFields() {
         ) : null}
       </div>
       {invalid ? <p class="field-error">{t("error.coords")}</p> : null}
-      {!invalid && placeLeft.value && !location && store.plan.value.advertLoc === "prefs" ? (
+      {!invalid && (placeLeft.value || placeChosen.value) && !location && store.plan.value.advertLoc === "prefs" ? (
         <p class="field-error">{t("error.coordsRequired")}</p>
       ) : null}
     </>

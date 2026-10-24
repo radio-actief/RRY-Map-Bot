@@ -392,7 +392,13 @@ export async function writeIdentity(key: VanityKey): Promise<IdentityResult | nu
   if (!r?.ok) return r;
   const devicePub = pubkeyFromSetReply(r.reply);
   const snap = store.snapshot.peek();
-  if (snap) store.snapshot.value = { ...snap, publicKey: devicePub ?? undefined, publicKeyPending: true, previousPublicKey: snap.publicKey };
+  if (snap) {
+    // Keep every key the repeater had, so the nearby check still knows them all.
+    const previous = [...(snap.previousPublicKeys ?? []), snap.publicKey, devicePub ? undefined : key.publicKey].filter(
+      (k): k is string => !!k,
+    );
+    store.snapshot.value = { ...snap, publicKey: devicePub ?? undefined, publicKeyPending: true, previousPublicKeys: previous };
+  }
   return { ok: true, confirmed: devicePub === key.publicKey, devicePub };
 }
 

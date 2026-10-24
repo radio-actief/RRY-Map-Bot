@@ -37,7 +37,7 @@ export function Name() {
   const prefix = planPrefix(plan);
   const name = checkName(planName(plan), plan.advertLoc !== "none");
   const formats = anchor ? prefixFormatsFor(anchor) : [];
-  const nearby = nearbyCheck(plan, data.nodes, data.failed.has("nodes"), [store.snapshot.value?.publicKey, store.snapshot.value?.previousPublicKey]);
+  const nearby = nearbyCheck(plan, data.nodes, data.failed.has("nodes"), [store.snapshot.value?.publicKey, ...(store.snapshot.value?.previousPublicKeys ?? [])]);
 
   return (
     <div class="panel-body step-name">

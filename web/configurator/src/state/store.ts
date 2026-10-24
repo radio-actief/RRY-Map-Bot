@@ -164,8 +164,13 @@ effect(() => {
   if (!visited.peek().has(s)) visited.value = new Set([...visited.peek(), s]);
 });
 
-/** True once the user has moved on from Place (until the next default or Read): only then is a missing location called out. */
+/** True once the user has moved on from Place (until the next default or Read); with `placeChosen`, when a missing location is called out. */
 export const placeLeft = signal(false);
+/** True once a location has been set in this plan (until the next default or Read). */
+export const placeChosen = signal(false);
+effect(() => {
+  if (store.plan.value.location) placeChosen.value = true;
+});
 let lastStep = store.step.peek();
 effect(() => {
   const s = store.step.value;
@@ -238,6 +243,7 @@ export function resetPlan(plan: Plan): void {
   store.planBase.value = plan;
   store.startPlan.value = plan;
   placeLeft.value = false;
+  placeChosen.value = !!plan.location;
 }
 
 /** Change plan fields by replacing the plan object. */

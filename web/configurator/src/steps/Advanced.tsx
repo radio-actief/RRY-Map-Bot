@@ -1,5 +1,5 @@
-/** Advanced step (optional): the four setting blocks with their recommendation and undo, the access card, the radio preset, and the live "what will change" column. */
-import { Fragment } from "preact";
+/** Advanced step (optional): the four setting blocks with their recommendation and undo, the radio preset, and the live "what will change" column. */
+import { Fragment, type ComponentChildren } from "preact";
 import { stepName } from "../app/Stepper";
 import {
   allowanceOf,
@@ -23,8 +23,7 @@ import { RadioFields } from "./settings/RadioFields";
 import { RepeaterValue } from "./settings/RepeaterValue";
 import { SiteChoices } from "./Site";
 
-// Owner info is on the Name step; the access card stays here, outside the blocks.
-const ACCESS = SETTINGS.filter((d) => d.card === "access");
+// Owner info is on the Name step and the passwords on Send; only the four blocks are here.
 const keysOf = (block: Block) => SETTINGS.filter((d) => d.card === block);
 
 const setSetting = (key: SettingKey, value: string | number) => {
@@ -74,30 +73,6 @@ function Control({ def, raw, invalid }: { def: SettingDef; raw: string; invalid:
       <textarea {...common} rows={4} value={raw} placeholder={t("settings.ownerInfo.placeholder")} onInput={onInput} />
     );
   }
-  if (def.key === "adminPassword") {
-    return (
-      <input
-        {...common}
-        type="password"
-        autocomplete="new-password"
-        value={raw}
-        placeholder={t("settings.adminPassword.placeholder")}
-        onInput={onInput}
-      />
-    );
-  }
-  if (def.key === "guestPassword") {
-    return (
-      <input
-        {...common}
-        type="text"
-        autocomplete="off"
-        value={raw}
-        placeholder={t("settings.none")}
-        onInput={onInput}
-      />
-    );
-  }
   if (def.key === "dutycycle") {
     return (
       <select {...common} value={raw} onChange={onInput}>
@@ -122,7 +97,8 @@ function Control({ def, raw, invalid }: { def: SettingDef; raw: string; invalid:
   );
 }
 
-export function SettingField({ def }: { def: SettingDef }) {
+/** `control` swaps the input for a custom one (given whether the field is invalid); the label line, errors and help stay. */
+export function SettingField({ def, control }: { def: SettingDef; control?: (invalid: boolean) => ComponentChildren }) {
   const plan = store.plan.value;
   const raw = rawOf(plan, def.key);
   const snapshot = store.snapshot.value;
@@ -142,7 +118,7 @@ export function SettingField({ def }: { def: SettingDef }) {
         </label>
         {showWas ? <RepeaterValue value={String(was)} onRestore={() => setSetting(def.key, was!)} /> : null}
       </div>
-      <Control def={def} raw={raw} invalid={!!error} />
+      {control ? control(!!error) : <Control def={def} raw={raw} invalid={!!error} />}
       {owner ? (
         <span class={`sub counter${owner.ok ? "" : " over"}`}>
           {t("settings.ownerInfo.bytes", {
@@ -246,24 +222,6 @@ function BlockCard({ block }: { block: Block }) {
   );
 }
 
-/** Admin and guest password: no recommendation and no undo. */
-function AccessCard() {
-  const plan = store.plan.value;
-  const start = store.startPlan.value;
-  const count = ACCESS.filter((d) => isChanged(plan, start, d.key)).length;
-  return (
-    <section class="card card-access">
-      <header class="card-head">
-        <h3>{t("settings.card.access")}</h3>
-        <Badge state={count ? { kind: "changes", count } : { kind: "unchanged" }} />
-      </header>
-      {ACCESS.map((d) => (
-        <SettingField key={d.key} def={d} />
-      ))}
-    </section>
-  );
-}
-
 function Summary() {
   const plan = store.plan.value;
   const { changes, adminPassword } = summarize(plan, store.snapshot.value ?? undefined);
@@ -310,7 +268,6 @@ export function Advanced() {
             {BLOCKS.map((b) => (
               <BlockCard key={b} block={b} />
             ))}
-            <AccessCard />
           </div>
         </div>
         <aside class="settings-side">

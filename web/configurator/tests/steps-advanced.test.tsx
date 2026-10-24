@@ -43,12 +43,13 @@ describe("Advanced step", () => {
     expect(screen.queryByLabelText("Contact or notes")).toBeNull();
   });
 
-  it("explains the admin password and always lists it in the summary", () => {
+  it("lists the admin password line in the summary and no longer shows the password fields", async () => {
     render(<Advanced />);
-    expect(screen.getByPlaceholderText("Leave empty to keep the current one")).toBeTruthy();
     expect(screen.getByText("Admin password stays as it is")).toBeTruthy();
-    type("Admin password", "secret");
-    expect(screen.getByText("Admin password will be changed")).toBeTruthy();
+    expect(screen.queryByLabelText("Admin password")).toBeNull();
+    expect(screen.queryByLabelText("Guest password")).toBeNull();
+    store.plan.value = { ...store.plan.value, settings: { ...store.plan.value.settings, adminPassword: "secret" } };
+    expect(await screen.findByText("Admin password will be changed")).toBeTruthy();
   });
 
   it("shows the range error for zero-hop advert 30, which blocks Apply but never turns the Advanced segment orange", () => {
@@ -75,10 +76,10 @@ describe("Advanced step", () => {
 
   it("badges: unchanged, then a change count, and the changed field is outlined", () => {
     render(<Advanced />);
-    expect(within(card("Access")).getByText("unchanged")).toBeTruthy();
-    type("Guest password", "hello");
-    expect(within(card("Access")).getByText("1 change")).toBeTruthy();
-    expect(screen.getByLabelText("Guest password").closest(".field")!.classList.contains("changed")).toBe(true);
+    expect(within(card("Advertising & hops")).getByText("unchanged")).toBeTruthy();
+    type(/Flood advert/, "12");
+    expect(within(card("Advertising & hops")).getByText("1 change")).toBeTruthy();
+    expect(fieldOf(/Flood advert/).classList.contains("changed")).toBe(true);
   });
 
   it("choosing a preset fills the radio and editing a field flips the select to Custom", () => {
@@ -106,13 +107,6 @@ describe("Advanced step", () => {
     expect(within(fieldOf(/Flood advert/)).queryByText("On repeater:")).toBeNull();
   });
 
-  it("never tags the admin password", () => {
-    store.snapshot.value = { settings: { adminPassword: "old" }, missing: [] };
-    render(<Advanced />);
-    type("Admin password", "secret");
-    expect(within(fieldOf("Admin password")).queryByText("On repeater:")).toBeNull();
-  });
-
   it("Advertising's button sets 47 and 8/12 and leaves Repeating's loop detect alone", () => {
     render(<Advanced />);
     type(/Flood advert/, "12");
@@ -128,7 +122,7 @@ describe("Advanced step", () => {
 
   it("the all button sets every block and leaves the guest password alone", () => {
     render(<Advanced />);
-    type("Guest password", "hello");
+    store.plan.value = { ...store.plan.value, settings: { ...store.plan.value.settings, guestPassword: "hello" } };
     fireEvent.change(screen.getByLabelText("Preset"), { target: { value: "Australia" } });
     fireEvent.click(segment("Loop detection", "Strict"));
     fireEvent.click(segment("Path hash size", "3 bytes"));
@@ -224,9 +218,9 @@ describe("Advanced step", () => {
     render(<Advanced />);
     const count = () => Number(/· (\d+)$/.exec(screen.getByText(/^What will change · /).textContent!)![1]);
     const before = count();
-    type("Guest password", "hello");
+    type(/Flood advert/, "12");
     expect(count()).toBe(before + 1);
-    expect(screen.getByText("→ hello")).toBeTruthy();
+    expect(within(document.querySelector(".summary") as HTMLElement).getAllByText("→ 12").length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole("button", { name: "← Back" }));
     expect(store.step.value).toBe("regions");
     store.step.value = "advanced";
@@ -243,17 +237,16 @@ describe("Advanced step", () => {
     expect(ofKind("marker").length).toBe(1);
   });
 
-  it("shows the four blocks as cards in order, then Access, with the all button by the title", () => {
+  it("shows the four blocks as cards in order, with the all button by the title", () => {
     render(<Advanced />);
     const titles = [...document.querySelectorAll(".card-head h3")].map((h) => h.textContent);
-    expect(titles).toEqual(["Radio", "Advertising & hops", "Repeating", "Advanced", "Access"]);
+    expect(titles).toEqual(["Radio", "Advertising & hops", "Repeating", "Advanced"]);
     expect(document.querySelector("details")).toBeNull();
     const head = screen.getByRole("heading", { name: "Advanced settings", level: 2 }).closest(".step-head")!;
     expect(within(head as HTMLElement).getByRole("button", { name: "Use #BEmesh recommended settings for all" })).toBeTruthy();
     for (const name of ["Radio", "Advertising & hops", "Repeating", "Advanced"]) {
       expect(within(card(name)).getByRole("button", { name: "Use #BEmesh recommended settings" })).toBeTruthy();
     }
-    expect(within(card("Access")).queryByRole("button", { name: /recommended|Undo/ })).toBeNull();
   });
 });
 

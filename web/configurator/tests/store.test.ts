@@ -68,14 +68,21 @@ describe("stepStatus", () => {
     expect(stepStatus("site")).toBe("done");
   });
   it("Advanced is never attention, even with a range error, which still blocks Apply", () => {
-    store.plan.value = { ...defaultPlan(), settings: { floodMax: "abc" } };
+    store.plan.value = {
+      ...defaultPlan(),
+      nameSuffix: "Gent",
+      anchor: BELGIUM,
+      location: GENT,
+      settings: { advertIntervalMinutes: "30" },
+    };
+    store.device.value = { status: "connected", link: null, firmware: "v1.17.1 (Build: 14 Aug 2026)" };
     expect(stepStatus("advanced")).toBe("todo");
     store.step.value = "advanced";
     expect(stepStatus("advanced")).toBe("current");
     store.step.value = "send";
     expect(stepStatus("advanced")).toBe("done");
     expect(canApply.value.ok).toBe(false);
-    expect(canApply.value.reasons.some((r) => r.key.startsWith("error."))).toBe(true);
+    expect(canApply.value.reasons).toContainEqual({ key: "error.range" });
   });
   it("flags send for an invalid guest password", () => {
     store.plan.value = { ...defaultPlan(), nameSuffix: "Gent", anchor: BELGIUM, location: GENT, settings: { guestPassword: "a\rb" } };

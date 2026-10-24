@@ -470,3 +470,66 @@ describe("Console", () => {
     expect(log.at(-1)?.text).toBe("Apply complete.");
   });
 });
+
+describe("Send step: Before you send", () => {
+  const admin = () => screen.getByLabelText("Admin password") as HTMLInputElement;
+  const eye = () => screen.getByRole("button", { name: "Hold to show the password" });
+
+  it("shows the admin password only while the eye is held (pointer)", () => {
+    render(<Send />);
+    expect(admin().type).toBe("password");
+    fireEvent.pointerDown(eye());
+    expect(admin().type).toBe("text");
+    expect(eye().getAttribute("aria-pressed")).toBe("true");
+    fireEvent.pointerUp(eye());
+    expect(admin().type).toBe("password");
+    fireEvent.pointerDown(eye());
+    fireEvent.pointerLeave(eye());
+    expect(admin().type).toBe("password");
+    fireEvent.pointerDown(eye());
+    fireEvent.pointerCancel(eye());
+    expect(admin().type).toBe("password");
+    fireEvent.pointerDown(eye());
+    fireEvent.blur(eye());
+    expect(admin().type).toBe("password");
+  });
+
+  it("holds with Space or Enter and never toggles on click", () => {
+    render(<Send />);
+    fireEvent.keyDown(eye(), { key: " " });
+    expect(admin().type).toBe("text");
+    fireEvent.keyUp(eye(), { key: " " });
+    expect(admin().type).toBe("password");
+    fireEvent.keyDown(eye(), { key: "Enter" });
+    expect(admin().type).toBe("text");
+    fireEvent.keyUp(eye(), { key: "Enter" });
+    fireEvent.click(eye());
+    expect(admin().type).toBe("password");
+  });
+
+  it("puts the typed passwords in the plan and keeps them off Advanced", () => {
+    render(<Send />);
+    fireEvent.input(admin(), { target: { value: "secret" } });
+    fireEvent.input(screen.getByLabelText("Guest password"), { target: { value: "hello" } });
+    expect(store.plan.value.settings.adminPassword).toBe("secret");
+    expect(store.plan.value.settings.guestPassword).toBe("hello");
+    expect(screen.getByPlaceholderText("Leave empty to keep the current one")).toBeTruthy();
+  });
+
+  it("lists the radio, duty cycle and TX power read-only, each linking to Advanced", () => {
+    store.plan.value = { ...store.plan.value, settings: { ...store.plan.value.settings, txPower: 14 } };
+    render(<Send />);
+    expect(screen.getByText(/^Radio: /)).toBeTruthy();
+    expect(screen.getByText(/^Duty cycle: /)).toBeTruthy();
+    expect(screen.getByText("TX power: 14")).toBeTruthy();
+    const links = screen.getAllByRole("button", { name: "Change in Advanced" });
+    expect(links.length).toBe(3);
+    fireEvent.click(links[0]);
+    expect(store.step.value).toBe("advanced");
+  });
+
+  it("says TX power is unchanged when none is set", () => {
+    render(<Send />);
+    expect(screen.getByText("TX power: unchanged")).toBeTruthy();
+  });
+});

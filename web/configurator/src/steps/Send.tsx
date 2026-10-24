@@ -7,8 +7,13 @@ import { buildScript, commandLines, scriptText, type ScriptGroup } from "../core
 import { REGION_DEF_MIN_TEXT } from "../core/firmware";
 import { planName, summarize, type Change } from "../core/plan";
 import { hasWebSerial, MAX_LINE_LEN } from "../device/serial";
+import { rawOf } from "../core/blocks";
+import { presetForRadio } from "../core/presets";
+import { SETTINGS } from "../core/settings";
 import { t } from "../i18n/t";
 import { answerReboot, applyPlan, cancelApply, connectUsb } from "../state/device";
+import { PasswordField } from "./send/PasswordField";
+import { SettingField } from "./Advanced";
 import { busy, canApply, prefs, store, type ApplyState } from "../state/store";
 
 export const INCLUDE_DEFAULTS_PREF = "configurator.includeDefaults";
@@ -27,10 +32,44 @@ const groupTitle = (k: ScriptGroup["titleKey"]) => t(`script.group.${k}`);
 const visible = (line: string) =>
   line.replace(/[\x00-\x1f\x7f]/g, (c) => (c === "\x7f" ? "\u2421" : String.fromCharCode(0x2400 + c.charCodeAt(0))));
 
+const GUEST = SETTINGS.find((d) => d.key === "guestPassword")!;
+
+/** One read-only value with a link to where it is changed. */
+function ReadOnlyLine({ text }: { text: string }) {
+  return (
+    <div class="ro-line">
+      <span>{text}</span>
+      <button type="button" class="btn small link" disabled={busy.value} onClick={() => (store.step.value = "advanced")}>
+        {t("send.change")}
+      </button>
+    </div>
+  );
+}
+
+function BeforeYouSend() {
+  const plan = store.plan.value;
+  const preset = presetForRadio(plan.radio);
+  const duty = rawOf(plan, "dutycycle");
+  const tx = rawOf(plan, "txPower").trim();
+  return (
+    <section class="card card-before">
+      <header class="card-head">
+        <h3>{t("send.before")}</h3>
+      </header>
+      <PasswordField />
+      <SettingField def={GUEST} />
+      <ReadOnlyLine text={t("send.radio", { preset: preset ? preset.title : t("settings.preset.custom") })} />
+      <ReadOnlyLine text={t("send.dutycycle", { value: t(`opt.dutycycle.${duty}`) })} />
+      <ReadOnlyLine text={t("send.txPower", { value: tx || t("send.txPowerKept") })} />
+    </section>
+  );
+}
+
 function Changes() {
   const { changes, adminPassword } = summarize(store.plan.value, store.snapshot.value ?? undefined);
   return (
     <div class="review-changes">
+      <BeforeYouSend />
       <div class="card review-table">
         {changes.length ? (
           GROUPS.map((g) => {

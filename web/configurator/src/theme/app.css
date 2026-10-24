@@ -1508,3 +1508,28 @@ button.site-card {
   color: var(--panel);
   cursor: default;
 }
+
+/* Send: Before you send */
+.pw-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.pw-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.icon.eye[aria-pressed="true"] {
+  background: var(--gold-bg);
+  border-color: var(--gold);
+}
+
+.ro-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}

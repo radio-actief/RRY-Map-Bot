@@ -113,7 +113,7 @@ function FreeForm({ policy, anchor }: { policy: RegionPolicy; anchor: Anchor }) 
         <input
           type="text"
           value={code}
-          maxLength={60}
+          maxLength={60} // above the 30-character limit on purpose, so the tooLong error can show
           onInput={(e) => setCode(e.currentTarget.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter") {

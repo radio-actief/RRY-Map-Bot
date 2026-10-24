@@ -2,15 +2,16 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { defaultPlan, newPlan } from "../src/core/plan";
-import { addFreeRegion, MAX_REGIONS, policyFor, regionCountAfterApply, type Anchor } from "../src/core/regions";
+import { addFreeRegion, MAX_REGIONS, policyFor, regionCountAfterApply, setRowState, type Anchor } from "../src/core/regions";
 import type { Place } from "../src/core/search";
 
 const BELGIUM: Anchor = { mode: "country", province_code: null, place: null };
 const GENT = { lat: 51.05, lon: 3.72 };
 const PLACES: Place[] = JSON.parse(readFileSync(resolve(__dirname, "../../../data/be-locode.json"), "utf8"));
+const MUNIS = JSON.parse(readFileSync(resolve(__dirname, "fixtures/municipalities-3.json"), "utf8"));
 const RONSE = PLACES.find((p) => p.city_code === "beron")!;
 const RONSE_ANCHOR: Anchor = { mode: "city", province_code: RONSE.province_code, place: RONSE };
-import { canApply, chooseLocation, prefs, regionCount, resetPlan, stepStatus, store, visited } from "../src/state/store";
+import { canApply, chooseLocation, setLocation, prefs, regionCount, resetPlan, stepStatus, store, visited } from "../src/state/store";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -215,5 +216,18 @@ describe("free regions survive a rebuilt policy", () => {
     const after = store.plan.value.regions!.rows.find((r) => r.code === "zone");
     expect(after).toEqual(before);
     expect(after!.allow).toBe(true);
+  });
+
+  it("keeps a free row and its state when the pin moves into another municipality", () => {
+    store.data.value = { failed: new Set(), places: PLACES, municipalities: MUNIS };
+    chooseLocation({ type: "city", label: "Ronse", place: RONSE } as never);
+    const regions = setRowState(addFreeRegion(store.plan.value.regions!, "zone", null), "zone", "deny");
+    store.plan.value = { ...store.plan.value, regions };
+    const before = store.plan.value.regions!.rows.find((r) => r.code === "zone")!;
+    setLocation({ lat: 50.7788, lon: 3.5368 });
+    expect(store.plan.value.anchor?.place?.city_code).toBe("beksr");
+    const after = store.plan.value.regions!.rows.find((r) => r.code === "zone");
+    expect(after).toEqual(before);
+    expect(after!.deny).toBe(true);
   });
 });

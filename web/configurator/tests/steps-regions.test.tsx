@@ -6,7 +6,7 @@ import { defaultPlan } from "../src/core/plan";
 import { regionCommandLines, regionsByState, addFreeRegion, policyFor, MAX_REGIONS } from "../src/core/regions";
 import type { Place } from "../src/core/search";
 import { Regions } from "../src/steps/Regions";
-import { chooseLocation, resetPlan, store } from "../src/state/store";
+import { chooseLocation, regionCount, resetPlan, store } from "../src/state/store";
 
 const PLACES: Place[] = JSON.parse(readFileSync(resolve(__dirname, "../../../data/be-locode.json"), "utf8"));
 const RONSE = PLACES.find((p) => p.city_code === "beron")!;
@@ -186,7 +186,7 @@ describe("Regions step", () => {
       for (let i = 0; i < MAX_REGIONS; i++) p = addFreeRegion(p, `zone${i}`, null);
       store.plan.value = { ...store.plan.value, regions: p };
       render(<Regions />);
-      expect(screen.getByText(/The repeater holds at most 32 regions; this plan needs \d+\./)).toBeTruthy();
+      expect(screen.getByText(`The repeater holds at most 32 regions; this plan needs ${regionCount.value}.`)).toBeTruthy();
     });
   });
 });

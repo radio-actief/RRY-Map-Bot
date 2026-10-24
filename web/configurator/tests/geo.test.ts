@@ -4,6 +4,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   findGeographicNeighbors,
   haversineKm,
+  neighborsInRadius,
+  NEIGHBOR_RADIUS_KM,
+  NEIGHBOR_SCOPE_MAX_CITIES,
   municipalityAt,
   nodesWithin,
   type MeshNode,
@@ -73,6 +76,31 @@ describe("findGeographicNeighbors", () => {
     expect(result.length).toBeLessThanOrEqual(10);
     expect(result.every((r) => r.km <= 25 && r.place.city_code !== "beron")).toBe(true);
     expect(result.map((r) => r.km)).toEqual([...result.map((r) => r.km)].sort((a, b) => a - b));
+  });
+});
+
+describe("neighborsInRadius", () => {
+  const mk = (code: string, dLat: number, lat?: number): Place => ({
+    nis5: code, plaats: code, gemeente: code, province_code: "be-vov", city_code: code,
+    lat: lat ?? 50 + dLat, lon: 4,
+  });
+  const centre = mk("centre", 0);
+  const dense = [
+    ...Array.from({ length: 14 }, (_, i) => mk(`p${i}`, (i + 1) * 0.01)),
+    mk("p3", 0.5 / 111.19 + 0.003),
+    mk("bad", 0, Number.NaN),
+    mk("far", 1),
+  ];
+  it("returns the full uncapped list; findGeographicNeighbors is its first 10", () => {
+    const all = neighborsInRadius(centre, dense);
+    const capped = findGeographicNeighbors(centre, dense);
+    expect(NEIGHBOR_RADIUS_KM).toBe(25);
+    expect(NEIGHBOR_SCOPE_MAX_CITIES).toBe(10);
+    expect(all.length).toBe(14);
+    expect(capped.length).toBe(10);
+    expect(capped).toEqual(all.slice(0, 10));
+    expect(all.filter((r) => r.place.city_code === "p3").length).toBe(1);
+    expect(all.some((r) => r.place.city_code === "bad" || r.place.city_code === "far")).toBe(false);
   });
 });
 

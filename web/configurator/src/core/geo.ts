@@ -83,10 +83,10 @@ export function municipalityAt(p: LatLon, features: MunicipalityFeature[]): Muni
 const finite = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
 
 /**
- * Nearest other places within NEIGHBOR_RADIUS_KM by haversine distance, deduped by
- * city_code, at most NEIGHBOR_SCOPE_MAX_CITIES.
+ * All other places within NEIGHBOR_RADIUS_KM by haversine distance, nearest first,
+ * deduped by city_code. Uncapped.
  */
-export function findGeographicNeighbors(place: Place, places: Place[]): { place: Place; km: number }[] {
+export function neighborsInRadius(place: Place, places: Place[]): { place: Place; km: number }[] {
   if (!finite(place.lat) || !finite(place.lon)) return [];
   const scored: { place: Place; km: number }[] = [];
   for (const o of places) {
@@ -102,7 +102,11 @@ export function findGeographicNeighbors(place: Place, places: Place[]): { place:
     if (seen.has(s.place.city_code)) continue;
     seen.add(s.place.city_code);
     out.push(s);
-    if (out.length >= NEIGHBOR_SCOPE_MAX_CITIES) break;
   }
   return out;
+}
+
+/** The policy scope: the nearest NEIGHBOR_SCOPE_MAX_CITIES of neighborsInRadius. */
+export function findGeographicNeighbors(place: Place, places: Place[]): { place: Place; km: number }[] {
+  return neighborsInRadius(place, places).slice(0, NEIGHBOR_SCOPE_MAX_CITIES);
 }

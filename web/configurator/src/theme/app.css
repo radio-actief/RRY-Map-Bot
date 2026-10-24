@@ -1431,3 +1431,48 @@ path.map-region-denied {
     border-left: 0;
   }
 }
+
+.site-cards {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.site-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+}
+
+button.site-card {
+  cursor: pointer;
+}
+
+.site-card .range {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.site-card[aria-pressed="true"],
+.site-card[aria-current="true"] {
+  background: var(--ink);
+  color: var(--panel);
+}
+
+.site-card[aria-pressed="true"] .sub,
+.site-card[aria-current="true"] .sub {
+  color: inherit;
+}
+
+.pill[aria-current="true"] {
+  background: var(--ink);
+  color: var(--panel);
+  cursor: default;
+}

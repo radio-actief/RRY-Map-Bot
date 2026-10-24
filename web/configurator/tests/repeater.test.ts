@@ -24,6 +24,16 @@ describe("readAll", () => {
     await link.close();
   });
 
+  it("reads the same when every reply arrives in small USB chunks", async () => {
+    const port = new FakePort(read, { chunkSize: 5 });
+    const link = new SerialLink(port, { ...FAST, replyTimeoutMs: 2000 });
+    await link.open();
+    const s = await readAll(link);
+    const { link: whole } = await linkTo(read);
+    expect(s).toEqual(await readAll(whole));
+    expect(s.missing).toEqual([]);
+  });
+
   it("puts error replies in missing", async () => {
     const { link } = await linkTo({ ...read, "get multi.acks": "Err - unknown", "get tx": "" });
     const s = await readAll(link);

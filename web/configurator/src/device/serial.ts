@@ -1,6 +1,7 @@
 /**
  * Web Serial link to a MeshCore repeater / room server console.
- * Plain text lines ended with CR; the device echoes the line and answers on a line starting "->".
+ * Plain text lines ended with CR; the device echoes the line (`line\r`, then `\n` on a repeater)
+ * and answers on a line starting "->" ended with CRLF.
  */
 
 export interface PortLike {
@@ -13,6 +14,8 @@ export interface PortLike {
 }
 
 export const MAX_LINE_LEN = 151;
+
+const encoder = new TextEncoder();
 export const DEFAULT_BAUD = 115200;
 const INTER_COMMAND_DELAY_MS = 150;
 const BOOT_DRAIN_MS = 500;
@@ -151,7 +154,7 @@ export class SerialLink {
       await this.connectionLost();
       return "";
     }
-    const reply = await this.waitForReply(timeoutMs || this.timing.replyTimeoutMs || commandTimeout(line));
+    const reply = await this.waitForReply(line, timeoutMs || this.timing.replyTimeoutMs || commandTimeout(line));
     if (!this.connected) throw new Error("Serial connection lost while waiting for reply.");
     await sleep(this.timing.interCommandDelayMs);
     return reply;
@@ -161,7 +164,7 @@ export class SerialLink {
     let writer: WritableStreamDefaultWriter<Uint8Array> | undefined;
     try {
       writer = this.port.writable!.getWriter();
-      await writer.write(new TextEncoder().encode(text));
+      await writer.write(encoder.encode(text));
     } catch (err) {
       await this.connectionLost();
       throw new Error("Serial connection lost" + (err instanceof Error && err.message ? ": " + err.message : "."));
@@ -174,15 +177,23 @@ export class SerialLink {
     }
   }
 
-  private extractReply(): string | null {
-    const m = this.buffer.match(/\r?\n\s*->\s*(.*?)(\r?\n|$)/);
-    if (!m) return null;
-    this.buffer = this.buffer.slice((m.index ?? 0) + m[0].length);
+  /**
+   * The reply to `line`: the first "->" line after the line's own echo, so output that belongs to
+   * an earlier (timed-out) command is never taken. The reply counts once its line ending arrived
+   * (a long reply spans several USB packets); `final` (the timeout) takes a started line as it is.
+   */
+  private extractReply(line: string, final: boolean): string | null {
+    const echo = this.buffer.indexOf(line + "\r");
+    if (echo < 0) return null;
+    const after = this.buffer.slice(echo + line.length + 1);
+    const m = /(?:^|\n)[ \t]*->[ \t]*([^\r\n]*)(\r?\n|\r?$)/.exec(after);
+    if (!m || (!final && !m[2].endsWith("\n"))) return null;
+    this.buffer = after.slice(m.index + m[0].length);
     return m[1].trim();
   }
 
-  /** Resolves with the reply, or "" on timeout or when the link is lost. One waiter at a time. */
-  private waitForReply(timeoutMs: number): Promise<string> {
+  /** Resolves with the reply to `line`, or "" on timeout or when the link is lost. One waiter at a time. */
+  private waitForReply(line: string, timeoutMs: number): Promise<string> {
     return new Promise((resolve) => {
       let timer: ReturnType<typeof setTimeout> | undefined;
       const finish = (reply: string) => {
@@ -192,11 +203,11 @@ export class SerialLink {
       };
       const check = () => {
         if (!this.connected) return finish("");
-        const reply = this.extractReply();
+        const reply = this.extractReply(line, false);
         if (reply !== null) return finish(reply);
       };
       this.waiter = check;
-      timer = setTimeout(() => finish(this.extractReply() ?? ""), timeoutMs);
+      timer = setTimeout(() => finish(this.extractReply(line, true) ?? ""), timeoutMs);
       check();
     });
   }

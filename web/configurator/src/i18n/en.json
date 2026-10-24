@@ -39,5 +39,10 @@
   "script.group.regions": "Regions",
   "backup.error.unknown": "This file is not a configurator backup.",
   "backup.error.newer": "This backup comes from a newer version of the configurator.",
-  "backup.error.invalid": "This backup is damaged or incomplete."
+  "backup.error.invalid": "This backup is damaged or incomplete.",
+  "error.nameEmpty": "Enter a name after the prefix.",
+  "error.nameBadChars": "The name cannot contain [ ] \\ : , ? or *.",
+  "error.nameTooLong": "The name is too long for the repeater.",
+  "error.ownerInfoTooLong": "Too long. Owner info allows 119 bytes.",
+  "error.coords": "Enter valid coordinates."
 }

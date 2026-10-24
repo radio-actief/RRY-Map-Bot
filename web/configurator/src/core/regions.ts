@@ -396,10 +396,12 @@ export function policyFromDevice(anchor: Anchor, places: Place[], read: DeviceRe
   const allowed = new Set(read.allowed);
   const denied = new Set(read.denied);
   const home = read.home || "";
-  const def = read.default;
+  // Trimmed; "" and "<null>" both mean no default scope.
+  const def = read.default === undefined ? undefined : read.default.trim();
+  const noDefault = !def || def.toLowerCase() === "<null>";
   const codes = [...allowed, ...denied];
   if (home) codes.push(home);
-  if (def && def.toLowerCase() !== "<null>") codes.push(def);
+  if (def && !noDefault) codes.push(def);
 
   const base = policyFor(anchor, places, codes);
   const p = finalize({
@@ -414,8 +416,7 @@ export function policyFromDevice(anchor: Anchor, places: Place[], read: DeviceRe
   let defaultScope: string | null = null;
   if (def !== undefined) {
     const auto = recommendedDefaultScopeCode(p);
-    const norm = def.trim().toLowerCase();
-    if (!norm || norm === "<null>") defaultScope = auto ? DEFAULT_SCOPE_NONE : null;
+    if (noDefault) defaultScope = auto ? DEFAULT_SCOPE_NONE : null;
     else if (def !== auto) defaultScope = def;
   }
   return finalize({ ...p, homeOverride, defaultScope });

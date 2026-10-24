@@ -6,9 +6,9 @@ import en from "../i18n/en.json";
 import { encodeOwnerInfo } from "./naming";
 import {
   formatRadio,
-  hasValidCoords,
   isFirmwareDefault,
   radioIsFirmwareDefault,
+  sendableLocation,
   sendableName,
   settingValue,
   type Plan,
@@ -20,7 +20,7 @@ import { adminPasswordCliLine, SETTINGS, type SettingKey } from "./settings";
 export type ScriptGroup = { titleKey: "name" | "settings" | "location" | "regions"; lines: string[] };
 
 /** The general settings in the old buildGeneralSettingsCli order (radio comes first). */
-const SETTINGS_ORDER: SettingKey[] = [
+export const SETTINGS_ORDER: SettingKey[] = [
   "repeat",
   "ownerInfo",
   "adminPassword",
@@ -45,21 +45,25 @@ const SETTINGS_ORDER: SettingKey[] = [
 
 const CLI_KEY = new Map(SETTINGS.map((s) => [s.key, s.cliKey]));
 
+/** One setting's line, or null. Invalid values (see planErrors) are never sent. */
 function settingLine(plan: Plan, key: SettingKey, includeDefaults: boolean): string | null {
   const v = settingValue(plan, key);
+  if (v === null) return null;
   const cli = CLI_KEY.get(key)!;
   switch (key) {
     // Never revealed by the firmware: sent only when entered.
     case "adminPassword":
-      return adminPasswordCliLine(String(v ?? ""));
-    case "ownerInfo":
+      return adminPasswordCliLine(String(v));
+    case "ownerInfo": {
+      const text = String(v).trim();
+      return text ? `set ${cli} ${encodeOwnerInfo(text)}` : null;
+    }
     case "guestPassword": {
-      const text = String(v ?? "").trim();
-      if (!text) return null;
-      return `set ${cli} ${key === "ownerInfo" ? encodeOwnerInfo(text) : text}`;
+      const text = String(v).trim();
+      return text ? `set ${cli} ${text}` : null;
     }
     case "txPower":
-      return v === null || v === "" ? null : `set ${cli} ${v}`;
+      return `set ${cli} ${v}`;
     default:
       return includeDefaults || !isFirmwareDefault(key, v) ? `set ${cli} ${v}` : null;
   }
@@ -85,9 +89,8 @@ export function buildScript(
   }
 
   const location: string[] = [];
-  if (plan.location && hasValidCoords(plan.location.lat, plan.location.lon)) {
-    location.push(`set lat ${plan.location.lat}`, `set lon ${plan.location.lon}`);
-  }
+  const coords = sendableLocation(plan);
+  if (coords) location.push(`set lat ${coords.lat}`, `set lon ${coords.lon}`);
   if (includeDefaults || plan.advertLoc !== "prefs") location.push(`gps advert ${plan.advertLoc}`);
 
   const regions = plan.anchor

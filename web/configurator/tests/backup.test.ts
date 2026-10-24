@@ -18,38 +18,61 @@ function v1(name: string, fields: Record<string, string | boolean>) {
 }
 
 describe("importBackup v1", () => {
-  it("takes the radio from the fields and ignores the old preset index (Review focus 1)", () => {
-    const plan = importBackup(
-      v1("ronse-solar", {
-        "setting-radio-preset": "2",
-        "setting-radio-freq": "869.618",
-        "setting-radio-sf": "8",
-        "setting-radio-bw": "62.5",
-        "setting-radio-cr": "8",
-      }),
-      PLACES,
-    );
-    expect(plan.radio).toEqual({ freq: 869.618, sf: 8, bw: 62.5, cr: 8 });
-    expect(presetForRadio(plan.radio)?.title).toBe("EU/UK (Narrow)");
-  });
+  const NARROW_FIELDS = {
+    "setting-radio-freq": "869.618",
+    "setting-radio-sf": "8",
+    "setting-radio-bw": "62.5",
+    "setting-radio-cr": "8",
+  };
 
-  it("keeps custom radio values even when the preset index points elsewhere", () => {
-    const plan = importBackup(
-      v1("ronse-solar", {
-        "setting-radio-preset": "2",
-        "setting-radio-freq": "869.525",
-        "setting-radio-sf": "11",
-        "setting-radio-bw": "250",
-        "setting-radio-cr": "5",
-      }),
-      PLACES,
-    );
+  it("reads the preset index against the old 13-entry list and ignores stale fields (Review focus 1)", () => {
+    const plan = importBackup(v1("ronse-solar", { "setting-radio-preset": "3", ...NARROW_FIELDS }), PLACES);
+    // Old index 3 = EU/UK (Long Range), which the new list calls EU/UK (Deprecated); new index 3 is Australia.
     expect(plan.radio).toEqual({ freq: 869.525, sf: 11, bw: 250, cr: 5 });
+    expect(presetForRadio(plan.radio)?.title).toBe("EU/UK (Deprecated)");
+    const narrow = importBackup(v1("ronse-solar", { "setting-radio-preset": "2" }), PLACES);
+    expect(narrow.radio).toEqual({ freq: 869.618, sf: 8, bw: 62.5, cr: 8 });
+    expect(presetForRadio(narrow.radio)?.title).toBe("EU/UK (Narrow)");
   });
 
-  it("falls back to the #BEmesh radio when the radio fields are empty or invalid", () => {
-    expect(importBackup(backup("ronse-solar"), PLACES).radio).toEqual(defaultPlan().radio);
-    expect(importBackup(v1("ronse-solar", { "setting-radio-sf": "x" }), PLACES).radio).toEqual(defaultPlan().radio);
+  it("matches every old preset index to the old page's FREQUENCY_PRESETS", () => {
+    const src = readFileSync(resolve(process.cwd(), "src/configurator.js"), "utf8");
+    const block = src.slice(
+      src.indexOf("const FREQUENCY_PRESETS = ["),
+      src.indexOf("];", src.indexOf("const FREQUENCY_PRESETS")),
+    );
+    const old = [...block.matchAll(/freq: ([\d.]+), sf: (\d+), bw: ([\d.]+), cr: (\d+)/g)].map((m) => ({
+      freq: Number(m[1]),
+      sf: Number(m[2]),
+      bw: Number(m[3]),
+      cr: Number(m[4]),
+    }));
+    expect(old.length).toBe(13);
+    old.forEach((radio, i) => {
+      expect(importBackup(v1("ronse-solar", { "setting-radio-preset": String(i) }), PLACES).radio).toEqual(radio);
+    });
+  });
+
+  it("uses the radio fields for the custom preset", () => {
+    const custom = {
+      "setting-radio-preset": "custom",
+      "setting-radio-freq": "869.525",
+      "setting-radio-sf": "11",
+      "setting-radio-bw": "250",
+      "setting-radio-cr": "5",
+    };
+    expect(importBackup(v1("ronse-solar", custom), PLACES).radio).toEqual({ freq: 869.525, sf: 11, bw: 250, cr: 5 });
+    const narrow = importBackup(v1("ronse-solar", { "setting-radio-preset": "custom", ...NARROW_FIELDS }), PLACES);
+    expect(presetForRadio(narrow.radio)?.title).toBe("EU/UK (Narrow)");
+  });
+
+  it("falls back to the #BEmesh radio for an unknown preset or invalid custom fields", () => {
+    const radio = (fields: Record<string, string>) => importBackup(v1("ronse-solar", fields), PLACES).radio;
+    expect(radio({ "setting-radio-preset": "99" })).toEqual(defaultPlan().radio);
+    expect(radio({ "setting-radio-preset": "" })).toEqual(defaultPlan().radio);
+    expect(radio({ "setting-radio-preset": "custom", ...NARROW_FIELDS, "setting-radio-sf": "x" })).toEqual(
+      defaultPlan().radio,
+    );
   });
 
   it("reads location, name and settings fields", () => {
@@ -121,5 +144,16 @@ describe("rejected input", () => {
     expect(key({ app: "other", version: 2, plan: defaultPlan() })).toBe("backup.error.unknown");
     expect(key({ app: "bemesh-configurator", version: 3, plan: {} })).toBe("backup.error.newer");
     expect(key({ app: "bemesh-configurator", version: 2, plan: { radio: 1 } })).toBe("backup.error.invalid");
+  });
+
+  it("rejects a v2 plan with bad enums, coordinates or anchor", () => {
+    const bad = (over: Record<string, unknown>) =>
+      key({ app: "bemesh-configurator", version: 2, plan: { ...defaultPlan(), ...over } });
+    expect(bad({ advertLoc: "always" })).toBe("backup.error.invalid");
+    expect(bad({ prefixFormat: "street" })).toBe("backup.error.invalid");
+    expect(bad({ power: "x" })).toBe("backup.error.invalid");
+    expect(bad({ location: { lat: "50", lon: 3 } })).toBe("backup.error.invalid");
+    expect(bad({ anchor: { mode: "city", province_code: "be-vov", place: null } })).toBe("backup.error.invalid");
+    expect(bad({ anchor: { mode: "planet", province_code: null, place: null } })).toBe("backup.error.invalid");
   });
 });

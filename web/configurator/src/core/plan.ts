@@ -7,6 +7,7 @@ import {
   buildName,
   buildPrefix,
   checkName,
+  checkOwnerInfo,
   splitNameSuffixAndEmoji,
   type PowerEmoji,
   type PrefixFormat,
@@ -25,7 +26,7 @@ import {
   type RegionPolicy,
 } from "./regions";
 import type { Place } from "./search";
-import { SETTINGS, validateSetting, type SettingKey } from "./settings";
+import { SETTINGS, validateSetting, type SettingKey, type ValidateResult } from "./settings";
 
 export type Radio = { freq: number; sf: number; bw: number; cr: number };
 export type AdvertLoc = "none" | "prefs" | "share";
@@ -105,27 +106,69 @@ export function sendableName(plan: Plan): string | null {
   return checkName(name, plan.advertLoc !== "none").ok ? name : null;
 }
 
-/** Valid repeater coordinates: finite, and not the firmware's unset 0,0. */
+/** Valid repeater coordinates: finite, on the globe, and not the firmware's unset 0,0. */
 export function hasValidCoords(lat: unknown, lon: unknown): boolean {
   return (
     typeof lat === "number" &&
     typeof lon === "number" &&
     Number.isFinite(lat) &&
     Number.isFinite(lon) &&
+    Math.abs(lat) <= 90 &&
+    Math.abs(lon) <= 180 &&
     !(lat === 0 && lon === 0)
   );
 }
 
+/** The coordinates `set lat` / `set lon` send, or null when there are none or they are invalid. */
+export function sendableLocation(plan: Plan): { lat: number; lon: number } | null {
+  const l = plan.location;
+  return l && hasValidCoords(l.lat, l.lon) ? l : null;
+}
+
+/** validateSetting on the plan value (the form default when absent); null when there is no value (txPower). */
+function checkSetting(plan: Plan, key: SettingKey): ValidateResult | null {
+  const raw = plan.settings[key] ?? BY_KEY.get(key)!.formDefault;
+  if (raw === null || raw === undefined) return null;
+  return validateSetting(key, String(raw));
+}
+
 /**
  * A setting as the script uses it: the plan value (the form default when absent) normalised by
- * validateSetting; an invalid value is returned as entered. txPower without a value is null.
+ * validateSetting. Null when there is no value (txPower) or the value cannot be sent (see
+ * planErrors), including owner info over 119 bytes.
  */
 export function settingValue(plan: Plan, key: SettingKey): string | number | null {
-  const def = BY_KEY.get(key)!;
-  const raw = plan.settings[key] ?? def.formDefault;
-  if (raw === null || raw === undefined) return null;
-  const r = validateSetting(key, String(raw));
-  return r.ok ? r.value : raw;
+  const r = checkSetting(plan, key);
+  if (!r || !r.ok) return null;
+  if (key === "ownerInfo" && !checkOwnerInfo(String(r.value)).ok) return null;
+  return r.value;
+}
+
+export type PlanError = { key: SettingKey | "name" | "ownerInfo" | "location"; errorKey: string };
+
+/**
+ * Everything in the plan the script cannot send as entered: invalid settings, a name that is
+ * empty or breaks a firmware limit, owner info over 119 bytes, invalid coordinates. errorKey is
+ * the en.json key without its `error.` prefix.
+ */
+export function planErrors(plan: Plan): PlanError[] {
+  const errors: PlanError[] = [];
+  if (!plan.nameSuffix.trim()) errors.push({ key: "name", errorKey: "nameEmpty" });
+  else {
+    const c = checkName(planName(plan), plan.advertLoc !== "none");
+    if (c.badChars.length) errors.push({ key: "name", errorKey: "nameBadChars" });
+    if (c.bytes > c.max) errors.push({ key: "name", errorKey: "nameTooLong" });
+  }
+  for (const def of SETTINGS) {
+    const r = checkSetting(plan, def.key);
+    if (r && !r.ok) errors.push({ key: def.key, errorKey: r.errorKey });
+  }
+  const owner = checkSetting(plan, "ownerInfo");
+  if (owner?.ok && !checkOwnerInfo(String(owner.value)).ok) {
+    errors.push({ key: "ownerInfo", errorKey: "ownerInfoTooLong" });
+  }
+  if (plan.location && !sendableLocation(plan)) errors.push({ key: "location", errorKey: "coords" });
+  return errors;
 }
 
 /** Equal to the old page's firmware default table (numbers compared as numbers). */
@@ -233,9 +276,10 @@ const SETTING_PARSERS: Partial<Record<SettingKey, SettingParser>> = {
 };
 
 /**
- * A snapshot from the replies to the read commands (command → raw reply). Commands without a
- * reply are left out; `missing` lists the commands the caller could not read. Replies that do
- * not parse leave their field unset.
+ * A snapshot from the replies to the read commands (command → raw reply). Pass only the
+ * successful replies: a command that failed, timed out or was never sent goes in `missing`
+ * instead (an error text passed as a reply would be parsed as a value). Replies that do not
+ * parse leave their field unset.
  */
 export function snapshotFromReplies(replies: Record<string, string>, missing: string[] = []): DeviceSnapshot {
   const get = (cmd: string) => (Object.prototype.hasOwnProperty.call(replies, cmd) ? strip(replies[cmd]) : undefined);
@@ -418,11 +462,11 @@ export function summarize(
     add("settings", def.key, text, from === undefined ? undefined : String(from).trim(), sent);
   }
 
-  if (plan.location) {
-    const { lat, lon } = plan.location;
+  const location = sendableLocation(plan);
+  if (location) {
     const from =
       snapshot && hasValidCoords(snapshot.lat, snapshot.lon) ? coords(snapshot.lat!, snapshot.lon!) : undefined;
-    add("location", "location", coords(lat, lon), from, true);
+    add("location", "location", coords(location.lat, location.lon), from, true);
   }
   add("location", "advertLoc", plan.advertLoc, snapshot?.advertLoc, plan.advertLoc !== "prefs");
 

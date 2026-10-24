@@ -6,6 +6,7 @@ import {
   defaultPlan,
   deviceRegionsFromSnapshot,
   planFromSnapshot,
+  planErrors,
   planName,
   snapshotFromReplies,
   summarize,
@@ -158,6 +159,23 @@ describe("planFromSnapshot", () => {
   });
 });
 
+describe("planErrors", () => {
+  it("flags an empty, too long or badly formed name", () => {
+    const base = { ...defaultPlan(), anchor: planFromSnapshot(snapshotFromReplies(RONSE), PLACES).anchor };
+    const errs = (over: object) => planErrors({ ...base, ...over }).filter((e) => e.key === "name");
+    expect(errs({ nameSuffix: " " })).toEqual([{ key: "name", errorKey: "nameEmpty" }]);
+    expect(errs({ nameSuffix: "A:B" })).toEqual([{ key: "name", errorKey: "nameBadChars" }]);
+    expect(errs({ nameSuffix: "ABCDEFGHIJKLMNOPQ" })).toEqual([{ key: "name", errorKey: "nameTooLong" }]);
+    expect(errs({ nameSuffix: "ABCDEFGHIJKLMNOPQ", advertLoc: "none" })).toEqual([]);
+  });
+
+  it("flags coordinates only when a location is set", () => {
+    const p = { ...defaultPlan(), nameSuffix: "X" };
+    expect(planErrors(p)).toEqual([]);
+    expect(planErrors({ ...p, location: { lat: 0, lon: 0 } })).toEqual([{ key: "location", errorKey: "coords" }]);
+  });
+});
+
 describe("summarize", () => {
   it("reports the admin password as kept unless one is entered", () => {
     expect(summarize(defaultPlan()).adminPassword).toBe("kept");
@@ -187,6 +205,12 @@ describe("summarize", () => {
       to: "BE-RON-Kluisberg🌞",
     });
     expect(changes.map((c) => c.labelKey)).not.toContain("floodMax");
+  });
+
+  it("lists the location only when the script sends it", () => {
+    const p = { ...defaultPlan(), location: { lat: 95, lon: 3 } };
+    expect(summarize(p).changes.map((c) => c.labelKey)).not.toContain("location");
+    expect(summarize({ ...p, location: { lat: 50.5, lon: 3 } }).changes.map((c) => c.labelKey)).toContain("location");
   });
 
   it("an unchanged read lists no changes", () => {

@@ -2,10 +2,11 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { importBackup } from "../src/core/backup";
-import { buildScript, commandLines, scriptText } from "../src/core/cli";
-import { defaultPlan, type Plan } from "../src/core/plan";
+import { buildScript, commandLines, scriptText, SETTINGS_ORDER } from "../src/core/cli";
+import { defaultPlan, planErrors, type Plan } from "../src/core/plan";
 import { anchorFromChoice, deviceRegionsFromRead, policyFor } from "../src/core/regions";
 import { locationChoices, type Place } from "../src/core/search";
+import { SETTINGS } from "../src/core/settings";
 
 const PLACES: Place[] = JSON.parse(readFileSync(resolve(process.cwd(), "data/be-locode.json"), "utf8"));
 const PARITY = resolve(__dirname, "fixtures/parity");
@@ -125,6 +126,47 @@ describe("buildScript", () => {
   it("has no location or region lines without a location", () => {
     const plan = { ...defaultPlan(), nameSuffix: "Test" };
     expect(buildScript(plan, PLACES, { includeDefaults: false }).map((g) => g.titleKey)).toEqual(["name", "settings"]);
+  });
+});
+
+describe("invalid values", () => {
+  const bad: Plan = {
+    ...ronsePlan(),
+    location: { lat: 95, lon: 3.6 },
+    settings: {
+      ...ronsePlan().settings,
+      floodAdvertHours: 500,
+      txPower: "20.5",
+      adminPassword: "sixteen-bytes-pw",
+      ownerInfo: "x".repeat(120),
+    },
+  };
+  const lines = commandLines(buildScript(bad, PLACES, { includeDefaults: true }));
+
+  it("never reach the command lines", () => {
+    expect(lines.some((l) => l.startsWith("set flood.advert.interval"))).toBe(false);
+    expect(lines.some((l) => l.startsWith("set tx "))).toBe(false);
+    expect(lines.some((l) => l.startsWith("password"))).toBe(false);
+    expect(lines.some((l) => l.startsWith("set owner.info"))).toBe(false);
+    expect(lines.some((l) => l.startsWith("set lat") || l.startsWith("set lon"))).toBe(false);
+    expect(lines).toContain("set flood.max 64");
+  });
+
+  it("are listed by planErrors", () => {
+    expect(planErrors(bad)).toEqual([
+      { key: "adminPassword", errorKey: "tooLong" },
+      { key: "floodAdvertHours", errorKey: "range" },
+      { key: "txPower", errorKey: "number" },
+      { key: "ownerInfo", errorKey: "ownerInfoTooLong" },
+      { key: "location", errorKey: "coords" },
+    ]);
+    expect(planErrors(ronsePlan())).toEqual([]);
+  });
+});
+
+describe("SETTINGS_ORDER", () => {
+  it("is a permutation of the settings registry", () => {
+    expect([...SETTINGS_ORDER].sort()).toEqual(SETTINGS.map((s) => s.key).sort());
   });
 });
 

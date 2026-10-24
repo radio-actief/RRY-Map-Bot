@@ -2,8 +2,7 @@
  * Backup files: v2 holds the plan; v1 is the old page's export (form field ids → values),
  * which still imports.
  */
-import type { PowerEmoji } from "./naming";
-import { prefixFormatFromLegacy } from "./naming";
+import { POWER_EMOJIS, prefixFormatFromLegacy, type PowerEmoji } from "./naming";
 import { defaultPlan, hasValidCoords, type Plan, type Radio } from "./plan";
 import { anchorFromChoice, applyLegacyPolicyFields, policyFor } from "./regions";
 import { locationChoices, type Place } from "./search";
@@ -35,19 +34,32 @@ export function importBackup(json: unknown, places: Place[]): Plan {
   throw new BackupError("backup.error.invalid");
 }
 
+const isNum = (v: unknown) => typeof v === "number" && Number.isFinite(v);
+const oneOf = (v: unknown, values: readonly unknown[]) => values.includes(v);
+
+function validAnchor(a: unknown): boolean {
+  if (a === null) return true;
+  return (
+    isObject(a) &&
+    oneOf(a.mode, ["city", "province", "country"]) &&
+    (a.province_code === null || typeof a.province_code === "string") &&
+    (a.mode === "city" ? isObject(a.place) && typeof a.place.city_code === "string" : a.place === null)
+  );
+}
+
 function planFromV2(raw: unknown): Plan {
   const ok =
     isObject(raw) &&
     isObject(raw.radio) &&
-    ["freq", "sf", "bw", "cr"].every((k) => typeof (raw.radio as Record<string, unknown>)[k] === "number") &&
+    ["freq", "sf", "bw", "cr"].every((k) => isNum((raw.radio as Record<string, unknown>)[k])) &&
     isObject(raw.settings) &&
     typeof raw.nameSuffix === "string" &&
-    typeof raw.power === "string" &&
-    typeof raw.prefixFormat === "string" &&
-    typeof raw.advertLoc === "string" &&
-    (raw.location === null || isObject(raw.location)) &&
-    (raw.anchor === null || isObject(raw.anchor)) &&
-    (raw.regions === null || isObject(raw.regions));
+    oneOf(raw.power, ["", ...POWER_EMOJIS]) &&
+    oneOf(raw.prefixFormat, ["city", "province", "country", "none"]) &&
+    oneOf(raw.advertLoc, ["none", "prefs", "share"]) &&
+    (raw.location === null || (isObject(raw.location) && isNum(raw.location.lat) && isNum(raw.location.lon))) &&
+    validAnchor(raw.anchor) &&
+    (raw.regions === null || (isObject(raw.regions) && Array.isArray(raw.regions.rows)));
   if (!ok) throw new BackupError("backup.error.invalid");
   return structuredClone(raw) as Plan;
 }
@@ -79,7 +91,25 @@ const V1_SETTINGS: [string, SettingKey][] = [
   ["setting-multi-acks", "multiAcks"],
 ];
 
-const POWER: PowerEmoji[] = ["🌞", "⚡", "🔋", "👀"];
+/**
+ * The old page's FREQUENCY_PRESETS (src/configurator.js, before the rebuild), in its order:
+ * a v1 `setting-radio-preset` value is an index into this list, not into RADIO_PRESETS.
+ */
+const LEGACY_RADIO_PRESETS: Radio[] = [
+  { freq: 915.8, sf: 10, bw: 250, cr: 5 }, // Australia
+  { freq: 916.675, sf: 7, bw: 62.5, cr: 8 }, // Australia: Victoria
+  { freq: 869.618, sf: 8, bw: 62.5, cr: 8 }, // EU/UK (Narrow)
+  { freq: 869.525, sf: 11, bw: 250, cr: 5 }, // EU/UK (Long Range)
+  { freq: 869.525, sf: 10, bw: 250, cr: 5 }, // EU/UK (Medium Range)
+  { freq: 869.525, sf: 7, bw: 62.5, cr: 5 }, // Czech Republic (Narrow)
+  { freq: 433.65, sf: 11, bw: 250, cr: 5 }, // EU 433MHz (Long Range)
+  { freq: 917.375, sf: 11, bw: 250, cr: 5 }, // New Zealand
+  { freq: 917.375, sf: 7, bw: 62.5, cr: 5 }, // New Zealand (Narrow)
+  { freq: 433.375, sf: 9, bw: 62.5, cr: 6 }, // Portugal 433
+  { freq: 869.618, sf: 7, bw: 62.5, cr: 6 }, // Portugal 868
+  { freq: 910.525, sf: 7, bw: 62.5, cr: 5 }, // USA/Canada (Recommended)
+  { freq: 920.25, sf: 11, bw: 250, cr: 5 }, // Vietnam
+];
 
 /** Old parseCoordInput: a decimal comma is accepted. */
 function coord(raw: unknown): number | null {
@@ -89,6 +119,18 @@ function coord(raw: unknown): number | null {
   if (!text) return null;
   const n = Number(text);
   return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * The radio the old page used (getRadioSettings): the four radio fields for the "custom"
+ * preset, else the old preset at that index (stale field values ignored). Null when that
+ * gives nothing valid. The UI matches the values to RADIO_PRESETS (custom when none fits).
+ */
+function radioFromV1(f: Record<string, unknown>): Radio | null {
+  const preset = String(f["setting-radio-preset"] ?? "");
+  if (preset === "custom") return radioFromFields(f);
+  const p = /^\d+$/.test(preset) ? LEGACY_RADIO_PRESETS[Number(preset)] : undefined;
+  return p ? { ...p } : null;
 }
 
 /** Old RADIO_FIELD_SPECS: all four fields must be valid, or none is used. */
@@ -109,8 +151,7 @@ function radioFromFields(f: Record<string, unknown>): Radio | null {
 
 /**
  * The plan an old page export describes. The location is the first search choice for the
- * `city-search` text; `setting-radio-preset` indexes the old 13-entry preset list and is
- * ignored: the radio comes from the four radio fields (the plan's EU/UK Narrow when unset).
+ * `city-search` text; the radio follows radioFromV1 (the plan's EU/UK Narrow when it gives none).
  */
 function planFromV1(f: Record<string, unknown>, places: Place[]): Plan {
   const plan = defaultPlan();
@@ -127,9 +168,9 @@ function planFromV1(f: Record<string, unknown>, places: Place[]): Plan {
   if (text("name-location-mode")) plan.prefixFormat = prefixFormatFromLegacy(text("name-location-mode"));
   plan.nameSuffix = text("name-suffix");
   const power = text("name-power-emoji") as PowerEmoji;
-  plan.power = POWER.includes(power) ? power : "";
+  plan.power = POWER_EMOJIS.includes(power as Exclude<PowerEmoji, "">) ? power : "";
 
-  plan.radio = radioFromFields(f) ?? plan.radio;
+  plan.radio = radioFromV1(f) ?? plan.radio;
 
   for (const [id, key] of V1_SETTINGS) {
     if (!Object.prototype.hasOwnProperty.call(f, id)) continue;

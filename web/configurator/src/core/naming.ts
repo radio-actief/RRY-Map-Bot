@@ -15,7 +15,8 @@ const BAD_NAME_CHARS = ["[", "]", "\\", ":", ",", "?", "*"];
 export type PrefixFormat = "city" | "province" | "country" | "none";
 export type PowerEmoji = "🌞" | "⚡" | "🔋" | "👀" | "";
 
-const POWER_EMOJIS: Exclude<PowerEmoji, "">[] = ["🌞", "⚡", "🔋", "👀"];
+/** The power/type emoji a name can end with. */
+export const POWER_EMOJIS: Exclude<PowerEmoji, "">[] = ["🌞", "⚡", "🔋", "👀"];
 const encoder = new TextEncoder();
 
 export function utf8Bytes(s: string): number {

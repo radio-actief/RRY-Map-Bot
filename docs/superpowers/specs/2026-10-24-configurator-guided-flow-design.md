@@ -40,7 +40,7 @@ Part 2 is done when:
   one table.
 - **Free regions:** any code, with a parent the user picks.
 - **United Kingdom:** region code `gb` (ISO 3166, like `be`, `nl`, `fr`, `de`, `lu`).
-- **The repeater's current value:** a tag on the label line with a "Keep" link (see
+- **The repeater's current value:** a tag on the label line with a ↺ button that puts it back (see
   Advanced).
 - English only; every new text goes through the translation layer.
 
@@ -128,12 +128,12 @@ Site step (see Site), so picking a pill there and a card in Site are the same ac
 When a Read gave a value and the plan differs from it, the field's label line shows a tag at
 its right edge:
 
-    Flood advert (hours)              [ On repeater: 3 · ↺ Keep ]
+    Flood advert (hours)              [ On repeater: 3 ↺ ]
 
 - The tag has its own tinted background (the info tone), the value in the monospace font,
   so it no longer looks like the help line below the field.
-- "Keep" sets the field back to the repeater's value (aria-label "Keep the repeater's value,
-  3").
+- The ↺ icon, right after the value, is a button with no text that sets the field back to
+  the repeater's value. Its aria-label and tooltip read "Use the repeater's value (3)".
 - It replaces today's "Was 3 on the repeater." line, for the settings and the radio fields.
   It never shows for the admin password, and it is hidden when the plan equals the
   repeater's value, as now.
@@ -263,7 +263,7 @@ the old key until then).
   Site cards selecting and following Advanced edits; Add a region (errors, Add, remove);
   Send's "Before you send" card; no "coordinates required" on a fresh plan; no "already
   used nearby" for the repeater's own name after a key write; the four block buttons and
-  the all-blocks button; the timing pills following edits; the "On repeater" tag and Keep;
+  the all-blocks button; the timing pills following edits; the "On repeater" tag and its ↺ button;
   the map drawing an allowed country.
 - **Hardware (Mac dev environment, spare repeater):** guided flow → Hilltop and one free
   region → Apply → Read back shows the Hilltop timing and the free region; an empty admin

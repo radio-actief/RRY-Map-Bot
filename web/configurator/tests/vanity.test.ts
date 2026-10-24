@@ -4,6 +4,7 @@ import {
   isAllowedPrefix,
   meshcorePrivateKeyFromSeed,
   pubkeyFromSetReply,
+  searchVanity,
 } from "../src/core/vanity";
 
 const fromHex = (hex: string) => Uint8Array.from(hex.match(/../g) ?? [], (b) => parseInt(b, 16));
@@ -39,5 +40,27 @@ describe("vanity helpers", () => {
       MESHCORE_PUB,
     );
     expect(pubkeyFromSetReply("Error, bad key")).toBeNull();
+  });
+
+  it("searchVanity finds the reference seed's key and gives the MeshCore private key", () => {
+    const fixed = { ...nacl, randomBytes: () => fromHex(SEED) };
+    expect(searchVanity("03a1", 5, fixed)).toEqual({
+      found: { publicKey: MESHCORE_PUB, privateKey: MESHCORE_PRV },
+      tried: 1,
+    });
+    expect(searchVanity("9", 5, fixed)).toEqual({ found: null, tried: 5 });
+  });
+
+  it("searchVanity skips keys the firmware rejects even when they match the prefix", () => {
+    const firsts = [0x00, 0xff, 0x0a];
+    let i = 0;
+    const fake = {
+      randomBytes: (n: number) => new Uint8Array(n),
+      hash: nacl.hash,
+      sign: { keyPair: { fromSeed: () => ({ publicKey: Uint8Array.of(firsts[i++], 1, 2) }) } },
+    };
+    const r = searchVanity("0", 3, fake);
+    expect(r.tried).toBe(3);
+    expect(r.found?.publicKey).toBe("0a0102");
   });
 });

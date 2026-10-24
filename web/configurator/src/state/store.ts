@@ -103,6 +103,8 @@ export const store = {
   /** The plan as the last default or Read left it; any other plan counts as edited. */
   planBase: signal<Plan>(initialPlan),
   snapshot: signal<DeviceSnapshot | null>(null),
+  /** The device's `clock` reply and when it was read (Date.now()), for the drawer's clock offset. */
+  clock: signal<{ reply: string; at: number } | null>(null),
   /** Region state of the device at the last Read, for the script's removals. */
   deviceRegions: signal<DeviceRegions | undefined>(undefined),
   notice: signal<AppNotice | null>(null),

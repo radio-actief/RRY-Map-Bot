@@ -28,3 +28,33 @@ export function pubkeyFromSetReply(reply: string): string | null {
   const m = /New pubkey:\s*([0-9a-f]{64})/i.exec(String(reply || ""));
   return m ? m[1].toLowerCase() : null;
 }
+
+/** A prefix the vanity generator takes: 1 to 8 lowercase hex characters. */
+export const VANITY_PREFIX = /^[0-9a-f]{1,8}$/;
+
+/** The parts of tweetnacl the generator uses (injected, so tests can fix the seed). */
+export type VanityNacl = {
+  randomBytes(n: number): Uint8Array;
+  hash(m: Uint8Array): Uint8Array;
+  sign: { keyPair: { fromSeed(seed: Uint8Array): { publicKey: Uint8Array } } };
+};
+
+export const toHex = (bytes: Uint8Array) => Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+
+/** A generated identity: the public key and the private key for `set prv.key`, both hex. */
+export type VanityKey = { publicKey: string; privateKey: string };
+
+/**
+ * One batch of the vanity search: up to `tries` random seeds; the first whose public key starts
+ * with `prefix` (and does not start with a byte the firmware rejects), with how many were tried.
+ */
+export function searchVanity(prefix: string, tries: number, nacl: VanityNacl): { found: VanityKey | null; tried: number } {
+  for (let i = 1; i <= tries; i++) {
+    const seed = nacl.randomBytes(32);
+    const publicKey = toHex(nacl.sign.keyPair.fromSeed(seed).publicKey);
+    if (publicKey.startsWith(prefix) && isAllowedPrefix(publicKey)) {
+      return { found: { publicKey, privateKey: toHex(meshcorePrivateKeyFromSeed(seed, nacl.hash)) }, tried: i };
+    }
+  }
+  return { found: null, tried: tries };
+}

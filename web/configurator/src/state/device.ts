@@ -1,9 +1,13 @@
-/** Device actions shared by the steps, the drawer and Apply: connect, disconnect, Read, Apply, reboot and the console. */
+/**
+ * Device actions shared by the steps, the drawer and Apply: connect, disconnect, Read, Apply, the
+ * console, and the drawer's commands (clock, adverts, identity, reboot / OTA / factory reset).
+ */
 import { effect } from "@preact/signals";
 import { buildScript, commandLines } from "../core/cli";
 import { deviceRegionsFromSnapshot, planFromSnapshot } from "../core/plan";
 import { policyFor, regionsAfterApply } from "../core/regions";
 import { REGION_DEF_MIN_TEXT } from "../core/firmware";
+import { pubkeyFromSetReply, type VanityKey } from "../core/vanity";
 import { apply, checkFirmware, readAll, READ_COMMANDS, run } from "../device/repeater";
 import {
   expectsDeviceDisconnect,
@@ -40,12 +44,30 @@ export function clearLog(): void {
   store.log.value = [];
 }
 
-/** One command and its reply in the log (old logSerialCommandReply). */
-function logCommand(cmd: string, reply: string | null, error?: string): void {
+/**
+ * Masks the private key of a `set prv.key` line wherever it shows up (the command, a reply that
+ * echoes it, a "line too long" error that quotes its start).
+ */
+function secretMask(cmd: string): (text: string) => string {
+  const hidden = t("log.hidden");
+  const secret = /^set\s+prv\.key\s+(\S+)/i.exec(cmd)?.[1];
+  return (text) => {
+    const masked = text.replace(/(set\s+prv\.key)\s+\S+/gi, `$1 ${hidden}`);
+    return secret ? masked.split(secret).join(hidden) : masked;
+  };
+}
+
+/** A `get prv.key` line: its reply is the private key. */
+const READS_SECRET = /^get\s+prv\.key$/i;
+
+/** One command and its reply in the log (old logSerialCommandReply); private keys are masked. */
+function logCommand(cmd: string, rawReply: string | null, error?: string): void {
   if (store.reading.peek() && prefs.get(SHOW_COMMAND_LOG_PREF) !== "1") return;
-  const sent: LogLine = { text: t("log.command", { command: cmd }), kind: "cmd" };
+  const mask = secretMask(cmd);
+  const reply = rawReply && READS_SECRET.test(cmd) && !isErrorReply(rawReply) ? t("log.hidden") : rawReply && mask(rawReply);
+  const sent: LogLine = { text: t("log.command", { command: mask(cmd) }), kind: "cmd" };
   let answer: LogLine;
-  if (error !== undefined) answer = { text: t("log.reply", { reply: error }), kind: "error" };
+  if (error !== undefined) answer = { text: t("log.reply", { reply: mask(error) }), kind: "error" };
   else if (reply) answer = { text: t("log.reply", { reply }), kind: isErrorReply(reply) ? "error" : "ok" };
   else if (expectsDeviceDisconnect(cmd)) answer = { text: t("log.disconnecting"), kind: "ok" };
   else answer = { text: t("log.noReply"), kind: "muted" };
@@ -97,6 +119,7 @@ export async function connectUsb({ requestPort = requestUsbPort, timing }: Conne
   }
   store.notice.value = null;
   store.lastRead.value = null;
+  store.clock.value = null;
   store.apply.value = { phase: "idle" };
   store.device.value = { status: "connecting", link: null, firmware: null };
   const link = new SerialLink(port, timing);
@@ -144,6 +167,7 @@ export async function readDevice(): Promise<void> {
       return;
     }
     store.snapshot.value = snapshot;
+    store.clock.value = snapshot.clock ? { reply: snapshot.clock, at: Date.now() } : null;
     store.deviceRegions.value = deviceRegionsFromSnapshot(snapshot);
     resetPlan(planFromSnapshot(snapshot, store.data.peek().places ?? []));
     store.lastRead.value = { ok: true, count: READ_COMMANDS.length - snapshot.missing.length, missing: snapshot.missing };
@@ -255,17 +279,99 @@ async function sendHeld(link: SerialLink, cmd: string): Promise<string | null> {
   }
 }
 
-/** Send `reboot` (port of offerRepeaterReboot's tail); the disconnect that follows is not an error. */
-export async function rebootDevice(): Promise<void> {
+/** What the notice says after each command that restarts the device or switches its mode. */
+const RESTART_TEXTS = {
+  reboot: { sent: "apply.rebootSent", failed: "apply.rebootFailed", noDevice: "apply.rebootNoDevice" },
+  "start ota": { sent: "tools.otaSent", failed: "tools.otaFailed", noDevice: "tools.noDevice" },
+  erase: { sent: "tools.resetSent", failed: "tools.resetFailed", noDevice: "tools.noDevice" },
+} as const;
+
+export type RestartCommand = keyof typeof RESTART_TEXTS;
+
+/**
+ * Send `reboot`, `start ota` or `erase` (factory reset) as the old page did; the disconnect that
+ * follows is not an error, and the notice says to reconnect once the device is back.
+ */
+export async function restartDevice(cmd: RestartCommand): Promise<void> {
+  const texts = RESTART_TEXTS[cmd];
   const link = store.device.peek().link;
   if (!link?.connected || busy.peek()) {
-    if (!link?.connected) store.notice.value = { kind: "error", text: t("apply.rebootNoDevice") };
+    if (!link?.connected) store.notice.value = { kind: "error", text: t(texts.noDevice) };
     return;
   }
-  const error = await sendHeld(link, "reboot");
+  const error = await sendHeld(link, cmd);
   store.notice.value = error
-    ? { kind: "error", text: t("apply.rebootFailed", { reason: error }) }
-    : { kind: "ok", text: t("apply.rebootSent") };
+    ? { kind: "error", text: t(texts.failed, { reason: error }) }
+    : { kind: "ok", text: t(texts.sent) };
+}
+
+/** Send `reboot` (port of offerRepeaterReboot's tail); the disconnect that follows is not an error. */
+export function rebootDevice(): Promise<void> {
+  return restartDevice("reboot");
+}
+
+/** A drawer command's outcome: the reply, or why it failed (error reply, no reply, link lost). */
+export type CommandResult = { ok: true; reply: string } | { ok: false; error: string };
+
+/** One command and its reply, without the lock. */
+async function exchange(link: SerialLink, cmd: string): Promise<CommandResult> {
+  try {
+    const reply = await run(link, cmd);
+    if (!reply) return { ok: false, error: t("tools.noReply") };
+    return isErrorReply(reply) ? { ok: false, error: reply } : { ok: true, reply };
+  } catch (err) {
+    return { ok: false, error: reasonOf(err) };
+  }
+}
+
+/**
+ * Run `fn` holding the busy lock, on the connected link; null (nothing sent) when there is no
+ * device or something else (Read, Apply, the console, another drawer action) is talking to it.
+ */
+async function withLock<T>(fn: (link: SerialLink) => Promise<T>): Promise<T | null> {
+  const link = store.device.peek().link;
+  if (!link?.connected || busy.peek()) return null;
+  store.commandBusy.value = true;
+  try {
+    return await fn(link);
+  } finally {
+    store.commandBusy.value = false;
+  }
+}
+
+/** One drawer command (old runDeviceCommand), e.g. `advert.zerohop` or `advert`. */
+export function deviceCommand(cmd: string): Promise<CommandResult | null> {
+  return withLock((link) => exchange(link, cmd));
+}
+
+/** Set the device clock to this computer's time (`time <epoch>`), then read `clock` again. */
+export function syncClock(): Promise<CommandResult | null> {
+  return withLock(async (link) => {
+    const set = await exchange(link, `time ${Math.floor(Date.now() / 1000)}`);
+    if (!set.ok) return set;
+    const clock = await exchange(link, "clock");
+    if (clock.ok) store.clock.value = { reply: clock.reply, at: Date.now() };
+    return set;
+  });
+}
+
+/** The private key (old ensurePrivateKeyLoaded's `get prv.key`), without the firmware's `> `. */
+export async function readPrivateKey(): Promise<CommandResult | null> {
+  const r = await deviceCommand("get prv.key");
+  if (!r?.ok) return r;
+  const key = r.reply.replace(/^\s*>\s*/, "").trim();
+  return key ? { ok: true, reply: key } : { ok: false, error: t("tools.noReply") };
+}
+
+/** The outcome of writing a vanity identity: whether the public key the device reports is the expected one. */
+export type IdentityResult = { ok: true; confirmed: boolean; devicePub: string | null } | { ok: false; error: string };
+
+/** Write a generated identity with `set prv.key` and check the public key in the reply (part 0's fix). */
+export async function writeIdentity(key: VanityKey): Promise<IdentityResult | null> {
+  const r = await deviceCommand(`set prv.key ${key.privateKey}`);
+  if (!r?.ok) return r;
+  const devicePub = pubkeyFromSetReply(r.reply);
+  return { ok: true, confirmed: devicePub === key.publicKey, devicePub };
 }
 
 /** One console line (old sendSerialConsoleCommand); the reply lands in the log. */

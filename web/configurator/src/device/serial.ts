@@ -34,9 +34,12 @@ export function expectsDeviceDisconnect(line: string): boolean {
   return ["reboot", "erase", "start ota", "poweroff", "shutdown", "clkreboot"].includes(cmd);
 }
 
-/** A failed command: "Err ..." / "Error ...", or the firmware's "Unknown command", "unknown config: <key>", "??: <key>". */
+/**
+ * A failed command: "Err ..." / "Error ...", "(ERR: ...)" (e.g. "clock cannot go backwards"), or the
+ * firmware's "Unknown command", "unknown config: <key>", "??: <key>".
+ */
 export function isErrorReply(reply: string): boolean {
-  return /^Err\b/i.test(reply) || /^Error/i.test(reply) || /^Unknown command/i.test(reply) || /^unknown config:/i.test(reply) || /^\?\?:/.test(reply);
+  return /^\(?Err\b/i.test(reply) || /^Error/i.test(reply) || /^Unknown command/i.test(reply) || /^unknown config:/i.test(reply) || /^\?\?:/.test(reply);
 }
 
 export function commandTimeout(line: string): number {

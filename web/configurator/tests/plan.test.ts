@@ -83,6 +83,19 @@ describe("snapshotFromReplies", () => {
   });
 });
 
+describe("deviceRegionsFromSnapshot", () => {
+  it.each(["region list allowed", "region list denied", "region home", "region default"])(
+    "is undefined when %s is missing from the Read, so Apply removes nothing",
+    (cmd) => {
+      const { [cmd]: _gone, ...rest } = RONSE;
+      expect(deviceRegionsFromSnapshot(snapshotFromReplies(rest, [cmd]))).toBeUndefined();
+    },
+  );
+  it("is defined when every region command answered", () => {
+    expect(deviceRegionsFromSnapshot(snapshotFromReplies(RONSE))?.named).toContain("bemak");
+  });
+});
+
 describe("planFromSnapshot", () => {
   const plan = planFromSnapshot(snapshotFromReplies(RONSE), PLACES);
 

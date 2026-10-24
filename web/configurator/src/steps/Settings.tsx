@@ -191,12 +191,13 @@ function SettingField({ def }: { def: SettingDef }) {
   const raw = rawOf(plan, def.key);
   const snapshot = store.snapshot.value;
   const result = validateSetting(def.key, raw);
-  const ownerBad = def.key === "ownerInfo" && result.ok && !checkOwnerInfo(raw).ok;
+  // The counter and the error count what is sent (trimmed, newlines as '|'), as the Apply gate does.
+  const owner = def.key === "ownerInfo" ? checkOwnerInfo(result.ok ? String(result.value) : raw.trim()) : null;
+  const ownerBad = !!owner && result.ok && !owner.ok;
   const error = !result.ok ? t(`error.${result.errorKey}`) : ownerBad ? t("error.ownerInfoTooLong") : null;
   const was = snapshot?.settings[def.key];
   const showWas = def.key !== "adminPassword" && was !== undefined && !same(raw, was);
   const changed = isChanged(plan, def.key);
-  const owner = def.key === "ownerInfo" ? checkOwnerInfo(raw) : null;
   return (
     <div class={`field${changed ? " changed" : ""}${error ? " invalid" : ""}`} data-key={def.key}>
       <label class="field-label" for={`set-${def.key}`} id={`lbl-${def.key}`}>

@@ -13,8 +13,11 @@ export const HISTORY_MAX = 50;
 /** Console history for this page session, kept while the dialog is closed. */
 const history: string[] = [];
 
+/** A private key typed with `set prv.key` is never kept. */
+const SECRET_LINE = /^set\s+prv\.key\b/i;
+
 function remember(cmd: string): void {
-  if (history[history.length - 1] === cmd) return;
+  if (SECRET_LINE.test(cmd) || history[history.length - 1] === cmd) return;
   history.push(cmd);
   if (history.length > HISTORY_MAX) history.shift();
 }

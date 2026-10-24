@@ -4,7 +4,7 @@ import "leaflet/dist/leaflet.css";
 import type { GeoJsonObject } from "geojson";
 import { useEffect, useMemo, useRef } from "preact/hooks";
 import { GEWEST_NAMES } from "../core/be-regions";
-import { municipalityAt, nodesWithin, NEIGHBOR_RADIUS_KM, type LatLon } from "../core/geo";
+import { municipalityAt, nodesWithin, NEIGHBOR_RADIUS_KM, roundCoord, type LatLon } from "../core/geo";
 import { regionsByState } from "../core/regions";
 import { t } from "../i18n/t";
 import { municipalities as municipalityList, setLocation, store } from "../state/store";
@@ -86,9 +86,9 @@ export function MapView() {
     };
   }, []);
 
-  /** A map click or pin drag: the pin stays where the user put it, without recentring. */
+  /** A map click or pin drag (to 6 decimals): the pin stays where the user put it, without recentring. */
   function pick(lat: number, lon: number) {
-    const next = { lat, lon };
+    const next = { lat: roundCoord(lat), lon: roundCoord(lon) };
     fromMap.current = next;
     setLocation(next);
   }

@@ -367,6 +367,22 @@ describe("Console", () => {
     expect(input.value).toBe("");
   });
 
+  it("does not keep a typed set prv.key in the history", async () => {
+    await connect({ ver: VER, "get name": "X" });
+    render(<Review />);
+    fireEvent.click(screen.getByRole("button", { name: /Console/ }));
+    const input = screen.getByLabelText("Console command") as HTMLInputElement;
+    for (const cmd of ["get name", `set prv.key ${"ab".repeat(64)}`]) {
+      fireEvent.input(input, { target: { value: cmd } });
+      fireEvent.submit(input.closest("form")!);
+      await waitFor(() => expect(store.commandBusy.value).toBe(false));
+    }
+    fireEvent.keyDown(input, { key: "ArrowUp" });
+    expect(input.value).toBe("get name");
+    fireEvent.keyDown(input, { key: "ArrowUp" });
+    expect(input.value).not.toContain("abab");
+  });
+
   it("the input is disabled without a device, and Show command log is remembered", () => {
     render(<Review />);
     fireEvent.click(screen.getByRole("button", { name: /Console/ }));

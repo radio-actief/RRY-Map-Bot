@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/preact";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "../src/app/App";
@@ -166,5 +168,13 @@ describe("Notice and Dialog", () => {
   it("Dialog stays closed when open is false", () => {
     const { container } = render(<Dialog open={false} title="x" onClose={() => {}} actions={null} />);
     expect(container.querySelector("dialog")!.hasAttribute("open")).toBe(false);
+  });
+});
+
+describe("index.html", () => {
+  it("has the #BEmesh title and the site favicon served at the root", () => {
+    const doc = new DOMParser().parseFromString(readFileSync(resolve(__dirname, "../index.html"), "utf8"), "text/html");
+    expect(doc.title).toBe("#BEmesh configurator");
+    expect(doc.querySelector('link[rel="icon"]')?.getAttribute("href")).toBe("/favicon.ico");
   });
 });

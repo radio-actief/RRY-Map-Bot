@@ -454,12 +454,13 @@ describe("Place & name step", () => {
     unmount();
     vi.stubGlobal("isSecureContext", true);
     const getCurrentPosition = vi.fn((ok: PositionCallback) =>
-      ok({ coords: { latitude: 50.745, longitude: 3.6 } } as GeolocationPosition),
+      ok({ coords: { latitude: 50.74500049, longitude: 3.6000001 } } as GeolocationPosition),
     );
     Object.defineProperty(navigator, "geolocation", { value: { getCurrentPosition }, configurable: true });
     try {
       render(<PlaceName />);
       fireEvent.click(screen.getByRole("button", { name: "Use my location" }));
+      // Rounded to 6 decimals, as the old page did.
       expect(store.plan.value.location).toEqual({ lat: 50.745, lon: 3.6 });
       expect(store.plan.value.anchor?.place?.city_code).toBe("beron");
     } finally {

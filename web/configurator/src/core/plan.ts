@@ -375,10 +375,17 @@ export function snapshotFromReplies(replies: Record<string, string>, missing: st
   return s;
 }
 
-/** The device's regions for the script's removals (pass as buildScript's `device`). */
+/** The four region reads; without every one of them the device's regions are not known. */
+const REGION_READS = ["region home", "region default", "region list allowed", "region list denied"];
+
+/**
+ * The device's regions for the script's removals (pass as buildScript's `device`). Undefined when
+ * any region read is missing, so the script removes nothing it has not seen.
+ */
 export function deviceRegionsFromSnapshot(s: DeviceSnapshot): DeviceRegions | undefined {
   const r = s.regions;
-  return r ? deviceRegionsFromRead(r.allowed, r.denied, r.home ?? null, r.default ?? null) : undefined;
+  if (!r || REGION_READS.some((cmd) => s.missing.includes(cmd))) return undefined;
+  return deviceRegionsFromRead(r.allowed, r.denied, r.home ?? null, r.default ?? null);
 }
 
 type Detection = { anchor: Anchor; format: PrefixFormat };

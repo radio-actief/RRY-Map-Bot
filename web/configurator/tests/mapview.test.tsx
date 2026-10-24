@@ -48,6 +48,16 @@ describe("MapView", () => {
     expect(store.plan.value.location).toEqual({ lat: 50.7, lon: 3.6 });
   });
 
+  it("a map click and a pin drag round the coordinates to 6 decimals, as the old page did", () => {
+    render(<MapView />);
+    act(() => ofKind("map")[0].fire("click", { latlng: { lat: 50.74755123456, lng: 3.602094999 } }));
+    expect(store.plan.value.location).toEqual({ lat: 50.747551, lon: 3.602095 });
+    const pin = ofKind("marker")[0];
+    pin.getLatLng = () => ({ lat: 51.12345678, lng: 4.98765432 });
+    act(() => pin.fire("dragend"));
+    expect(store.plan.value.location).toEqual({ lat: 51.123457, lon: 4.987654 });
+  });
+
   it("dragging the pin sets plan.location", () => {
     store.plan.value = { ...defaultPlan(), location: { lat: 50.7, lon: 3.6 } };
     render(<MapView />);

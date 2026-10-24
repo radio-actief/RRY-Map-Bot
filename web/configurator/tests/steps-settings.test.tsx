@@ -69,6 +69,14 @@ describe("Settings step", () => {
     expect(screen.getByText("Too long. Owner info allows 119 bytes.")).toBeTruthy();
   });
 
+  it("the owner info counter counts what is sent (trimmed), as the Apply gate does", () => {
+    render(<Settings />);
+    type("Contact or notes", `  ${"x".repeat(119)}  `);
+    expect(screen.getByText("119 / 119 bytes")).toBeTruthy();
+    expect(screen.queryByText("Too long. Owner info allows 119 bytes.")).toBeNull();
+    expect(planErrors(store.plan.value).some((e) => e.key === "ownerInfo")).toBe(false);
+  });
+
   it("badges: unchanged, then a change count, and the changed field is outlined", () => {
     render(<Settings />);
     expect(within(card("Access")).getByText("unchanged")).toBeTruthy();

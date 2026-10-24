@@ -12,9 +12,13 @@ const REGION_DEF_MIN = { major: 1, minor: 16 };
 
 export const REGION_DEF_MIN_TEXT = "1.16";
 
-/** The version in a `ver` reply, or null when the reply carries none. */
+/**
+ * The version in a `ver` reply, or null when the reply carries none. A `v`-prefixed version wins
+ * over other numbers (a fork's "2026.1 … v1.15" is 1.15).
+ */
 export function parseVersion(reply: string | null | undefined): FirmwareVersion | null {
-  const m = /\bv?(\d+)\.(\d+)(?:\.(\d+))?/i.exec(String(reply || ""));
+  const text = String(reply || "");
+  const m = /\bv(\d+)\.(\d+)(?:\.(\d+))?/i.exec(text) ?? /\bv?(\d+)\.(\d+)(?:\.(\d+))?/i.exec(text);
   if (!m) return null;
   return {
     major: Number(m[1]),

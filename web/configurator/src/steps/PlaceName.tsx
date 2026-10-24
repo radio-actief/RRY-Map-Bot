@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { Notice } from "../app/Notice";
 import { PROVINCE_NAMES } from "../core/be-regions";
-import { municipalityAt, nodesWithin, NEIGHBOR_RADIUS_KM, type MeshNode } from "../core/geo";
+import { municipalityAt, nodesWithin, NEIGHBOR_RADIUS_KM, roundCoord, type MeshNode } from "../core/geo";
 import { checkName, hasControlChars, POWER_EMOJIS, splitNameSuffixAndEmoji, type PowerEmoji, type PrefixFormat } from "../core/naming";
 import {
   effectivePrefixFormat,
@@ -148,7 +148,7 @@ function UseMyLocation({ onError }: { onError: (text: string) => void }) {
       (pos) => {
         if (!current()) return;
         setBusy(false);
-        setLocation({ lat: pos.coords.latitude, lon: pos.coords.longitude });
+        setLocation({ lat: roundCoord(pos.coords.latitude), lon: roundCoord(pos.coords.longitude) });
       },
       (err) => {
         if (!current()) return;
@@ -167,7 +167,7 @@ function UseMyLocation({ onError }: { onError: (text: string) => void }) {
 
 /** Typed coordinate text as a number: a comma counts as the decimal point; empty or junk is NaN. */
 const parseCoord = (s: string) => (s.trim() ? Number(s.trim().replace(",", ".")) : NaN);
-const formatCoord = (n: number) => String(Math.round(n * 1e6) / 1e6);
+const formatCoord = (n: number) => String(roundCoord(n));
 
 /** Latitude / longitude inputs and Clear (old position fields); a valid pair goes through setLocation. */
 function CoordinateFields() {

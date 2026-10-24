@@ -28,6 +28,11 @@ export type MunicipalityFeature = {
 
 /** Max distance (km) for neighbouring municipalities / province hints. */
 export const NEIGHBOR_RADIUS_KM = 25;
+
+/** A picked coordinate to 6 decimals (about 0.1 m), as the old page kept them. */
+export function roundCoord(n: number): number {
+  return Math.round(n * 1e6) / 1e6;
+}
 /** Max municipality rows in the policy scope. */
 export const NEIGHBOR_SCOPE_MAX_CITIES = 10;
 

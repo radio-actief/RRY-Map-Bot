@@ -12,6 +12,11 @@ describe("parseVersion", () => {
     const b = parseVersion("1.15");
     expect([b?.major, b?.minor, b?.patch]).toEqual([1, 15, 0]);
   });
+  it("prefers a v-prefixed version over other numbers (fork strings)", () => {
+    const v = parseVersion("MeshCore fork 2026.1 (Build: 3 Oct 2026) v1.15");
+    expect(v).toMatchObject({ major: 1, minor: 15, patch: 0, text: "v1.15" });
+    expect(supportsRegionDef(v)).toBe(false);
+  });
   it("returns null when no version can be found", () => {
     expect(parseVersion("garbage")).toBeNull();
     expect(parseVersion("")).toBeNull();

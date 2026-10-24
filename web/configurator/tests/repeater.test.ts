@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import read from "./fixtures/read-ronse.json";
 import { FakePort } from "./fakes/fake-port";
-import { SerialLink } from "../src/device/serial";
+import { SerialLink, isErrorReply } from "../src/device/serial";
 import { READ_COMMANDS, apply, checkFirmware, readAll, run } from "../src/device/repeater";
 
-const FAST = { interCommandDelayMs: 0, bootDrainMs: 0, disconnectSettleMs: 0 };
+const FAST = { interCommandDelayMs: 0, bootDrainMs: 0, disconnectSettleMs: 0, replyTimeoutMs: 40 };
 
 async function linkTo(replies: Record<string, string>, disconnectAfter?: number) {
   const port = new FakePort(replies, { disconnectAfter });
@@ -76,6 +76,37 @@ describe("apply", () => {
   });
 });
 
+describe("after a timeout", () => {
+  it("the next replies are not stolen, and apply stops on the Err", async () => {
+    const { link } = await linkTo({ silent: "", "get a": "A", "set b 1": "Err - bad value", "set c 1": "OK" });
+    expect(await link.command("silent")).toBe("");
+    expect(await link.command("get a")).toBe("A");
+    expect(await link.command("set b 1")).toBe("Err - bad value");
+    const r = await apply(link, ["silent", "set b 1", "set c 1"], () => {});
+    expect(r).toMatchObject({ ok: false, failedAt: 2, error: "Err - bad value", remaining: ["set c 1"] });
+  });
+
+  it("an unknown key or command fails apply and lands in readAll's missing", async () => {
+    const { "get tx": _tx, ...withoutTx } = read;
+    const { link } = await linkTo(withoutTx);
+    expect(await link.command("get nope")).toBe("??: nope");
+    expect(await link.command("set nope 1")).toBe("unknown config: nope");
+    expect(await link.command("bogus")).toBe("Unknown command");
+    expect(["??: x", "unknown config: x", "Unknown command"].every(isErrorReply)).toBe(true);
+    expect((await readAll(link)).missing).toEqual(["get tx"]);
+    expect(await apply(link, ["set nope 1"], () => {})).toMatchObject({ ok: false, failedAt: 1 });
+  });
+
+  it("close wakes a pending command at once", async () => {
+    const { link } = await linkTo({ silent: "" });
+    const p = link.command("silent", 5000);
+    const rejected = expect(p).rejects.toThrow();
+    await new Promise((r) => setTimeout(r, 5));
+    await link.close();
+    await rejected;
+  });
+});
+
 describe("run and checkFirmware", () => {
   it("run returns the reply", async () => {
     const { link } = await linkTo({ clock: "14:05" });
@@ -90,5 +121,5 @@ describe("run and checkFirmware", () => {
     const { link } = await linkTo({ ver });
     const r = await checkFirmware(link);
     expect(r).toEqual({ state, version });
-  }, 10000);
+  });
 });

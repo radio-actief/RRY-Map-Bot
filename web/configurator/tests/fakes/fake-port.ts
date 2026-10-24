@@ -1,9 +1,17 @@
 import type { PortLike } from "../../src/device/serial";
 
+function unknownReply(line: string): string {
+  const [verb, key] = line.split(/\s+/);
+  if (verb === "get" && key) return `??: ${key}`;
+  if (verb === "set" && key) return `unknown config: ${key}`;
+  return "Unknown command";
+}
+
 /**
  * A fake MeshCore console: echoes each CR-ended line, then answers "  -> <reply>" as the real
  * firmware does. `disconnectAfter: n` drops the USB link during the n-th command (it is lost
- * unanswered; the first n-1 are answered). Unknown commands get an "Err" reply.
+ * unanswered; the first n-1 are answered). Unknown input gets the firmware's own texts; an empty
+ * reply sends no "->" line, so the caller times out.
  */
 export class FakePort implements PortLike {
   readable: ReadableStream<Uint8Array> | null = null;
@@ -51,8 +59,10 @@ export class FakePort implements PortLike {
       this.pending = this.pending.slice(at + 1);
       this.received.push(line);
       if (this.opts.disconnectAfter === this.received.length) return this.drop();
-      const reply = Object.prototype.hasOwnProperty.call(this.replies, line) ? this.replies[line] : "Err - unknown command";
-      this.emit(`${line}\r\n  -> ${reply}\r\n`);
+      const known = Object.prototype.hasOwnProperty.call(this.replies, line);
+      const reply = known ? this.replies[line] : unknownReply(line);
+      // the firmware prints nothing at all for an empty reply
+      this.emit(`${line}\r\n` + (reply === "" ? "" : `  -> ${reply}\r\n`));
     }
   }
 

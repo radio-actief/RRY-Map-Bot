@@ -18,7 +18,13 @@ const INTER_COMMAND_DELAY_MS = 150;
 const BOOT_DRAIN_MS = 500;
 const DISCONNECT_SETTLE_MS = 250;
 
-export type LinkTiming = { interCommandDelayMs: number; bootDrainMs: number; disconnectSettleMs: number };
+export type LinkTiming = {
+  interCommandDelayMs: number;
+  bootDrainMs: number;
+  disconnectSettleMs: number;
+  /** Replaces the per-command reply timeouts (tests use a short one). */
+  replyTimeoutMs?: number;
+};
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
@@ -28,9 +34,9 @@ export function expectsDeviceDisconnect(line: string): boolean {
   return ["reboot", "erase", "start ota", "poweroff", "shutdown", "clkreboot"].includes(cmd);
 }
 
-/** The firmware answers a failed command with "Err ..." / "Error ...". */
+/** A failed command: "Err ..." / "Error ...", or the firmware's "Unknown command", "unknown config: <key>", "??: <key>". */
 export function isErrorReply(reply: string): boolean {
-  return /^Err\b/i.test(reply) || /^Error/i.test(reply);
+  return /^Err\b/i.test(reply) || /^Error/i.test(reply) || /^Unknown command/i.test(reply) || /^unknown config:/i.test(reply) || /^\?\?:/.test(reply);
 }
 
 export function commandTimeout(line: string): number {
@@ -56,7 +62,7 @@ export class SerialLink {
   private buffer = "";
   private queue: Promise<unknown> = Promise.resolve();
   private listeners: Array<() => void> = [];
-  private wake: Array<() => void> = [];
+  private waiter: (() => void) | null = null;
   private lost = false;
   private opened = false;
   private readonly onPortDisconnect = () => void this.connectionLost();
@@ -94,6 +100,7 @@ export class SerialLink {
   async close(): Promise<void> {
     this.opened = false;
     this.port.removeEventListener?.("disconnect", this.onPortDisconnect);
+    this.notify();
     await this.teardown();
   }
 
@@ -112,13 +119,14 @@ export class SerialLink {
       throw new Error(`Line too long (${line.length} > ${MAX_LINE_LEN}): ${line.slice(0, 48)}…`);
     }
     const leaving = expectsDeviceDisconnect(line);
+    this.buffer = "";
     await this.write(line + "\r");
     if (leaving) {
       await sleep(this.timing.disconnectSettleMs);
       await this.connectionLost();
       return "";
     }
-    const reply = await this.waitForReply(timeoutMs ?? commandTimeout(line));
+    const reply = await this.waitForReply(timeoutMs || this.timing.replyTimeoutMs || commandTimeout(line));
     if (!this.connected) throw new Error("Serial connection lost while waiting for reply.");
     await sleep(this.timing.interCommandDelayMs);
     return reply;
@@ -148,28 +156,28 @@ export class SerialLink {
     return m[1].trim();
   }
 
+  /** Resolves with the reply, or "" on timeout or when the link is lost. One waiter at a time. */
   private waitForReply(timeoutMs: number): Promise<string> {
     return new Promise((resolve) => {
-      const deadline = Date.now() + timeoutMs;
       let timer: ReturnType<typeof setTimeout> | undefined;
-      const check = () => {
+      const finish = (reply: string) => {
         if (timer) clearTimeout(timer);
-        if (!this.connected) return resolve("");
-        const reply = this.extractReply();
-        if (reply !== null) return resolve(reply);
-        const left = deadline - Date.now();
-        if (left <= 0) return resolve("");
-        this.wake.push(check);
-        timer = setTimeout(check, left);
+        if (this.waiter === check) this.waiter = null;
+        resolve(reply);
       };
+      const check = () => {
+        if (!this.connected) return finish("");
+        const reply = this.extractReply();
+        if (reply !== null) return finish(reply);
+      };
+      this.waiter = check;
+      timer = setTimeout(() => finish(this.extractReply() ?? ""), timeoutMs);
       check();
     });
   }
 
   private notify(): void {
-    const w = this.wake;
-    this.wake = [];
-    w.forEach((f) => f());
+    this.waiter?.();
   }
 
   private async readLoop(): Promise<void> {

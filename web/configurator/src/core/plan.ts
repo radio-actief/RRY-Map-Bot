@@ -91,6 +91,13 @@ export function defaultPlan(): Plan {
   };
 }
 
+/** What the app starts with: the old defaults, on the Suburban timing. */
+export function newPlan(): Plan {
+  const plan = defaultPlan();
+  Object.assign(plan.settings, { txdelay: 0.8, directTxdelay: 0.4, rxdelay: 3 });
+  return plan;
+}
+
 // ---------------------------------------------------------------------------
 // Derived values shared by the script builder and the summary
 

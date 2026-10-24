@@ -35,10 +35,9 @@ export function PasswordField() {
           />
           <button
             type="button"
-            class="icon eye"
+            class={`icon eye${shown ? " held" : ""}`}
             aria-label={t("send.showPassword")}
             title={t("send.showPassword")}
-            aria-pressed={shown}
             onPointerDown={show}
             onPointerUp={hide}
             onPointerLeave={hide}

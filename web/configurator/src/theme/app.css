@@ -1547,7 +1547,7 @@ button.site-card {
   -webkit-touch-callout: none;
 }
 
-.icon.eye[aria-pressed="true"] {
+.icon.eye.held {
   background: var(--gold-bg);
   border-color: var(--gold);
 }

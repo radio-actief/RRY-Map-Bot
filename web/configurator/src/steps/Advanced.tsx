@@ -73,6 +73,18 @@ function Control({ def, raw, invalid }: { def: SettingDef; raw: string; invalid:
       <textarea {...common} rows={4} value={raw} placeholder={t("settings.ownerInfo.placeholder")} onInput={onInput} />
     );
   }
+  if (def.key === "guestPassword") {
+    return (
+      <input
+        {...common}
+        type="text"
+        autocomplete="off"
+        value={raw}
+        placeholder={t("settings.none")}
+        onInput={onInput}
+      />
+    );
+  }
   if (def.key === "dutycycle") {
     return (
       <select {...common} value={raw} onChange={onInput}>

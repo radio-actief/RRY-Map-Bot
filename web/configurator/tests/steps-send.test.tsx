@@ -480,9 +480,10 @@ describe("Send step: Before you send", () => {
     expect(admin().type).toBe("password");
     fireEvent.pointerDown(eye());
     expect(admin().type).toBe("text");
-    expect(eye().getAttribute("aria-pressed")).toBe("true");
+    expect(eye().classList.contains("held")).toBe(true);
     fireEvent.pointerUp(eye());
     expect(admin().type).toBe("password");
+    expect(eye().classList.contains("held")).toBe(false);
     fireEvent.pointerDown(eye());
     fireEvent.pointerLeave(eye());
     expect(admin().type).toBe("password");
@@ -492,6 +493,22 @@ describe("Send step: Before you send", () => {
     fireEvent.pointerDown(eye());
     fireEvent.blur(eye());
     expect(admin().type).toBe("password");
+  });
+
+  it("the eye is a hold button, not a toggle: no aria-pressed", () => {
+    render(<Send />);
+    expect(eye().hasAttribute("aria-pressed")).toBe(false);
+    fireEvent.pointerDown(eye());
+    expect(eye().hasAttribute("aria-pressed")).toBe(false);
+  });
+
+  it("the guest password is a plain text field with the none placeholder", () => {
+    render(<Send />);
+    const guest = screen.getByLabelText("Guest password") as HTMLInputElement;
+    expect(guest.type).toBe("text");
+    expect(guest.hasAttribute("inputmode")).toBe(false);
+    expect(guest.getAttribute("autocomplete")).toBe("off");
+    expect(guest.placeholder).toBe("none");
   });
 
   it("holds with Space or Enter and never toggles on click", () => {

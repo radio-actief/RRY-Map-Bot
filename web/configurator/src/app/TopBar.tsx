@@ -2,6 +2,9 @@ import { t } from "../i18n/t";
 import { PROVINCE_NAMES } from "../core/be-regions";
 import { parseVersion } from "../core/firmware";
 import { planName } from "../core/plan";
+import { hasWebSerial } from "../device/serial";
+import { usbLabel } from "../device/usb";
+import { connectUsb } from "../state/device";
 import { busy, store, type Theme } from "../state/store";
 
 const NEXT_THEME: Record<Theme, Theme> = { system: "light", light: "dark", dark: "system" };
@@ -14,16 +17,47 @@ function anchorPlace(): string {
   return t("anchor.country");
 }
 
+/** Connected: the repeater's name once read, the USB device and the firmware version. */
 function connectionLabel(): { text: string; on: boolean } {
-  const { status, firmware } = store.device.value;
+  const { status, firmware, usb } = store.device.value;
   if (status === "connecting") return { text: t("top.connecting"), on: false };
   if (status !== "connected") return { text: t("top.notConnected"), on: false };
   const v = parseVersion(firmware);
-  return { text: v ? t("top.usb", { version: v.text.replace(/^v/i, "") }) : t("top.usbNoVersion"), on: true };
+  const version = v ? t("top.version", { version: v.text.replace(/^v/i, "") }) : null;
+  const parts = [store.snapshot.value?.name, usbLabel(usb) ?? t("top.usbNoVersion"), version];
+  return { text: parts.filter(Boolean).join(" · "), on: true };
+}
+
+function ConnectionChip() {
+  const conn = connectionLabel();
+  const content = (
+    <>
+      <span class={`dot${conn.on ? "" : " off"}`} />
+      <span class="chip-text">{conn.text}</span>
+    </>
+  );
+  if (store.device.value.status === "none" && hasWebSerial()) {
+    return (
+      <button
+        type="button"
+        class="chip conn trunc action"
+        aria-label={t("top.connect", { status: conn.text })}
+        title={t("top.connect", { status: conn.text })}
+        disabled={busy.value}
+        onClick={() => void connectUsb()}
+      >
+        {content}
+      </button>
+    );
+  }
+  return (
+    <span class="chip conn trunc" title={conn.text}>
+      {content}
+    </span>
+  );
 }
 
 export function TopBar() {
-  const conn = connectionLabel();
   const step = store.step.value;
   const theme = store.theme.value;
   const place = anchorPlace();
@@ -35,10 +69,7 @@ export function TopBar() {
         <b>{t("app.nameGold")}</b>
         {t("app.nameRest")}
       </span>
-      <span class="chip trunc">
-        <span class={`dot${conn.on ? "" : " off"}`} />
-        <span class="chip-text">{conn.text}</span>
-      </span>
+      <ConnectionChip />
       {step >= 4 && chip ? (
         <button
           type="button"

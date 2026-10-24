@@ -6,9 +6,9 @@ import { Notice, type NoticeKind } from "../app/Notice";
 import { buildScript, commandLines, scriptText, type ScriptGroup } from "../core/cli";
 import { REGION_DEF_MIN_TEXT } from "../core/firmware";
 import { planName, summarize, type Change } from "../core/plan";
-import { MAX_LINE_LEN } from "../device/serial";
+import { hasWebSerial, MAX_LINE_LEN } from "../device/serial";
 import { t } from "../i18n/t";
-import { answerReboot, applyPlan, cancelApply } from "../state/device";
+import { answerReboot, applyPlan, cancelApply, connectUsb } from "../state/device";
 import { busy, canApply, prefs, store, type ApplyState } from "../state/store";
 
 export const INCLUDE_DEFAULTS_PREF = "configurator.includeDefaults";
@@ -145,6 +145,7 @@ export function Review() {
   const locked = busy.value;
   const name = planName(plan);
   const say = (kind: NoticeKind, msg: string) => setFlash({ kind, text: msg });
+  const status = store.device.value.status;
 
   return (
     <div class="panel-body step-review">
@@ -223,6 +224,16 @@ export function Review() {
             <button type="button" class="btn" disabled={locked} onClick={() => (store.step.value = 4)}>
               {t("step.back")}
             </button>
+            {status !== "connected" && hasWebSerial() ? (
+              <button
+                type="button"
+                class="btn primary"
+                disabled={status === "connecting"}
+                onClick={() => void connectUsb()}
+              >
+                {status === "connecting" ? t("connect.connecting") : t("connect.button")}
+              </button>
+            ) : null}
             <button
               type="button"
               class="btn primary"

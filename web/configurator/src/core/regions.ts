@@ -24,21 +24,29 @@ export function anchorFromChoice(choice: LocationChoice): Anchor {
 
 /**
  * One Allow/Deny row. Home rows (`home: true`) are grouped by level: `country` (be), `province`
- * (the optional gewest and the province) and `municipality`. Other groups: `neighbour`
- * (neighbouring municipalities, provinces and countries), `country` (the wider `eu` row) and
- * `device` (codes read from the repeater that no other row lists).
+ * (the optional gewest and the province) and `municipality`. Other groups: the neighbouring
+ * municipalities, provinces, regions (gewesten) and countries, `country` (the wider `eu` row)
+ * and `device` (codes read from the repeater that no other row lists).
  */
 export type RegionRow = {
   code: string;
   labelKey: string;
   label: string;
-  group: "country" | "province" | "municipality" | "neighbour" | "device";
+  group:
+    | "country"
+    | "province"
+    | "municipality"
+    | "neighbourMunicipality"
+    | "neighbourProvince"
+    | "neighbourRegion"
+    | "neighbourCountry"
+    | "device";
   allow: boolean;
   deny: boolean;
   home?: boolean;
   /**
    * Neighbour gating: a neighbour tier is locked (and kept clear) until its home row
-   * (municipality, province or be) has Allow or Deny.
+   * (municipality, province or be) has Allow or Deny. Neighbouring regions open with the province.
    */
   disabled?: { allow?: boolean; deny?: boolean };
 };
@@ -152,6 +160,18 @@ function neighborProvinces(neighbors: { place: Place }[], homeProvinceCode: stri
   return adjacent.slice().sort();
 }
 
+/** The gewesten across the home province's land borders, other than the home province's own. */
+function neighborGewesten(homeProvinceCode: string | null): string[] {
+  if (!homeProvinceCode || !has(PROVINCE_ADJACENCY, homeProvinceCode)) return [];
+  const own = GEWEST_OF_PROVINCE[homeProvinceCode];
+  const out = new Set<string>();
+  for (const p of PROVINCE_ADJACENCY[homeProvinceCode]) {
+    const g = GEWEST_OF_PROVINCE[p];
+    if (g && g !== own) out.add(g);
+  }
+  return sortCodesForCli(out);
+}
+
 function homeProvinceOf(anchor: Anchor): string | null {
   if (anchor.mode === "province") return anchor.province_code;
   return anchor.place ? anchor.place.province_code : null;
@@ -208,15 +228,18 @@ export function policyFor(anchor: Anchor, places: Place[], deviceCodes: string[]
       row(
         place.city_code,
         t("region.label.neighbourKm", { name: place.plaats, km: Math.round(km), code: place.city_code }),
-        "neighbour",
+        "neighbourMunicipality",
         "region.kind.neighbourMunicipality",
       ),
     ),
     ...neighborProvinces(neighborsRadius, homeProvinceOf(anchor)).map((pc) =>
-      row(pc, named(PROVINCE_NAMES[pc] || pc, pc), "neighbour", "region.kind.neighbourProvince"),
+      row(pc, named(PROVINCE_NAMES[pc] || pc, pc), "neighbourProvince", "region.kind.neighbourProvince"),
+    ),
+    ...neighborGewesten(homeProvinceOf(anchor)).map((g) =>
+      row(g, named(GEWEST_NAMES[g] || g, g), "neighbourRegion", "region.kind.neighbourRegion"),
     ),
     ...NEIGHBOR_COUNTRY_CODES.map((c) =>
-      row(c, named(t(COUNTRY_NAMES[c]), c), "neighbour", "region.kind.neighbourCountry"),
+      row(c, named(t(COUNTRY_NAMES[c]), c), "neighbourCountry", "region.kind.neighbourCountry"),
     ),
     row("eu", named(t("region.name.eu"), "eu"), "country", "region.kind.wider"),
   ];
@@ -229,11 +252,13 @@ export function policyFor(anchor: Anchor, places: Place[], deviceCodes: string[]
 
 type Tier = "municipality" | "province" | "country";
 
-function neighbourTier(code: string): Tier {
-  if (isProvince(code)) return "province";
-  if (NEIGHBOR_COUNTRY_CODES.includes(code)) return "country";
-  return "municipality";
-}
+/** Which home row opens a neighbour group; null for the rows that are not neighbours. */
+const NEIGHBOUR_TIER: Partial<Record<RegionRow["group"], Tier>> = {
+  neighbourMunicipality: "municipality",
+  neighbourProvince: "province",
+  neighbourRegion: "province",
+  neighbourCountry: "country",
+};
 
 const isSet = (r: RegionRow) => r.allow || r.deny;
 
@@ -246,10 +271,11 @@ function gate(rows: RegionRow[]): RegionRow[] {
     municipality: home.some((r) => r.group === "municipality" && isSet(r)),
   };
   return rows.map((r) => {
-    if (r.group !== "neighbour") return r;
+    const tier = NEIGHBOUR_TIER[r.group];
+    if (!tier) return r;
     const rest = { ...r };
     delete rest.disabled;
-    return open[neighbourTier(r.code)]
+    return open[tier]
       ? rest
       : { ...rest, allow: false, deny: false, disabled: { allow: true, deny: true } };
   });

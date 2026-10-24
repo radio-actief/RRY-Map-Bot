@@ -32,7 +32,7 @@ import type { Place } from "../src/core/search";
 import { SerialLink } from "../src/device/serial";
 import { Panel } from "../src/app/Panel";
 import { Review } from "../src/steps/Review";
-import { connectUsb, readDevice } from "../src/state/device";
+import { connectUsb, disconnectUsb, readDevice } from "../src/state/device";
 import { chooseLocation, prefs, resetPlan, store } from "../src/state/store";
 import { FakePort } from "./fakes/fake-port";
 import { resetFake } from "./fakes/leaflet";
@@ -153,6 +153,24 @@ describe("Review step: script", () => {
     expect(anchor.download).toBe("bemesh-repeater-commands.txt");
     await waitFor(() => expect(revokeObjectURL).toHaveBeenCalledWith("blob:x"));
     click.mockRestore();
+  });
+
+  it("offers Connect over USB when no repeater is connected, and keeps the plan", async () => {
+    const port = new FakePort({ ver: VER });
+    const requestPort = vi.fn(async () => port);
+    Object.defineProperty(navigator, "serial", { value: { requestPort }, configurable: true });
+    try {
+      render(<Review />);
+      fireEvent.click(screen.getByRole("button", { name: "Connect over USB" }));
+      await waitFor(() => expect(store.device.value.status).toBe("connected"), { timeout: 3000 });
+      expect(requestPort).toHaveBeenCalledTimes(1);
+      expect(store.step.value).toBe(5);
+      expect(store.plan.value.nameSuffix).toBe("Kluisberg");
+      expect(screen.queryByRole("button", { name: "Connect over USB" })).toBeNull();
+    } finally {
+      delete (navigator as unknown as Record<string, unknown>).serial;
+      await disconnectUsb();
+    }
   });
 
   it("a failed copy shows a notice", async () => {

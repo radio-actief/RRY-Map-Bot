@@ -79,6 +79,14 @@ describe("Connect step", () => {
     expect(screen.getByText("regions ✓")).toBeTruthy();
   });
 
+  it("connecting keeps the port's USB vendor and product id", async () => {
+    const port = new FakePort(read, { info: { usbVendorId: 0x239a, usbProductId: 0x8029 } });
+    await connectUsb({ requestPort: async () => port, timing: FAST });
+    expect(store.device.value.usb).toEqual({ usbVendorId: 0x239a, usbProductId: 0x8029 });
+    await disconnectUsb();
+    expect(store.device.value.usb).toBeUndefined();
+  });
+
   it("unplugging resets the device and shows a notice", async () => {
     const port = new FakePort(read, { disconnectAfter: 2 });
     await connectUsb({ requestPort: async () => port, timing: FAST });

@@ -21,6 +21,8 @@ export type FakePortOptions = {
   delayMs?: Record<string, number>;
   /** The exact output for a command, instead of its echo and "->" reply. */
   raw?: Record<string, string>;
+  /** What getInfo() reports: the USB vendor and product id. */
+  info?: { usbVendorId?: number; usbProductId?: number };
 };
 
 /**
@@ -48,6 +50,10 @@ export class FakePort implements PortLike {
       write: (chunk) => this.onWrite(new TextDecoder().decode(chunk)),
     });
     this.emit("\r\nMeshCore repeater ready\r\n");
+  }
+
+  getInfo(): { usbVendorId?: number; usbProductId?: number } {
+    return this.opts.info ?? {};
   }
 
   async close(): Promise<void> {

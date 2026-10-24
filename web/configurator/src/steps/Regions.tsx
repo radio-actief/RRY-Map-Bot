@@ -18,14 +18,23 @@ import { t } from "../i18n/t";
 import { store } from "../state/store";
 
 const WIKI_URL = "https://meshwiki.radio-actief.be/index.php/MeshCore/RegioScopes";
-const GROUPS: RegionRow["group"][] = ["country", "province", "municipality", "neighbour", "device"];
+const GROUPS: RegionRow["group"][] = [
+  "country",
+  "province",
+  "municipality",
+  "neighbourMunicipality",
+  "neighbourProvince",
+  "neighbourRegion",
+  "neighbourCountry",
+  "device",
+];
 const BULKS = ["recommended", "allowAll", "denyAll", "clear"] as const;
 const STATES = ["allow", "none", "deny"] as const;
 
 /** Why a neighbour row is locked: the home row whose state opens it. */
 function lockedReason(row: RegionRow): string {
-  if (row.labelKey === "region.kind.neighbourProvince") return t("regions.locked.province");
-  if (row.labelKey === "region.kind.neighbourCountry") return t("regions.locked.country");
+  if (row.group === "neighbourProvince" || row.group === "neighbourRegion") return t("regions.locked.province");
+  if (row.group === "neighbourCountry") return t("regions.locked.country");
   return t("regions.locked.municipality");
 }
 

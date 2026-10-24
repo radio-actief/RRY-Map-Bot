@@ -4,6 +4,8 @@
  * and answers on a line starting "->" ended with CRLF.
  */
 
+import type { UsbInfo } from "./usb";
+
 export interface PortLike {
   open(o: { baudRate: number }): Promise<void>;
   readable: ReadableStream<Uint8Array> | null;
@@ -11,6 +13,7 @@ export interface PortLike {
   close(): Promise<void>;
   addEventListener?(t: "disconnect", f: () => void): void;
   removeEventListener?(t: "disconnect", f: () => void): void;
+  getInfo?(): UsbInfo;
 }
 
 /** The longest line sent, in UTF-8 bytes. */

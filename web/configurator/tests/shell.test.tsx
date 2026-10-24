@@ -32,6 +32,7 @@ afterEach(() => {
   visited.value = new Set([1]);
   store.device.value = { status: "none", link: null, firmware: null };
   store.drawerOpen.value = false;
+  store.snapshot.value = null;
 });
 
 describe("app shell", () => {
@@ -52,6 +53,29 @@ describe("app shell", () => {
     const chip = screen.getByRole("button", { name: /BE-RON-Kluisberg · Ronse/ });
     fireEvent.click(chip);
     expect(store.step.value).toBe(2);
+  });
+
+  it("the Not connected chip opens the USB port picker", async () => {
+    const requestPort = vi.fn(() => Promise.reject(Object.assign(new Error("closed"), { name: "NotFoundError" })));
+    vi.stubGlobal("navigator", { ...navigator, serial: { requestPort } });
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Not connected — connect over USB" }));
+    expect(requestPort).toHaveBeenCalledTimes(1);
+  });
+
+  it("the connected chip shows the repeater name, the USB device and the firmware", () => {
+    store.device.value = {
+      status: "connected",
+      link: null,
+      firmware: "v1.17.1 (Build: 01-Oct-2026)",
+      usb: { usbVendorId: 0x239a, usbProductId: 0x8029 },
+    };
+    store.snapshot.value = { name: "BE-RON-Kluisberg" } as never;
+    const { container } = render(<App />);
+    const chip = container.querySelector(".topbar .chip.conn") as HTMLElement;
+    expect(chip.textContent).toBe("BE-RON-Kluisberg · RAK4631 (239a:8029) · v1.17.1");
+    expect(chip.getAttribute("title")).toBe("BE-RON-Kluisberg · RAK4631 (239a:8029) · v1.17.1");
+    expect(screen.queryByRole("button", { name: /connect over USB/ })).toBeNull();
   });
 
   it("hides the place chip on steps 1 to 3", () => {

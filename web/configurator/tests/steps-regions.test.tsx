@@ -42,6 +42,26 @@ describe("Regions step", () => {
     expect(within(rowFor("nl")).getByText("Netherlands (nl)")).toBeTruthy();
   });
 
+  it("lists neighbours in three groups: municipalities, provinces, countries", () => {
+    chooseLocation({ type: "city", label: "Ronse", place: RONSE } as never);
+    render(<Regions />);
+    const headings = [...document.querySelectorAll(".region-group h3")].map((h) => h.textContent);
+    expect(headings).toEqual([
+      "Country and wider",
+      "Region and province",
+      "Municipality",
+      "Neighbouring municipalities",
+      "Neighbouring provinces",
+      "Neighbouring regions",
+      "Neighbouring countries",
+    ]);
+    const groupOf = (code: string) => rowFor(code).closest(".region-group")!.querySelector("h3")!.textContent;
+    expect(groupOf("bemak")).toBe("Neighbouring municipalities");
+    expect(groupOf("be-wht")).toBe("Neighbouring provinces");
+    expect(groupOf("be-wal")).toBe("Neighbouring regions");
+    expect(groupOf("nl")).toBe("Neighbouring countries");
+  });
+
   it("denying a neighbour moves it into the denied list", () => {
     chooseLocation({ type: "city", label: "Ronse", place: RONSE } as never);
     render(<Regions />);

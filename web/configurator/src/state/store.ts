@@ -6,6 +6,7 @@ import { parseVersion, supportsRegionDef } from "../core/firmware";
 import { defaultPlan, planErrors, type DeviceSnapshot, type Plan } from "../core/plan";
 import { anchorCenter, anchorFromChoice, policyFor, type Anchor, type DeviceRegions } from "../core/regions";
 import type { SerialLink } from "../device/serial";
+import type { UsbInfo } from "../device/usb";
 import type { GeoJsonCollection } from "../core/data";
 import type { NoticeKind } from "../app/Notice";
 
@@ -42,6 +43,8 @@ export type DeviceState = {
   status: "none" | "connecting" | "connected";
   link: SerialLink | null;
   firmware: string | null;
+  /** The USB vendor and product id of the open port. */
+  usb?: UsbInfo | null;
 };
 
 export type AppData = {

@@ -151,7 +151,7 @@ export async function connectUsb({ requestPort = requestUsbPort, timing }: Conne
     store.notice.value = { kind: "error", text: t("connect.unplugged") };
     return;
   }
-  store.device.value = { status: "connected", link, firmware: null };
+  store.device.value = { status: "connected", link, firmware: null, usb: port.getInfo?.() ?? null };
   const fw = await checkFirmware(link);
   if (store.device.peek().link === link) store.device.value = { ...store.device.peek(), firmware: fw.version };
 }

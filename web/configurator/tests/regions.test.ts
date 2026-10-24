@@ -86,7 +86,9 @@ describe("parity with the old page", () => {
       const anchor = searchAnchor(fields["city-search"] as string);
 
       it("renders the same rows in the same order", () => {
-        expect(policyFor(anchor, PLACES).rows.map((r) => rowId(r.code))).toEqual(fixtureRowIds(fields));
+        // The neighbouring regions (gewesten) are new: the old page had no such rows.
+        const rows = policyFor(anchor, PLACES).rows.filter((r) => r.group !== "neighbourRegion");
+        expect(rows.map((r) => rowId(r.code))).toEqual(fixtureRowIds(fields));
       });
 
       it("emits the same region lines", () => {
@@ -128,7 +130,9 @@ describe("policyFor", () => {
   it("gates neighbour municipalities on the home municipality row", () => {
     const rows = policyFor(ronse, PLACES).rows;
     const mak = rows.find((r) => r.code === "bemak")!;
-    expect(mak.group).toBe("neighbour");
+    expect(mak.group).toBe("neighbourMunicipality");
+    expect(rows.find((r) => r.code === "be-wht")!.group).toBe("neighbourProvince");
+    expect(rows.find((r) => r.code === "nl")!.group).toBe("neighbourCountry");
     expect(mak.label).toMatch(/^Maarkedal \(~\d+ km\) \(bemak\)$/);
     expect(mak.disabled).toEqual({ allow: true, deny: true });
     // Province and country neighbours are open because be and be-vov are allowed.
@@ -137,12 +141,38 @@ describe("policyFor", () => {
     expect(rows.find((r) => r.code === "eu")!.group).toBe("country");
   });
 
+  it("lists the neighbouring regions (gewesten) across the home province's land borders", () => {
+    const rows = policyFor(ronse, PLACES).rows;
+    const regions = rows.filter((r) => r.group === "neighbourRegion");
+    // Oost-Vlaanderen borders Henegouwen, so the Walloon Region; never the home region itself.
+    expect(regions.map((r) => [r.code, r.label, r.labelKey])).toEqual([
+      ["be-wal", "Waals Gewest (be-wal)", "region.kind.neighbourRegion"],
+    ]);
+    // Opened by the home province, like the neighbouring provinces.
+    expect(regions[0].disabled).toBeUndefined();
+    const closed = setRowState(policyFor(ronse, PLACES), "be-vov", "none").rows.find((r) => r.code === "be-wal")!;
+    expect(closed.disabled).toEqual({ allow: true, deny: true });
+    // Antwerp borders Flemish provinces only.
+    const antwerp = policyFor({ mode: "province", province_code: "be-van", place: null }, PLACES).rows;
+    expect(antwerp.filter((r) => r.group === "neighbourRegion")).toEqual([]);
+    // Brussels has no home region row: both regions around it are neighbours.
+    const brussels = policyFor({ mode: "province", province_code: "be-bru", place: null }, PLACES).rows;
+    expect(brussels.filter((r) => r.group === "neighbourRegion").map((r) => r.code)).toEqual(["be-vlg", "be-wal"]);
+  });
+
+  it("nests an allowed neighbouring region's provinces under it in region def", () => {
+    let p = policyFor(ronse, PLACES);
+    p = setRowState(setRowState(p, "be-wal", "allow"), "be-wht", "allow");
+    const def = regionCommandLines(ronse, p, PLACES).filter((l) => l.startsWith("region def "));
+    expect(def.join("|")).toMatch(/\bbe be-wal be-wht\b/);
+  });
+
   it("builds a province anchor from the province centroid", () => {
     const anchor: Anchor = { mode: "province", province_code: "be-vov", place: null };
     const p = policyFor(anchor, PLACES);
     expect(p.rows.filter((r) => r.home).map((r) => r.code)).toEqual(["be", "be-vlg", "be-vov"]);
     // Municipality neighbours exist but can never be set without a home municipality.
-    const muni = p.rows.filter((r) => r.group === "neighbour" && /^be[a-z]{3}$/.test(r.code));
+    const muni = p.rows.filter((r) => r.group === "neighbourMunicipality");
     expect(muni.length).toBe(10);
     expect(muni.every((r) => r.disabled?.allow && r.disabled?.deny)).toBe(true);
     expect(regionCommandLines(anchor, p, PLACES)).toEqual([
@@ -411,7 +441,7 @@ describe("policyFromDevice", () => {
 // Computed with the previous configurator page's region def/deny functions for the same policy.
 const ALLOW_ALL_RONSE = [
   "region def eu nl|eu lu|eu fr|eu de|eu be be-vlg be-vbr|be-vlg be-vov behor|be-vov beksr|be-vov bemak|be-vov beoud|be-vov beron|be-vlg be-vwv beavl",
-  "region def eu|eu be|be be-wht becle|be-wht beezs|be-wht befbq|be-wht befrs|be-wht bemdl",
+  "region def eu|eu be|be be-wal be-wht becle|be-wht beezs|be-wht befbq|be-wht befrs|be-wht bemdl",
   "region allowf *",
   "region home beron",
   "region default be",
@@ -420,7 +450,7 @@ const ALLOW_ALL_RONSE = [
 
 const DENY_ALL_RONSE = [
   "region def eu nl|eu lu|eu fr|eu de|eu be be-vlg be-vbr|be-vlg be-vov behor|be-vov beksr|be-vov bemak|be-vov beoud|be-vov beron|be-vlg be-vwv beavl",
-  "region def eu|eu be|be be-wht becle|be-wht beezs|be-wht befbq|be-wht befrs|be-wht bemdl",
+  "region def eu|eu be|be be-wal be-wht becle|be-wht beezs|be-wht befbq|be-wht befrs|be-wht bemdl",
   "region allowf *",
   "region denyf eu",
   "region denyf nl",
@@ -429,6 +459,7 @@ const DENY_ALL_RONSE = [
   "region denyf de",
   "region denyf be",
   "region denyf be-vlg",
+  "region denyf be-wal",
   "region denyf be-vbr",
   "region denyf be-vov",
   "region denyf be-vwv",

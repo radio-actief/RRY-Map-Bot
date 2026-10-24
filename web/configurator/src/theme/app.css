@@ -66,6 +66,17 @@ button {
   max-width: 100%;
 }
 
+.chip.action {
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+}
+
+.chip.action:hover:not(:disabled) {
+  border-color: var(--gold);
+}
+
 .chip-text {
   min-width: 0;
   overflow: hidden;

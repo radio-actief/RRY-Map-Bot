@@ -82,7 +82,10 @@ The stepper shows six steps plus Advanced:
 6. **Send:** part 1's Review & send, plus a "Before you send" card at the top of the left
    column with:
    - new admin password (empty keeps the current one) and guest password, as editable
-     fields;
+     fields. The admin password field has an eye button at its right edge: while it is held
+     down (mouse, touch, or Space/Enter held on the keyboard), the password shows as plain
+     text; releasing it, or the pointer leaving the button, hides it again. Its aria-label
+     is "Hold to show the password". The guest password stays plain text, as now;
    - TX power, duty cycle and the radio preset as read-only text, each with a link that
      opens Advanced.
 
@@ -109,6 +112,18 @@ pills that set them.
 - A block's "recommended" badge shows when all its settings equal what its button would set.
 - Beside the step title, "Use #BEmesh recommended settings for all" applies the four blocks
   at once. Owner info and the passwords are never touched by any of these buttons.
+
+### Resetting a block
+
+- A block's "N changes" badge counts its settings that differ from the **starting value**:
+  the repeater's value after a Read, otherwise the value the plan started with (the new-plan
+  default, or the imported backup's value). The field outline uses the same starting value,
+  so the badge and the outlined fields always agree. (In part 1 the badge counted against
+  the form defaults and the outline against the repeater, so they could disagree.)
+- Next to the badge, a ↺ button with no text sets every setting of that block back to its
+  starting value. Its aria-label and tooltip read "Undo the changes in Radio" (with the
+  block's name). It shows only while the block has changes.
+- Undoing a block clears its invalid input too (for Radio, the custom field text).
 
 ### Hop allowance
 
@@ -240,6 +255,8 @@ the old key until then).
   their place in the `region def` tree, and the region count.
 - `core/plan.ts`: the region count error and the "coordinates required" timing; the new-plan
   default timing.
+- `state/store.ts`: the plan's starting point (`startPlan`), set when a plan is created,
+  imported or read from the device, used by the badges, the outlines and a block's ↺.
 - `core/backup.ts`: free regions in v2.
 - `core/settings.ts`: the block of each setting, each block's recommended values, the Tight
   level in `FLOOD_ALLOWANCE`.
@@ -264,7 +281,9 @@ the old key until then).
   Send's "Before you send" card; no "coordinates required" on a fresh plan; no "already
   used nearby" for the repeater's own name after a key write; the four block buttons and
   the all-blocks button; the timing pills following edits; the "On repeater" tag and its ↺ button;
-  the map drawing an allowed country.
+  the map drawing an allowed country; a block's ↺ undoing only that block (with and without
+  a Read, and after an import); the badge count matching the outlined fields; the admin
+  password eye showing the text only while held.
 - **Hardware (Mac dev environment, spare repeater):** guided flow → Hilltop and one free
   region → Apply → Read back shows the Hilltop timing and the free region; an empty admin
   password keeps the current one.

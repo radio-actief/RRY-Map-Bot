@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/preact";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/preact";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("leaflet", async () => await import("./fakes/leaflet"));
@@ -526,6 +526,13 @@ describe("Send step: Before you send", () => {
     expect(links.length).toBe(3);
     fireEvent.click(links[0]);
     expect(store.step.value).toBe("advanced");
+  });
+
+  it("never tags the admin password with the repeater's value", () => {
+    store.snapshot.value = { settings: { adminPassword: "old" }, missing: [] };
+    render(<Send />);
+    fireEvent.input(admin(), { target: { value: "secret" } });
+    expect(within(admin().closest(".field") as HTMLElement).queryByText("On repeater:")).toBeNull();
   });
 
   it("says TX power is unchanged when none is set", () => {

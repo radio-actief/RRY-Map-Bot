@@ -1521,6 +1521,13 @@ button.site-card {
   min-width: 0;
 }
 
+.icon.eye {
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
 .icon.eye[aria-pressed="true"] {
   background: var(--gold-bg);
   border-color: var(--gold);

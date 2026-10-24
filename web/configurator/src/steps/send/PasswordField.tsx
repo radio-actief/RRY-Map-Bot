@@ -21,7 +21,7 @@ export function PasswordField() {
           <input
             id="set-adminPassword"
             aria-invalid={invalid || undefined}
-            type={(shown ? "text" : "password") as "password"}
+            {...(shown ? { type: "text" as const } : { type: "password" as const })}
             autocomplete="new-password"
             value={rawOf(store.plan.value, "adminPassword")}
             placeholder={t("settings.adminPassword.placeholder")}

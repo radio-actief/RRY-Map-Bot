@@ -164,6 +164,15 @@ effect(() => {
   if (!visited.peek().has(s)) visited.value = new Set([...visited.peek(), s]);
 });
 
+/** True once the user has moved on from Place (until the next default or Read): only then is a missing location called out. */
+export const placeLeft = signal(false);
+let lastStep = store.step.peek();
+effect(() => {
+  const s = store.step.value;
+  if (lastStep === "place" && s !== "place") placeLeft.value = true;
+  lastStep = s;
+});
+
 let firstThemeRun = true;
 effect(() => {
   const theme = store.theme.value;
@@ -228,7 +237,11 @@ export function resetPlan(plan: Plan): void {
   store.plan.value = plan;
   store.planBase.value = plan;
   store.startPlan.value = plan;
+  placeLeft.value = false;
 }
+
+/** Change plan fields by replacing the plan object. */
+export const editPlan = (patch: Partial<Plan>) => (store.plan.value = { ...store.plan.peek(), ...patch });
 
 /** The municipality polygons, whether loaded as a list or a FeatureCollection. */
 export const municipalities = computed<MunicipalityFeature[]>(() => {

@@ -4,7 +4,7 @@ import { checkName, hasControlChars, POWER_EMOJIS, splitNameSuffixAndEmoji, type
 import { effectivePrefixFormat, planName, planPrefix, prefixFormatsFor, type Plan } from "../core/plan";
 import { SETTINGS } from "../core/settings";
 import { t } from "../i18n/t";
-import { store } from "../state/store";
+import { editPlan, store } from "../state/store";
 import { SettingField } from "./Advanced";
 
 const PREFIX_FORMATS: PrefixFormat[] = ["city", "province", "country", "none"];
@@ -12,20 +12,18 @@ const POWER_KEYS: Record<PowerEmoji, string> = { "🌞": "solar", "⚡": "mains"
 const POWERS: PowerEmoji[] = [...POWER_EMOJIS, ""];
 const OWNER_INFO = SETTINGS.find((d) => d.key === "ownerInfo")!;
 
-const edit = (patch: Partial<Plan>) => (store.plan.value = { ...store.plan.peek(), ...patch });
-
 /** A name without its power emoji, for comparing names (case-insensitive). */
 const baseName = (name: string) => splitNameSuffixAndEmoji(name.trim()).suffix.trim().toLowerCase();
 
-/** Whether a node within 25 km already carries this name; the own repeater (after a Read) does not count. */
-function nearbyCheck(plan: Plan, nodes: MeshNode[] | undefined, failed: boolean, ownKey: string | undefined) {
+/** Whether a node within 25 km already carries this name; the own repeater (after a Read, or a key write: old and new key) does not count. */
+function nearbyCheck(plan: Plan, nodes: MeshNode[] | undefined, failed: boolean, ownKeys: (string | undefined)[]) {
   if (!plan.location || !plan.nameSuffix.trim()) return null;
   if (failed) return { kind: "warn" as const, text: t("place.nearbyUnchecked") };
   if (!nodes) return null;
   const name = baseName(planName(plan));
-  const own = ownKey?.toLowerCase();
+  const own = ownKeys.filter(Boolean).map((k) => k!.toLowerCase());
   const taken = nodesWithin(nodes, plan.location, NEIGHBOR_RADIUS_KM).find(
-    (n) => n.public_key.toLowerCase() !== own && baseName(n.adv_name) === name,
+    (n) => !own.includes(n.public_key.toLowerCase()) && baseName(n.adv_name) === name,
   );
   return taken
     ? { kind: "warn" as const, text: t("place.nearbyTaken", { name: taken.adv_name, km: NEIGHBOR_RADIUS_KM }) }
@@ -39,7 +37,7 @@ export function Name() {
   const prefix = planPrefix(plan);
   const name = checkName(planName(plan), plan.advertLoc !== "none");
   const formats = anchor ? prefixFormatsFor(anchor) : [];
-  const nearby = nearbyCheck(plan, data.nodes, data.failed.has("nodes"), store.snapshot.value?.publicKey);
+  const nearby = nearbyCheck(plan, data.nodes, data.failed.has("nodes"), [store.snapshot.value?.publicKey, store.snapshot.value?.previousPublicKey]);
 
   return (
     <div class="panel-body step-name">
@@ -49,7 +47,7 @@ export function Name() {
         <select
           value={effectivePrefixFormat(plan)}
           disabled={!anchor}
-          onChange={(e) => edit({ prefixFormat: e.currentTarget.value as PrefixFormat })}
+          onChange={(e) => editPlan({ prefixFormat: e.currentTarget.value as PrefixFormat })}
         >
           {PREFIX_FORMATS.map((f) => (
             <option key={f} value={f} disabled={!formats.includes(f)}>
@@ -66,7 +64,7 @@ export function Name() {
           placeholder={t("place.suffixPlaceholder")}
           autocomplete="off"
           value={plan.nameSuffix}
-          onInput={(e) => edit({ nameSuffix: e.currentTarget.value })}
+          onInput={(e) => editPlan({ nameSuffix: e.currentTarget.value })}
         />
       </div>
       <p class={`bytes${name.bytes > name.max ? " bad" : ""}`}>{t("place.bytes", { bytes: name.bytes, max: name.max })}</p>
@@ -84,7 +82,7 @@ export function Name() {
             key={p}
             aria-pressed={plan.power === p}
             aria-label={p ? undefined : t("power.noneLabel")}
-            onClick={() => edit({ power: p })}
+            onClick={() => editPlan({ power: p })}
           >
             {t(`power.${POWER_KEYS[p]}`)}
           </button>

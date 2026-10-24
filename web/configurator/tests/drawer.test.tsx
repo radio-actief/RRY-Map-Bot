@@ -376,6 +376,20 @@ describe("Device tools drawer: identity", () => {
     expect(port.received.filter((l) => l.startsWith("set prv.key"))).toHaveLength(1);
   });
 
+  it("a key write records the old public key as previousPublicKey", async () => {
+    vi.spyOn(nacl, "randomBytes").mockImplementation(() => fromHex(SEED));
+    await connectApp({ [`set prv.key ${MESHCORE_PRV}`]: `OK, reboot to apply! New pubkey: ${MESHCORE_PUB}` });
+    store.snapshot.value = { settings: {}, missing: [], publicKey: "aa11" };
+    render(<DeviceDrawer />);
+    fireEvent.click(button("Generate random key…"));
+    fireEvent.click(button("Generate"));
+    await screen.findByText(MESHCORE_PUB);
+    confirmReplace();
+    await screen.findByText(t("vanity.written", { key: MESHCORE_PUB }));
+    expect(store.snapshot.value?.publicKey).toBe(MESHCORE_PUB);
+    expect(store.snapshot.value?.previousPublicKey).toBe("aa11");
+  });
+
   it("generates a random key and writes it after the same confirmation", async () => {
     vi.spyOn(nacl, "randomBytes").mockImplementation(() => fromHex(SEED));
     const port = await connectApp({ [`set prv.key ${MESHCORE_PRV}`]: `OK, reboot to apply! New pubkey: ${MESHCORE_PUB}` });

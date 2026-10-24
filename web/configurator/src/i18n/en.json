@@ -81,7 +81,7 @@
   "top.version": "v{version}",
   "top.connect": "{status} — connect over USB",
   "top.usbNoVersion": "USB",
-  "top.place": "Change the place and name",
+  "top.place": "Change the place",
   "top.tools": "Device tools",
   "top.theme": "Theme: {theme}",
   "theme.system": "system",

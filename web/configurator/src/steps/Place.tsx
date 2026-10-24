@@ -3,15 +3,13 @@ import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { Notice } from "../app/Notice";
 import { PROVINCE_NAMES } from "../core/be-regions";
 import { municipalityAt, roundCoord } from "../core/geo";
-import { hasValidCoords, type AdvertLoc, type Plan } from "../core/plan";
+import { hasValidCoords, type AdvertLoc } from "../core/plan";
 import type { Anchor } from "../core/regions";
 import { locationChoices, type LocationChoice } from "../core/search";
 import { t } from "../i18n/t";
-import { chooseLocation, municipalities, setLocation, store } from "../state/store";
+import { chooseLocation, editPlan, municipalities, placeLeft, setLocation, store } from "../state/store";
 
 const ADVERT_LOCS: AdvertLoc[] = ["none", "prefs", "share"];
-
-const edit = (patch: Partial<Plan>) => (store.plan.value = { ...store.plan.peek(), ...patch });
 
 const provinceName = (code: string | null) => (code && PROVINCE_NAMES[code]) || code || "";
 
@@ -217,7 +215,7 @@ function CoordinateFields() {
         ) : null}
       </div>
       {invalid ? <p class="field-error">{t("error.coords")}</p> : null}
-      {!invalid && !location && store.plan.value.advertLoc === "prefs" ? (
+      {!invalid && placeLeft.value && !location && store.plan.value.advertLoc === "prefs" ? (
         <p class="field-error">{t("error.coordsRequired")}</p>
       ) : null}
     </>
@@ -259,7 +257,7 @@ export function Place() {
       <h3 class="field-label">{t("place.advertLoc")}</h3>
       <div class="segmented" role="group" aria-label={t("place.advertLoc")}>
         {ADVERT_LOCS.map((v) => (
-          <button type="button" key={v} aria-pressed={plan.advertLoc === v} onClick={() => edit({ advertLoc: v })}>
+          <button type="button" key={v} aria-pressed={plan.advertLoc === v} onClick={() => editPlan({ advertLoc: v })}>
             {t(`advertLoc.${v}`)}
           </button>
         ))}

@@ -392,7 +392,7 @@ export async function writeIdentity(key: VanityKey): Promise<IdentityResult | nu
   if (!r?.ok) return r;
   const devicePub = pubkeyFromSetReply(r.reply);
   const snap = store.snapshot.peek();
-  if (snap) store.snapshot.value = { ...snap, publicKey: devicePub ?? undefined, publicKeyPending: true };
+  if (snap) store.snapshot.value = { ...snap, publicKey: devicePub ?? undefined, publicKeyPending: true, previousPublicKey: snap.publicKey };
   return { ok: true, confirmed: devicePub === key.publicKey, devicePub };
 }
 

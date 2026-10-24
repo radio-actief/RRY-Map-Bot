@@ -927,22 +927,26 @@ path.map-region-denied {
   font-size: 14px;
 }
 
-.card .field {
+.card .field,
+.step-name .field {
   padding: 4px 6px;
   border: 1px solid transparent;
   border-radius: 8px;
 }
 
-.card .field.changed {
+.card .field.changed,
+.step-name .field.changed {
   border-color: var(--gold);
   background: var(--gold-bg);
 }
 
-.card .field.invalid {
+.card .field.invalid,
+.step-name .field.invalid {
   border-color: var(--bad);
 }
 
-.card .field-label {
+.card .field-label,
+.step-name .field-label {
   margin: 6px 0 2px;
 }
 

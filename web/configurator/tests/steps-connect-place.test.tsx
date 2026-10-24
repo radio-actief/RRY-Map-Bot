@@ -332,8 +332,8 @@ describe("Place step", () => {
     fireEvent.click(screen.getByRole("button", { name: "Clear" }));
     expect(canApply.value.ok).toBe(false);
     expect(canApply.value.reasons).toEqual([{ key: "error.coordsRequired" }]);
+    act(() => void (store.step.value = "send"));
     expect(screen.getByText(/with Fixed position the advert sends the stored coordinates/)).toBeTruthy();
-    store.step.value = "send";
     expect(stepStatus("place")).toBe("attention");
     act(() => void (store.plan.value = { ...store.plan.value, advertLoc: "none" }));
     expect(canApply.value.ok).toBe(true);
@@ -438,6 +438,17 @@ describe("Place step", () => {
   });
 });
 
+describe("Place step: coordinates required", () => {
+  it("is not shown on a fresh plan, but is after going to Name and back", () => {
+    store.plan.value = { ...store.plan.value, advertLoc: "prefs" };
+    render(<Place />);
+    expect(screen.queryByText(/with Fixed position the advert sends the stored coordinates/)).toBeNull();
+    act(() => void (store.step.value = "name"));
+    act(() => void (store.step.value = "place"));
+    expect(screen.getByText(/with Fixed position the advert sends the stored coordinates/)).toBeTruthy();
+  });
+});
+
 describe("Name step", () => {
   beforeEach(() => {
     store.step.value = "name";
@@ -477,6 +488,18 @@ describe("Name step", () => {
     render(<Name />);
     expect(screen.queryByText(/already used nearby/)).toBeNull();
     expect(screen.getByText(/No node within 25 km/)).toBeTruthy();
+  });
+
+  it("ignores both the old and the new key after a key write", () => {
+    store.snapshot.value = { settings: {}, missing: [], publicKey: "NEWKEY", previousPublicKey: "OLDKEY" };
+    act(() => setLocation({ lat: 50.745, lon: 3.6 }));
+    store.plan.value = { ...store.plan.value, nameSuffix: "Kluisberg", power: "🌞" };
+    for (const key of ["oldkey", "newkey"]) {
+      store.data.value = { ...store.data.value, nodes: [{ ...node("BE-RON-Kluisberg", 50.76, 3.61), public_key: key }] };
+      render(<Name />);
+      expect(screen.queryByText(/already used nearby/)).toBeNull();
+      cleanup();
+    }
   });
 
   it("says when nearby names could not be checked", () => {

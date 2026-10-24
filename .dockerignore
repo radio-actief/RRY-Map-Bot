@@ -46,8 +46,7 @@ logs/
 *.log
 
 # Node modules (if any)
-node_modules/
-package-lock.json
+**/node_modules/
 
 # OS
 .DS_Store
@@ -58,3 +57,7 @@ docker-compose.yml
 Dockerfile
 .dockerignore
 
+
+# Build output and macOS resource forks
+._*
+dist/

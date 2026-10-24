@@ -48,6 +48,9 @@ from backend.discord_notifications import (
 # Get project root directory (parent of backend directory)
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
 
+# Built configurator app (Vite output, produced by `npm run build`)
+CONFIGURATOR_DIST = os.path.join(PROJECT_ROOT, 'dist', 'configurator')
+
 # Create Flask application with static file serving
 app = Flask(__name__, 
             static_folder=PROJECT_ROOT,
@@ -1103,7 +1106,9 @@ def not_found(error):
     
     # For missing static files (like fonts, favicon), return proper 404
     # Browsers will handle missing resources gracefully
-    if request.path.startswith('/lib/') or request.path == '/favicon.ico':
+    if (request.path.startswith('/lib/')
+            or request.path.startswith('/configurator/')
+            or request.path == '/favicon.ico'):
         return NotFound()
     
     # For non-API routes (SPA routing), serve index.html
@@ -1401,8 +1406,14 @@ def stats_page():
 
 @app.route('/configurator')
 def configurator_page():
-    """Serve the repeater configurator page."""
-    return send_from_directory(PROJECT_ROOT, 'configurator.html')
+    """Serve the built configurator app."""
+    return send_from_directory(CONFIGURATOR_DIST, 'index.html')
+
+
+@app.route('/configurator/<path:path>')
+def configurator_asset(path):
+    """Serve files of the built configurator app (404 if missing)."""
+    return send_from_directory(CONFIGURATOR_DIST, path)
 
 
 @app.route('/region-configurator')

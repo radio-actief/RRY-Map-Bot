@@ -1,6 +1,14 @@
 # RRY-Map-Bot Docker Image
 # Supports running Discord bot, API server, or sync service
 
+# Stage 1: build the configurator web app
+FROM node:22-slim AS web
+WORKDIR /app
+COPY package.json package-lock.json ./
+COPY web/ web/
+RUN npm ci && npm run build
+
+# Stage 2: runtime
 FROM python:3.11-slim
 
 # Set working directory
@@ -19,6 +27,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY . .
+
+# Built configurator app
+COPY --from=web /app/dist/configurator /app/dist/configurator
 
 # Create data directory for database
 RUN mkdir -p /app/data

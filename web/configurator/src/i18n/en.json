@@ -44,5 +44,9 @@
   "error.nameBadChars": "The name cannot contain [ ] \\ : , ? or *.",
   "error.nameTooLong": "The name is too long for the repeater.",
   "error.ownerInfoTooLong": "Too long. Owner info allows 119 bytes.",
-  "error.coords": "Enter valid coordinates."
+  "error.coords": "Enter valid coordinates.",
+  "changes_one": "{count} change",
+  "changes_other": "{count} changes",
+  "apply.noDevice": "Connect a repeater first.",
+  "apply.firmwareTooOld": "Regions need firmware 1.16 or newer."
 }

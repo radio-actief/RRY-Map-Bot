@@ -1540,3 +1540,17 @@ button.site-card {
   gap: 8px;
   padding: 4px 0;
 }
+
+.free-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.free-error {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--bad);
+}

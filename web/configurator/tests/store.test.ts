@@ -10,7 +10,7 @@ const GENT = { lat: 51.05, lon: 3.72 };
 const PLACES: Place[] = JSON.parse(readFileSync(resolve(__dirname, "../../../data/be-locode.json"), "utf8"));
 const RONSE = PLACES.find((p) => p.city_code === "beron")!;
 const RONSE_ANCHOR: Anchor = { mode: "city", province_code: RONSE.province_code, place: RONSE };
-import { canApply, prefs, regionCount, resetPlan, stepStatus, store, visited } from "../src/state/store";
+import { canApply, chooseLocation, prefs, regionCount, resetPlan, stepStatus, store, visited } from "../src/state/store";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -200,5 +200,20 @@ describe("theme and prefs", () => {
     prefs.set("configurator.stale", "new");
     expect(prefs.get("configurator.stale")).toBe("new");
     localStorage.removeItem("configurator.stale");
+  });
+});
+
+describe("free regions survive a rebuilt policy", () => {
+  it("keeps a free row and its state when the location moves", () => {
+    store.data.value = { failed: new Set(), places: PLACES };
+    chooseLocation({ type: "city", label: "Ronse", place: RONSE } as never);
+    const regions = addFreeRegion(store.plan.value.regions!, "zone", null);
+    store.plan.value = { ...store.plan.value, regions };
+    const before = store.plan.value.regions!.rows.find((r) => r.code === "zone")!;
+    const kortrijk = PLACES.find((p) => p.city_code === "bekjk")!;
+    chooseLocation({ type: "city", label: "Kortrijk", place: kortrijk } as never);
+    const after = store.plan.value.regions!.rows.find((r) => r.code === "zone");
+    expect(after).toEqual(before);
+    expect(after!.allow).toBe(true);
   });
 });

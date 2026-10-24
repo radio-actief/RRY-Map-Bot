@@ -7,6 +7,7 @@ import { newPlan, planErrors, type DeviceSnapshot, type Plan } from "../core/pla
 import {
   anchorCenter,
   anchorFromChoice,
+  carryFreeRows,
   MAX_REGIONS,
   policyFor,
   regionCountAfterApply,
@@ -297,7 +298,7 @@ export function setLocation(p: LatLon | null): void {
     ...plan,
     location: p,
     anchor,
-    regions: anchor ? policyFor(anchor, places, deviceCodes()) : null,
+    regions: anchor ? carryFreeRows(policyFor(anchor, places, deviceCodes()), plan.regions, anchor) : null,
   };
 }
 
@@ -333,7 +334,7 @@ export function chooseLocation(choice: LocationChoice): void {
     ...plan,
     anchor,
     location: keep ? plan.location : anchorCenter(anchor, places),
-    regions: policyFor(anchor, places, deviceCodes()),
+    regions: carryFreeRows(policyFor(anchor, places, deviceCodes()), plan.regions, anchor),
     prefixFormat: anchor.mode,
   };
 }

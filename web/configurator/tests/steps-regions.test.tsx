@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/preact";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { defaultPlan } from "../src/core/plan";
-import { regionsByState } from "../src/core/regions";
+import { regionCommandLines, regionsByState, addFreeRegion, policyFor, MAX_REGIONS } from "../src/core/regions";
 import type { Place } from "../src/core/search";
 import { Regions } from "../src/steps/Regions";
 import { chooseLocation, resetPlan, store } from "../src/state/store";
@@ -54,6 +54,7 @@ describe("Regions step", () => {
       "Neighbouring provinces",
       "Neighbouring regions",
       "Neighbouring countries",
+      "Your own regions",
     ]);
     const groupOf = (code: string) => rowFor(code).closest(".region-group")!.querySelector("h3")!.textContent;
     expect(groupOf("bemak")).toBe("Neighbouring municipalities");
@@ -113,5 +114,79 @@ describe("Regions step", () => {
     expect(store.plan.value.regions!.homeOverride).toBe("be-vov");
     fireEvent.change(def, { target: { value: "__none__" } });
     expect(store.plan.value.regions!.defaultScope).toBe("__none__");
+  });
+
+  describe("your own regions", () => {
+    const ronse = () => store.plan.value.anchor!;
+    const addZone = (code: string, parent = "") => {
+      fireEvent.input(screen.getByLabelText("Code"), { target: { value: code } });
+      if (parent) fireEvent.change(screen.getByLabelText("Under"), { target: { value: parent } });
+      fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    };
+
+    it("adds a free region under a parent on Allow and defines it in the script", () => {
+      chooseLocation({ type: "city", label: "Ronse", place: RONSE } as never);
+      render(<Regions />);
+      addZone("zone", "be-wht");
+      expect(state().allowed).toContain("zone");
+      expect(within(rowFor("zone")).getByRole("button", { name: /^Allow: zone/ }).getAttribute("aria-pressed")).toBe("true");
+      expect((screen.getByLabelText("Code") as HTMLInputElement).value).toBe("");
+      const def = regionCommandLines(ronse(), store.plan.value.regions!, PLACES).filter((l) => l.startsWith("region def "));
+      expect(def.join("|")).toMatch(/\bzone\b/);
+    });
+
+    it("shows the group with only the form when empty, before the device group", () => {
+      chooseLocation({ type: "city", label: "Ronse", place: RONSE } as never);
+      render(<Regions />);
+      expect(screen.getByRole("heading", { name: "Your own regions" })).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Add" }).hasAttribute("disabled")).toBe(true);
+    });
+
+    it("rejects uppercase with the message and keeps Add disabled", () => {
+      chooseLocation({ type: "city", label: "Ronse", place: RONSE } as never);
+      render(<Regions />);
+      fireEvent.input(screen.getByLabelText("Code"), { target: { value: "Zone" } });
+      expect(screen.getByText("Use lowercase a–z, digits and -.")).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Add" }).hasAttribute("disabled")).toBe(true);
+    });
+
+    it("adds on Enter when valid", () => {
+      chooseLocation({ type: "city", label: "Ronse", place: RONSE } as never);
+      render(<Regions />);
+      const input = screen.getByLabelText("Code");
+      fireEvent.input(input, { target: { value: "zone" } });
+      fireEvent.keyDown(input, { key: "Enter" });
+      expect(rowFor("zone")).toBeTruthy();
+    });
+
+    it("disables remove on a parent with a child, and removes a leaf", () => {
+      chooseLocation({ type: "city", label: "Ronse", place: RONSE } as never);
+      render(<Regions />);
+      addZone("zone");
+      addZone("child", "zone");
+      const parentX = within(rowFor("zone")).getByRole("button", { name: "Remove zone" });
+      expect(parentX.hasAttribute("disabled")).toBe(true);
+      expect(parentX.getAttribute("title")).toBe("Another region sits under this one.");
+      fireEvent.click(within(rowFor("child")).getByRole("button", { name: "Remove child" }));
+      expect(rowFor("child")).toBeNull();
+      expect(within(rowFor("zone")).getByRole("button", { name: "Remove zone" }).hasAttribute("disabled")).toBe(false);
+    });
+
+    it("offers an allowed free row in the default scope select", () => {
+      chooseLocation({ type: "city", label: "Ronse", place: RONSE } as never);
+      render(<Regions />);
+      addZone("zone");
+      const sel = screen.getByLabelText(/Default flood scope/) as HTMLSelectElement;
+      expect([...sel.options].map((o) => o.value)).toContain("zone");
+    });
+
+    it("shows the count notice above the limit", () => {
+      chooseLocation({ type: "city", label: "Ronse", place: RONSE } as never);
+      let p = store.plan.value.regions!;
+      for (let i = 0; i < MAX_REGIONS; i++) p = addFreeRegion(p, `zone${i}`, null);
+      store.plan.value = { ...store.plan.value, regions: p };
+      render(<Regions />);
+      expect(screen.getByText(/The repeater holds at most 32 regions; this plan needs \d+\./)).toBeTruthy();
+    });
   });
 });

@@ -1,21 +1,30 @@
 /** Regions step: which regions the repeater floods (Allow / Deny per row), bulk buttons and the folded region CLI options. */
+import { useState } from "preact/hooks";
+import { Notice } from "../app/Notice";
 import {
+  addFreeRegion,
   bulk,
+  checkFreeCode,
   defaultScopeOptions,
+  freeParentOptions,
   DEFAULT_SCOPE_NONE,
   HOME_OVERRIDE_OMIT,
   homeOverrideOptions,
   homeRegionCode,
+  isFreeParent,
+  MAX_REGIONS,
   recommendedDefaultScopeCode,
+  removeFreeRegion,
   setDefaultScope,
   setHomeOverride,
   setRowState,
   setUntaggedFlood,
+  type Anchor,
   type RegionPolicy,
   type RegionRow,
 } from "../core/regions";
 import { t } from "../i18n/t";
-import { store } from "../state/store";
+import { regionCount, store } from "../state/store";
 
 const WIKI_URL = "https://meshwiki.radio-actief.be/index.php/MeshCore/RegioScopes";
 const GROUPS: RegionRow["group"][] = [
@@ -26,6 +35,7 @@ const GROUPS: RegionRow["group"][] = [
   "neighbourProvince",
   "neighbourRegion",
   "neighbourCountry",
+  "free",
   "device",
 ];
 const BULKS = ["recommended", "allowAll", "denyAll", "clear"] as const;
@@ -43,7 +53,7 @@ const update = (f: (p: RegionPolicy) => RegionPolicy) => {
   if (plan.regions) store.plan.value = { ...plan, regions: f(plan.regions) };
 };
 
-function RegionRowView({ row, home }: { row: RegionRow; home: boolean }) {
+function RegionRowView({ row, home, policy }: { row: RegionRow; home: boolean; policy: RegionPolicy }) {
   const locked = !!(row.disabled?.allow || row.disabled?.deny);
   const state = row.allow ? "allow" : row.deny ? "deny" : "none";
   const reason = locked ? lockedReason(row) : undefined;
@@ -71,7 +81,63 @@ function RegionRowView({ row, home }: { row: RegionRow; home: boolean }) {
           </button>
         ))}
       </div>
+      {row.group === "free" ? (
+        <button
+          type="button"
+          class="icon"
+          aria-label={t("regions.free.remove", { code: row.code })}
+          disabled={isFreeParent(policy, row.code)}
+          title={isFreeParent(policy, row.code) ? t("regions.free.parentInUse") : undefined}
+          onClick={() => update((p) => removeFreeRegion(p, row.code))}
+        >
+          ✕
+        </button>
+      ) : null}
     </li>
+  );
+}
+
+function FreeForm({ policy, anchor }: { policy: RegionPolicy; anchor: Anchor }) {
+  const [code, setCode] = useState("");
+  const [parent, setParent] = useState("");
+  const result = checkFreeCode(policy, code);
+  const add = () => {
+    if (result !== "ok") return;
+    update((p) => addFreeRegion(p, code, parent || null));
+    setCode("");
+  };
+  return (
+    <div class="free-form">
+      <label class="field">
+        <span class="sub">{t("regions.free.code")}</span>
+        <input
+          type="text"
+          value={code}
+          maxLength={60}
+          onInput={(e) => setCode(e.currentTarget.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              add();
+            }
+          }}
+        />
+      </label>
+      <label class="field">
+        <span class="sub">{t("regions.free.parent")}</span>
+        <select value={parent} onChange={(e) => setParent(e.currentTarget.value)}>
+          {freeParentOptions(policy, anchor).map((o) => (
+            <option key={o.code} value={o.code}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <button type="button" class="btn small" disabled={result !== "ok"} onClick={add}>
+        {t("regions.free.add")}
+      </button>
+      {code && result !== "ok" ? <p class="sub free-error">{t(`error.freeCode.${result}`)}</p> : null}
+    </div>
   );
 }
 
@@ -141,6 +207,9 @@ export function Regions() {
         <p class="sub regions-empty">{t("regions.empty")}</p>
       ) : (
         <>
+          {regionCount.value > MAX_REGIONS ? (
+            <Notice kind="warn">{t("error.regionCount", { count: regionCount.value, max: MAX_REGIONS })}</Notice>
+          ) : null}
           <div class="bulk" role="group" aria-label={t("regions.bulk")}>
             {BULKS.map((b) => (
               <button type="button" class="btn small" key={b} onClick={() => update((p) => bulk(p, b))}>
@@ -150,14 +219,15 @@ export function Regions() {
           </div>
           {GROUPS.map((g) => {
             const rows = regions.rows.filter((r) => r.group === g);
-            return rows.length ? (
+            return rows.length || g === "free" ? (
               <section key={g} class="region-group">
                 <h3 class="field-label">{t(`regions.group.${g}`)}</h3>
                 <ul class="region-list">
                   {rows.map((r) => (
-                    <RegionRowView key={r.code} row={r} home={r.code === homeCode} />
+                    <RegionRowView key={r.code} row={r} home={r.code === homeCode} policy={regions} />
                   ))}
                 </ul>
+                {g === "free" ? <FreeForm policy={regions} anchor={anchor} /> : null}
               </section>
             ) : null;
           })}

@@ -4,10 +4,12 @@ import { describe, expect, it } from "vitest";
 import {
   bulk,
   DEFAULT_SCOPE_NONE,
+  deviceRegionsFromRead,
   HOME_OVERRIDE_OMIT,
   homeRegionCode,
   policyFor,
   regionCommandLines,
+  regionsAfterApply,
   regionsByState,
   setRowState,
   type Anchor,
@@ -298,6 +300,78 @@ describe("home and default lines", () => {
     const lines = regionCommandLines(ronse, { ...base, defaultScope: "be-wht" }, PLACES);
     expect(lines[0]).toBe("region def be be-vov|be be-wht");
     expect(lines).toContain("region default be-wht");
+  });
+});
+
+describe("device regions", () => {
+  const ronse = cityAnchor("Ronse");
+  const base = policyFor(ronse, PLACES);
+
+  it("reads the device state like the old page", () => {
+    expect(deviceRegionsFromRead(["be", "*", " be-vov "], ["bemak"], "beron", "<null>")).toEqual({
+      named: ["be", "be-vov", "bemak", "beron"],
+      home: "beron",
+      default: null,
+    });
+    expect(deviceRegionsFromRead([], [], "*", "be")).toEqual({ named: ["be"], home: "*", default: "be" });
+  });
+
+  it("removes regions no longer needed, deepest first, before the def lines", () => {
+    const device = deviceRegionsFromRead(["be", "be-vov", "beron", "bemak"], [], "be-vov", "be");
+    expect(regionCommandLines(ronse, base, PLACES, device)).toEqual([
+      "region remove bemak",
+      "region remove beron",
+      "region def be be-vov",
+      "region allowf *",
+      "region home be-vov",
+      "region default be",
+      "region save",
+    ]);
+  });
+
+  it("clears a removed default first and a removed home next (old page output)", () => {
+    const device = deviceRegionsFromRead(
+      ["be", "be-vov", "beron", "bemak", "be-wht", "nl", "beavl"],
+      ["befrs"],
+      "beron",
+      "beron",
+    );
+    // Output of the old buildRegionCommandLines for this read and policy.
+    expect(regionCommandLines(ronse, base, PLACES, device)).toEqual([
+      "region default <null>",
+      "region home *",
+      "region remove beavl",
+      "region remove befrs",
+      "region remove bemak",
+      "region remove beron",
+      "region remove be-wht",
+      "region remove nl",
+      "region def be be-vov",
+      "region allowf *",
+      "region home be-vov",
+      "region default be",
+      "region save",
+    ]);
+  });
+
+  it("keeps device codes that are still needed, as selections or ancestors", () => {
+    let p = setRowState(base, "beron", "allow");
+    p = setRowState(p, "bemak", "deny");
+    const device = deviceRegionsFromRead(["be", "be-vov", "beron"], ["bemak"], "beron", "be");
+    expect(
+      regionCommandLines(ronse, p, PLACES, device).filter((l) => /^region (remove|home \*|default <null>)/.test(l)),
+    ).toEqual([]);
+  });
+
+  it("after Apply the device holds the policy (no default added to the named set)", () => {
+    expect(regionsAfterApply(ronse, base, PLACES)).toEqual({ named: ["be", "be-vov"], home: "be-vov", default: "be" });
+    const cleared = bulk(base, "clear");
+    expect(regionsAfterApply(ronse, cleared, PLACES)).toEqual({ named: [], home: "*", default: null });
+    const p = { ...base, homeOverride: HOME_OVERRIDE_OMIT, defaultScope: "be-wht" };
+    expect(regionsAfterApply(ronse, p, PLACES)).toEqual({ named: ["be", "be-vov"], home: "*", default: "be-wht" });
+    // Applying again from that state removes nothing.
+    const after = regionsAfterApply(ronse, base, PLACES);
+    expect(regionCommandLines(ronse, base, PLACES, after)).toEqual(regionCommandLines(ronse, base, PLACES));
   });
 });
 

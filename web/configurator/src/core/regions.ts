@@ -228,7 +228,8 @@ function gate(rows: RegionRow[]): RegionRow[] {
   };
   return rows.map((r) => {
     if (r.group !== "neighbour") return r;
-    const { disabled: _, ...rest } = r;
+    const rest = { ...r };
+    delete rest.disabled;
     return open[neighbourTier(r.code)]
       ? rest
       : { ...rest, allow: false, deny: false, disabled: { allow: true, deny: true } };
@@ -575,30 +576,101 @@ function packRegionDefLines(tokens: string[], entries: Entry[]): string[] {
 // ---------------------------------------------------------------------------
 // Script lines
 
+/** Named regions on the device at the last read (or after the last Apply), with its home and default scope. */
+export type DeviceRegions = { named: string[]; home: string | null; default: string | null };
+
+/** Device region state from the read replies (old rememberDeviceRegionsFromRead). */
+export function deviceRegionsFromRead(
+  allowed: string[],
+  denied: string[],
+  home: string | null,
+  defaultScope: string | null,
+): DeviceRegions {
+  const named = new Set<string>();
+  for (const c of [...(allowed || []), ...(denied || [])]) {
+    const code = String(c || "").trim();
+    if (code && code !== "*") named.add(code);
+  }
+  const h = String(home || "").trim();
+  if (h && h !== "*") named.add(h);
+  const d = String(defaultScope || "").trim();
+  if (d && d !== "*" && d.toLowerCase() !== "<null>") named.add(d);
+  return { named: Array.from(named), home: h || null, default: !d || d.toLowerCase() === "<null>" ? null : d };
+}
+
+/** MeshCore removes children before parents: city → province → gewest → country → eu, then longer names. */
+function regionHierarchyDepth(code: string, cities: Map<string, Place>): number {
+  if (cities.has(code)) return 40;
+  if (isProvince(code)) return 30;
+  if (isGewest(code)) return 25;
+  if (code === "be" || code === "nl" || code === "lu" || code === "fr" || code === "de") return 20;
+  if (code === "eu") return 5;
+  return 22 + Math.min(String(code).length, 20);
+}
+
+function orderRegionRemovesDeepestFirst(codes: string[], cities: Map<string, Place>): string[] {
+  return codes.slice().sort((a, b) => {
+    const d = regionHierarchyDepth(b, cities) - regionHierarchyDepth(a, cities);
+    if (d !== 0) return d;
+    if (b.length !== a.length) return b.length - a.length;
+    return a.localeCompare(b);
+  });
+}
+
+/** Allow/Deny codes plus the ancestors they need (no default scope). */
+function policyNeeded(anchor: Anchor, policy: RegionPolicy, cities: Map<string, Place>): Set<string> {
+  const { allowed, denied } = regionsByState(policy);
+  const needed = new Set([...withoutStar(allowed), ...withoutStar(denied)]);
+  expandRegionNeeded(needed, anchor, cities);
+  return needed;
+}
+
+/** What the device holds after this policy was applied (old syncDeviceRegionSnapshotFromForm). */
+export function regionsAfterApply(anchor: Anchor, policy: RegionPolicy, places: Place[]): DeviceRegions {
+  const named = Array.from(policyNeeded(anchor, policy, cityIndex(places)));
+  const home = homeLineCode(policy);
+  const def = defaultLineCode(policy);
+  return { named, home: home || "*", default: def.toLowerCase() === "<null>" ? null : def };
+}
+
 /**
- * The region part of the script (firmware 1.16+): region def lines, allowf/denyf, home,
- * default and save. Empty without an anchor.
+ * The region part of the script (firmware 1.16+): removals of device regions no longer
+ * selected, region def lines, allowf/denyf, home, default and save. Empty without an anchor.
  */
-export function regionCommandLines(anchor: Anchor | null, policy: RegionPolicy, places: Place[]): string[] {
+export function regionCommandLines(
+  anchor: Anchor | null,
+  policy: RegionPolicy,
+  places: Place[],
+  device?: DeviceRegions,
+): string[] {
   if (!anchor) return [];
   const cities = cityIndex(places);
-  const { allowed, denied } = regionsByState(policy);
+  const { denied } = regionsByState(policy);
 
   const denyForCli = withoutStar(denied);
   if (!policy.untaggedFlood) denyForCli.push("*");
   const denySorted = starFirst(sortCodesForCli(denyForCli));
 
-  const needed = new Set([...withoutStar(allowed), ...withoutStar(denied)]);
-  expandRegionNeeded(needed, anchor, cities);
+  const needed = policyNeeded(anchor, policy, cities);
   const defCode = defaultLineCode(policy);
   if (defCode.toLowerCase() !== "<null>") {
     needed.add(defCode);
     expandRegionNeeded(needed, anchor, cities);
   }
 
+  const lines: string[] = [];
+  // Drop named regions that were on the device but are no longer selected nor needed as ancestors.
+  // Clear default and home first when they point at a removed region; children go before parents.
+  if (device) {
+    const toRemove = device.named.filter((c) => c && c !== "*" && c.toLowerCase() !== "<null>" && !needed.has(c));
+    if (device.default && toRemove.includes(device.default)) lines.push("region default <null>");
+    if (device.home && device.home !== "*" && toRemove.includes(device.home)) lines.push("region home *");
+    for (const c of orderRegionRemovesDeepestFirst(toRemove, cities)) lines.push(`region remove ${c}`);
+  }
+
   const homeCity = anchor.mode === "city" && anchor.place ? anchor.place : null;
   const entries = buildOrderedRegionEntries(needed, homeCity, cities);
-  const lines = packRegionDefLines(buildRegionDefTokens(entries), entries);
+  lines.push(...packRegionDefLines(buildRegionDefTokens(entries), entries));
 
   // region def leaves named regions flood-allowed; * still needs allowf, and deny rows need denyf.
   if (policy.untaggedFlood) lines.push("region allowf *");

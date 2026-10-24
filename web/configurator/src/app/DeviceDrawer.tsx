@@ -175,6 +175,9 @@ function Drawer() {
     const r = await writeIdentity(key);
     if (!r) return null;
     if (!r.ok) return t("vanity.writeFailed", { reason: r.error });
+    // The device saved another key: the one read before is stale.
+    setSecret(null);
+    setShown(false);
     setModal(null);
     if (r.confirmed) setNote({ kind: "ok", text: t("vanity.written", { key: key.publicKey }) });
     else

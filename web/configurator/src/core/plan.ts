@@ -65,6 +65,8 @@ export type DeviceSnapshot = {
   version?: string;
   role?: string;
   publicKey?: string;
+  /** The public key was written with `set prv.key` (from its reply) and applies after a reboot. */
+  publicKeyPending?: boolean;
   clock?: string;
   missing: string[];
 };

@@ -111,6 +111,7 @@
   "device.publicKey": "Public key",
   "device.location": "Location",
   "device.notRead": "—",
+  "device.afterReboot": "after reboot",
   "read.button": "Read settings from repeater",
   "read.reading": "Reading…",
   "read.title": "Read settings from repeater?",

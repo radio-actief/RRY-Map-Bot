@@ -31,7 +31,10 @@ function DeviceCard() {
           {state === "old" ? <span class="badge warn">{t("device.regionsOld", { min: REGION_DEF_MIN_TEXT })}</span> : null}
         </dd>
         <dt>{t("device.publicKey")}</dt>
-        <dd title={snap?.publicKey}>{snap?.publicKey ? shortKey(snap.publicKey) : t("device.notRead")}</dd>
+        <dd title={snap?.publicKey}>
+          {snap?.publicKey ? shortKey(snap.publicKey) : t("device.notRead")}
+          {snap?.publicKeyPending ? <span class="badge warn">{t("device.afterReboot")}</span> : null}
+        </dd>
         <dt>{t("device.location")}</dt>
         <dd>{location ?? t("device.notRead")}</dd>
       </dl>

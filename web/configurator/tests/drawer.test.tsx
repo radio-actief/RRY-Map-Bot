@@ -16,6 +16,7 @@ vi.mock("../src/core/vanity", async (importOriginal) => {
 });
 
 import { DeviceDrawer, clockOffset } from "../src/app/DeviceDrawer";
+import { Connect } from "../src/steps/Connect";
 import { importBackup } from "../src/core/backup";
 import { defaultPlan } from "../src/core/plan";
 import type { Place } from "../src/core/search";
@@ -364,6 +365,40 @@ describe("Device tools drawer: identity", () => {
     await screen.findByText(t("vanity.written", { key: MESHCORE_PUB }));
     expect(logText()).not.toContain(MESHCORE_PRV);
     expect(logText()).toContain("set prv.key");
+  });
+
+  it("after a write, the old private key is gone and the public key is the new one, pending a reboot", async () => {
+    vi.spyOn(nacl, "randomBytes").mockImplementation(() => fromHex(SEED));
+    const port = await connectApp({
+      "get prv.key": `> ${SECRET}`,
+      [`set prv.key ${MESHCORE_PRV}`]: `OK, reboot to apply! New pubkey: ${MESHCORE_PUB}`,
+    });
+    store.snapshot.value = { settings: {}, missing: [], publicKey: PUB };
+    const { container } = render(<DeviceDrawer />);
+    fireEvent.click(button("Reveal"));
+    await screen.findByText(SECRET);
+    fireEvent.click(button("Generate vanity key…"));
+    fireEvent.input(screen.getByLabelText("Public key prefix"), { target: { value: "03" } });
+    fireEvent.click(button("Generate"));
+    await screen.findByText(MESHCORE_PUB);
+    fireEvent.click(button("Write to device"));
+    await screen.findByText(t("vanity.written", { key: MESHCORE_PUB }));
+    expect(container.textContent).not.toContain(SECRET);
+    expect(button("Reveal")).toBeTruthy();
+    expect(store.snapshot.value).toMatchObject({ publicKey: MESHCORE_PUB, publicKeyPending: true });
+    fireEvent.click(button("Copy public key"));
+    expect(writeText).toHaveBeenCalledWith(MESHCORE_PUB);
+    // Copy of the private key reads it from the device again instead of using the old one.
+    await waitFor(() => expect(store.commandBusy.value).toBe(false));
+    fireEvent.click(button("Copy"));
+    await waitFor(() => expect(port.received.filter((l) => l === "get prv.key")).toHaveLength(2));
+  });
+
+  it("the device card marks a written public key as applying after a reboot", async () => {
+    await connectApp({});
+    store.snapshot.value = { settings: {}, missing: [], publicKey: MESHCORE_PUB, publicKeyPending: true };
+    render(<Connect />);
+    expect(screen.getByTitle(MESHCORE_PUB).textContent).toContain(t("device.afterReboot"));
   });
 
   it("warns when the device reports a different public key", async () => {

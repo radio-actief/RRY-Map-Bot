@@ -383,11 +383,16 @@ export async function readPrivateKey(): Promise<CommandResult | null> {
 /** The outcome of writing a vanity identity: whether the public key the device reports is the expected one. */
 export type IdentityResult = { ok: true; confirmed: boolean; devicePub: string | null } | { ok: false; error: string };
 
-/** Write a generated identity with `set prv.key` and check the public key in the reply (part 0's fix). */
+/**
+ * Write a generated identity with `set prv.key` and check the public key in the reply (part 0's
+ * fix). The read public key becomes the one the device reports it saved, pending a reboot.
+ */
 export async function writeIdentity(key: VanityKey): Promise<IdentityResult | null> {
   const r = await deviceCommand(`set prv.key ${key.privateKey}`);
   if (!r?.ok) return r;
   const devicePub = pubkeyFromSetReply(r.reply);
+  const snap = store.snapshot.peek();
+  if (snap) store.snapshot.value = { ...snap, publicKey: devicePub ?? undefined, publicKeyPending: true };
   return { ok: true, confirmed: devicePub === key.publicKey, devicePub };
 }
 

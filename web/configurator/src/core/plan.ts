@@ -185,8 +185,8 @@ function regionCodes(plan: Plan): string[] {
 /**
  * Everything in the plan the script cannot send as entered: invalid settings (control characters
  * included), a name that is empty or breaks a firmware limit, owner info over 119 bytes, invalid
- * coordinates (or none while the advert uses the stored position, "Fixed position"), a region code with a control
- * character. errorKey is the en.json key without its `error.` prefix.
+ * coordinates (or none while the advert sends the stored position, "Fixed position"), a region
+ * code with a control character. errorKey is the en.json key without its `error.` prefix.
  */
 export function planErrors(plan: Plan): PlanError[] {
   const errors: PlanError[] = [];

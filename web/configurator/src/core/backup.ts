@@ -75,7 +75,9 @@ function planFromV2(raw: unknown): Plan {
   if (!ok) throw new BackupError("backup.error.invalid");
   // Owner info may hold newlines (sent as '|'); nothing else may hold a control character.
   const { settings, ...rest } = raw;
-  const badSetting = Object.entries(settings as Record<string, unknown>).some(([k, v]) => controlText(v, k === "ownerInfo"));
+  const badSetting = Object.entries(settings as Record<string, unknown>).some(([k, v]) =>
+    controlText(v, k === "ownerInfo"),
+  );
   if (badSetting || controlText(rest)) throw new BackupError("backup.error.invalid");
   return structuredClone(raw) as Plan;
 }

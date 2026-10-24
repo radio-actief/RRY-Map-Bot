@@ -247,6 +247,14 @@ export function resetPlan(plan: Plan): void {
   placeChosen.value = !!plan.location;
 }
 
+/** Take an imported plan: an edit (the plan base stays), the new start plan, and the Place latches start over. */
+export function importPlan(plan: Plan): void {
+  store.plan.value = plan;
+  store.startPlan.value = plan;
+  placeLeft.value = false;
+  placeChosen.value = !!plan.location;
+}
+
 /** Change plan fields by replacing the plan object. */
 export const editPlan = (patch: Partial<Plan>) => (store.plan.value = { ...store.plan.peek(), ...patch });
 

@@ -23,7 +23,7 @@ import type { Place } from "../src/core/search";
 import { isErrorReply, SerialLink } from "../src/device/serial";
 import { t } from "../src/i18n/t";
 import { connectUsb, deviceCommand } from "../src/state/device";
-import { dirty, resetPlan, store } from "../src/state/store";
+import { dirty, placeChosen, placeLeft, resetPlan, store } from "../src/state/store";
 import { FakePort } from "./fakes/fake-port";
 
 const PLACES: Place[] = JSON.parse(readFileSync(resolve(__dirname, "../../../data/be-locode.json"), "utf8"));
@@ -164,6 +164,27 @@ describe("Device tools drawer: backup", () => {
     await waitFor(() => expect(store.drawerOpen.value).toBe(false));
     expect(store.startPlan.value).toBe(store.plan.value);
     expect(store.planBase.value).toBe(base);
+  });
+
+  it("an import resets the Place latches like a Read does", async () => {
+    const importFile = async (name: string) => {
+      placeLeft.value = true;
+      placeChosen.value = true;
+      store.drawerOpen.value = true;
+      const text = readFileSync(resolve(__dirname, `fixtures/parity/${name}.backup.json`), "utf8");
+      const { container, unmount } = render(<DeviceDrawer />);
+      const input = container.querySelector("input[type=file]") as HTMLInputElement;
+      Object.defineProperty(input, "files", { value: [new File([text], "backup.json")], configurable: true });
+      fireEvent.change(input);
+      await waitFor(() => expect(store.drawerOpen.value).toBe(false));
+      unmount();
+    };
+    await importFile("no-location");
+    expect(store.plan.value.location).toBeNull();
+    expect([placeLeft.value, placeChosen.value]).toEqual([false, false]);
+    await importFile("ronse-solar");
+    expect(store.plan.value.location).not.toBeNull();
+    expect([placeLeft.value, placeChosen.value]).toEqual([false, true]);
   });
 
   it("a file that is not a backup shows the BackupError message and keeps the plan", async () => {

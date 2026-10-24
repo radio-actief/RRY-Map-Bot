@@ -24,7 +24,7 @@ import {
   writeIdentity,
   type RestartCommand,
 } from "../state/device";
-import { busy, store } from "../state/store";
+import { busy, importPlan, store } from "../state/store";
 import { Dialog } from "./Dialog";
 import { Notice, type NoticeKind } from "./Notice";
 
@@ -227,8 +227,7 @@ function Drawer() {
     try {
       const plan = importBackup(JSON.parse(await file.text()), store.data.peek().places ?? []);
       // An import is an edit: the plan now differs from what the last Read gave. It is the new start plan.
-      store.plan.value = plan;
-      store.startPlan.value = plan;
+      importPlan(plan);
       store.notice.value = { kind: "ok", text: t("tools.imported") };
       close();
     } catch (err) {

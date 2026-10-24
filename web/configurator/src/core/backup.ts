@@ -59,6 +59,16 @@ function validAnchor(a: unknown): boolean {
   );
 }
 
+/** A free region row needs a valid region code and a parent that is a code or null (top level). */
+function validFreeRow(r: unknown): boolean {
+  if (!isObject(r) || r.group !== "free") return true;
+  return (
+    typeof r.code === "string" &&
+    /^[a-z0-9-]{1,30}$/.test(r.code) &&
+    (r.parent === null || typeof r.parent === "string")
+  );
+}
+
 function planFromV2(raw: unknown): Plan {
   const ok =
     isObject(raw) &&
@@ -71,7 +81,8 @@ function planFromV2(raw: unknown): Plan {
     oneOf(raw.advertLoc, ["none", "prefs", "share"]) &&
     (raw.location === null || (isObject(raw.location) && isNum(raw.location.lat) && isNum(raw.location.lon))) &&
     validAnchor(raw.anchor) &&
-    (raw.regions === null || (isObject(raw.regions) && Array.isArray(raw.regions.rows)));
+    (raw.regions === null ||
+      (isObject(raw.regions) && Array.isArray(raw.regions.rows) && raw.regions.rows.every(validFreeRow)));
   if (!ok) throw new BackupError("backup.error.invalid");
   // Owner info may hold newlines (sent as '|'); nothing else may hold a control character.
   const { settings, ...rest } = raw;

@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { BackupError, exportBackup, importBackup } from "../src/core/backup";
 import { defaultPlan } from "../src/core/plan";
 import { presetForRadio } from "../src/core/presets";
-import { setRowState } from "../src/core/regions";
+import { addFreeRegion, setRowState } from "../src/core/regions";
 import type { Place } from "../src/core/search";
 
 const PLACES: Place[] = JSON.parse(readFileSync(resolve(process.cwd(), "data/be-locode.json"), "utf8"));
@@ -123,6 +123,20 @@ describe("v2 export and import", () => {
     expect(imported).toEqual(plan);
   });
 
+  it("round-trips free regions (code, parent, allow/deny)", () => {
+    const start = importBackup(backup("neighbour-deny"), PLACES);
+    let regions = addFreeRegion(start.regions!, "zone", "be-wht");
+    regions = setRowState(addFreeRegion(regions, "sub", "zone"), "sub", "deny");
+    const plan = { ...start, regions };
+    const imported = importBackup(JSON.parse(JSON.stringify(exportBackup(plan))), PLACES);
+    expect(imported).toEqual(plan);
+    const free = imported.regions!.rows.filter((r) => r.group === "free");
+    expect(free.map((r) => [r.code, r.parent, r.allow, r.deny])).toEqual([
+      ["zone", "be-wht", true, false],
+      ["sub", "zone", false, true],
+    ]);
+  });
+
   it("round-trips the default plan", () => {
     expect(importBackup(JSON.parse(JSON.stringify(exportBackup(defaultPlan()))), PLACES)).toEqual(defaultPlan());
   });
@@ -158,5 +172,26 @@ describe("rejected input", () => {
     expect(bad({ location: { lat: "50", lon: 3 } })).toBe("backup.error.invalid");
     expect(bad({ anchor: { mode: "city", province_code: "be-vov", place: null } })).toBe("backup.error.invalid");
     expect(bad({ anchor: { mode: "planet", province_code: null, place: null } })).toBe("backup.error.invalid");
+  });
+
+  it("rejects a v2 free region with a bad code or parent", () => {
+    const freeRow = (code: unknown, parent: unknown) => ({
+      code,
+      label: String(code),
+      labelKey: "region.kind.free",
+      group: "free",
+      allow: true,
+      deny: false,
+      parent,
+    });
+    const regions = (row: unknown) => ({ rows: [row], untaggedFlood: true, homeOverride: null, defaultScope: null });
+    const plan = (row: unknown) => ({
+      app: "bemesh-configurator",
+      version: 2,
+      plan: { ...defaultPlan(), regions: regions(row) },
+    });
+    expect(key(plan(freeRow("A B", null)))).toBe("backup.error.invalid");
+    expect(key(plan(freeRow("zone", 5)))).toBe("backup.error.invalid");
+    expect(importBackup(plan(freeRow("zone", null)), PLACES).regions!.rows[0].code).toBe("zone");
   });
 });

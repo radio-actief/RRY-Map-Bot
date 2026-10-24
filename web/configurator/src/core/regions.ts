@@ -25,8 +25,8 @@ export function anchorFromChoice(choice: LocationChoice): Anchor {
 /**
  * One Allow/Deny row. Home rows (`home: true`) are grouped by level: `country` (be), `province`
  * (the optional gewest and the province) and `municipality`. Other groups: the neighbouring
- * municipalities, provinces, regions (gewesten) and countries, `country` (the wider `eu` row)
- * and `device` (codes read from the repeater that no other row lists).
+ * municipalities, provinces, regions (gewesten) and countries, `country` (the wider `eu` row),
+ * `device` (codes read from the repeater that no other row lists) and `free` (the user's own codes).
  */
 export type RegionRow = {
   code: string;
@@ -40,7 +40,8 @@ export type RegionRow = {
     | "neighbourProvince"
     | "neighbourRegion"
     | "neighbourCountry"
-    | "device";
+    | "device"
+    | "free";
   allow: boolean;
   deny: boolean;
   home?: boolean;
@@ -49,6 +50,8 @@ export type RegionRow = {
    * (municipality, province or be) has Allow or Deny. Neighbouring regions open with the province.
    */
   disabled?: { allow?: boolean; deny?: boolean };
+  /** Free rows only: the code this region is defined under; null = top level (under `*`). */
+  parent?: string | null;
 };
 
 export type RegionPolicy = {
@@ -70,10 +73,15 @@ const COUNTRY_NAMES: Record<string, string> = {
   lu: "region.name.lu",
   fr: "region.name.fr",
   de: "region.name.de",
+  gb: "region.name.gb",
   be: "region.name.be",
 };
-const NEIGHBOR_COUNTRY_CODES = ["nl", "lu", "fr", "de"];
-const CLI_ORDER_FIRST = ["eu", "nl", "lu", "fr", "de", "be", "be-vlg", "be-wal"];
+const NEIGHBOR_COUNTRY_CODES = ["nl", "lu", "fr", "de", "gb"];
+const CLI_ORDER_FIRST = ["eu", "nl", "lu", "fr", "de", "gb", "be", "be-vlg", "be-wal"];
+/** MAX_REGION_ENTRIES: the named regions the firmware holds (`*` not counted). */
+export const MAX_REGIONS = 32;
+/** A region code: the firmware's name field is 31 bytes. */
+const FREE_CODE = /^[a-z0-9-]{1,30}$/;
 /** RepeaterSerial.MAX_LINE_LEN: the longest line the serial layer sends. */
 const MAX_LINE_LEN = 151;
 
@@ -434,6 +442,77 @@ export function setDefaultScope(policy: RegionPolicy, value: string | null): Reg
 }
 
 // ---------------------------------------------------------------------------
+// Free regions
+
+const isFreeRow = (r: RegionRow) => r.group === "free";
+
+/** Whether `code` can be added as a free region: 1–30 of a–z, 0–9 and -, and not `*` or a listed row. */
+export function checkFreeCode(policy: RegionPolicy, code: string): "ok" | "empty" | "tooLong" | "chars" | "taken" {
+  if (!code) return "empty";
+  if (code === "*" || policy.rows.some((r) => r.code === code)) return "taken";
+  if (code.length > 30) return "tooLong";
+  return FREE_CODE.test(code) ? "ok" : "chars";
+}
+
+/**
+ * Parents a free region can sit under: top level (code ""), eu, be, the gewest and province
+ * rows, the home municipality, then the free rows.
+ */
+export function freeParentOptions(policy: RegionPolicy, anchor: Anchor): ScopeOption[] {
+  const codes = policy.rows.map((r) => r.code);
+  const homeCity = anchor.mode === "city" && anchor.place ? anchor.place.city_code : null;
+  const picked = [
+    ...["eu", "be"].filter((c) => codes.includes(c)),
+    ...sortCodesForCli(codes.filter(isGewest)),
+    ...sortCodesForCli(codes.filter(isProvince)),
+    ...(homeCity && codes.includes(homeCity) ? [homeCity] : []),
+    ...policy.rows.filter(isFreeRow).map((r) => r.code),
+  ];
+  return [
+    { code: "", label: t("regions.free.top") },
+    ...picked.map((code) => ({ code, label: optionLabel(policy, code) })),
+  ];
+}
+
+/** Add a free region under `parent` (null or "" = top level); it starts on Allow. Invalid codes are ignored. */
+export function addFreeRegion(policy: RegionPolicy, code: string, parent: string | null): RegionPolicy {
+  if (checkFreeCode(policy, code) !== "ok") return policy;
+  const added = row(code, code, "free", "region.kind.free", { allow: true, parent: parent || null });
+  return finalize({ ...policy, rows: [...policy.rows, added] });
+}
+
+/** Whether another free region sits under `code`. */
+export function isFreeParent(policy: RegionPolicy, code: string): boolean {
+  return policy.rows.some((r) => isFreeRow(r) && r.parent === code);
+}
+
+/** Remove a free region; a no-op while another free region sits under it. */
+export function removeFreeRegion(policy: RegionPolicy, code: string): RegionPolicy {
+  if (isFreeParent(policy, code)) return policy;
+  return finalize({ ...policy, rows: policy.rows.filter((r) => !(isFreeRow(r) && r.code === code)) });
+}
+
+/**
+ * The free rows of `prev` (with their states) appended to a rebuilt policy. A free row whose code
+ * is now a structured row is dropped; one that matches a device row replaces it. A parent that
+ * is no longer offered falls back to top level.
+ */
+export function carryFreeRows(next: RegionPolicy, prev: RegionPolicy | null, anchor: Anchor): RegionPolicy {
+  const structured = new Set(next.rows.filter((r) => r.group !== "device").map((r) => r.code));
+  const free = (prev?.rows ?? []).filter((r) => isFreeRow(r) && !structured.has(r.code));
+  if (!free.length) return next;
+  const codes = new Set(free.map((r) => r.code));
+  const merged = { ...next, rows: [...next.rows.filter((r) => !codes.has(r.code)), ...free] };
+  const offered = new Set(freeParentOptions(merged, anchor).map((o) => o.code));
+  return finalize({
+    ...merged,
+    rows: merged.rows.map((r) =>
+      isFreeRow(r) && r.parent && (r.parent === r.code || !offered.has(r.parent)) ? { ...r, parent: null } : r,
+    ),
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Policies from an old backup or a device read
 
 /** Old page checkbox id for a row: `pc_<code, non-alphanumerics as _>`, then `_a` (Allow) or `_d` (Deny). */
@@ -520,11 +599,26 @@ function starFirst(sorted: string[]): string[] {
 
 const withoutStar = (codes: string[]) => codes.filter((c) => c !== "*");
 
+/** Free row code → its parent (null = top level). */
+type FreeParents = Map<string, string | null>;
+
+function freeParentsOf(policy: RegionPolicy): FreeParents {
+  const m: FreeParents = new Map();
+  for (const r of policy.rows) if (isFreeRow(r)) m.set(r.code, r.parent && r.parent !== "*" ? r.parent : null);
+  return m;
+}
+
 /**
  * Add province/be ancestors for cities and be for provinces and gewesten. The home city and
  * home province get no automatic ancestors, so their def follows the home Allow rows only.
+ * A free region adds its parent, which then gets its own ancestors by the same rules.
  */
-function expandRegionNeeded(needed: Set<string>, anchor: Anchor, cities: Map<string, Place>): void {
+function expandRegionNeeded(
+  needed: Set<string>,
+  anchor: Anchor,
+  cities: Map<string, Place>,
+  freeParents: FreeParents,
+): void {
   const add = (c: string) => {
     if (!c || needed.has(c)) return false;
     needed.add(c);
@@ -534,6 +628,10 @@ function expandRegionNeeded(needed: Set<string>, anchor: Anchor, cities: Map<str
   while (changed) {
     changed = false;
     for (const c of Array.from(needed)) {
+      if (freeParents.has(c)) {
+        if (add(freeParents.get(c) || "")) changed = true;
+        continue;
+      }
       const row = cities.get(c);
       if (row) {
         const isHomeCity = anchor.mode === "city" && anchor.place && c === anchor.place.city_code;
@@ -555,8 +653,16 @@ function expandRegionNeeded(needed: Set<string>, anchor: Anchor, cities: Map<str
 
 type Entry = { code: string; parent: string | null };
 
-/** Ordered { code, parent } entries (parent null = under *). */
-function buildOrderedRegionEntries(needed: Set<string>, homeCity: Place | null, cities: Map<string, Place>): Entry[] {
+/**
+ * Ordered { code, parent } entries (parent null = under *): the structured codes, then the free
+ * regions (parents before children, otherwise alphabetical), then the rest under *.
+ */
+function buildOrderedRegionEntries(
+  needed: Set<string>,
+  homeCity: Place | null,
+  cities: Map<string, Place>,
+  freeParents: FreeParents,
+): Entry[] {
   const entries: Entry[] = [];
   const structured = new Set<string>();
   const addEntry = (code: string, parent: string | null) => {
@@ -564,27 +670,43 @@ function buildOrderedRegionEntries(needed: Set<string>, homeCity: Place | null, 
     entries.push({ code, parent: parent || null });
     structured.add(code);
   };
+  // A free region nests under its own parent, even when its code is a known place or province.
+  const inTree = (c: string) => needed.has(c) && !freeParents.has(c);
 
-  if (needed.has("eu")) addEntry("eu", null);
+  if (inTree("eu")) addEntry("eu", null);
   // Without eu the countries sit under *; with eu every country nests under it.
-  for (const co of sortCodesForCli(["nl", "lu", "fr", "de", "be"].filter((c) => needed.has(c)))) {
-    addEntry(co, needed.has("eu") ? "eu" : null);
+  for (const co of sortCodesForCli(["nl", "lu", "fr", "de", "gb", "be"].filter(inTree))) {
+    addEntry(co, inTree("eu") ? "eu" : null);
   }
-  for (const g of sortCodesForCli(Object.keys(GEWEST_NAMES).filter((c) => needed.has(c)))) addEntry(g, "be");
-  for (const p of sortCodesForCli(Object.keys(PROVINCE_NAMES).filter((c) => needed.has(c)))) {
+  for (const g of sortCodesForCli(Object.keys(GEWEST_NAMES).filter(inTree))) addEntry(g, "be");
+  for (const p of sortCodesForCli(Object.keys(PROVINCE_NAMES).filter(inTree))) {
     const gewest = GEWEST_OF_PROVINCE[p];
-    addEntry(p, gewest && needed.has(gewest) ? gewest : "be");
+    addEntry(p, gewest && inTree(gewest) ? gewest : "be");
   }
 
   const cityRows: { code: string; prov: string }[] = [];
   needed.forEach((c) => {
-    if (structured.has(c)) return;
+    if (structured.has(c) || freeParents.has(c)) return;
     let row = cities.get(c);
     if (!row && homeCity && c === homeCity.city_code) row = homeCity;
     if (row) cityRows.push({ code: c, prov: row.province_code });
   });
   cityRows.sort((a, b) => a.code.localeCompare(b.code));
   for (const pair of cityRows) addEntry(pair.code, pair.prov);
+
+  // Parent first; a parent loop (only from an edited backup) is cut at top level.
+  const visiting = new Set<string>();
+  const addFree = (c: string) => {
+    if (structured.has(c) || visiting.has(c)) return;
+    visiting.add(c);
+    let parent = freeParents.get(c) || null;
+    if (parent && freeParents.has(parent) && needed.has(parent)) {
+      if (visiting.has(parent) && !structured.has(parent)) parent = null;
+      else addFree(parent);
+    }
+    addEntry(c, parent);
+  };
+  for (const c of Array.from(needed).filter((c) => freeParents.has(c)).sort()) addFree(c);
 
   const misc: string[] = [];
   needed.forEach((c) => {
@@ -760,7 +882,7 @@ function regionHierarchyDepth(code: string, cities: Map<string, Place>): number 
   if (cities.has(code)) return 40;
   if (isProvince(code)) return 30;
   if (isGewest(code)) return 25;
-  if (code === "be" || code === "nl" || code === "lu" || code === "fr" || code === "de") return 20;
+  if (code === "be" || code === "nl" || code === "lu" || code === "fr" || code === "de" || code === "gb") return 20;
   if (code === "eu") return 5;
   return 22 + Math.min(String(code).length, 20);
 }
@@ -778,8 +900,27 @@ function orderRegionRemovesDeepestFirst(codes: string[], cities: Map<string, Pla
 function policyNeeded(anchor: Anchor, policy: RegionPolicy, cities: Map<string, Place>): Set<string> {
   const { allowed, denied } = regionsByState(policy);
   const needed = new Set([...withoutStar(allowed), ...withoutStar(denied)]);
-  expandRegionNeeded(needed, anchor, cities);
+  expandRegionNeeded(needed, anchor, cities, freeParentsOf(policy));
   return needed;
+}
+
+/** The codes the script defines: policyNeeded plus the default scope and its ancestors. */
+function scriptNeeded(anchor: Anchor, policy: RegionPolicy, cities: Map<string, Place>): Set<string> {
+  const needed = policyNeeded(anchor, policy, cities);
+  const defCode = defaultLineCode(policy);
+  if (defCode.toLowerCase() !== "<null>") {
+    needed.add(defCode);
+    expandRegionNeeded(needed, anchor, cities, freeParentsOf(policy));
+  }
+  return needed;
+}
+
+/**
+ * The named regions the device holds after Apply: the script removes every other one, so this is
+ * the defined tree (`*` not counted). Compare with MAX_REGIONS.
+ */
+export function regionCountAfterApply(anchor: Anchor, policy: RegionPolicy, places: Place[]): number {
+  return withoutStar(Array.from(scriptNeeded(anchor, policy, cityIndex(places)))).length;
 }
 
 /** What the device holds after this policy was applied (old syncDeviceRegionSnapshotFromForm). */
@@ -808,12 +949,8 @@ export function regionCommandLines(
   if (!policy.untaggedFlood) denyForCli.push("*");
   const denySorted = starFirst(sortCodesForCli(denyForCli));
 
-  const needed = policyNeeded(anchor, policy, cities);
+  const needed = scriptNeeded(anchor, policy, cities);
   const defCode = defaultLineCode(policy);
-  if (defCode.toLowerCase() !== "<null>") {
-    needed.add(defCode);
-    expandRegionNeeded(needed, anchor, cities);
-  }
 
   const lines: string[] = [];
   // Drop named regions that were on the device but are no longer selected nor needed as ancestors.
@@ -826,7 +963,7 @@ export function regionCommandLines(
   }
 
   const homeCity = anchor.mode === "city" && anchor.place ? anchor.place : null;
-  const entries = buildOrderedRegionEntries(needed, homeCity, cities);
+  const entries = buildOrderedRegionEntries(needed, homeCity, cities, freeParentsOf(policy));
   lines.push(...packRegionDefLines(buildRegionDefTokens(entries), entries));
 
   // region def leaves named regions flood-allowed; * still needs allowf, and deny rows need denyf.

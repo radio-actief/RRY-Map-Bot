@@ -2,6 +2,14 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  addFreeRegion,
+  carryFreeRows,
+  checkFreeCode,
+  freeParentOptions,
+  isFreeParent,
+  MAX_REGIONS,
+  regionCountAfterApply,
+  removeFreeRegion,
   defaultScopeOptions,
   homeOverrideOptions,
   setDefaultScope,
@@ -86,8 +94,10 @@ describe("parity with the old page", () => {
       const anchor = searchAnchor(fields["city-search"] as string);
 
       it("renders the same rows in the same order", () => {
-        // The neighbouring regions (gewesten) are new: the old page had no such rows.
-        const rows = policyFor(anchor, PLACES).rows.filter((r) => r.group !== "neighbourRegion");
+        // The neighbouring regions (gewesten), gb and free rows are new: the old page had no such rows.
+        const rows = policyFor(anchor, PLACES).rows.filter(
+          (r) => r.group !== "neighbourRegion" && r.group !== "free" && r.code !== "gb",
+        );
         expect(rows.map((r) => rowId(r.code))).toEqual(fixtureRowIds(fields));
       });
 
@@ -438,10 +448,11 @@ describe("policyFromDevice", () => {
   });
 });
 
-// Computed with the previous configurator page's region def/deny functions for the same policy.
+// Computed with the previous configurator page's region def/deny functions for the same policy,
+// plus the gb row (under eu, after de) that the old page did not have.
 const ALLOW_ALL_RONSE = [
-  "region def eu nl|eu lu|eu fr|eu de|eu be be-vlg be-vbr|be-vlg be-vov behor|be-vov beksr|be-vov bemak|be-vov beoud|be-vov beron|be-vlg be-vwv beavl",
-  "region def eu|eu be|be be-wal be-wht becle|be-wht beezs|be-wht befbq|be-wht befrs|be-wht bemdl",
+  "region def eu nl|eu lu|eu fr|eu de|eu gb|eu be be-vlg be-vbr|be-vlg be-vov behor|be-vov beksr|be-vov bemak|be-vov beoud|be-vov beron",
+  "region def eu|eu be|be be-vlg|be-vlg be-vwv beavl|be be-wal be-wht becle|be-wht beezs|be-wht befbq|be-wht befrs|be-wht bemdl",
   "region allowf *",
   "region home beron",
   "region default be",
@@ -449,14 +460,15 @@ const ALLOW_ALL_RONSE = [
 ];
 
 const DENY_ALL_RONSE = [
-  "region def eu nl|eu lu|eu fr|eu de|eu be be-vlg be-vbr|be-vlg be-vov behor|be-vov beksr|be-vov bemak|be-vov beoud|be-vov beron|be-vlg be-vwv beavl",
-  "region def eu|eu be|be be-wal be-wht becle|be-wht beezs|be-wht befbq|be-wht befrs|be-wht bemdl",
+  "region def eu nl|eu lu|eu fr|eu de|eu gb|eu be be-vlg be-vbr|be-vlg be-vov behor|be-vov beksr|be-vov bemak|be-vov beoud|be-vov beron",
+  "region def eu|eu be|be be-vlg|be-vlg be-vwv beavl|be be-wal be-wht becle|be-wht beezs|be-wht befbq|be-wht befrs|be-wht bemdl",
   "region allowf *",
   "region denyf eu",
   "region denyf nl",
   "region denyf lu",
   "region denyf fr",
   "region denyf de",
+  "region denyf gb",
   "region denyf be",
   "region denyf be-vlg",
   "region denyf be-wal",
@@ -509,5 +521,155 @@ describe("scope options", () => {
 
   it("toggles untagged flood", () => {
     expect(setUntaggedFlood(policyFor(ronse, PLACES), false).untaggedFlood).toBe(false);
+  });
+});
+
+describe("United Kingdom", () => {
+  const ronse = cityAnchor("Ronse");
+
+  it("lists gb after de among the neighbouring countries, locked until be is set", () => {
+    const p = policyFor(ronse, PLACES);
+    const countries = p.rows.filter((r) => r.group === "neighbourCountry");
+    expect(countries.map((r) => r.code)).toEqual(["nl", "lu", "fr", "de", "gb"]);
+    expect(countries[4].label).toBe("United Kingdom (gb)");
+    expect(countries[4].disabled).toBeUndefined();
+    const closed = setRowState(p, "be", "none");
+    expect(closed.rows.find((r) => r.code === "gb")!.disabled).toEqual({ allow: true, deny: true });
+    expect(setRowState(closed, "gb", "allow")).toBe(closed);
+  });
+
+  it("defines gb under eu, after de", () => {
+    let p = policyFor(ronse, PLACES);
+    for (const c of ["eu", "de", "gb"]) p = setRowState(p, c, "allow");
+    const def = regionCommandLines(ronse, p, PLACES).filter((l) => l.startsWith("region def "));
+    expect(def.join(" ")).toMatch(/\beu\b.*\bde\|eu gb\|eu\b/);
+    expect(def).toEqual(["region def eu de|eu gb|eu be be-vov"]);
+  });
+});
+
+describe("free regions", () => {
+  const ronse = cityAnchor("Ronse");
+  const base = policyFor(ronse, PLACES);
+  const defLines = (p: RegionPolicy) => regionCommandLines(ronse, p, PLACES).filter((l) => l.startsWith("region def "));
+
+  it("checks a free code", () => {
+    expect(checkFreeCode(base, "")).toBe("empty");
+    expect(checkFreeCode(base, "a".repeat(31))).toBe("tooLong");
+    expect(checkFreeCode(base, "a".repeat(30))).toBe("ok");
+    expect(checkFreeCode(base, "Ab")).toBe("chars");
+    expect(checkFreeCode(base, "a_b")).toBe("chars");
+    expect(checkFreeCode(base, "*")).toBe("taken");
+    expect(checkFreeCode(base, "beron")).toBe("taken");
+    expect(checkFreeCode(base, "my-zone1")).toBe("ok");
+    expect(checkFreeCode(addFreeRegion(base, "my-zone1", null), "my-zone1")).toBe("taken");
+  });
+
+  it("adds an allowed, never locked row and defines it with its parent chain", () => {
+    // Cleared first: be is not set, so the neighbour tiers (be-wht among them) are locked.
+    const p = addFreeRegion(bulk(base, "clear"), "zone", "be-wht");
+    const zone = p.rows.find((r) => r.code === "zone")!;
+    expect(zone).toMatchObject({
+      code: "zone",
+      label: "zone",
+      labelKey: "region.kind.free",
+      group: "free",
+      parent: "be-wht",
+      allow: true,
+      deny: false,
+    });
+    expect(zone.disabled).toBeUndefined();
+    expect(regionsByState(p)).toEqual({ allowed: ["zone"], denied: [] });
+    expect(defLines(p)).toEqual(["region def be be-wht zone"]);
+    // Offered as home region and default scope once allowed.
+    expect(homeOverrideOptions(p).map((o) => o.code)).toContain("zone");
+    expect(defaultScopeOptions(p).map((o) => o.code)).toEqual(["zone"]);
+  });
+
+  it("nests a free region under another; a top-level one sits under *", () => {
+    let p = addFreeRegion(base, "zone", null);
+    p = addFreeRegion(p, "sub", "zone");
+    expect(p.rows.find((r) => r.code === "sub")!.parent).toBe("zone");
+    expect(defLines(p)).toEqual(["region def be be-vov|* zone sub"]);
+    // The child alone still pulls in its parent.
+    expect(defLines(setRowState(p, "zone", "none"))).toEqual(["region def be be-vov|* zone sub"]);
+  });
+
+  it("removes a free region only once no other free region sits under it", () => {
+    let p = addFreeRegion(addFreeRegion(base, "zone", null), "sub", "zone");
+    expect(isFreeParent(p, "zone")).toBe(true);
+    expect(isFreeParent(p, "sub")).toBe(false);
+    expect(removeFreeRegion(p, "zone")).toBe(p);
+    p = removeFreeRegion(p, "sub");
+    expect(p.rows.some((r) => r.code === "sub")).toBe(false);
+    expect(isFreeParent(p, "zone")).toBe(false);
+    p = removeFreeRegion(p, "zone");
+    expect(p.rows.some((r) => r.group === "free")).toBe(false);
+    expect(removeFreeRegion(p, "be")).toEqual(p);
+  });
+
+  it("offers top level, eu, be, gewesten, provinces, the home municipality and free rows as parents", () => {
+    const p = addFreeRegion(base, "zone", null);
+    const options = freeParentOptions(p, ronse);
+    expect(options[0]).toEqual({ code: "", label: "Top level" });
+    expect(options.map((o) => o.code)).toEqual([
+      "",
+      "eu",
+      "be",
+      "be-vlg",
+      "be-wal",
+      "be-vbr",
+      "be-vov",
+      "be-vwv",
+      "be-wht",
+      "beron",
+      "zone",
+    ]);
+    expect(options.find((o) => o.code === "be-wht")!.label).toBe("Henegouwen (be-wht)");
+    expect(options.find((o) => o.code === "beron")!.label).toBe("Ronse (beron)");
+  });
+
+  it("carries free rows into a rebuilt policy", () => {
+    const kortrijk = cityAnchor("Kortrijk");
+    let p = setRowState(addFreeRegion(base, "zone", "beron"), "zone", "deny");
+    p = addFreeRegion(addFreeRegion(p, "sub", "zone"), "wide", "eu");
+    const next = carryFreeRows(policyFor(kortrijk, PLACES), p, kortrijk);
+    const free = next.rows.filter((r) => r.group === "free");
+    expect(free.map((r) => [r.code, r.parent, r.allow, r.deny])).toEqual([
+      ["zone", null, false, true],
+      ["sub", "zone", true, false],
+      ["wide", "eu", true, false],
+    ]);
+    // A free code that is a structured row in the new policy (Kortrijk is bekjk) is dropped.
+    const bekjk = carryFreeRows(policyFor(kortrijk, PLACES), addFreeRegion(base, "bekjk", null), kortrijk);
+    expect(bekjk.rows.filter((r) => r.code === "bekjk").map((r) => r.group)).toEqual(["municipality"]);
+    const fresh = policyFor(kortrijk, PLACES);
+    expect(carryFreeRows(fresh, null, kortrijk)).toBe(fresh);
+  });
+
+  it("a carried free row replaces a device row with the same code", () => {
+    const p = addFreeRegion(base, "zone", null);
+    const next = carryFreeRows(policyFor(ronse, PLACES, ["zone"]), p, ronse);
+    expect(next.rows.filter((r) => r.code === "zone").map((r) => r.group)).toEqual(["free"]);
+  });
+
+  it("counts the regions the device holds after Apply", () => {
+    const distinctDefCodes = (p: RegionPolicy) =>
+      new Set(
+        defLines(p)
+          .flatMap((l) => l.slice("region def ".length).split(" "))
+          .flatMap((tok) => tok.split("|"))
+          .filter((c) => c !== "*"),
+      ).size;
+    expect(regionCountAfterApply(ronse, base, PLACES)).toBe(2);
+    // The default scope and its ancestors count too.
+    expect(regionCountAfterApply(ronse, { ...base, defaultScope: "be-wht" }, PLACES)).toBe(3);
+    let p = addFreeRegion(addFreeRegion(bulk(base, "allowAll"), "zone", "be-wht"), "sub", "zone");
+    expect(regionCountAfterApply(ronse, p, PLACES)).toBe(distinctDefCodes(p));
+    expect(regionCountAfterApply(ronse, p, PLACES)).toBeLessThanOrEqual(MAX_REGIONS);
+    p = base;
+    for (let i = 0; i < 31; i++) p = addFreeRegion(p, `zone${i}`, null);
+    expect(regionCountAfterApply(ronse, p, PLACES)).toBe(33);
+    expect(regionCountAfterApply(ronse, p, PLACES)).toBe(distinctDefCodes(p));
+    expect(MAX_REGIONS).toBe(32);
   });
 });

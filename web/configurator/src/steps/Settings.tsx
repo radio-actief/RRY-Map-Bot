@@ -1,5 +1,7 @@
 /** Step 4: settings cards with help text and change markers, the radio preset, and the live "what will change" column. */
+import { Fragment } from "preact";
 import { stepName } from "../app/Stepper";
+import { allowanceOf, blockKeys, same, sameRadio } from "../core/blocks";
 import { checkOwnerInfo, OWNER_INFO_MAX } from "../core/naming";
 import { defaultPlan, summarize, type Plan } from "../core/plan";
 import {
@@ -18,11 +20,8 @@ import { applyRecommendedRadio, BEMESH_RADIO, RadioFields } from "./settings/Rad
 
 type Card = "access" | "radio" | "advertising" | "owner" | "repeating";
 const CARDS: Card[] = ["access", "radio", "advertising", "owner", "repeating"];
-/** Expert settings in the Advanced section, besides the SETTINGS "advanced" card. */
-const EXPERT_EXTRA: SettingKey[] = ["pathHashMode", "txdelay", "directTxdelay"];
-const isExpert = (d: SettingDef) => d.card === "advanced" || EXPERT_EXTRA.includes(d.key);
-const keysOf = (card: Card) => SETTINGS.filter((d) => d.card === card && !isExpert(d));
-const EXPERT = SETTINGS.filter(isExpert);
+const keysOf = (card: Card) => SETTINGS.filter((d) => d.card === card);
+const EXPERT = SETTINGS.filter((d) => blockKeys("advanced").includes(d.key));
 const HOP_KEYS: SettingKey[] = ["floodMaxUnscoped", "floodMaxAdvert"];
 const DEFAULTS = defaultPlan();
 
@@ -30,30 +29,10 @@ const BY_KEY = new Map(SETTINGS.map((d) => [d.key, d]));
 const rawOf = (plan: Plan, key: SettingKey): string => String(plan.settings[key] ?? BY_KEY.get(key)!.formDefault ?? "");
 const defaultOf = (key: SettingKey): string => String(DEFAULTS.settings[key] ?? "");
 
-/** Equal as text, or as numbers when both are numeric ("12" and 12.0). */
-function same(a: unknown, b: unknown): boolean {
-  const x = String(a ?? "").trim();
-  const y = String(b ?? "").trim();
-  return x === y || (x !== "" && y !== "" && Number.isFinite(Number(x)) && Number(x) === Number(y));
-}
-
-const sameRadio = (a: Plan["radio"], b: Plan["radio"]) =>
-  a.freq === b.freq && a.sf === b.sf && a.bw === b.bw && a.cr === b.cr;
-
 const setSetting = (key: SettingKey, value: string | number) => {
   const plan = store.plan.peek();
   store.plan.value = { ...plan, settings: { ...plan.settings, [key]: value } };
 };
-
-/** The hop allowance pill whose pair the plan holds, if any. */
-function allowanceOf(plan: Plan): keyof typeof FLOOD_ALLOWANCE | null {
-  const found = (Object.keys(FLOOD_ALLOWANCE) as (keyof typeof FLOOD_ALLOWANCE)[]).find(
-    (k) =>
-      same(rawOf(plan, "floodMaxUnscoped"), FLOOD_ALLOWANCE[k][0]) &&
-      same(rawOf(plan, "floodMaxAdvert"), FLOOD_ALLOWANCE[k][1]),
-  );
-  return found ?? null;
-}
 
 const RECOMMENDED: Partial<Record<SettingKey, string | number>> = {
   dutycycle: RECOMMENDED_SETTINGS.dutycycle,
@@ -267,9 +246,11 @@ function SettingsCard({ card }: { card: Card }) {
         <Badge state={state} />
       </header>
       {card === "radio" ? <RadioFields /> : null}
-      {card === "advertising" ? <Pills /> : null}
       {defs.map((d) => (
-        <SettingField key={d.key} def={d} />
+        <Fragment key={d.key}>
+          {card === "advertising" && d.key === "floodMaxUnscoped" ? <Pills /> : null}
+          <SettingField def={d} />
+        </Fragment>
       ))}
       {card === "radio" || card === "advertising" ? (
         <button

@@ -1,5 +1,6 @@
 /** The radio card's preset select and the four custom radio fields. */
 import { useState } from "preact/hooks";
+import { recommendedFor } from "../../core/blocks";
 import { defaultPlan, type Plan } from "../../core/plan";
 import {
   BEMESH_PRESET_TITLE,
@@ -9,7 +10,6 @@ import {
   type RadioFieldId,
   type RadioPreset,
 } from "../../core/presets";
-import { RECOMMENDED_SETTINGS } from "../../core/settings";
 import { t } from "../../i18n/t";
 import { store } from "../../state/store";
 
@@ -30,8 +30,7 @@ function withPreset(plan: Plan, p: RadioPreset): Plan {
 }
 
 export function applyRecommendedRadio(): void {
-  const plan = withPreset(store.plan.peek(), BEMESH_RADIO);
-  store.plan.value = { ...plan, settings: { ...plan.settings, dutycycle: RECOMMENDED_SETTINGS.dutycycle } };
+  store.plan.value = recommendedFor(store.plan.peek(), "radio");
 }
 
 /** Valid text updates the radio; invalid text is kept raw in the plan so its error survives blur and navigation. */

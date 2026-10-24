@@ -65,15 +65,15 @@ export const SETTINGS: SettingDef[] = [
   def("dutycycle", "dutycycle", "radio", "50", "10", { options: ["1", "10", "50", "100"] }),
   def("floodAdvertHours", "flood.advert.interval", "advertising", 47, 47, { range: { min: 3, max: 168 } }),
   def("advertIntervalMinutes", "advert.interval", "advertising", 0, 0, { range: { min: 60, max: 240, step: 2 } }),
-  def("floodMaxUnscoped", "flood.max.unscoped", "repeating", 64, 12, { range: { min: 0, max: 64 } }),
-  def("floodMaxAdvert", "flood.max.advert", "repeating", 8, 8, { range: { min: 0, max: 64 } }),
+  def("floodMaxUnscoped", "flood.max.unscoped", "advertising", 64, 12, { range: { min: 0, max: 64 } }),
+  def("floodMaxAdvert", "flood.max.advert", "advertising", 8, 8, { range: { min: 0, max: 64 } }),
   def("floodMax", "flood.max", "repeating", 64, 64, { range: { min: 0, max: 64 } }),
-  def("pathHashMode", "path.hash.mode", "repeating", "0", "1", { options: ["0", "1", "2"] }),
+  def("pathHashMode", "path.hash.mode", "advanced", "0", "1", { options: ["0", "1", "2"] }),
   def("loopDetect", "loop.detect", "repeating", "off", "minimal", {
     options: ["off", "minimal", "moderate", "strict"],
   }),
-  def("txdelay", "txdelay", "repeating", 0.5, 0.5, { range: { min: 0, max: 2 } }),
-  def("directTxdelay", "direct.txdelay", "repeating", 0.2, 0.2, { range: { min: 0, max: 2 } }),
+  def("txdelay", "txdelay", "advanced", 0.5, 0.5, { range: { min: 0, max: 2 } }),
+  def("directTxdelay", "direct.txdelay", "advanced", 0.2, 0.2, { range: { min: 0, max: 2 } }),
   def("rxdelay", "rxdelay", "advanced", 0, 0, { range: { min: 0, max: 20 } }),
   def("radioRxgain", "radio.rxgain", "advanced", "on", "on", { options: ["on", "off"] }),
   def("intThresh", "int.thresh", "advanced", 0, 0, { range: { min: 0, max: 255 } }),
@@ -165,6 +165,7 @@ export const RECOMMENDED_SETTINGS = {
 
 /** Flood hop allowance presets: [flood.max.unscoped, flood.max.advert]. */
 export const FLOOD_ALLOWANCE = {
+  tight: [2, 3],
   minimal: [4, 6],
   average: [8, 12],
   extended: [16, 24],

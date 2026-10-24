@@ -145,6 +145,7 @@ describe("SETTINGS registry", () => {
       loopDetect: "minimal",
     });
     expect(FLOOD_ALLOWANCE).toEqual({
+      tight: [2, 3],
       minimal: [4, 6],
       average: [8, 12],
       extended: [16, 24],

@@ -1,10 +1,11 @@
 import { useEffect, useState } from "preact/hooks";
 import { t } from "../i18n/t";
-import { store, type Step } from "../state/store";
+import { busy, store, type Step } from "../state/store";
 import { disconnectUsb } from "../state/device";
 import { Connect } from "../steps/Connect";
 import { PlaceName } from "../steps/PlaceName";
 import { Regions } from "../steps/Regions";
+import { Review } from "../steps/Review";
 import { Settings } from "../steps/Settings";
 import { Notice } from "./Notice";
 import { Stepper, stepName } from "./Stepper";
@@ -28,18 +29,12 @@ export function useMediaQuery(query: string): boolean {
 
 const SHEET_NEXT = { peek: "half", half: "full", full: "peek" } as const;
 
-/** Step 5 arrives in a later task. */
 function StepBody({ step }: { step: Step }) {
   if (step === 1) return <Connect />;
   if (step === 2) return <PlaceName />;
   if (step === 3) return <Regions />;
   if (step === 4) return <Settings />;
-  return (
-    <div class="panel-body">
-      <h2>{stepName(step)}</h2>
-      <p class="sub">{t("step.placeholder")}</p>
-    </div>
-  );
+  return <Review />;
 }
 
 export function Panel() {
@@ -50,7 +45,7 @@ export function Panel() {
   const mode = sheet ? `sheet ${height}` : wide ? "wide" : "docked";
   const next = step < 5 ? ((step + 1) as Step) : null;
   const notice = store.notice.value;
-  const reading = store.reading.value;
+  const locked = busy.value;
   return (
     <section class={`panel ${mode}`}>
       {sheet ? (
@@ -80,13 +75,14 @@ export function Panel() {
         </div>
       ) : null}
       <StepBody step={step} />
-      {step === 4 ? null : (
+      {/* Steps 4 and 5 carry their own Back / Next. */}
+      {step >= 4 ? null : (
         <footer class="panel-foot">
           {step > 1 ? (
             <button
               type="button"
               class="btn"
-              disabled={reading}
+              disabled={locked}
               onClick={() => (store.step.value = (step - 1) as Step)}
             >
               {t("step.back")}
@@ -99,7 +95,7 @@ export function Panel() {
             <span />
           )}
           {next ? (
-            <button type="button" class="btn primary" disabled={reading} onClick={() => (store.step.value = next)}>
+            <button type="button" class="btn primary" disabled={locked} onClick={() => (store.step.value = next)}>
               {t("step.nextButton", { name: stepName(next) })}
             </button>
           ) : null}

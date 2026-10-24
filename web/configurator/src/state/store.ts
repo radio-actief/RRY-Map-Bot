@@ -76,6 +76,22 @@ export type AppNotice = { kind: NoticeKind; text: string };
 /** The last Read: how many commands answered and which did not, or why it failed. */
 export type LastRead = { ok: true; count: number; missing: string[] } | { ok: false; reason: string };
 
+/**
+ * Where Apply stands: checking `ver`, stopped by old or unreadable firmware, sending (progress),
+ * stopped at a failed command, or done (with the reboot offer still open or answered).
+ */
+export type ApplyState =
+  | { phase: "idle" }
+  | { phase: "checking" }
+  | { phase: "old"; version: string }
+  | { phase: "unknown" }
+  | { phase: "sending"; sent: number; total: number }
+  | { phase: "failed"; failedAt: number; total: number; command: string; error: string; remaining: string[] }
+  | { phase: "done"; total: number; offerReboot: boolean; radioChanged: boolean };
+
+/** One line of the command log: a command, a reply, or a note. */
+export type LogLine = { text: string; kind: "cmd" | "ok" | "error" | "muted" };
+
 const initialPlan = defaultPlan();
 
 export const store = {
@@ -89,6 +105,11 @@ export const store = {
   /** A Read is running: step navigation and Read are disabled. */
   reading: signal(false),
   lastRead: signal<LastRead | null>(null),
+  /** Apply is running: like `reading`, step navigation, Read and device actions are disabled. */
+  applying: signal(false),
+  apply: signal<ApplyState>({ phase: "idle" }),
+  /** The session's command log (Apply, the console, and Read when "Show command log" is on). */
+  log: signal<LogLine[]>([]),
   device: signal<DeviceState>({ status: "none", link: null, firmware: null }),
   step: signal<Step>(1),
   sheet: signal<"peek" | "half" | "full">("half"),
@@ -143,6 +164,9 @@ export const canApply = computed(() => {
   if (version && !supportsRegionDef(version)) reasons.push("apply.firmwareTooOld");
   return { ok: reasons.length === 0, reasons };
 });
+
+/** A Read or an Apply is talking to the device: the UI that could interfere is locked. */
+export const busy = computed(() => store.reading.value || store.applying.value);
 
 /** True once the plan differs from what the last default or Read gave. */
 export const dirty = computed(() => store.plan.value !== store.planBase.value);

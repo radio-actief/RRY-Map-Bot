@@ -62,6 +62,7 @@ export class SerialLink {
   private buffer = "";
   private queue: Promise<unknown> = Promise.resolve();
   private listeners: Array<() => void> = [];
+  private taps: Array<(cmd: string, reply: string | null, error?: string) => void> = [];
   private waiter: (() => void) | null = null;
   private lost = false;
   private opened = false;
@@ -83,6 +84,11 @@ export class SerialLink {
 
   onDisconnect(f: () => void): void {
     this.listeners.push(f);
+  }
+
+  /** Every command sent through the link with its reply, or null and the error (the command log). */
+  onCommand(f: (cmd: string, reply: string | null, error?: string) => void): void {
+    this.taps.push(f);
   }
 
   async open(): Promise<void> {
@@ -108,6 +114,22 @@ export class SerialLink {
   command(cmd: string, timeoutMs?: number): Promise<string> {
     const run = this.queue.then(() => this.send(cmd, timeoutMs));
     this.queue = run.catch(() => undefined);
+    const line = cmd.trim();
+    if (line && this.taps.length) {
+      const tell = (reply: string | null, error?: string) => {
+        for (const f of this.taps) {
+          try {
+            f(line, reply, error);
+          } catch {
+            /* ignore UI errors */
+          }
+        }
+      };
+      run.then(
+        (reply) => tell(reply),
+        (err) => tell(null, err instanceof Error ? err.message : String(err)),
+      );
+    }
     return run;
   }
 

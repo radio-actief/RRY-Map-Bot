@@ -7,7 +7,7 @@ import { hasValidCoords } from "../core/plan";
 import { hasWebSerial } from "../device/serial";
 import { t } from "../i18n/t";
 import { connectUsb, readDevice } from "../state/device";
-import { dirty, store } from "../state/store";
+import { busy, dirty, store } from "../state/store";
 
 const shortKey = (k: string) => (k.length > 12 ? `${k.slice(0, 4)}…${k.slice(-4)}` : k);
 
@@ -56,6 +56,7 @@ export function Connect() {
   const [asking, setAsking] = useState(false);
   const { status } = store.device.value;
   const reading = store.reading.value;
+  const locked = busy.value;
   const serial = hasWebSerial();
 
   function read() {
@@ -79,7 +80,7 @@ export function Connect() {
           <button
             type="button"
             class="btn primary block"
-            disabled={reading}
+            disabled={locked}
             onClick={() => (dirty.value ? setAsking(true) : read())}
           >
             {reading ? t("read.reading") : t("read.button")}
@@ -89,7 +90,7 @@ export function Connect() {
       <ReadResult />
       <p class="continue">
         {serial ? `${t("connect.noRepeater")} ` : null}
-        <button type="button" class="link" disabled={reading} onClick={() => (store.step.value = 2)}>
+        <button type="button" class="link" disabled={locked} onClick={() => (store.step.value = 2)}>
           {t("connect.continue")}
         </button>
       </p>

@@ -1,5 +1,5 @@
 import { t } from "../i18n/t";
-import { stepStatus, store, type Step } from "../state/store";
+import { busy, stepStatus, store, type Step } from "../state/store";
 
 export const STEPS: Step[] = [1, 2, 3, 4, 5];
 
@@ -22,7 +22,7 @@ export function Stepper({ wide }: { wide: boolean }) {
               key={n}
               class={`seg ${status}`}
               aria-current={n === current ? "step" : undefined}
-              disabled={store.reading.value}
+              disabled={busy.value}
               onClick={() => (store.step.value = n)}
             >
               {wide ? <span class="seg-label" aria-hidden="true">{`${status === "done" ? "✓" : n} ${stepName(n)}`}</span> : null}

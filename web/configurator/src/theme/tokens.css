@@ -14,6 +14,12 @@
   --on-gold: #1f1600;
   --shadow: rgb(0 0 0 / 0.12);
   --backdrop: rgb(15 20 25 / 0.4);
+  /* The command script and the console stay dark in both themes. */
+  --code-bg: #0d1117;
+  --code-ink: #e6edf3;
+  --code-mut: #8b949e;
+  --code-ok: #3fb950;
+  --code-bad: #f85149;
   color-scheme: light dark;
 }
 

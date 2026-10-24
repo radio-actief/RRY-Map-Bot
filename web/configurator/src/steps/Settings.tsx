@@ -11,7 +11,7 @@ import {
   type SettingKey,
 } from "../core/settings";
 import { t } from "../i18n/t";
-import { store, type Step } from "../state/store";
+import { busy, store, type Step } from "../state/store";
 import { MiniMap } from "./settings/MiniMap";
 import { applyRecommendedRadio, BEMESH_RADIO, RadioFields } from "./settings/RadioFields";
 
@@ -332,7 +332,7 @@ function Summary() {
 const goto = (n: Step) => (store.step.value = n);
 
 export function Settings() {
-  const reading = store.reading.value;
+  const locked = busy.value;
   return (
     <div class="panel-body step-settings">
       <h2>{t("settings.title")}</h2>
@@ -350,10 +350,10 @@ export function Settings() {
           <MiniMap />
           <Summary />
           <div class="side-nav">
-            <button type="button" class="btn" disabled={reading} onClick={() => goto(3)}>
+            <button type="button" class="btn" disabled={locked} onClick={() => goto(3)}>
               {t("step.back")}
             </button>
-            <button type="button" class="btn primary" disabled={reading} onClick={() => goto(5)}>
+            <button type="button" class="btn primary" disabled={locked} onClick={() => goto(5)}>
               {t("step.nextButton", { name: stepName(5) })}
             </button>
           </div>

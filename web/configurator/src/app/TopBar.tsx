@@ -2,7 +2,7 @@ import { t } from "../i18n/t";
 import { PROVINCE_NAMES } from "../core/be-regions";
 import { parseVersion } from "../core/firmware";
 import { planName } from "../core/plan";
-import { store, type Theme } from "../state/store";
+import { busy, store, type Theme } from "../state/store";
 
 const NEXT_THEME: Record<Theme, Theme> = { system: "light", light: "dark", dark: "system" };
 
@@ -40,7 +40,13 @@ export function TopBar() {
         <span class="chip-text">{conn.text}</span>
       </span>
       {step >= 4 && chip ? (
-        <button type="button" class="chip place trunc" title={t("top.place")} onClick={() => (store.step.value = 2)}>
+        <button
+          type="button"
+          class="chip place trunc"
+          title={t("top.place")}
+          disabled={busy.value}
+          onClick={() => (store.step.value = 2)}
+        >
           <span class="chip-text">{`📍 ${chip}`}</span>
         </button>
       ) : null}

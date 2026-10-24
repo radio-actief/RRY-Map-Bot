@@ -81,5 +81,11 @@
   "dialog.close": "Close",
   "notice.ok": "Success",
   "notice.warn": "Warning",
-  "notice.error": "Error"
+  "notice.error": "Error",
+  "map.layers": "Map layers",
+  "map.nodes": "Nearby nodes",
+  "map.nearbyNodes": "Nearby nodes ({count})",
+  "map.borders": "Borders",
+  "map.unavailable": "unavailable",
+  "map.pin": "Location pin"
 }

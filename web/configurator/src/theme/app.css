@@ -372,3 +372,115 @@ button {
   padding: 10px 14px;
   border-top: 1px solid var(--line);
 }
+
+/* Map */
+.map-container {
+  position: relative;
+}
+
+.map-canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+.map-defs {
+  position: absolute;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .leaflet-tile-pane {
+    filter: brightness(0.7) contrast(0.95) saturate(0.8);
+  }
+}
+
+:root[data-theme="dark"] .leaflet-tile-pane {
+  filter: brightness(0.7) contrast(0.95) saturate(0.8);
+}
+
+.map-layers {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 8px 10px;
+  background: var(--panel);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 1px 4px var(--shadow);
+  font-size: 13px;
+}
+
+.map-layers label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.map-layers label.disabled {
+  color: var(--mut);
+  cursor: default;
+}
+
+.map-pin span {
+  display: block;
+  width: 24px;
+  height: 24px;
+  margin: 2px;
+  background: var(--gold);
+  border: 2px solid var(--on-gold);
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  box-shadow: 0 1px 3px var(--shadow);
+}
+
+.map-node {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--ink);
+  text-shadow: 0 0 3px var(--panel), 0 0 3px var(--panel);
+}
+
+.map-node-room {
+  font-size: 13px;
+}
+
+path.map-ring {
+  stroke: var(--gold);
+  stroke-width: 2;
+}
+
+path.map-outline {
+  stroke: var(--mut);
+  stroke-width: 1;
+  fill: none;
+}
+
+path.map-municipality {
+  stroke: var(--gold);
+  stroke-width: 2;
+  fill: var(--gold);
+  fill-opacity: 0.2;
+}
+
+path.map-region-allowed {
+  stroke: var(--ok);
+  stroke-width: 2;
+  fill: var(--ok);
+  fill-opacity: 0.25;
+}
+
+path.map-region-denied {
+  stroke: var(--bad);
+  stroke-width: 2;
+  fill: url(#map-hatch);
+}

@@ -56,13 +56,25 @@ function storedTheme(): Theme {
   return v === "light" || v === "dark" ? v : "system";
 }
 
+export const LAYERS_PREF = "configurator.layers";
+
+function storedLayers(): { nodes: boolean; borders: boolean } {
+  try {
+    const v = JSON.parse(prefs.get(LAYERS_PREF) ?? "null");
+    if (v && typeof v.nodes === "boolean" && typeof v.borders === "boolean") return { nodes: v.nodes, borders: v.borders };
+  } catch {
+    /* unreadable preference */
+  }
+  return { nodes: true, borders: true };
+}
+
 export const store = {
   plan: signal<Plan>(defaultPlan()),
   snapshot: signal<DeviceSnapshot | null>(null),
   device: signal<DeviceState>({ status: "none", link: null, firmware: null }),
   step: signal<Step>(1),
   sheet: signal<"peek" | "half" | "full">("half"),
-  layers: signal({ nodes: true, borders: true }),
+  layers: signal(storedLayers()),
   theme: signal<Theme>(storedTheme()),
   data: signal<AppData>({ failed: new Set() }),
   drawerOpen: signal(false),
@@ -82,6 +94,13 @@ effect(() => {
   else document.documentElement.setAttribute("data-theme", theme);
   if (firstThemeRun) firstThemeRun = false;
   else prefs.set(THEME_PREF, theme);
+});
+
+let firstLayersRun = true;
+effect(() => {
+  const layers = store.layers.value;
+  if (firstLayersRun) firstLayersRun = false;
+  else prefs.set(LAYERS_PREF, JSON.stringify(layers));
 });
 
 export function stepStatus(n: Step): StepStatus {

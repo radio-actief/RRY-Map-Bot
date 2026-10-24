@@ -1,13 +1,18 @@
-import { store } from "../state/store";
+import { useEffect } from "preact/hooks";
+import { loadAppData } from "../state/appdata";
+import { MapView } from "./MapView";
 import { Panel } from "./Panel";
 import { TopBar } from "./TopBar";
 
 export function App() {
+  useEffect(() => {
+    void loadAppData();
+  }, []);
   return (
     <div class="app">
       <TopBar />
       <main class="stage">
-        <div class="map-container" hidden={store.step.value >= 4} />
+        <MapView />
         <Panel />
       </main>
     </div>

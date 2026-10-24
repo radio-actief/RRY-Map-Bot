@@ -1,0 +1,15 @@
+set name BE-BRU-Atomium
+
+set radio 869.618,62.5,8,8
+set dutycycle 10
+set flood.max.unscoped 12
+set path.hash.mode 1
+set loop.detect minimal
+set lat 50.842454
+set lon 4.362073
+
+region def be be-bru
+region allowf *
+region home be-bru
+region default be
+region save

@@ -834,3 +834,220 @@ path.map-region-denied {
   opacity: 0.45;
   cursor: not-allowed;
 }
+
+.region-state button[aria-pressed="true"][data-state="allow"] {
+  background: var(--ok);
+  color: #fff;
+}
+
+.region-state button[aria-pressed="true"][data-state="deny"] {
+  background: var(--bad);
+  color: #fff;
+}
+
+.badge.home {
+  color: var(--gold);
+  border-color: var(--gold);
+}
+
+/* Step 4 */
+.settings-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: 16px;
+  margin-top: 12px;
+  align-items: start;
+}
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+
+.card {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+}
+
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.card-head h3 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.card .field {
+  padding: 4px 6px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+}
+
+.card .field.changed {
+  border-color: var(--gold);
+  background: var(--gold-bg);
+}
+
+.card .field.invalid {
+  border-color: var(--bad);
+}
+
+.card .field-label {
+  margin: 6px 0 2px;
+}
+
+.field input,
+.field textarea {
+  width: 100%;
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--ink);
+  font: inherit;
+}
+
+.field textarea {
+  resize: vertical;
+}
+
+.field-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 8px;
+}
+
+.field .help,
+.field .was,
+.field .counter {
+  font-size: 11px;
+}
+
+.counter.over {
+  color: var(--bad);
+}
+
+.pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pill {
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.pill[aria-pressed="true"] {
+  background: var(--ink);
+  color: var(--panel);
+}
+
+.card > .btn.small {
+  margin-top: 8px;
+}
+
+.advanced {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+}
+
+.advanced summary {
+  cursor: pointer;
+}
+
+.advanced .card-grid {
+  margin-top: 10px;
+}
+
+.settings-side {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  position: sticky;
+  top: 0;
+}
+
+.mini-map {
+  position: relative;
+  height: 110px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.mini-map-canvas {
+  position: absolute;
+  inset: 0;
+}
+
+.mini-map-caption {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  z-index: 500;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--panel);
+  font-size: 11px;
+}
+
+.summary-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+}
+
+.sum-item {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 6px;
+  padding-left: 8px;
+  border-left: 3px solid var(--gold);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.sum-item.kept {
+  border-left-color: var(--ok);
+}
+
+.sum-label {
+  font-weight: 600;
+}
+
+.side-nav {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.side-nav .btn.primary {
+  flex: 1;
+}
+
+@media (max-width: 900px) {
+  .settings-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-side {
+    position: static;
+  }
+}

@@ -5,6 +5,7 @@ import {
   DEFAULT_SCOPE_NONE,
   HOME_OVERRIDE_OMIT,
   homeOverrideOptions,
+  homeRegionCode,
   recommendedDefaultScopeCode,
   setDefaultScope,
   setHomeOverride,
@@ -33,14 +34,17 @@ const update = (f: (p: RegionPolicy) => RegionPolicy) => {
   if (plan.regions) store.plan.value = { ...plan, regions: f(plan.regions) };
 };
 
-function RegionRowView({ row }: { row: RegionRow }) {
+function RegionRowView({ row, home }: { row: RegionRow; home: boolean }) {
   const locked = !!(row.disabled?.allow || row.disabled?.deny);
   const state = row.allow ? "allow" : row.deny ? "deny" : "none";
   const reason = locked ? lockedReason(row) : undefined;
   return (
     <li class="region-row" data-code={row.code}>
       <span class="region-name">
-        <span>{row.label}</span>
+        <span>
+          {row.label}
+          {home ? <span class="badge home">{t("regions.home.badge")}</span> : null}
+        </span>
         <span class="sub">{t(row.labelKey)}</span>
       </span>
       <div class="segmented region-state" role="group" aria-label={row.label} title={reason}>
@@ -48,6 +52,7 @@ function RegionRowView({ row }: { row: RegionRow }) {
           <button
             type="button"
             key={s}
+            data-state={s}
             disabled={locked}
             aria-pressed={state === s}
             aria-label={`${t(`regions.state.${s}`)}: ${row.label}`}
@@ -64,6 +69,7 @@ function RegionRowView({ row }: { row: RegionRow }) {
 function Options({ policy }: { policy: RegionPolicy }) {
   const auto = recommendedDefaultScopeCode(policy);
   const homeValue = policy.homeOverride ?? "";
+  const homeDefault = homeRegionCode({ ...policy, homeOverride: null });
   const defaultValue = policy.defaultScope ?? "";
   return (
     <details class="region-options">
@@ -80,7 +86,9 @@ function Options({ policy }: { policy: RegionPolicy }) {
       <label class="field">
         <span class="sub">{t("regions.home")}</span>
         <select value={homeValue} onChange={(e) => update((p) => setHomeOverride(p, e.currentTarget.value))}>
-          <option value="">{t("regions.home.default")}</option>
+          <option value="">
+            {homeDefault ? t("regions.home.defaultCode", { code: homeDefault }) : t("regions.home.default")}
+          </option>
           <option value={HOME_OVERRIDE_OMIT}>{t("regions.home.none")}</option>
           {homeOverrideOptions(policy).map((o) => (
             <option key={o.code} value={o.code}>
@@ -110,6 +118,7 @@ function Options({ policy }: { policy: RegionPolicy }) {
 
 export function Regions() {
   const { anchor, regions } = store.plan.value;
+  const homeCode = regions ? homeRegionCode(regions) : null;
   return (
     <div class="panel-body step-regions">
       <h2>{t("regions.title")}</h2>
@@ -137,7 +146,7 @@ export function Regions() {
                 <h3 class="field-label">{t(`regions.group.${g}`)}</h3>
                 <ul class="region-list">
                   {rows.map((r) => (
-                    <RegionRowView key={r.code} row={r} />
+                    <RegionRowView key={r.code} row={r} home={r.code === homeCode} />
                   ))}
                 </ul>
               </section>

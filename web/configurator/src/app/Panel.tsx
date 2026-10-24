@@ -5,6 +5,7 @@ import { disconnectUsb } from "../state/device";
 import { Connect } from "../steps/Connect";
 import { PlaceName } from "../steps/PlaceName";
 import { Regions } from "../steps/Regions";
+import { Settings } from "../steps/Settings";
 import { Notice } from "./Notice";
 import { Stepper, stepName } from "./Stepper";
 
@@ -27,11 +28,12 @@ export function useMediaQuery(query: string): boolean {
 
 const SHEET_NEXT = { peek: "half", half: "full", full: "peek" } as const;
 
-/** Steps 4-5 arrive in later tasks. */
+/** Step 5 arrives in a later task. */
 function StepBody({ step }: { step: Step }) {
   if (step === 1) return <Connect />;
   if (step === 2) return <PlaceName />;
   if (step === 3) return <Regions />;
+  if (step === 4) return <Settings />;
   return (
     <div class="panel-body">
       <h2>{stepName(step)}</h2>
@@ -66,31 +68,43 @@ export function Panel() {
         <div class="panel-notice">
           <Notice kind={notice.kind}>
             {notice.text}
-            <button type="button" class="icon small" aria-label={t("dialog.close")} onClick={() => (store.notice.value = null)}>
+            <button
+              type="button"
+              class="icon small"
+              aria-label={t("dialog.close")}
+              onClick={() => (store.notice.value = null)}
+            >
               ✕
             </button>
           </Notice>
         </div>
       ) : null}
       <StepBody step={step} />
-      <footer class="panel-foot">
-        {step > 1 ? (
-          <button type="button" class="btn" disabled={reading} onClick={() => (store.step.value = (step - 1) as Step)}>
-            {t("step.back")}
-          </button>
-        ) : store.device.value.status === "connected" ? (
-          <button type="button" class="btn" onClick={() => void disconnectUsb()}>
-            {t("connect.disconnect")}
-          </button>
-        ) : (
-          <span />
-        )}
-        {next ? (
-          <button type="button" class="btn primary" disabled={reading} onClick={() => (store.step.value = next)}>
-            {t("step.nextButton", { name: stepName(next) })}
-          </button>
-        ) : null}
-      </footer>
+      {step === 4 ? null : (
+        <footer class="panel-foot">
+          {step > 1 ? (
+            <button
+              type="button"
+              class="btn"
+              disabled={reading}
+              onClick={() => (store.step.value = (step - 1) as Step)}
+            >
+              {t("step.back")}
+            </button>
+          ) : store.device.value.status === "connected" ? (
+            <button type="button" class="btn" onClick={() => void disconnectUsb()}>
+              {t("connect.disconnect")}
+            </button>
+          ) : (
+            <span />
+          )}
+          {next ? (
+            <button type="button" class="btn primary" disabled={reading} onClick={() => (store.step.value = next)}>
+              {t("step.nextButton", { name: stepName(next) })}
+            </button>
+          ) : null}
+        </footer>
+      )}
     </section>
   );
 }

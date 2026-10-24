@@ -1358,7 +1358,7 @@ path.map-region-denied {
 
 .btn.danger.solid {
   background: var(--bad);
-  color: #fff;
+  color: var(--on-bad);
   font-weight: 700;
 }
 

@@ -3,13 +3,25 @@ import { resolve } from "node:path";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/preact";
 import nacl from "tweetnacl";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+/** The vanity search's give-up limit, lowered by the test that hits it. */
+const cap = vi.hoisted(() => ({ max: 5_000_000 }));
+vi.mock("../src/core/vanity", async (importOriginal) => {
+  const real = await importOriginal<typeof import("../src/core/vanity")>();
+  return {
+    ...real,
+    get VANITY_MAX_ATTEMPTS() {
+      return cap.max;
+    },
+  };
+});
+
 import { DeviceDrawer, clockOffset } from "../src/app/DeviceDrawer";
 import { importBackup } from "../src/core/backup";
 import { defaultPlan } from "../src/core/plan";
 import type { Place } from "../src/core/search";
 import { isErrorReply, SerialLink } from "../src/device/serial";
 import { t } from "../src/i18n/t";
-import { connectUsb } from "../src/state/device";
+import { connectUsb, deviceCommand } from "../src/state/device";
 import { dirty, resetPlan, store } from "../src/state/store";
 import { FakePort } from "./fakes/fake-port";
 
@@ -50,6 +62,7 @@ beforeEach(() => {
   store.device.value = { status: "none", link: null, firmware: null };
   store.data.value = { failed: new Set(), places: PLACES };
   store.drawerOpen.value = true;
+  cap.max = 5_000_000;
   writeText = vi.fn(async () => undefined);
   Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
 });
@@ -75,6 +88,17 @@ describe("Device tools drawer: without a device", () => {
     store.drawerOpen.value = false;
     const { container } = render(<DeviceDrawer />);
     expect(container.querySelector(".drawer")).toBeNull();
+  });
+
+  it("ignores Escape pressed inside another dialog", () => {
+    render(<DeviceDrawer />);
+    const other = document.createElement("dialog");
+    const inside = document.createElement("button");
+    other.appendChild(inside);
+    document.body.appendChild(other);
+    fireEvent.keyDown(inside, { key: "Escape" });
+    expect(store.drawerOpen.value).toBe(true);
+    other.remove();
   });
 
   it("closes on Escape and on a backdrop click, and takes focus when opened", () => {
@@ -176,6 +200,61 @@ describe("Device tools drawer: maintenance and danger zone", () => {
   });
 });
 
+describe("Device tools drawer: confirmations", () => {
+  it("Enter in a destructive confirmation does not confirm", async () => {
+    const port = await connectApp({});
+    render(<DeviceDrawer />);
+    fireEvent.click(button("Reboot"));
+    expect(document.activeElement).not.toBe(button("Reboot now"));
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: "Enter" });
+    fireEvent.click(button("Cancel"));
+    fireEvent.click(button("Factory reset…"));
+    const input = screen.getByLabelText(/Type RESET/) as HTMLInputElement;
+    fireEvent.input(input, { target: { value: "RESET" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    fireEvent.keyPress(input, { key: "Enter", charCode: 13 });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(port.received).not.toContain("reboot");
+    expect(port.received).not.toContain("erase");
+    expect(store.device.value.status).toBe("connected");
+  });
+
+  it.each([
+    ["Reboot", "Reboot now", "reboot"],
+    ["Factory reset…", "Erase the device", "erase"],
+  ])("a double click on %s sends the command once", async (open, confirm, cmd) => {
+    const port = await connectApp({});
+    render(<DeviceDrawer />);
+    fireEvent.click(button(open));
+    if (cmd === "erase") fireEvent.input(screen.getByLabelText(/Type RESET/), { target: { value: "RESET" } });
+    const go = button(confirm);
+    fireEvent.click(go);
+    fireEvent.click(go);
+    await waitFor(() => expect(store.device.value.status).toBe("none"));
+    expect(port.received.filter((l) => l === cmd)).toHaveLength(1);
+  });
+
+  it("a double click on an advert or on Write to device sends it once", async () => {
+    vi.spyOn(nacl, "randomBytes").mockImplementation(() => fromHex(SEED));
+    const port = await connectApp({ advert: "OK", [`set prv.key ${MESHCORE_PRV}`]: `OK, reboot to apply! New pubkey: ${MESHCORE_PUB}` });
+    render(<DeviceDrawer />);
+    const flood = button("Flood advert");
+    fireEvent.click(flood);
+    fireEvent.click(flood);
+    await screen.findByText(t("tools.advertSent"));
+    expect(port.received.filter((l) => l === "advert")).toHaveLength(1);
+    fireEvent.click(button("Generate vanity key…"));
+    fireEvent.input(screen.getByLabelText("Public key prefix"), { target: { value: "03" } });
+    fireEvent.click(button("Generate"));
+    await screen.findByText(MESHCORE_PUB);
+    const write = button("Write to device");
+    fireEvent.click(write);
+    fireEvent.click(write);
+    await screen.findByText(t("vanity.written", { key: MESHCORE_PUB }));
+    expect(port.received.filter((l) => l.startsWith("set prv.key"))).toHaveLength(1);
+  });
+});
+
 describe("Device tools drawer: device info", () => {
   it("shows how far the device clock is from this computer", () => {
     const at = Date.UTC(2026, 9, 24, 14, 7, 30);
@@ -248,7 +327,7 @@ describe("Device tools drawer: identity", () => {
     expect(again.container.textContent).not.toContain(SECRET);
   });
 
-  it("rejects a vanity prefix of 00 (and non-hex or over 8 characters)", async () => {
+  it("rejects a vanity prefix of 00 (and non-hex or over 4 characters)", async () => {
     await connectApp({});
     render(<DeviceDrawer />);
     fireEvent.click(button("Generate vanity key…"));
@@ -258,7 +337,9 @@ describe("Device tools drawer: identity", () => {
     expect(button("Generate").disabled).toBe(true);
     fireEvent.input(input, { target: { value: "xyz" } });
     expect(screen.getByText(t("vanity.invalid"))).toBeTruthy();
-    fireEvent.input(input, { target: { value: "123456789" } });
+    expect(input.maxLength).toBe(4);
+    fireEvent.input(input, { target: { value: "12345" } });
+    expect(screen.getByText(t("vanity.invalid"))).toBeTruthy();
     expect(button("Generate").disabled).toBe(true);
     fireEvent.input(input, { target: { value: "be" } });
     expect(button("Generate").disabled).toBe(false);
@@ -288,8 +369,43 @@ describe("Device tools drawer: identity", () => {
   it("warns when the device reports a different public key", async () => {
     await generateAndWrite(`OK, reboot to apply! New pubkey: ${PUB}`);
     const warning = await screen.findByText(t("vanity.mismatch", { got: PUB, want: MESHCORE_PUB }));
-    expect(warning.closest(".notice")?.classList.contains("warn")).toBe(true);
+    // The device saved a key that is not the generated one: an error, not a warning.
+    expect(warning.closest(".notice")?.classList.contains("error")).toBe(true);
     expect(logText()).not.toContain(MESHCORE_PRV);
+  });
+
+  it("a failed write that echoes the key shows no key, keeps the generated key and can be retried", async () => {
+    const port = await generateAndWrite(`unknown config: prv.key ${MESHCORE_PRV}`);
+    const failure = await screen.findByText(t("vanity.writeFailed", { reason: "unknown config: prv.key (hidden)" }));
+    expect(failure.closest(".notice")?.classList.contains("error")).toBe(true);
+    expect(document.body.textContent).not.toContain(MESHCORE_PRV);
+    expect(logText()).not.toContain(MESHCORE_PRV);
+    // Still the found key: write again without searching.
+    expect(screen.getByText(MESHCORE_PUB)).toBeTruthy();
+    await waitFor(() => expect(button("Write to device").disabled).toBe(false));
+    fireEvent.click(button("Write to device"));
+    await waitFor(() => expect(port.received.filter((l) => l.startsWith("set prv.key")).length).toBe(2));
+  });
+
+  it("a drawer command never hands back a private key it sent, even in a too-long-line error", async () => {
+    await connectApp({});
+    const long = "ab".repeat(80);
+    const r = await deviceCommand(`set prv.key ${long}`);
+    expect(r).toMatchObject({ ok: false });
+    expect(JSON.stringify(r)).not.toContain("abab");
+    expect(JSON.stringify(r)).toContain("(hidden)");
+  });
+
+  it("gives up after the attempt limit with the old message", async () => {
+    cap.max = 64;
+    vi.spyOn(nacl, "randomBytes").mockImplementation(() => fromHex(SEED));
+    await connectApp({});
+    render(<DeviceDrawer />);
+    fireEvent.click(button("Generate vanity key…"));
+    fireEvent.input(screen.getByLabelText("Public key prefix"), { target: { value: "9" } });
+    fireEvent.click(button("Generate"));
+    await screen.findByText("Gave up after 64 attempts. Try a shorter prefix.");
+    expect(button("Generate").disabled).toBe(false);
   });
 
   it("Cancel stops a running search", async () => {

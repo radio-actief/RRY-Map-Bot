@@ -29,8 +29,12 @@ export function pubkeyFromSetReply(reply: string): string | null {
   return m ? m[1].toLowerCase() : null;
 }
 
-/** A prefix the vanity generator takes: 1 to 8 lowercase hex characters. */
-export const VANITY_PREFIX = /^[0-9a-f]{1,8}$/;
+/** A prefix the vanity generator takes: 1 to 4 lowercase hex characters (old page). */
+export const VANITY_PREFIX = /^[0-9a-f]{1,4}$/;
+export const VANITY_PREFIX_MAX = 4;
+
+/** The search gives up after this many keys (old page's maxAttempts). */
+export const VANITY_MAX_ATTEMPTS = 5_000_000;
 
 /** The parts of tweetnacl the generator uses (injected, so tests can fix the seed). */
 export type VanityNacl = {

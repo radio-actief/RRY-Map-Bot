@@ -46,9 +46,10 @@ export function clearLog(): void {
 
 /**
  * Masks the private key of a `set prv.key` line wherever it shows up (the command, a reply that
- * echoes it, a "line too long" error that quotes its start).
+ * echoes it, a "line too long" error that quotes its start). Used for the log and for every reply
+ * or error text a drawer command hands back.
  */
-function secretMask(cmd: string): (text: string) => string {
+export function secretMask(cmd: string): (text: string) => string {
   const hidden = t("log.hidden");
   const secret = /^set\s+prv\.key\s+(\S+)/i.exec(cmd)?.[1];
   return (text) => {
@@ -313,14 +314,18 @@ export function rebootDevice(): Promise<void> {
 /** A drawer command's outcome: the reply, or why it failed (error reply, no reply, link lost). */
 export type CommandResult = { ok: true; reply: string } | { ok: false; error: string };
 
-/** One command and its reply, without the lock. */
+/**
+ * One command and its reply, without the lock. A private key sent with `set prv.key` is masked in
+ * whatever comes back, so it cannot reach a notice.
+ */
 async function exchange(link: SerialLink, cmd: string): Promise<CommandResult> {
+  const mask = secretMask(cmd);
   try {
     const reply = await run(link, cmd);
     if (!reply) return { ok: false, error: t("tools.noReply") };
-    return isErrorReply(reply) ? { ok: false, error: reply } : { ok: true, reply };
+    return isErrorReply(reply) ? { ok: false, error: mask(reply) } : { ok: true, reply: mask(reply) };
   } catch (err) {
-    return { ok: false, error: reasonOf(err) };
+    return { ok: false, error: mask(reasonOf(err)) };
   }
 }
 

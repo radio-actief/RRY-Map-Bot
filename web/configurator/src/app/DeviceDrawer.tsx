@@ -6,7 +6,14 @@
 import nacl from "tweetnacl";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { BackupError, exportBackup, importBackup } from "../core/backup";
-import { isAllowedPrefix, searchVanity, VANITY_PREFIX, type VanityKey } from "../core/vanity";
+import {
+  isAllowedPrefix,
+  searchVanity,
+  VANITY_MAX_ATTEMPTS,
+  VANITY_PREFIX,
+  VANITY_PREFIX_MAX,
+  type VanityKey,
+} from "../core/vanity";
 import { t } from "../i18n/t";
 import {
   deviceCommand,
@@ -92,12 +99,13 @@ function Drawer() {
     return () => clearTimeout(flashTimer.current);
   }, []);
 
-  // Escape closes the drawer; while a dialog is open, Escape belongs to the dialog.
+  // Escape closes the drawer; while a dialog is open (ours or another), Escape belongs to it.
   const modalOpen = modal !== null;
   useEffect(() => {
     if (modalOpen) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") close();
+      const inDialog = e.target instanceof Element && e.target.closest("dialog");
+      if (e.key === "Escape" && !inDialog) close();
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
@@ -156,18 +164,23 @@ function Drawer() {
     if (key) await copy(key, "prv");
   }
 
-  async function write(key: VanityKey) {
-    setModal(null);
-    setNote(null);
+  /**
+   * Write the generated identity. A failed write keeps the dialog and its key, so writing can be
+   * retried without searching again; the returned text says why it failed. Once the device has
+   * saved a key the dialog closes and the drawer says whether it is the expected one.
+   */
+  async function write(key: VanityKey): Promise<string | null> {
     const r = await writeIdentity(key);
-    if (!r) return;
-    if (!r.ok) setNote({ kind: "error", text: t("vanity.writeFailed", { reason: r.error }) });
-    else if (r.confirmed) setNote({ kind: "ok", text: t("vanity.written", { key: key.publicKey }) });
+    if (!r) return null;
+    if (!r.ok) return t("vanity.writeFailed", { reason: r.error });
+    setModal(null);
+    if (r.confirmed) setNote({ kind: "ok", text: t("vanity.written", { key: key.publicKey }) });
     else
       setNote({
-        kind: "warn",
+        kind: "error",
         text: t("vanity.mismatch", { got: r.devicePub ?? t("vanity.noneInReply"), want: key.publicKey }),
       });
+    return null;
   }
 
   function exportJson() {
@@ -334,7 +347,7 @@ function Drawer() {
         </Dialog>
       ) : null}
       {modal === "reset" ? <ResetDialog disabled={off} onClose={() => setModal(null)} onReset={() => restart("erase")} /> : null}
-      {modal === "vanity" ? <VanityDialog disabled={off} onClose={() => setModal(null)} onWrite={(k) => void write(k)} /> : null}
+      {modal === "vanity" ? <VanityDialog disabled={off} onClose={() => setModal(null)} onWrite={write} /> : null}
     </>
   );
 }
@@ -375,13 +388,14 @@ function ResetDialog({ disabled, onClose, onReset }: { disabled: boolean; onClos
 }
 
 type VanityPhase =
-  | { kind: "input" }
+  | { kind: "input"; gaveUp?: number }
   | { kind: "running"; tried: number }
-  | { kind: "found"; key: VanityKey; tried: number; secs: string };
+  | { kind: "found"; key: VanityKey; tried: number; secs: string; writing?: boolean; writeError?: string };
 
 /**
  * Vanity identity (old generateVanityKey): a hex prefix, a search that yields to the UI between
- * slices with a running count and Cancel, then the found key and the question to write it.
+ * slices with a running count and Cancel (and gives up after VANITY_MAX_ATTEMPTS), then the found
+ * key and the question to write it. A failed write keeps the key for another try.
  */
 function VanityDialog({
   disabled,
@@ -390,7 +404,7 @@ function VanityDialog({
 }: {
   disabled: boolean;
   onClose: () => void;
-  onWrite: (key: VanityKey) => void;
+  onWrite: (key: VanityKey) => Promise<string | null>;
 }) {
   const [prefix, setPrefix] = useState("");
   const [phase, setPhase] = useState<VanityPhase>({ kind: "input" });
@@ -411,10 +425,14 @@ function VanityDialog({
       if (run.current !== token) return;
       const until = performance.now() + VANITY_SLICE_MS;
       do {
-        const r = searchVanity(p, VANITY_BATCH, nacl);
+        const r = searchVanity(p, Math.min(VANITY_BATCH, VANITY_MAX_ATTEMPTS - tried), nacl);
         tried += r.tried;
         if (r.found) {
           setPhase({ kind: "found", key: r.found, tried, secs: ((Date.now() - begun) / 1000).toFixed(1) });
+          return;
+        }
+        if (tried >= VANITY_MAX_ATTEMPTS) {
+          setPhase({ kind: "input", gaveUp: tried });
           return;
         }
       } while (performance.now() < until);
@@ -427,6 +445,12 @@ function VanityDialog({
   function stop() {
     run.current++;
     setPhase({ kind: "input" });
+  }
+
+  async function write(found: Extract<VanityPhase, { kind: "found" }>) {
+    setPhase({ ...found, writing: true, writeError: undefined });
+    const error = await onWrite(found.key);
+    setPhase((cur) => (cur.kind === "found" ? { ...cur, writing: false, writeError: error ?? undefined } : cur));
   }
 
   const actions =
@@ -448,7 +472,12 @@ function VanityDialog({
         <button type="button" class="btn" onClick={onClose}>
           {t("vanity.discard")}
         </button>
-        <button type="button" class="btn primary" disabled={disabled} onClick={() => onWrite(phase.key)}>
+        <button
+          type="button"
+          class="btn primary"
+          disabled={disabled || phase.writing}
+          onClick={() => void write(phase)}
+        >
           {t("vanity.write")}
         </button>
       </>
@@ -462,6 +491,7 @@ function VanityDialog({
           <span class="field-label">{t("vanity.publicKey")}</span>
           <code class="secret">{phase.key.publicKey}</code>
           <p>{t("vanity.writeQuestion")}</p>
+          {phase.writeError ? <Notice kind="error">{phase.writeError}</Notice> : null}
         </>
       ) : (
         <>
@@ -470,16 +500,22 @@ function VanityDialog({
             <input
               type="text"
               class="dialog-input"
-              maxLength={8}
+              maxLength={VANITY_PREFIX_MAX}
               autocomplete="off"
               spellcheck={false}
               disabled={phase.kind === "running"}
               value={prefix}
-              onInput={(e) => setPrefix((e.currentTarget as HTMLInputElement).value)}
+              onInput={(e) => {
+                setPrefix((e.currentTarget as HTMLInputElement).value);
+                if (phase.kind === "input" && phase.gaveUp) setPhase({ kind: "input" });
+              }}
             />
           </label>
           <p class="sub">{t("vanity.hint")}</p>
           {error ? <p class="field-error">{error}</p> : null}
+          {phase.kind === "input" && phase.gaveUp ? (
+            <p class="field-error">{t("vanity.gaveUp", { count: numbers.format(phase.gaveUp) })}</p>
+          ) : null}
           {valid ? <p class="sub">{t("vanity.estimate", { count: numbers.format(16 ** p.length) })}</p> : null}
           {phase.kind === "running" ? (
             <p aria-live="polite">{t("vanity.progress", { count: numbers.format(phase.tried) })}</p>

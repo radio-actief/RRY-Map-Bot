@@ -169,9 +169,13 @@ describe("planErrors", () => {
     expect(errs({ nameSuffix: "ABCDEFGHIJKLMNOPQ", advertLoc: "none" })).toEqual([]);
   });
 
-  it("flags coordinates only when a location is set", () => {
+  it("flags invalid coordinates, and missing ones only with Fixed position (old coordsRequiredForApply)", () => {
     const p = { ...defaultPlan(), nameSuffix: "X" };
-    expect(planErrors(p)).toEqual([]);
+    expect(p.advertLoc).toBe("prefs");
+    expect(planErrors(p)).toEqual([{ key: "location", errorKey: "coordsRequired" }]);
+    expect(planErrors({ ...p, advertLoc: "none" })).toEqual([]);
+    expect(planErrors({ ...p, advertLoc: "share" })).toEqual([]);
+    expect(planErrors({ ...p, location: { lat: 50.8, lon: 4.3 } })).toEqual([]);
     expect(planErrors({ ...p, location: { lat: 0, lon: 0 } })).toEqual([{ key: "location", errorKey: "coords" }]);
   });
 });

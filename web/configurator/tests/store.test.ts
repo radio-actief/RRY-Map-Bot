@@ -3,6 +3,7 @@ import { defaultPlan } from "../src/core/plan";
 import type { Anchor } from "../src/core/regions";
 
 const BELGIUM: Anchor = { mode: "country", province_code: null, place: null };
+const GENT = { lat: 51.05, lon: 3.72 };
 import { canApply, prefs, stepStatus, store, visited } from "../src/state/store";
 
 afterEach(() => {
@@ -65,12 +66,12 @@ describe("canApply", () => {
     expect(c.reasons).toContain("apply.noLocation");
   });
   it("blocks old firmware", () => {
-    store.plan.value = { ...defaultPlan(), nameSuffix: "Gent", anchor: BELGIUM };
+    store.plan.value = { ...defaultPlan(), nameSuffix: "Gent", anchor: BELGIUM, location: GENT };
     store.device.value = { status: "connected", link: null, firmware: "v1.14.0" };
     expect(canApply.value.reasons).toEqual(["apply.firmwareTooOld"]);
   });
   it("is ok for a connected device with a valid plan", () => {
-    store.plan.value = { ...defaultPlan(), nameSuffix: "Gent", anchor: BELGIUM };
+    store.plan.value = { ...defaultPlan(), nameSuffix: "Gent", anchor: BELGIUM, location: GENT };
     store.device.value = { status: "connected", link: null, firmware: "v1.17.1 (Build: 14 Aug 2026)" };
     expect(canApply.value).toEqual({ ok: true, reasons: [] });
   });

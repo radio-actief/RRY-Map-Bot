@@ -15,7 +15,7 @@ import { DeviceDrawer } from "../src/app/DeviceDrawer";
 import { connectUsb, disconnectUsb, readDevice } from "../src/state/device";
 import { Review } from "../src/steps/Review";
 import { PlaceName } from "../src/steps/PlaceName";
-import { canApply, resetPlan, setLocation, store } from "../src/state/store";
+import { canApply, resetPlan, setLocation, stepStatus, store } from "../src/state/store";
 import { FakePort } from "./fakes/fake-port";
 import { ofKind, resetFake } from "./fakes/leaflet";
 import read from "./fixtures/read-ronse.json";
@@ -305,6 +305,23 @@ describe("Place & name step", () => {
     fireEvent.click(screen.getByRole("button", { name: "Clear" }));
     expect(store.plan.value.location).toBeNull();
     expect(store.plan.value.anchor?.place?.city_code).toBe("beron");
+  });
+
+  it("with Fixed position, Clear location flags step 2 and blocks Apply until a position is set", async () => {
+    act(() => setLocation({ lat: 50.745, lon: 3.6 }));
+    store.plan.value = { ...store.plan.value, nameSuffix: "Kluisberg", advertLoc: "prefs" };
+    const { link } = await connectedLink();
+    store.device.value = { status: "connected", link, firmware: "v1.17.1" };
+    expect(canApply.value.ok).toBe(true);
+    render(<PlaceName />);
+    fireEvent.click(screen.getByRole("button", { name: "Clear" }));
+    expect(canApply.value.ok).toBe(false);
+    expect(canApply.value.reasons).toEqual(["error.coordsRequired"]);
+    expect(screen.getByText(/with Fixed position the advert sends the stored coordinates/)).toBeTruthy();
+    store.step.value = 5;
+    expect(stepStatus(2)).toBe("attention");
+    act(() => void (store.plan.value = { ...store.plan.value, advertLoc: "none" }));
+    expect(canApply.value.ok).toBe(true);
   });
 
   it("a pin set before the borders load gets its place once they arrive", () => {

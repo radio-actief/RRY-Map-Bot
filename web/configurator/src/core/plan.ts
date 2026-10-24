@@ -183,7 +183,7 @@ function regionCodes(plan: Plan): string[] {
 /**
  * Everything in the plan the script cannot send as entered: invalid settings (control characters
  * included), a name that is empty or breaks a firmware limit, owner info over 119 bytes, invalid
- * coordinates (or none while the advert uses the stored position), a region code with a control
+ * coordinates (or none while the advert uses the stored position, "Fixed position"), a region code with a control
  * character. errorKey is the en.json key without its `error.` prefix.
  */
 export function planErrors(plan: Plan): PlanError[] {
@@ -208,6 +208,8 @@ export function planErrors(plan: Plan): PlanError[] {
     errors.push({ key: "radio", errorKey: "radioInvalid" });
   }
   if (plan.location && !sendableLocation(plan)) errors.push({ key: "location", errorKey: "coords" });
+  // Old coordsRequiredForApply: the advert sends the stored position, so there must be one.
+  else if (!plan.location && plan.advertLoc === "prefs") errors.push({ key: "location", errorKey: "coordsRequired" });
   if (regionCodes(plan).some((c) => hasControlChars(c))) errors.push({ key: "regions", errorKey: "regionControlChars" });
   return errors;
 }

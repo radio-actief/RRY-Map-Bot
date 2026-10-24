@@ -49,6 +49,7 @@
   "error.nameTooLong": "The name is too long for the repeater.",
   "error.ownerInfoTooLong": "Too long. Owner info allows 119 bytes.",
   "error.coords": "Enter valid coordinates.",
+  "error.coordsRequired": "Set the position: with Fixed position the advert sends the stored coordinates.",
   "changes_one": "{count} change",
   "changes_other": "{count} changes",
   "apply.noDevice": "Connect a repeater first.",

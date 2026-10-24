@@ -232,6 +232,9 @@ function CoordinateFields() {
         ) : null}
       </div>
       {invalid ? <p class="field-error">{t("error.coords")}</p> : null}
+      {!invalid && !location && store.plan.value.advertLoc === "prefs" ? (
+        <p class="field-error">{t("error.coordsRequired")}</p>
+      ) : null}
     </>
   );
 }

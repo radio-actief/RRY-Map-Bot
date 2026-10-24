@@ -23,5 +23,14 @@
   "error.range": "Value is out of range.",
   "error.option": "Pick one of the listed options.",
   "error.tooLong": "Too long. The admin password allows 15 bytes.",
-  "error.unknown": "Unknown setting."
+  "error.unknown": "Unknown setting.",
+  "region.kind.country": "Country",
+  "region.kind.gewest": "Region (gewest), optional",
+  "region.kind.province": "Province",
+  "region.kind.municipality": "Municipality",
+  "region.kind.neighbourMunicipality": "Neighbouring municipality",
+  "region.kind.neighbourProvince": "Neighbouring province (land border)",
+  "region.kind.neighbourCountry": "Neighbour country",
+  "region.kind.wider": "Wider region",
+  "region.kind.device": "Scope read from the device"
 }

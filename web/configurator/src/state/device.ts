@@ -101,11 +101,22 @@ effect(() => {
 /** A link that is about to drop on purpose (reboot and friends): its disconnect is not an error. */
 let leaving: SerialLink | null = null;
 
-/** The device is gone: forget it (and its regions), with the unplug notice unless it left on purpose. */
+/**
+ * Forget what the last Read told about a device (its snapshot, clock, regions and the Read's
+ * outcome), so nothing of it is shown for or used against another device. The plan stays.
+ */
+function forgetRead(): void {
+  store.snapshot.value = null;
+  store.clock.value = null;
+  store.deviceRegions.value = undefined;
+  store.lastRead.value = null;
+}
+
+/** The device is gone: forget it and its Read, with the unplug notice unless it left on purpose. */
 function dropped(link: SerialLink): void {
   if (store.device.peek().link !== link) return;
   store.device.value = NO_DEVICE;
-  store.deviceRegions.value = undefined;
+  forgetRead();
   if (leaving === link) leaving = null;
   else store.notice.value = { kind: "error", text: t("connect.unplugged") };
 }
@@ -122,8 +133,7 @@ export async function connectUsb({ requestPort = requestUsbPort, timing }: Conne
     return;
   }
   store.notice.value = null;
-  store.lastRead.value = null;
-  store.clock.value = null;
+  forgetRead();
   store.apply.value = { phase: "idle" };
   store.device.value = { status: "connecting", link: null, firmware: null };
   const link = new SerialLink(port, timing);
@@ -138,7 +148,6 @@ export async function connectUsb({ requestPort = requestUsbPort, timing }: Conne
   // Unplugged while the port opened or the boot output drained.
   if (!link.connected) {
     store.device.value = NO_DEVICE;
-    store.deviceRegions.value = undefined;
     store.notice.value = { kind: "error", text: t("connect.unplugged") };
     return;
   }
@@ -147,11 +156,11 @@ export async function connectUsb({ requestPort = requestUsbPort, timing }: Conne
   if (store.device.peek().link === link) store.device.value = { ...store.device.peek(), firmware: fw.version };
 }
 
-/** Close on purpose (old disconnectSerialUsb): no unplug notice, and the device's regions are forgotten. */
+/** Close on purpose (old disconnectSerialUsb): no unplug notice, and the device's Read is forgotten. */
 export async function disconnectUsb(): Promise<void> {
   const link = store.device.peek().link;
   store.device.value = NO_DEVICE;
-  store.deviceRegions.value = undefined;
+  forgetRead();
   await link?.close();
 }
 

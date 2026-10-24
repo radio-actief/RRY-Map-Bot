@@ -11,7 +11,9 @@ import { defaultPlan } from "../src/core/plan";
 import type { Place } from "../src/core/search";
 import { SerialLink } from "../src/device/serial";
 import { Connect } from "../src/steps/Connect";
-import { connectUsb, disconnectUsb } from "../src/state/device";
+import { DeviceDrawer } from "../src/app/DeviceDrawer";
+import { connectUsb, disconnectUsb, readDevice } from "../src/state/device";
+import { Review } from "../src/steps/Review";
 import { PlaceName } from "../src/steps/PlaceName";
 import { canApply, resetPlan, setLocation, store } from "../src/state/store";
 import { FakePort } from "./fakes/fake-port";
@@ -158,6 +160,70 @@ describe("Connect step", () => {
     expect(store.plan.value).toBe(before);
     expect(store.snapshot.value).toBeNull();
     expect(store.lastRead.value?.ok).toBe(false);
+  });
+
+  describe("another device", () => {
+    const B = { ver: "v1.17.1 (Build: 12-Oct-2026)" };
+    const A_KEY = read["get public.key"].replace(/^> /, "");
+
+    /** Device A connected through the app and read (32 commands after `ver`), the next command unplugs it. */
+    async function readA() {
+      const port = new FakePort(read, { disconnectAfter: 34 });
+      await connectUsb({ requestPort: async () => port, timing: FAST });
+      await readDevice();
+      expect(store.snapshot.value?.publicKey).toBe(A_KEY);
+      expect(store.clock.value).not.toBeNull();
+      expect(store.deviceRegions.value).toBeDefined();
+    }
+
+    const forgotten = () => {
+      expect(store.snapshot.value).toBeNull();
+      expect(store.clock.value).toBeNull();
+      expect(store.deviceRegions.value).toBeUndefined();
+      expect(store.lastRead.value).toBeNull();
+    };
+
+    it("unplug A, connect B: nothing of A shows in the card, drawer, summary or nearby check", async () => {
+      await readA();
+      await store.device.value.link!.command("clock").catch(() => undefined);
+      await waitFor(() => expect(store.device.value.status).toBe("none"));
+      forgotten();
+
+      await connectUsb({ requestPort: async () => new FakePort(B), timing: FAST });
+      expect(store.device.value.status).toBe("connected");
+      forgotten();
+
+      store.step.value = 1;
+      const card = render(<Connect />);
+      expect(screen.queryByText("BE-RON-Kluisberg🌞")).toBeNull();
+      expect(screen.getAllByText("—").length).toBe(2);
+      card.unmount();
+
+      store.drawerOpen.value = true;
+      const drawer = render(<DeviceDrawer />);
+      expect((screen.getByRole("button", { name: "Copy public key" }) as HTMLButtonElement).disabled).toBe(true);
+      expect(screen.getByText(/not read/)).toBeTruthy();
+      drawer.unmount();
+      store.drawerOpen.value = false;
+
+      const review = render(<Review />);
+      expect(document.querySelector(".rv-from")).toBeNull();
+      review.unmount();
+
+      // A's own node no longer counts as "this repeater" for B.
+      store.data.value = { ...store.data.value, nodes: [{ ...node("BE-RON-Kluisberg", 50.76, 3.61), public_key: A_KEY }] };
+      render(<PlaceName />);
+      expect(screen.getByText(/already used nearby/)).toBeTruthy();
+    });
+
+    it("Disconnect and a new connect forget the device read", async () => {
+      await readA();
+      await disconnectUsb();
+      forgotten();
+      await readA();
+      await connectUsb({ requestPort: async () => new FakePort(B), timing: FAST });
+      forgotten();
+    });
   });
 
   it("while reading, step navigation is disabled", () => {

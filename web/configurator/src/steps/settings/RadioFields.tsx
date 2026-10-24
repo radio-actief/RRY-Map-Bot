@@ -1,15 +1,8 @@
 /** The radio card's preset select and the four custom radio fields. */
 import { useState } from "preact/hooks";
-import { recommendedFor } from "../../core/blocks";
-import { defaultPlan, type Plan } from "../../core/plan";
-import {
-  BEMESH_PRESET_TITLE,
-  parseRadioField,
-  presetForRadio,
-  RADIO_PRESETS,
-  type RadioFieldId,
-  type RadioPreset,
-} from "../../core/presets";
+import { recommendedFor, withPreset } from "../../core/blocks";
+import { defaultPlan } from "../../core/plan";
+import { parseRadioField, presetForRadio, RADIO_PRESETS, type RadioFieldId } from "../../core/presets";
 import { t } from "../../i18n/t";
 import { store } from "../../state/store";
 
@@ -21,13 +14,6 @@ const FIELDS: { id: RadioFieldId; label: string }[] = [
   { id: "cr", label: "settings.radio.cr" },
 ];
 const DEFAULT_RADIO = defaultPlan().radio;
-export const BEMESH_RADIO = RADIO_PRESETS.find((p) => p.title === BEMESH_PRESET_TITLE)!;
-
-/** The plan with a preset's values and no custom state. */
-function withPreset(plan: Plan, p: RadioPreset): Plan {
-  const { radioText: _text, radioCustom: _custom, ...rest } = plan;
-  return { ...rest, radio: { freq: p.freq, sf: p.sf, bw: p.bw, cr: p.cr } };
-}
 
 export function applyRecommendedRadio(): void {
   store.plan.value = recommendedFor(store.plan.peek(), "radio");

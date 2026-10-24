@@ -1,6 +1,6 @@
 /** Setting blocks: the four groups the guided flow recommends, counts and undoes as one. */
 import type { Plan } from "./plan";
-import { BEMESH_PRESET_TITLE, RADIO_PRESETS } from "./presets";
+import { BEMESH_PRESET_TITLE, RADIO_PRESETS, type RadioPreset } from "./presets";
 import { FLOOD_ALLOWANCE, SETTINGS, type SettingDef, type SettingKey } from "./settings";
 import { FIRMWARE_TIMING, SITE_PROFILES, siteOf, timingOf, withTiming, type SiteProfile } from "./site";
 
@@ -8,7 +8,7 @@ export type Block = "radio" | "advertising" | "repeating" | "advanced";
 export const BLOCKS: Block[] = ["radio", "advertising", "repeating", "advanced"];
 
 const BY_KEY = new Map(SETTINGS.map((d) => [d.key, d]));
-const BEMESH_RADIO = RADIO_PRESETS.find((p) => p.title === BEMESH_PRESET_TITLE)!;
+export const BEMESH_RADIO = RADIO_PRESETS.find((p) => p.title === BEMESH_PRESET_TITLE)!;
 
 /** The settings of a block: the SETTINGS of that card. */
 export function blockKeys(block: Block): SettingKey[] {
@@ -25,7 +25,7 @@ export function same(a: unknown, b: unknown): boolean {
 export const sameRadio = (a: Plan["radio"], b: Plan["radio"]) =>
   a.freq === b.freq && a.sf === b.sf && a.bw === b.bw && a.cr === b.cr;
 
-const rawOf = (plan: Plan, key: SettingKey): string => String(plan.settings[key] ?? BY_KEY.get(key)!.formDefault ?? "");
+export const rawOf = (plan: Plan, key: SettingKey): string => String(plan.settings[key] ?? BY_KEY.get(key)!.formDefault ?? "");
 
 /** The hop allowance level whose pair the plan holds, if any. */
 export function allowanceOf(plan: Plan): keyof typeof FLOOD_ALLOWANCE | null {
@@ -37,6 +37,12 @@ export function allowanceOf(plan: Plan): keyof typeof FLOOD_ALLOWANCE | null {
   return found ?? null;
 }
 
+/** The plan with a preset's values and no custom state. */
+export function withPreset(plan: Plan, p: RadioPreset): Plan {
+  const { radioText: _text, radioCustom: _custom, ...rest } = plan;
+  return { ...rest, radio: { freq: p.freq, sf: p.sf, bw: p.bw, cr: p.cr } };
+}
+
 const withSettings = (plan: Plan, settings: Plan["settings"]): Plan => ({
   ...plan,
   settings: { ...plan.settings, ...settings },
@@ -45,9 +51,7 @@ const withSettings = (plan: Plan, settings: Plan["settings"]): Plan => ({
 /** The plan with this block set to the #BEmesh recommendation. */
 export function recommendedFor(plan: Plan, block: Block): Plan {
   if (block === "radio") {
-    const { radioText: _text, radioCustom: _custom, ...rest } = plan;
-    const { freq, sf, bw, cr } = BEMESH_RADIO;
-    return withSettings({ ...rest, radio: { freq, sf, bw, cr } }, { dutycycle: "10" });
+    return withSettings(withPreset(plan, BEMESH_RADIO), { dutycycle: "10" });
   }
   if (block === "advertising") {
     const [unscoped, advert] = FLOOD_ALLOWANCE[allowanceOf(plan) ?? "average"];
@@ -75,7 +79,7 @@ export function recommendedForAll(plan: Plan): Plan {
 export function isBlockRecommended(plan: Plan, block: Block): boolean {
   const rec = recommendedFor(plan, block);
   if (!blockKeys(block).every((k) => same(rawOf(plan, k), rawOf(rec, k)))) return false;
-  return block !== "radio" || (sameRadio(plan.radio, rec.radio) && !plan.radioText);
+  return block !== "radio" || (sameRadio(plan.radio, rec.radio) && !plan.radioText && !plan.radioCustom);
 }
 
 /** Settings of the block that differ from start, plus one for the radio. The admin password is in no block. */

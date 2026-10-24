@@ -1,7 +1,7 @@
 /** Step 4: settings cards with help text and change markers, the radio preset, and the live "what will change" column. */
 import { Fragment } from "preact";
 import { stepName } from "../app/Stepper";
-import { allowanceOf, blockKeys, same, sameRadio } from "../core/blocks";
+import { allowanceOf, BEMESH_RADIO, blockKeys, rawOf, same, sameRadio } from "../core/blocks";
 import { checkOwnerInfo, OWNER_INFO_MAX } from "../core/naming";
 import { defaultPlan, summarize, type Plan } from "../core/plan";
 import {
@@ -15,7 +15,7 @@ import {
 import { t } from "../i18n/t";
 import { busy, store, type Step } from "../state/store";
 import { MiniMap } from "./settings/MiniMap";
-import { applyRecommendedRadio, BEMESH_RADIO, RadioFields } from "./settings/RadioFields";
+import { applyRecommendedRadio, RadioFields } from "./settings/RadioFields";
 
 
 type Card = "access" | "radio" | "advertising" | "owner" | "repeating";
@@ -26,7 +26,6 @@ const HOP_KEYS: SettingKey[] = ["floodMaxUnscoped", "floodMaxAdvert"];
 const DEFAULTS = defaultPlan();
 
 const BY_KEY = new Map(SETTINGS.map((d) => [d.key, d]));
-const rawOf = (plan: Plan, key: SettingKey): string => String(plan.settings[key] ?? BY_KEY.get(key)!.formDefault ?? "");
 const defaultOf = (key: SettingKey): string => String(DEFAULTS.settings[key] ?? "");
 
 const setSetting = (key: SettingKey, value: string | number) => {

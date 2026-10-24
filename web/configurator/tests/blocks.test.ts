@@ -49,7 +49,7 @@ describe("blocks", () => {
 
   it("advanced keeps a known profile and falls back to Suburban", () => {
     const hill = recommendedFor(withTiming(newPlan(), SITE_PROFILES.hilltop), "advanced");
-    expect(hill.settings.txdelay).toBe(2);
+    expect([hill.settings.txdelay, hill.settings.directTxdelay, hill.settings.rxdelay]).toEqual([2, 2, 3]);
     const odd = recommendedFor(withTiming(newPlan(), { txdelay: 0.6, directTxdelay: 0.2, rxdelay: 0 }), "advanced");
     expect([odd.settings.txdelay, odd.settings.directTxdelay, odd.settings.rxdelay]).toEqual([0.8, 0.4, 3]);
     expect(odd.settings.pathHashMode).toBe("1");
@@ -71,6 +71,19 @@ describe("blocks", () => {
     const all = recommendedForAll(defaultPlan());
     for (const b of BLOCKS) expect(isBlockRecommended(all, b)).toBe(true);
     expect(isBlockRecommended(withSettings(all, { loopDetect: "strict" }), "repeating")).toBe(false);
+  });
+
+  it("radio is not recommended with another freq, radioText or the custom flag", () => {
+    const plan = defaultPlan();
+    expect(isBlockRecommended(plan, "radio")).toBe(true);
+    expect(isBlockRecommended({ ...plan, radio: { ...plan.radio, freq: 869 } }, "radio")).toBe(false);
+    expect(isBlockRecommended({ ...plan, radioText: { sf: "x" } }, "radio")).toBe(false);
+    expect(isBlockRecommended({ ...plan, radioCustom: true }, "radio")).toBe(false);
+  });
+
+  it("counts a radio change when only radioText is set", () => {
+    const start = defaultPlan();
+    expect(blockChanges({ ...start, radioText: { sf: "x" } }, start, "radio")).toBe(1);
   });
 
   it("counts changes against start and undo restores it", () => {

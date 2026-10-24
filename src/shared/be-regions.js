@@ -3,7 +3,7 @@
  *
  * Single source of truth for province codes/names/adjacency and the
  * be-locode data URL resolver, previously duplicated across
- * configurator (src/configurator/dom.js) and region-map.html.
+ * the configurator and region-map.html.
  *
  * Exposed as window.RRYRegions (plain globals, no bundler needed).
  */

@@ -35,20 +35,23 @@ describe("importBackup v1", () => {
     expect(presetForRadio(narrow.radio)?.title).toBe("EU/UK (Narrow)");
   });
 
-  it("matches every old preset index to the old page's FREQUENCY_PRESETS", () => {
-    const src = readFileSync(resolve(process.cwd(), "src/configurator.js"), "utf8");
-    const block = src.slice(
-      src.indexOf("const FREQUENCY_PRESETS = ["),
-      src.indexOf("];", src.indexOf("const FREQUENCY_PRESETS")),
-    );
-    const old = [...block.matchAll(/freq: ([\d.]+), sf: (\d+), bw: ([\d.]+), cr: (\d+)/g)].map((m) => ({
-      freq: Number(m[1]),
-      sf: Number(m[2]),
-      bw: Number(m[3]),
-      cr: Number(m[4]),
-    }));
-    expect(old.length).toBe(13);
-    old.forEach((radio, i) => {
+  it("maps every legacy backup preset index to its radio", () => {
+    const legacy = [
+      { freq: 915.8, sf: 10, bw: 250, cr: 5 },
+      { freq: 916.675, sf: 7, bw: 62.5, cr: 8 },
+      { freq: 869.618, sf: 8, bw: 62.5, cr: 8 },
+      { freq: 869.525, sf: 11, bw: 250, cr: 5 },
+      { freq: 869.525, sf: 10, bw: 250, cr: 5 },
+      { freq: 869.525, sf: 7, bw: 62.5, cr: 5 },
+      { freq: 433.65, sf: 11, bw: 250, cr: 5 },
+      { freq: 917.375, sf: 11, bw: 250, cr: 5 },
+      { freq: 917.375, sf: 7, bw: 62.5, cr: 5 },
+      { freq: 433.375, sf: 9, bw: 62.5, cr: 6 },
+      { freq: 869.618, sf: 7, bw: 62.5, cr: 6 },
+      { freq: 910.525, sf: 7, bw: 62.5, cr: 5 },
+      { freq: 920.25, sf: 11, bw: 250, cr: 5 },
+    ];
+    legacy.forEach((radio, i) => {
       expect(importBackup(v1("ronse-solar", { "setting-radio-preset": String(i) }), PLACES).radio).toEqual(radio);
     });
   });

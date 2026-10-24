@@ -8,7 +8,6 @@
     "dev": "vite --config web/configurator/vite.config.ts",
     "build": "vite build --config web/configurator/vite.config.ts",
     "test": "vitest run --config web/configurator/vite.config.ts",
-    "test:legacy": "node --test \"tests/js/*.test.mjs\"",
     "typecheck": "tsc -p web/configurator --noEmit"
   },
   "dependencies": {

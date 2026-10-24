@@ -6,6 +6,7 @@ FROM node:22-slim AS web
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY web/ web/
+COPY src/shared/ src/shared/
 RUN npm ci && npm run build
 
 # Stage 2: runtime

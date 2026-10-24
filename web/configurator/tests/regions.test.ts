@@ -408,7 +408,7 @@ describe("policyFromDevice", () => {
   });
 });
 
-// Computed with the old page's region def/deny functions (src/configurator.js) for the same policy.
+// Computed with the previous configurator page's region def/deny functions for the same policy.
 const ALLOW_ALL_RONSE = [
   "region def eu nl|eu lu|eu fr|eu de|eu be be-vlg be-vbr|be-vlg be-vov behor|be-vov beksr|be-vov bemak|be-vov beoud|be-vov beron|be-vlg be-vwv beavl",
   "region def eu|eu be|be be-wht becle|be-wht beezs|be-wht befbq|be-wht befrs|be-wht bemdl",

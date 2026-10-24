@@ -93,7 +93,7 @@ const V1_SETTINGS: [string, SettingKey][] = [
 ];
 
 /**
- * The old page's FREQUENCY_PRESETS (src/configurator.js, before the rebuild), in its order:
+ * The previous configurator page's radio preset list, in its order:
  * a v1 `setting-radio-preset` value is an index into this list, not into RADIO_PRESETS.
  */
 const LEGACY_RADIO_PRESETS: Radio[] = [

@@ -1,5 +1,5 @@
 /**
- * Web Serial link to a MeshCore repeater / room server console (port of src/repeater-serial.js).
+ * Web Serial link to a MeshCore repeater / room server console.
  * Plain text lines ended with CR; the device echoes the line and answers on a line starting "->".
  */
 

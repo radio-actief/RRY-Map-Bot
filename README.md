@@ -43,11 +43,24 @@ Run the test suite inside the image:
 docker compose run --rm api pytest -q tests/
 ```
 
-Run the configurator's JavaScript tests (Node 20+, no install needed):
+## Configurator
+
+The repeater configurator (`/configurator`) is a Vite + Preact + TypeScript app in `web/configurator/`.
+`npm run build` writes it to `dist/configurator/`, which Flask serves; the Dockerfile builds it in its first stage.
 
 ```bash
-npm test
+npm ci
+npm run dev        # Vite dev server; /api and /data are proxied to the Flask container on :8000
+npm test           # Vitest
+npm run typecheck  # tsc --noEmit
+npm run build      # production build into dist/configurator/
 ```
+
+Parity fixtures in `web/configurator/tests/fixtures/parity/` pair saved backup files with the exact CLI script the
+configurator must generate for them, so changes to script generation cannot silently alter what is sent to a repeater.
+
+`node scripts/update-radio-presets.mjs` refreshes `web/configurator/src/core/radio-presets.json` from the official
+MeshCore API.
 
 Verify the four count surfaces agree against the running API:
 

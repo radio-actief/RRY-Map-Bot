@@ -1,7 +1,7 @@
 /**
  * Region scope policy (which rows exist for a location, their Allow/Deny state, bulk actions)
- * and the `region …` CLI lines it produces. Port of the old page's policy grid and
- * buildRegionCommandLines (src/configurator.js), with the checkbox DOM replaced by RegionPolicy.
+ * and the `region …` CLI lines it produces. The policy is a plain RegionPolicy value;
+ * the UI grid reads and writes it.
  */
 import { GEWEST_NAMES, GEWEST_OF_PROVINCE, PROVINCE_ADJACENCY, PROVINCE_NAMES } from "./be-regions";
 import { t } from "../i18n/t";

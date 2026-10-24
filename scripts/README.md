@@ -56,7 +56,7 @@ Optional paths:
 
 **Output schema (per row):** `nis5`, `plaats`, `gemeente`, `province_code`, `city_code`, `lat`, `lon`, `search_aliases` (array of strings).
 
-Consumers: [Repeater Configurator](../configurator.html), [region map](../region-map.html).
+Consumers: [Repeater Configurator](../web/configurator/), [region map](../region-map.html).
 
 **StatBel geometry (reference only):** how to obtain municipality / sector GeoJSON for your own checks is documented in [`data/statbel/STATBEL_MUNICIPALITIES.md`](../data/statbel/STATBEL_MUNICIPALITIES.md). The in-repo Python audit scripts were removed; regenerate `be-locode.json` with `generate-be-locode.py` when source data or overrides change.
 
@@ -99,7 +99,7 @@ Optional flags:
 
 Builds [`data/be-gewesten.geojson`](../data/be-gewesten.geojson): the 2 Belgian gewesten with a province-level parent (Vlaams Gewest, Waals Gewest), dissolved from [`data/be-provinces.geojson`](../data/be-provinces.geojson) with `shapely.ops.unary_union`. Brussels Hoofdstedelijk Gewest has no separate polygon — `be-bru`'s own province boundary already **is** the region boundary.
 
-Consumed by the [region map](../region-map.html)'s optional "Gewesten" overlay. Region scopes stay **country → province** as the primary/recommended setup; gewest is an optional extra tier (see the [Repeater Configurator](../configurator.html)).
+Consumed by the [region map](../region-map.html)'s optional "Gewesten" overlay. Region scopes stay **country → province** as the primary/recommended setup; gewest is an optional extra tier (see the [Repeater Configurator](../web/configurator/)).
 
 **Dependencies:** `shapely` (already in [`requirements.txt`](../requirements.txt)).
 

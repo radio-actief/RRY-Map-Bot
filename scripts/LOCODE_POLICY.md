@@ -1,6 +1,6 @@
 # Belgian municipality codes (`be-locode.json`)
 
-How we assign the 3-letter segment in `city_code` (e.g. `beove` → repeater prefix `BE-OVE-`) for the [Repeater Configurator](../configurator.html) and [region map](../region-map.html).
+How we assign the 3-letter segment in `city_code` (e.g. `beove` → repeater prefix `BE-OVE-`) for the [Repeater Configurator](../web/configurator/) and [region map](../region-map.html).
 
 **Machine-readable overrides:** [`be_locode_nis5_un_overrides.py`](be_locode_nis5_un_overrides.py)  
 **Audit script:** [`verify_locode_overrides.py`](verify_locode_overrides.py)  

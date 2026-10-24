@@ -1,4 +1,5 @@
-/** Location search ranking for be-locode rows. */
+/** Location search ranking for be-locode rows, and the location choices offered for a query. */
+import { PROVINCE_NAMES } from "./be-regions";
 
 export type Place = {
   nis5: string;
@@ -43,4 +44,41 @@ export function rankPlaces(places: Place[], query: string): Place[] {
   }
   ranked.sort((a, b) => a.rank - b.rank);
   return ranked.map((r) => r.row);
+}
+
+/** A location the search offers: Belgium, a province or a place. The label is name + code. */
+export type LocationChoice = (
+  | { type: "country" }
+  | { type: "province"; code: string }
+  | { type: "city"; place: Place }
+) & { label: string };
+
+const COUNTRY_WORDS = ["belgium", "belgie", "belgië", "belgique"];
+const MAX_CHOICES = 16;
+
+/**
+ * Choices for a search text in the old dropdown order (filterLocationChoices): the country
+ * first, then provinces whose code or name contains the query, then ranked places.
+ */
+export function locationChoices(query: string, places: Place[]): LocationChoice[] {
+  if (!query || query.length < 2) return [];
+  const q = normalize(query);
+  const out: LocationChoice[] = [];
+  if (q === "be" || COUNTRY_WORDS.some((w) => normalize(w).includes(q))) {
+    out.push({ type: "country", label: "België (be)" });
+  }
+  for (const [code, name] of Object.entries(PROVINCE_NAMES)) {
+    if (out.length >= MAX_CHOICES) break;
+    if (normalize(code).includes(q) || normalize(name).includes(q)) {
+      out.push({ type: "province", code, label: `${name} (${code})` });
+    }
+  }
+  const seen = new Set<string>();
+  for (const place of rankPlaces(places, query)) {
+    if (out.length >= MAX_CHOICES) break;
+    if (seen.has(place.city_code)) continue;
+    seen.add(place.city_code);
+    out.push({ type: "city", place, label: `${place.plaats} (${place.city_code})` });
+  }
+  return out;
 }

@@ -32,5 +32,12 @@
   "region.kind.neighbourProvince": "Neighbouring province (land border)",
   "region.kind.neighbourCountry": "Neighbour country",
   "region.kind.wider": "Wider region",
-  "region.kind.device": "Scope read from the device"
+  "region.kind.device": "Scope read from the device",
+  "script.group.name": "Name",
+  "script.group.settings": "Settings",
+  "script.group.location": "Location",
+  "script.group.regions": "Regions",
+  "backup.error.unknown": "This file is not a configurator backup.",
+  "backup.error.newer": "This backup comes from a newer version of the configurator.",
+  "backup.error.invalid": "This backup is damaged or incomplete."
 }

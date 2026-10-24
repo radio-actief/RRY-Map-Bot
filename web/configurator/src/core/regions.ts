@@ -5,9 +5,21 @@
  */
 import { GEWEST_NAMES, GEWEST_OF_PROVINCE, PROVINCE_ADJACENCY, PROVINCE_NAMES } from "./be-regions";
 import { findGeographicNeighbors, neighborsInRadius } from "./geo";
-import type { Place } from "./search";
+import type { LocationChoice, Place } from "./search";
 
 export type Anchor = { mode: "city" | "province" | "country"; province_code: string | null; place: Place | null };
+
+/** The anchor for a picked location choice (old locationChoiceToAnchor). */
+export function anchorFromChoice(choice: LocationChoice): Anchor {
+  switch (choice.type) {
+    case "city":
+      return { mode: "city", province_code: choice.place.province_code, place: choice.place };
+    case "province":
+      return { mode: "province", province_code: choice.code, place: null };
+    case "country":
+      return { mode: "country", province_code: null, place: null };
+  }
+}
 
 /**
  * One Allow/Deny row. Home rows (`home: true`) are grouped by level: `country` (be), `province`
@@ -325,6 +337,12 @@ export function homeRegionCode(policy: RegionPolicy): string | null {
   return c && c !== "*" ? c : null;
 }
 
+/** The region `region default` will set, or null for `<null>`. */
+export function defaultRegionCode(policy: RegionPolicy): string | null {
+  const c = defaultLineCode(policy);
+  return c.toLowerCase() === "<null>" ? null : c;
+}
+
 /** #BEmesh automatic default scope: be when allowed, else the deepest home Allow; null when none. */
 function recommendedDefaultScopeCode(p: RegionPolicy): string | null {
   if (p.rows.some((r) => r.code === "be" && r.allow && !locked(r))) return "be";
@@ -338,6 +356,69 @@ function defaultLineCode(p: RegionPolicy): string {
   if (v === DEFAULT_SCOPE_NONE) return "<null>";
   if (v) return v;
   return recommendedDefaultScopeCode(p) || "<null>";
+}
+
+// ---------------------------------------------------------------------------
+// Policies from an old backup or a device read
+
+/** Old page checkbox id for a row: `pc_<code, non-alphanumerics as _>`, then `_a` (Allow) or `_d` (Deny). */
+const legacyRowId = (code: string) => `pc_${code.replace(/[^a-zA-Z0-9]/g, "_")}`;
+
+/**
+ * An old (v1) backup's policy fields applied onto the rows policyFor built: the pc_* checkboxes,
+ * policy-untagged-flood, the home override and the default scope. Absent fields keep the row's state.
+ */
+export function applyLegacyPolicyFields(policy: RegionPolicy, fields: Record<string, unknown>): RegionPolicy {
+  const flag = (id: string, fallback: boolean) => (has(fields, id) ? fields[id] === true : fallback);
+  const text = (id: string) => String(fields[id] || "") || null;
+  return finalize({
+    rows: policy.rows.map((r) => {
+      const id = legacyRowId(r.code);
+      return { ...r, allow: flag(`${id}_a`, r.allow), deny: flag(`${id}_d`, r.deny) };
+    }),
+    untaggedFlood: flag("policy-untagged-flood", policy.untaggedFlood),
+    homeOverride: fields["policy-home-override"] === true ? text("policy-home-override-select") : null,
+    defaultScope: text("policy-default-scope-select"),
+  });
+}
+
+/** Region state read from a repeater: list allowed / denied, and the home and default names when read. */
+export type DeviceRegionRead = { allowed: string[]; denied: string[]; home?: string; default?: string };
+
+/**
+ * The policy for a location from a device read (old applyReadRegionsToPolicy): rows for unknown
+ * device codes, Allow/Deny from the lists, untagged flood from `*`, and a home or default scope that
+ * differs from the automatic one kept as an override (home `*` = no home line, default `<null>` = none).
+ * Unlike the old page, Allow/Deny is set on every row before re-gating, so a neighbour row the device
+ * holds is kept when its home row is set too.
+ */
+export function policyFromDevice(anchor: Anchor, places: Place[], read: DeviceRegionRead): RegionPolicy {
+  const allowed = new Set(read.allowed);
+  const denied = new Set(read.denied);
+  const home = read.home || "";
+  const def = read.default;
+  const codes = [...allowed, ...denied];
+  if (home) codes.push(home);
+  if (def && def.toLowerCase() !== "<null>") codes.push(def);
+
+  const base = policyFor(anchor, places, codes);
+  const p = finalize({
+    ...base,
+    rows: base.rows.map((r) => ({ ...r, allow: allowed.has(r.code), deny: !allowed.has(r.code) && denied.has(r.code) })),
+    untaggedFlood: allowed.has("*"),
+  });
+
+  let homeOverride: string | null = null;
+  if (home && home !== deepestAllowedHomeRegionCode(p)) homeOverride = home === "*" ? HOME_OVERRIDE_OMIT : home;
+
+  let defaultScope: string | null = null;
+  if (def !== undefined) {
+    const auto = recommendedDefaultScopeCode(p);
+    const norm = def.trim().toLowerCase();
+    if (!norm || norm === "<null>") defaultScope = auto ? DEFAULT_SCOPE_NONE : null;
+    else if (def !== auto) defaultScope = def;
+  }
+  return finalize({ ...p, homeOverride, defaultScope });
 }
 
 // ---------------------------------------------------------------------------

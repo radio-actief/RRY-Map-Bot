@@ -2,12 +2,15 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  anchorFromChoice,
+  applyLegacyPolicyFields,
   bulk,
   DEFAULT_SCOPE_NONE,
   deviceRegionsFromRead,
   HOME_OVERRIDE_OMIT,
   homeRegionCode,
   policyFor,
+  policyFromDevice,
   regionCommandLines,
   regionsAfterApply,
   regionsByState,
@@ -15,8 +18,7 @@ import {
   type Anchor,
   type RegionPolicy,
 } from "../src/core/regions";
-import { PROVINCE_NAMES } from "../src/core/be-regions";
-import { normalize, rankPlaces, type Place } from "../src/core/search";
+import { locationChoices, rankPlaces, type Place } from "../src/core/search";
 
 const PLACES: Place[] = JSON.parse(readFileSync(resolve(process.cwd(), "data/be-locode.json"), "utf8"));
 const PARITY = resolve(__dirname, "fixtures/parity");
@@ -38,17 +40,9 @@ function cityAnchor(query: string): Anchor {
   return { mode: "city", province_code: place.province_code, place };
 }
 
-/**
- * The old page's first dropdown item for a city-search text: provinces whose name or code
- * contains the query come before places (so "Brussel" picked the province be-bru).
- */
+/** The old page's first dropdown item for a city-search text (provinces come before places). */
 function searchAnchor(query: string): Anchor {
-  const q = normalize(query);
-  const pc = Object.keys(PROVINCE_NAMES).find(
-    (c) => normalize(c).includes(q) || normalize(PROVINCE_NAMES[c]).includes(q),
-  );
-  if (pc) return { mode: "province", province_code: pc, place: null };
-  return cityAnchor(query);
+  return anchorFromChoice(locationChoices(query, PLACES)[0]);
 }
 
 /** Old page checkbox id for a policy row. */
@@ -62,18 +56,7 @@ const fixtureRowIds = (fields: Fields) =>
 
 /** The old page's policy state, applied onto the rows policyFor builds. */
 function policyFromFields(anchor: Anchor, fields: Fields): RegionPolicy {
-  const base = policyFor(anchor, PLACES);
-  const homeOverrideOn = fields["policy-home-override"] === true;
-  return {
-    rows: base.rows.map((r) => ({
-      ...r,
-      allow: fields[`${rowId(r.code)}_a`] === true,
-      deny: fields[`${rowId(r.code)}_d`] === true,
-    })),
-    untaggedFlood: fields["policy-untagged-flood"] === true,
-    homeOverride: homeOverrideOn ? String(fields["policy-home-override-select"] || "") || null : null,
-    defaultScope: String(fields["policy-default-scope-select"] || "") || null,
-  };
+  return applyLegacyPolicyFields(policyFor(anchor, PLACES), fields);
 }
 
 const PARITY_FIXTURES = ["ronse-solar", "brussels", "border-deny", "neighbour-deny", "advanced-all", "admin-password"];
@@ -372,6 +355,51 @@ describe("device regions", () => {
     // Applying again from that state removes nothing.
     const after = regionsAfterApply(ronse, base, PLACES);
     expect(regionCommandLines(ronse, base, PLACES, after)).toEqual(regionCommandLines(ronse, base, PLACES));
+  });
+});
+
+describe("applyLegacyPolicyFields", () => {
+  const ronse = cityAnchor("Ronse");
+  const base = policyFor(ronse, PLACES);
+
+  it("keeps the row state for fields the backup lacks", () => {
+    const p = applyLegacyPolicyFields(base, { pc_be_wht_d: true });
+    expect(regionsByState(p)).toEqual({ allowed: ["be", "be-vov"], denied: ["be-wht"] });
+    expect(p.untaggedFlood).toBe(true);
+  });
+
+  it("reads the home override only when its checkbox was on", () => {
+    const fields = { "policy-home-override-select": "be", "policy-default-scope-select": "__none__" };
+    expect(applyLegacyPolicyFields(base, fields)).toMatchObject({ homeOverride: null, defaultScope: DEFAULT_SCOPE_NONE });
+    expect(applyLegacyPolicyFields(base, { ...fields, "policy-home-override": true }).homeOverride).toBe("be");
+  });
+
+  it("clears a neighbour whose home row is not set", () => {
+    const p = applyLegacyPolicyFields(base, { pc_bemak_d: true });
+    expect(regionsByState(p).denied).toEqual([]);
+  });
+});
+
+describe("policyFromDevice", () => {
+  const ronse = cityAnchor("Ronse");
+
+  it("adds rows for device codes and sets untagged flood from *", () => {
+    const p = policyFromDevice(ronse, PLACES, { allowed: ["be", "be-wlg"], denied: [], home: "be", default: "be" });
+    expect(regionsByState(p)).toEqual({ allowed: ["be", "be-wlg"], denied: [] });
+    expect(p.rows.find((r) => r.code === "be-wlg")!.group).toBe("device");
+    expect([p.untaggedFlood, p.homeOverride, p.defaultScope]).toEqual([false, null, null]);
+  });
+
+  it("drops a neighbour deny when the device has no home municipality", () => {
+    const p = policyFromDevice(ronse, PLACES, { allowed: ["*", "be", "be-vov"], denied: ["bemak"] });
+    expect(regionsByState(p).denied).toEqual([]);
+  });
+
+  it("leaves the default scope automatic when it was not read", () => {
+    const p = policyFromDevice(ronse, PLACES, { allowed: ["*", "be", "be-vov"], denied: [], home: "be-vov" });
+    expect([p.homeOverride, p.defaultScope]).toEqual([null, null]);
+    const q = policyFromDevice(ronse, PLACES, { allowed: ["*", "be", "be-vov"], denied: [], default: "<null>" });
+    expect(q.defaultScope).toBe(DEFAULT_SCOPE_NONE);
   });
 });
 

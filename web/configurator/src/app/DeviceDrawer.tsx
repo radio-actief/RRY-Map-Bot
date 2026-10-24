@@ -585,19 +585,21 @@ function KeyDialog({
           {phase.confirming ? (
             <>
               <Notice kind="warn">{t("identity.replaceWarn")}</Notice>
-              <button type="button" class="btn small" disabled={phase.writing} onClick={() => void backup()}>
-                {phase.copied ? t("tools.copied") : t("identity.backup")}
-              </button>
-              {phase.backupError ? <Notice kind="error">{phase.backupError}</Notice> : null}
-              <label class="check-line">
-                <input
-                  type="checkbox"
-                  checked={!!phase.backedUp}
-                  disabled={phase.writing}
-                  onChange={(e) => patch({ backedUp: e.currentTarget.checked })}
-                />
-                <span>{t("identity.backedUp")}</span>
-              </label>
+              <div class="replace-confirm">
+                <button type="button" class="btn small" disabled={phase.writing} onClick={() => void backup()}>
+                  {phase.copied ? t("tools.copied") : t("identity.backup")}
+                </button>
+                {phase.backupError ? <Notice kind="error">{phase.backupError}</Notice> : null}
+                <label class="check-line">
+                  <input
+                    type="checkbox"
+                    checked={!!phase.backedUp}
+                    disabled={phase.writing}
+                    onChange={(e) => patch({ backedUp: e.currentTarget.checked })}
+                  />
+                  <span>{t("identity.backedUp")}</span>
+                </label>
+              </div>
             </>
           ) : (
             <p>{t("vanity.writeQuestion")}</p>

@@ -841,6 +841,20 @@ path.map-region-denied {
   gap: 6px;
 }
 
+.replace-confirm {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.replace-confirm .check-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
 .segmented button:disabled {
   opacity: 0.45;
   cursor: not-allowed;

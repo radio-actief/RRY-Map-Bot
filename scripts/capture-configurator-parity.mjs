@@ -11,12 +11,14 @@ const PORT = 8799;
 const CHROME = '/home/confi/.cache/ms-playwright/chromium-1234/chrome-linux/chrome';
 
 const locode = JSON.parse(readFileSync(path.join(root, 'data/be-locode.json'), 'utf8'));
+const vovCodes = locode.filter((r) => r.province_code === 'be-vov').map((r) => r.city_code);
 const whtCodes = new Set(locode.filter((r) => r.province_code === 'be-wht').map((r) => r.city_code));
 
 const scenarios = [
   { name: 'ronse-solar', search: 'Ronse', fields: { 'name-power-emoji': '🌞', 'name-suffix': 'Kluisberg' } },
   { name: 'brussels', search: 'Brussel', fields: { 'name-suffix': 'Atomium' } },
   { name: 'border-deny', search: 'Ronse', borderDeny: true, fields: {} },
+  { name: 'neighbour-deny', search: 'Ronse', neighbourDeny: true, fields: {} },
   { name: 'no-location', search: null, fields: { 'name-suffix': 'Test' } },
   {
     name: 'advanced-all',
@@ -67,6 +69,19 @@ try {
       if (!id) throw new Error('no enabled be-wht deny checkbox found');
       await page.evaluate((i) => document.getElementById(i).click(), id);
       if (!(await page.isChecked('#' + id))) throw new Error(id + ' did not stay checked');
+    }
+    if (sc.neighbourDeny) {
+      // Neighbour municipality rows only unlock once the home city (beron) is allowed.
+      await page.evaluate(() => document.getElementById('pc_beron_a').click());
+      const id = await page.evaluate((codes) => {
+        const el = [...document.querySelectorAll('.policy-deny')].find(
+          (e) => !e.disabled && e.dataset.code !== 'beron' && codes.includes(e.dataset.code));
+        return el ? el.id : null;
+      }, vovCodes);
+      if (!id) throw new Error('no enabled be-vov neighbour deny checkbox found');
+      await page.evaluate((i) => document.getElementById(i).click(), id);
+      if (!(await page.isChecked('#' + id))) throw new Error(id + ' did not stay checked');
+      console.log('neighbour-deny clicked', id);
     }
     await page.evaluate((fields) => {
       for (const [id, v] of Object.entries(fields)) {

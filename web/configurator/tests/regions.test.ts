@@ -551,6 +551,13 @@ describe("free regions", () => {
   const ronse = cityAnchor("Ronse");
   const base = policyFor(ronse, PLACES);
   const defLines = (p: RegionPolicy) => regionCommandLines(ronse, p, PLACES).filter((l) => l.startsWith("region def "));
+  const distinctDefCodes = (p: RegionPolicy) =>
+    new Set(
+      defLines(p)
+        .flatMap((l) => l.slice("region def ".length).split(" "))
+        .flatMap((tok) => tok.split("|"))
+        .filter((c) => c !== "*"),
+    ).size;
 
   it("checks a free code", () => {
     expect(checkFreeCode(base, "")).toBe("empty");
@@ -592,6 +599,19 @@ describe("free regions", () => {
     expect(defLines(p)).toEqual(["region def be be-vov|* zone sub"]);
     // The child alone still pulls in its parent.
     expect(defLines(setRowState(p, "zone", "none"))).toEqual(["region def be be-vov|* zone sub"]);
+  });
+
+  it("defines the home province and municipality ancestors when a free region sits under them", () => {
+    const cleared = bulk(base, "clear");
+    const underProvince = addFreeRegion(cleared, "zone", "be-vov");
+    expect(defLines(underProvince)).toEqual(["region def be be-vov zone"]);
+    const underCity = addFreeRegion(cleared, "zone", "beron");
+    expect(defLines(underCity)).toEqual(["region def be be-vov beron zone"]);
+    for (const p of [underProvince, underCity]) {
+      expect(regionCountAfterApply(ronse, p, PLACES)).toBe(distinctDefCodes(p));
+    }
+    // Without a free region under them, the home rows still get no automatic ancestors.
+    expect(defLines(setRowState(cleared, "be-vov", "allow"))).toEqual([]);
   });
 
   it("removes a free region only once no other free region sits under it", () => {
@@ -653,13 +673,6 @@ describe("free regions", () => {
   });
 
   it("counts the regions the device holds after Apply", () => {
-    const distinctDefCodes = (p: RegionPolicy) =>
-      new Set(
-        defLines(p)
-          .flatMap((l) => l.slice("region def ".length).split(" "))
-          .flatMap((tok) => tok.split("|"))
-          .filter((c) => c !== "*"),
-      ).size;
     expect(regionCountAfterApply(ronse, base, PLACES)).toBe(2);
     // The default scope and its ancestors count too.
     expect(regionCountAfterApply(ronse, { ...base, defaultScope: "be-wht" }, PLACES)).toBe(3);

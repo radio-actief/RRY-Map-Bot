@@ -611,7 +611,8 @@ function freeParentsOf(policy: RegionPolicy): FreeParents {
 /**
  * Add province/be ancestors for cities and be for provinces and gewesten. The home city and
  * home province get no automatic ancestors, so their def follows the home Allow rows only.
- * A free region adds its parent, which then gets its own ancestors by the same rules.
+ * A free region adds its parent, which then gets its own ancestors by the same rules; a home
+ * city or province reached that way does get its ancestors, so the free region is always defined.
  */
 function expandRegionNeeded(
   needed: Set<string>,
@@ -624,18 +625,28 @@ function expandRegionNeeded(
     needed.add(c);
     return true;
   };
+  // Codes a free region's parent chain passes through.
+  const viaFree = new Set<string>();
+  const mark = (c: string) => {
+    if (!c || viaFree.has(c)) return false;
+    viaFree.add(c);
+    return true;
+  };
   let changed = true;
   while (changed) {
     changed = false;
     for (const c of Array.from(needed)) {
       if (freeParents.has(c)) {
-        if (add(freeParents.get(c) || "")) changed = true;
+        const parent = freeParents.get(c) || "";
+        if (mark(parent)) changed = true;
+        if (add(parent)) changed = true;
         continue;
       }
-      const row = cities.get(c);
+      const isHomeCity = !!(anchor.mode === "city" && anchor.place && c === anchor.place.city_code);
+      const row = cities.get(c) ?? (isHomeCity ? anchor.place : undefined);
       if (row) {
-        const isHomeCity = anchor.mode === "city" && anchor.place && c === anchor.place.city_code;
-        if (!isHomeCity) {
+        if (!isHomeCity || viaFree.has(c)) {
+          if (isHomeCity && mark(row.province_code)) changed = true;
           if (add(row.province_code)) changed = true;
           if (add("be")) changed = true;
         }
@@ -644,7 +655,7 @@ function expandRegionNeeded(
         const isHomeProv =
           (anchor.mode === "city" && anchor.place && c === anchor.place.province_code) ||
           (anchor.mode === "province" && c === anchor.province_code);
-        if (!isHomeProv && add("be")) changed = true;
+        if ((!isHomeProv || viaFree.has(c)) && add("be")) changed = true;
       }
       if (isGewest(c) && add("be")) changed = true;
     }

@@ -1,6 +1,5 @@
 /** Settings registry: CLI keys, read commands, ranges, defaults and validation. */
 import { encodeOwnerInfo, hasControlChars, utf8Bytes } from "./naming";
-import { BEMESH_PRESET_TITLE } from "./presets";
 
 export type SettingKey =
   | "repeat"
@@ -151,17 +150,6 @@ export function adminPasswordCliLine(value: string): string | null {
   const pw = String(value || "").trim();
   return pw ? `password ${pw}` : null;
 }
-
-/** #BEmesh recommended settings applied via the recommendation dialog. */
-export const RECOMMENDED_SETTINGS = {
-  radioPresetName: BEMESH_PRESET_TITLE,
-  dutycycle: "10",
-  floodAdvertHours: 47,
-  advertIntervalMinutes: 0,
-  floodMax: 64,
-  pathHashMode: "1",
-  loopDetect: "minimal",
-};
 
 /** Flood hop allowance presets: [flood.max.unscoped, flood.max.advert]. */
 export const FLOOD_ALLOWANCE = {

@@ -1,12 +1,10 @@
 import { describe, expect, it } from "vitest";
 import en from "../src/i18n/en.json";
-import {
-  FLOOD_ALLOWANCE,
-  RECOMMENDED_SETTINGS,
-  SETTINGS,
-  adminPasswordCliLine,
-  validateSetting,
-} from "../src/core/settings";
+import { recommendedForAll } from "../src/core/blocks";
+import { defaultPlan } from "../src/core/plan";
+import { presetForRadio } from "../src/core/presets";
+import * as settings from "../src/core/settings";
+import { FLOOD_ALLOWANCE, SETTINGS, adminPasswordCliLine, validateSetting } from "../src/core/settings";
 
 const err = (key: Parameters<typeof validateSetting>[0], raw: string) => {
   const r = validateSetting(key, raw);
@@ -134,9 +132,11 @@ describe("SETTINGS registry", () => {
     expect(def("txPower").cliKey).toBe("tx");
   });
 
-  it("exposes the #BEmesh recommendations", () => {
-    expect(RECOMMENDED_SETTINGS).toEqual({
-      radioPresetName: "EU/UK (Narrow)",
+  it("the #BEmesh recommendations come from the blocks, with no second copy here", () => {
+    expect("RECOMMENDED_SETTINGS" in settings).toBe(false);
+    const plan = recommendedForAll(defaultPlan());
+    expect(presetForRadio(plan.radio)?.title).toBe("EU/UK (Narrow)");
+    expect(plan.settings).toMatchObject({
       dutycycle: "10",
       floodAdvertHours: 47,
       advertIntervalMinutes: 0,

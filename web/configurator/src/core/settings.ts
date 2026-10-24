@@ -85,11 +85,16 @@ const BY_KEY = new Map(SETTINGS.map((s) => [s.key, s]));
 
 export const ADMIN_PASSWORD_MAX_BYTES = 15;
 
-export type ValidateResult = { ok: true; value: string | number } | { ok: false; errorKey: string };
+export type ValidateResult = { ok: true; value: string | number | null } | { ok: false; errorKey: string };
 
 const fail = (errorKey: string): ValidateResult => ({ ok: false, errorKey });
 
-/** Validates one field; clamps nothing, but returns the normalised value (even / multiple of 4 / one decimal). */
+/**
+ * Validates one field and returns the normalised value: text trimmed, empty numeric
+ * input replaced by the form default, advert interval rounded to even, AGC reset
+ * floored to a multiple of 4 (1-3 become 4), rxdelay rounded to one decimal.
+ * Out-of-range input is rejected, not clamped.
+ */
 export function validateSetting(key: SettingKey, raw: string): ValidateResult {
   const s = BY_KEY.get(key);
   if (!s) return fail("unknown");
@@ -100,17 +105,17 @@ export function validateSetting(key: SettingKey, raw: string): ValidateResult {
     if (new TextEncoder().encode(pw).length > ADMIN_PASSWORD_MAX_BYTES) return fail("tooLong");
     return { ok: true, value: pw };
   }
-  if (key === "ownerInfo" || key === "guestPassword") return { ok: true, value: text };
+  if (key === "ownerInfo" || key === "guestPassword") return { ok: true, value: text.trim() };
 
   const v = text.trim();
   if (s.options) {
     return s.options.includes(v) ? { ok: true, value: v } : fail("option");
   }
 
-  if (v === "") return fail("required");
+  if (v === "") return { ok: true, value: key === "txPower" ? null : (s.formDefault ?? s.firmwareDefault) };
   const isDecimal = key === "txdelay" || key === "directTxdelay" || key === "rxdelay";
-  if (!(isDecimal ? /^-?\d+(\.\d+)?$/ : /^-?\d+$/).test(v)) return fail("number");
   const n = Number(v);
+  if (!Number.isFinite(n) || (!isDecimal && !Number.isInteger(n))) return fail("number");
   const range = s.range!;
 
   // Features that can be switched off with 0 accept it besides their normal range.
@@ -118,7 +123,7 @@ export function validateSetting(key: SettingKey, raw: string): ValidateResult {
   if (!(zeroOff && n === 0) && (n < range.min || n > range.max)) return fail("range");
 
   if (key === "advertIntervalMinutes") return { ok: true, value: Math.round(n / 2) * 2 };
-  if (key === "agcResetInterval") return { ok: true, value: n - (n % 4) };
+  if (key === "agcResetInterval") return { ok: true, value: n === 0 ? 0 : Math.max(4, n - (n % 4)) };
   if (key === "rxdelay") return { ok: true, value: Math.round(n * 10) / 10 };
   return { ok: true, value: n };
 }

@@ -31,6 +31,7 @@ describe("validateSetting", () => {
   it("rounds the AGC reset interval down to a multiple of 4", () => {
     expect(validateSetting("agcResetInterval", "10")).toEqual({ ok: true, value: 8 });
     expect(validateSetting("agcResetInterval", "255")).toEqual({ ok: true, value: 252 });
+    expect(validateSetting("agcResetInterval", "2")).toEqual({ ok: true, value: 4 });
     expect(err("agcResetInterval", "256")).toBe("range");
   });
 
@@ -54,10 +55,28 @@ describe("validateSetting", () => {
     expect(err("txPower", "23")).toBe("range");
   });
 
-  it("rejects non-numbers and empty numeric input", () => {
+  it("rejects non-numbers", () => {
     expect(err("floodMax", "abc")).toBe("number");
     expect(err("floodMax", "1.5")).toBe("number");
-    expect(err("floodMax", "")).toBe("required");
+    expect(err("floodMax", "Infinity")).toBe("number");
+  });
+
+  it("accepts numbers as typed", () => {
+    expect(validateSetting("txdelay", ".5")).toEqual({ ok: true, value: 0.5 });
+    expect(validateSetting("txdelay", "1.")).toEqual({ ok: true, value: 1 });
+    expect(validateSetting("floodMax", "5.")).toEqual({ ok: true, value: 5 });
+    expect(validateSetting("floodMax", "1e1")).toEqual({ ok: true, value: 10 });
+  });
+
+  it("uses the form default for empty numeric input, none for tx power", () => {
+    expect(validateSetting("floodMaxUnscoped", " ")).toEqual({ ok: true, value: 12 });
+    expect(validateSetting("txdelay", "")).toEqual({ ok: true, value: 0.5 });
+    expect(validateSetting("txPower", "")).toEqual({ ok: true, value: null });
+  });
+
+  it("trims text settings", () => {
+    expect(validateSetting("ownerInfo", "  hi  ")).toEqual({ ok: true, value: "hi" });
+    expect(validateSetting("guestPassword", "   ")).toEqual({ ok: true, value: "" });
   });
 
   it("accepts only the listed options", () => {

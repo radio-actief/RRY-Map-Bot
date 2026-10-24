@@ -1222,6 +1222,11 @@ path.map-region-denied {
   color: var(--code-mut);
 }
 
+.log-line.sep {
+  margin-top: 6px;
+  color: var(--code-mut);
+}
+
 .console-form {
   display: flex;
   align-items: center;

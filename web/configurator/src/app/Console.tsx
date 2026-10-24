@@ -1,5 +1,6 @@
 /** The command log and the interactive CLI console (old serial terminal), in a dialog. */
 import { useEffect, useRef, useState } from "preact/hooks";
+import { CLI_COMMANDS } from "../core/cli-commands";
 import { MAX_LINE_LEN } from "../device/serial";
 import { t } from "../i18n/t";
 import { clearLog, sendConsole, SHOW_COMMAND_LOG_PREF } from "../state/device";
@@ -108,6 +109,7 @@ export function Console({ open, onClose }: { open: boolean; onClose: () => void 
             aria-label={t("console.input")}
             placeholder={t("console.placeholder")}
             title={t("console.inputHint", { max: MAX_LINE_LEN })}
+            list="console-commands"
             maxLength={MAX_LINE_LEN}
             autocomplete="off"
             spellcheck={false}
@@ -120,6 +122,11 @@ export function Console({ open, onClose }: { open: boolean; onClose: () => void 
             {t("console.send")}
           </button>
         </form>
+        <datalist id="console-commands">
+          {CLI_COMMANDS.map((c) => (
+            <option key={c} value={c} />
+          ))}
+        </datalist>
       </div>
     </Dialog>
   );

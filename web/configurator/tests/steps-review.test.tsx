@@ -5,6 +5,21 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("leaflet", async () => await import("./fakes/leaflet"));
 
+/** Switches for the two cases the real modules can't produce: an empty script and an apply() that throws. */
+const force = vi.hoisted(() => ({ emptyScript: false, applyThrows: false }));
+vi.mock("../src/core/cli", async (importOriginal) => {
+  const real = await importOriginal<typeof import("../src/core/cli")>();
+  return { ...real, buildScript: (...a: Parameters<typeof real.buildScript>) => (force.emptyScript ? [] : real.buildScript(...a)) };
+});
+vi.mock("../src/device/repeater", async (importOriginal) => {
+  const real = await importOriginal<typeof import("../src/device/repeater")>();
+  return {
+    ...real,
+    apply: (...a: Parameters<typeof real.apply>) =>
+      force.applyThrows ? Promise.reject(new Error("boom")) : real.apply(...a),
+  };
+});
+
 import { buildScript, commandLines } from "../src/core/cli";
 import { defaultPlan } from "../src/core/plan";
 import { regionsAfterApply } from "../src/core/regions";
@@ -12,7 +27,7 @@ import type { Place } from "../src/core/search";
 import { SerialLink } from "../src/device/serial";
 import { Panel } from "../src/app/Panel";
 import { Review } from "../src/steps/Review";
-import { readDevice } from "../src/state/device";
+import { connectUsb, readDevice } from "../src/state/device";
 import { chooseLocation, prefs, resetPlan, store } from "../src/state/store";
 import { FakePort } from "./fakes/fake-port";
 import { resetFake } from "./fakes/leaflet";
@@ -47,6 +62,13 @@ async function connect(replies: Record<string, string>, opts: { disconnectAfter?
 const applyButton = () => screen.getByRole("button", { name: /Apply to repeater/ }) as HTMLButtonElement;
 const scriptText = () => document.querySelector(".script")!.textContent!;
 
+/** Connect through connectUsb, so the unplug handling is wired as in the app (its `ver` is the port's first line). */
+async function connectApp(replies: Record<string, string>, opts: { disconnectAfter?: number } = {}) {
+  const port = new FakePort(replies, opts);
+  await connectUsb({ requestPort: async () => port, timing: FAST });
+  return port;
+}
+
 let writeText: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
@@ -57,6 +79,9 @@ beforeEach(() => {
   store.notice.value = null;
   store.reading.value = false;
   store.applying.value = false;
+  store.commandBusy.value = false;
+  force.emptyScript = false;
+  force.applyThrows = false;
   store.apply.value = { phase: "idle" };
   store.log.value = [];
   store.step.value = 5;
@@ -173,12 +198,17 @@ describe("Review step: Apply", () => {
     render(<Review />);
     fireEvent.click(applyButton());
     fireEvent.click(await screen.findByRole("button", { name: "Reboot now" }));
+    // The lock holds while `reboot` is in flight and the link settles.
+    expect(store.commandBusy.value).toBe(true);
     await waitFor(() => expect(store.device.value.status).toBe("none"));
+    expect(store.commandBusy.value).toBe(false);
     expect(port.received.at(-1)).toBe("reboot");
     expect(store.notice.value?.kind).not.toBe("error");
   });
 
-  it("a disconnect at command 3 stops there and offers the remaining commands", async () => {
+  it("a disconnect at command 3 stops there and offers the remaining commands, the failed one first", async () => {
+    const device = { named: ["bemak"], home: null, default: null };
+    store.deviceRegions.value = device;
     const lines = applyLines();
     // `ver` is the first line the port receives, so command 3 of Apply is its 4th.
     await connect(okReplies(lines), { disconnectAfter: 4 });
@@ -187,8 +217,77 @@ describe("Review step: Apply", () => {
     expect(
       await screen.findByText(`Stopped at command 3 of ${lines.length}: ${lines[2]}`, { selector: ".notice p" }),
     ).toBeTruthy();
+    expect(screen.getByText(/Read the repeater again before applying again/)).toBeTruthy();
+    expect(store.deviceRegions.value).toBe(device);
     fireEvent.click(screen.getByRole("button", { name: "Copy remaining commands" }));
-    await waitFor(() => expect(writeText).toHaveBeenCalledWith(lines.slice(3).join("\n")));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(lines.slice(2).join("\n")));
+  });
+
+  it("an unplug during Apply stops it and shows the unplug notice", async () => {
+    const lines = applyLines();
+    // connect's `ver`, Apply's `ver`, then commands 1-3.
+    await connectApp(okReplies(lines), { disconnectAfter: 5 });
+    render(<Review />);
+    fireEvent.click(applyButton());
+    expect(await screen.findByText(`Stopped at command 3 of ${lines.length}: ${lines[2]}`, { selector: ".notice p" })).toBeTruthy();
+    expect(store.notice.value).toEqual({ kind: "error", text: expect.stringMatching(/repeater was disconnected/) });
+    expect(store.device.value.status).toBe("none");
+  });
+
+  it("an unplug during the firmware check goes back to idle without asking", async () => {
+    await connect(okReplies(applyLines()), { disconnectAfter: 1 });
+    render(<Review />);
+    fireEvent.click(applyButton());
+    await waitFor(() => expect(store.applying.value).toBe(false));
+    expect(store.apply.value).toEqual({ phase: "idle" });
+    expect(screen.queryByRole("dialog", { name: "Firmware version unreadable" })).toBeNull();
+  });
+
+  it("a line over 151 characters blocks Apply before anything is sent", async () => {
+    const guest = "g".repeat(160);
+    store.plan.value = { ...store.plan.value, settings: { ...store.plan.value.settings, guestPassword: guest } };
+    const { port } = await connect(okReplies(applyLines()));
+    render(<Review />);
+    fireEvent.click(applyButton());
+    expect(await screen.findByText(/longer than the 151 characters/)).toBeTruthy();
+    expect(screen.getByText(`set guest.password ${guest}`, { selector: "code" })).toBeTruthy();
+    expect(port.received).toEqual([]);
+  });
+
+  it("an empty script is not applied", async () => {
+    const { port } = await connect({ ver: VER });
+    force.emptyScript = true;
+    render(<Review />);
+    fireEvent.click(applyButton());
+    expect(await screen.findByText("No commands to apply.")).toBeTruthy();
+    expect(port.received).toEqual([]);
+  });
+
+  it("an unexpected error ends Apply with a notice and releases the lock", async () => {
+    await connect(okReplies(applyLines()));
+    force.applyThrows = true;
+    render(<Review />);
+    fireEvent.click(applyButton());
+    expect(await screen.findByText("Apply failed: boom", { selector: ".notice" })).toBeTruthy();
+    expect(store.applying.value).toBe(false);
+  });
+
+  it("needs a location", () => {
+    store.plan.value = { ...store.plan.value, anchor: null, regions: null };
+    render(<Review />);
+    expect(applyButton().disabled).toBe(true);
+    expect(screen.getByText("Choose a location first: the region commands need one.")).toBeTruthy();
+  });
+
+  it("a changed plan or coming back to step 5 clears the last outcome", () => {
+    store.apply.value = { phase: "old", version: "v1.15.0" };
+    store.plan.value = { ...store.plan.value, nameSuffix: "Other" };
+    expect(store.apply.value).toEqual({ phase: "idle" });
+    store.apply.value = { phase: "empty" };
+    store.step.value = 4;
+    expect(store.apply.value).toEqual({ phase: "empty" });
+    store.step.value = 5;
+    expect(store.apply.value).toEqual({ phase: "idle" });
   });
 
   it("unreadable firmware asks first; Continue anyway applies", async () => {
@@ -271,5 +370,45 @@ describe("Console", () => {
     prefs.set("configurator.serialShowCommandLog", "1");
     await readDevice();
     expect(store.log.value.some((l) => l.text === "> get name")).toBe(true);
+  });
+
+  it("a console `reboot` is an expected disconnect: no unplug notice", async () => {
+    await connectApp({ ver: VER });
+    render(<Review />);
+    fireEvent.click(screen.getByRole("button", { name: /Console/ }));
+    const input = screen.getByLabelText("Console command") as HTMLInputElement;
+    fireEvent.input(input, { target: { value: "reboot" } });
+    fireEvent.submit(input.closest("form")!);
+    await waitFor(() => expect(store.device.value.status).toBe("none"));
+    expect(store.notice.value).toBeNull();
+  });
+
+  it("keeps the last 50 commands in the history and offers the old suggestions", async () => {
+    await connect({ ver: VER });
+    render(<Review />);
+    fireEvent.click(screen.getByRole("button", { name: /Console/ }));
+    const input = screen.getByLabelText("Console command") as HTMLInputElement;
+    expect(input.getAttribute("list")).toBe("console-commands");
+    expect(document.querySelectorAll("#console-commands option").length).toBe(131);
+    for (let i = 0; i < 55; i++) {
+      fireEvent.input(input, { target: { value: `c${i}` } });
+      fireEvent.submit(input.closest("form")!);
+      await waitFor(() => expect(store.commandBusy.value).toBe(false));
+    }
+    for (let i = 0; i < 60; i++) fireEvent.keyDown(input, { key: "ArrowUp" });
+    expect(input.value).toBe("c5");
+  });
+
+  it("bounds the log at 500 lines and marks each Apply with a separator", async () => {
+    store.log.value = Array.from({ length: 600 }, (_, i) => ({ text: `old ${i}`, kind: "muted" as const }));
+    const lines = applyLines();
+    await connect(okReplies(lines));
+    render(<Review />);
+    fireEvent.click(applyButton());
+    await screen.findByRole("button", { name: "Reboot now" });
+    const log = store.log.value;
+    expect(log.length).toBe(500);
+    expect(log.some((l) => l.kind === "sep")).toBe(true);
+    expect(log.at(-1)?.text).toBe("Apply complete.");
   });
 });

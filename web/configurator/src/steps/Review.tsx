@@ -6,6 +6,7 @@ import { Notice, type NoticeKind } from "../app/Notice";
 import { buildScript, commandLines, scriptText, type ScriptGroup } from "../core/cli";
 import { REGION_DEF_MIN_TEXT } from "../core/firmware";
 import { planName, summarize, type Change } from "../core/plan";
+import { MAX_LINE_LEN } from "../device/serial";
 import { t } from "../i18n/t";
 import { answerReboot, applyPlan, cancelApply } from "../state/device";
 import { busy, canApply, prefs, store, type ApplyState } from "../state/store";
@@ -167,11 +168,29 @@ export function Review() {
             <Notice kind="error">
               <p>{t("apply.stopped", { n: state.failedAt, total: state.total, command: state.command })}</p>
               <p>{state.error}</p>
-              {state.remaining.length ? (
-                <button type="button" class="btn small" onClick={() => void copy(state.remaining.join("\n"), say)}>
-                  {t("apply.copyRemaining")}
-                </button>
-              ) : null}
+              <p>{t("apply.readAgain")}</p>
+              <button
+                type="button"
+                class="btn small"
+                onClick={() => void copy([state.command, ...state.remaining].join("\n"), say)}
+              >
+                {t("apply.copyRemaining")}
+              </button>
+              <p class="sub">{t("apply.copyRemainingHint")}</p>
+            </Notice>
+          ) : null}
+          {state.phase === "error" ? <Notice kind="error">{t("apply.error", { reason: state.reason })}</Notice> : null}
+          {state.phase === "empty" ? <Notice kind="error">{t("apply.empty")}</Notice> : null}
+          {state.phase === "tooLong" ? (
+            <Notice kind="error">
+              <p>{t("apply.tooLong", { max: MAX_LINE_LEN })}</p>
+              <ul class="reasons">
+                {state.lines.map((l) => (
+                  <li key={l}>
+                    <code>{l}</code>
+                  </li>
+                ))}
+              </ul>
             </Notice>
           ) : null}
           {!gate.ok && !locked ? (

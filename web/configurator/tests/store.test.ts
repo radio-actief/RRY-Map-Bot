@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { defaultPlan } from "../src/core/plan";
+import type { Anchor } from "../src/core/regions";
+
+const BELGIUM: Anchor = { mode: "country", province_code: null, place: null };
 import { canApply, prefs, stepStatus, store, visited } from "../src/state/store";
 
 afterEach(() => {
@@ -49,14 +52,15 @@ describe("canApply", () => {
     expect(c.ok).toBe(false);
     expect(c.reasons).toContain("apply.noDevice");
     expect(c.reasons).toContain("error.nameEmpty");
+    expect(c.reasons).toContain("apply.noLocation");
   });
   it("blocks old firmware", () => {
-    store.plan.value = { ...defaultPlan(), nameSuffix: "Gent" };
+    store.plan.value = { ...defaultPlan(), nameSuffix: "Gent", anchor: BELGIUM };
     store.device.value = { status: "connected", link: null, firmware: "v1.14.0" };
     expect(canApply.value.reasons).toEqual(["apply.firmwareTooOld"]);
   });
   it("is ok for a connected device with a valid plan", () => {
-    store.plan.value = { ...defaultPlan(), nameSuffix: "Gent" };
+    store.plan.value = { ...defaultPlan(), nameSuffix: "Gent", anchor: BELGIUM };
     store.device.value = { status: "connected", link: null, firmware: "v1.17.1 (Build: 14 Aug 2026)" };
     expect(canApply.value).toEqual({ ok: true, reasons: [] });
   });

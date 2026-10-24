@@ -365,5 +365,12 @@
   "log.tooLong": "Command too long ({length} > {max}).",
   "log.applying_one": "Applying {count} command…",
   "log.applying_other": "Applying {count} commands…",
-  "log.applied": "Apply complete."
+  "log.applied": "Apply complete.",
+  "apply.noLocation": "Choose a location first: the region commands need one.",
+  "apply.empty": "No commands to apply.",
+  "apply.tooLong": "Nothing was sent: these commands are longer than the {max} characters the repeater accepts. Shorten them first.",
+  "apply.error": "Apply failed: {reason}",
+  "apply.copyRemainingHint": "The copy starts with the failed command: it may not have taken effect.",
+  "apply.readAgain": "Read the repeater again before applying again, so the script starts from what it has now.",
+  "log.separator": "────────"
 }

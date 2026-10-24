@@ -5,7 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("leaflet", async () => await import("./fakes/leaflet"));
 
-import { defaultPlan, planErrors } from "../src/core/plan";
+import { BLOCKS, isBlockRecommended } from "../src/core/blocks";
+import { defaultPlan, newPlan, planErrors } from "../src/core/plan";
 import type { Place } from "../src/core/search";
 import { Regions } from "../src/steps/Regions";
 import { Advanced } from "../src/steps/Advanced";
@@ -29,7 +30,11 @@ afterEach(cleanup);
 
 const type = (label: RegExp | string, value: string) =>
   fireEvent.input(screen.getByLabelText(label), { target: { value } });
-const card = (title: string) => screen.getByRole("heading", { name: title }).closest("section") as HTMLElement;
+const card = (title: string) =>
+  screen.getByRole("heading", { name: title, level: 3 }).closest("section") as HTMLElement;
+const fieldOf = (label: RegExp | string) => screen.getByLabelText(label).closest(".field") as HTMLElement;
+const segment = (label: string, option: string) =>
+  within(screen.getByRole("group", { name: label })).getByRole("button", { name: option });
 
 describe("Advanced step", () => {
   it("no longer shows owner info (it is on Name)", () => {
@@ -87,20 +92,132 @@ describe("Advanced step", () => {
     expect((screen.getByLabelText("Preset") as HTMLSelectElement).value).toBe("custom");
   });
 
-  it("shows 'was X' only when the snapshot has the setting and the plan differs", () => {
+  it("tags 'On repeater: X' only when the snapshot has the setting and the plan differs, and ↺ restores it", () => {
     store.snapshot.value = { settings: { floodAdvertHours: 3, dutycycle: "10" }, missing: [] };
     render(<Advanced />);
     type(/Flood advert/, "12");
-    expect(screen.getByText("Was 3 on the repeater.")).toBeTruthy();
-    expect(screen.queryByText(/Was 10 on/)).toBeNull();
+    const line = fieldOf(/Flood advert/).querySelector(".label-line") as HTMLElement;
+    const tag = within(line).getByText("On repeater:").closest(".repeater-value") as HTMLElement;
+    expect(within(tag).getByText("3").tagName).toBe("CODE");
+    expect(screen.queryByText(/Was .* on the repeater/)).toBeNull();
+    expect(within(fieldOf("Duty cycle")).queryByText("On repeater:")).toBeNull();
+    fireEvent.click(within(tag).getByRole("button", { name: "Use the repeater's value (3)" }));
+    expect(store.plan.value.settings.floodAdvertHours).toBe(3);
+    expect(within(fieldOf(/Flood advert/)).queryByText("On repeater:")).toBeNull();
   });
 
-  it("Use #BEmesh recommendation restores the recommended values", () => {
+  it("never tags the admin password", () => {
+    store.snapshot.value = { settings: { adminPassword: "old" }, missing: [] };
+    render(<Advanced />);
+    type("Admin password", "secret");
+    expect(within(fieldOf("Admin password")).queryByText("On repeater:")).toBeNull();
+  });
+
+  it("Advertising's button sets 47 and 8/12 and leaves Repeating's loop detect alone", () => {
     render(<Advanced />);
     type(/Flood advert/, "12");
-    fireEvent.click(within(card("Advertising & hops")).getByRole("button", { name: "Use #BEmesh recommendation" }));
+    fireEvent.click(segment("Loop detection", "Strict"));
+    fireEvent.click(within(card("Advertising & hops")).getByRole("button", { name: "Use #BEmesh recommended settings" }));
     expect(store.plan.value.settings.floodAdvertHours).toBe(47);
+    expect(store.plan.value.settings.advertIntervalMinutes).toBe(0);
     expect(store.plan.value.settings.floodMaxUnscoped).toBe(8);
+    expect(store.plan.value.settings.floodMaxAdvert).toBe(12);
+    expect(store.plan.value.settings.loopDetect).toBe("strict");
+    expect(within(card("Advertising & hops")).getByText("recommended ✓")).toBeTruthy();
+  });
+
+  it("the all button sets every block and leaves the guest password alone", () => {
+    render(<Advanced />);
+    type("Guest password", "hello");
+    fireEvent.change(screen.getByLabelText("Preset"), { target: { value: "Australia" } });
+    fireEvent.click(segment("Loop detection", "Strict"));
+    fireEvent.click(segment("Path hash size", "3 bytes"));
+    fireEvent.click(screen.getByRole("button", { name: "Use #BEmesh recommended settings for all" }));
+    const plan = store.plan.value;
+    for (const b of BLOCKS) expect(isBlockRecommended(plan, b)).toBe(true);
+    expect(plan.settings.guestPassword).toBe("hello");
+    expect(plan.settings.loopDetect).toBe("minimal");
+    expect(plan.settings.pathHashMode).toBe("1");
+    expect(plan.radio).toEqual(defaultPlan().radio);
+  });
+
+  it("the Repeating ↺ shows once loop detect changed, and undoes only Repeating", () => {
+    render(<Advanced />);
+    expect(within(card("Repeating")).queryByRole("button", { name: "Undo the changes in Repeating" })).toBeNull();
+    type(/Flood advert/, "12");
+    fireEvent.click(segment("Loop detection", "Strict"));
+    const undo = within(card("Repeating")).getByRole("button", { name: "Undo the changes in Repeating" });
+    expect(undo.getAttribute("title")).toBe("Undo the changes in Repeating");
+    fireEvent.click(undo);
+    expect(store.plan.value.settings.loopDetect).toBe("minimal");
+    expect(store.plan.value.settings.floodAdvertHours).toBe("12");
+    expect(within(card("Repeating")).getByText("unchanged")).toBeTruthy();
+    expect(within(card("Repeating")).queryByRole("button", { name: /Undo/ })).toBeNull();
+  });
+
+  it("after an import with flood.max 32 the badge reads unchanged; 64 is one change and ↺ restores 32", () => {
+    // As the drawer's import does: the imported plan is also the start plan. Loop detect "strict"
+    // keeps the block off its recommendation, so 64 reads as a change rather than "recommended".
+    const imported = { ...defaultPlan(), settings: { ...defaultPlan().settings, floodMax: 32, loopDetect: "strict" } };
+    store.plan.value = imported;
+    store.startPlan.value = imported;
+    render(<Advanced />);
+    expect(within(card("Repeating")).getByText("unchanged")).toBeTruthy();
+    expect(fieldOf("Max flood hops").classList.contains("changed")).toBe(false);
+    type("Max flood hops", "64");
+    expect(within(card("Repeating")).getByText("1 change")).toBeTruthy();
+    expect(fieldOf("Max flood hops").classList.contains("changed")).toBe(true);
+    fireEvent.click(within(card("Repeating")).getByRole("button", { name: "Undo the changes in Repeating" }));
+    expect(store.plan.value.settings.floodMax).toBe(32);
+    expect(within(card("Repeating")).getByText("unchanged")).toBeTruthy();
+  });
+
+  it("a block with changes that match its recommendation reads recommended", () => {
+    const imported = { ...defaultPlan(), settings: { ...defaultPlan().settings, floodMax: 32 } };
+    store.plan.value = imported;
+    store.startPlan.value = imported;
+    render(<Advanced />);
+    type("Max flood hops", "64");
+    expect(within(card("Repeating")).getByText("recommended ✓")).toBeTruthy();
+    expect(within(card("Repeating")).getByRole("button", { name: "Undo the changes in Repeating" })).toBeTruthy();
+  });
+
+  it("a fresh app shows every block unchanged and no field outlined", () => {
+    resetPlan(newPlan());
+    render(<Advanced />);
+    for (const name of ["Radio", "Advertising & hops", "Repeating", "Advanced"]) {
+      expect(within(card(name)).getByText("unchanged")).toBeTruthy();
+      expect(within(card(name)).queryByText(/\d+ changes?$/)).toBeNull();
+    }
+    expect(document.querySelectorAll(".field.changed").length).toBe(0);
+  });
+
+  it("the Advanced card's timing pills: Hilltop sets 2 / 2 / 3, and typed timing shows Custom", () => {
+    render(<Advanced />);
+    const adv = card("Advanced");
+    expect(within(adv).getByText("Timing preset")).toBeTruthy();
+    fireEvent.click(within(adv).getByRole("button", { name: "Hilltop" }));
+    expect(store.plan.value.settings).toMatchObject({ txdelay: 2, directTxdelay: 2, rxdelay: 3 });
+    expect(within(adv).queryByText("Custom")).toBeNull();
+    type("Flood delay factor", "0.6");
+    expect(within(adv).getByText("Custom").getAttribute("aria-current")).toBe("true");
+  });
+
+  it("the Tight pill sets 2/3 and explains itself", () => {
+    render(<Advanced />);
+    fireEvent.click(screen.getByRole("button", { name: "Tight 2/3" }));
+    expect(store.plan.value.settings.floodMaxUnscoped).toBe(2);
+    expect(store.plan.value.settings.floodMaxAdvert).toBe(3);
+    expect(screen.getByText("Floods reach only the repeaters close by.")).toBeTruthy();
+  });
+
+  it("the Radio ↺ restores the start radio after choosing Australia", () => {
+    render(<Advanced />);
+    fireEvent.change(screen.getByLabelText("Preset"), { target: { value: "Australia" } });
+    expect(within(card("Radio")).getByText("1 change")).toBeTruthy();
+    fireEvent.click(within(card("Radio")).getByRole("button", { name: "Undo the changes in Radio" }));
+    expect(store.plan.value.radio).toEqual(defaultPlan().radio);
+    expect((screen.getByLabelText("Preset") as HTMLSelectElement).value).toBe("EU/UK (Narrow)");
   });
 
   it("lists the changes live and goes back / next", () => {
@@ -126,11 +243,17 @@ describe("Advanced step", () => {
     expect(ofKind("marker").length).toBe(1);
   });
 
-  it("shows the advanced settings open", () => {
+  it("shows the four blocks as cards in order, then Access, with the all button by the title", () => {
     render(<Advanced />);
-    const details = document.querySelector("details.advanced") as HTMLDetailsElement;
-    expect(details.open).toBe(true);
-    expect(within(details).getByText("all recommended")).toBeTruthy();
+    const titles = [...document.querySelectorAll(".card-head h3")].map((h) => h.textContent);
+    expect(titles).toEqual(["Radio", "Advertising & hops", "Repeating", "Advanced", "Access"]);
+    expect(document.querySelector("details")).toBeNull();
+    const head = screen.getByRole("heading", { name: "Advanced settings", level: 2 }).closest(".step-head")!;
+    expect(within(head as HTMLElement).getByRole("button", { name: "Use #BEmesh recommended settings for all" })).toBeTruthy();
+    for (const name of ["Radio", "Advertising & hops", "Repeating", "Advanced"]) {
+      expect(within(card(name)).getByRole("button", { name: "Use #BEmesh recommended settings" })).toBeTruthy();
+    }
+    expect(within(card("Access")).queryByRole("button", { name: /recommended|Undo/ })).toBeNull();
   });
 });
 
@@ -187,12 +310,19 @@ describe("Radio fields", () => {
     expect((screen.getByLabelText("Preset") as HTMLSelectElement).value).toBe("Australia");
   });
 
-  it("outlines against snapshot.radio and shows what the repeater has", () => {
+  it("tags what the repeater's radio has, ↺ restores it, and outlines against the start plan", () => {
     store.snapshot.value = { radio: { freq: 869.618, sf: 8, bw: 62.5, cr: 5 }, settings: {}, missing: [] };
     render(<Advanced />);
-    expect(field("Coding rate").closest(".field")!.classList.contains("changed")).toBe(true);
-    expect(screen.getByText("Was 5 on the repeater.")).toBeTruthy();
-    expect(field("Spreading factor").closest(".field")!.classList.contains("changed")).toBe(false);
+    const cr = field("Coding rate").closest(".field") as HTMLElement;
+    expect(within(cr).getByText("On repeater:")).toBeTruthy();
+    expect(within(cr).getByText("5").tagName).toBe("CODE");
+    expect(screen.queryByText(/Was .* on the repeater/)).toBeNull();
+    expect(within(field("Spreading factor").closest(".field") as HTMLElement).queryByText("On repeater:")).toBeNull();
+    expect(cr.classList.contains("changed")).toBe(false);
+    fireEvent.click(within(cr).getByRole("button", { name: "Use the repeater's value (5)" }));
+    expect(store.plan.value.radio.cr).toBe(5);
+    expect(within(cr).queryByText("On repeater:")).toBeNull();
+    expect(cr.classList.contains("changed")).toBe(true);
   });
 });
 

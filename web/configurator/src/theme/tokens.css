@@ -8,6 +8,7 @@
   --warn: #b26a00;
   --bad: #c62828;
   --node: #2563eb;
+  --info-bg: #e8f0fe;
   --panel: #ffffff;
   --bar: #f6f7f9;
   --page: #ffffff;
@@ -35,6 +36,7 @@
     --bad: #f85149;
     --on-bad: #0d1117;
     --node: #58a6ff;
+    --info-bg: #132a46;
     --panel: #161b22;
     --bar: #0d1117;
     --page: #0d1117;
@@ -58,6 +60,7 @@
   --bad: #f85149;
   --on-bad: #0d1117;
   --node: #58a6ff;
+  --info-bg: #132a46;
   --panel: #161b22;
   --bar: #0d1117;
   --page: #0d1117;

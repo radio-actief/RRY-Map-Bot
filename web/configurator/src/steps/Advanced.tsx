@@ -1,98 +1,56 @@
-/** Advanced step (optional): settings cards with help text and change markers, the radio preset, and the live "what will change" column. */
+/** Advanced step (optional): the four setting blocks with their recommendation and undo, the access card, the radio preset, and the live "what will change" column. */
 import { Fragment } from "preact";
 import { stepName } from "../app/Stepper";
-import { allowanceOf, BEMESH_RADIO, blockKeys, rawOf, same, sameRadio } from "../core/blocks";
-import { checkOwnerInfo, OWNER_INFO_MAX } from "../core/naming";
-import { defaultPlan, summarize, type Plan } from "../core/plan";
 import {
-  FLOOD_ALLOWANCE,
-  RECOMMENDED_SETTINGS,
-  SETTINGS,
-  validateSetting,
-  type SettingDef,
-  type SettingKey,
-} from "../core/settings";
+  allowanceOf,
+  BLOCKS,
+  blockChanges,
+  isBlockRecommended,
+  rawOf,
+  recommendedFor,
+  recommendedForAll,
+  same,
+  undoBlock,
+  type Block,
+} from "../core/blocks";
+import { checkOwnerInfo, OWNER_INFO_MAX } from "../core/naming";
+import { summarize, type Plan } from "../core/plan";
+import { FLOOD_ALLOWANCE, SETTINGS, validateSetting, type SettingDef, type SettingKey } from "../core/settings";
 import { t } from "../i18n/t";
 import { busy, store, type Step } from "../state/store";
 import { MiniMap } from "./settings/MiniMap";
-import { applyRecommendedRadio, RadioFields } from "./settings/RadioFields";
+import { RadioFields } from "./settings/RadioFields";
+import { RepeaterValue } from "./settings/RepeaterValue";
+import { SiteChoices } from "./Site";
 
-
-type Card = "access" | "radio" | "advertising" | "repeating";
-// Owner info is on the Name step.
-const CARDS: Card[] = ["access", "radio", "advertising", "repeating"];
-const keysOf = (card: Card) => SETTINGS.filter((d) => d.card === card);
-const EXPERT = SETTINGS.filter((d) => blockKeys("advanced").includes(d.key));
-const HOP_KEYS: SettingKey[] = ["floodMaxUnscoped", "floodMaxAdvert"];
-const DEFAULTS = defaultPlan();
-
-const defaultOf = (key: SettingKey): string => String(DEFAULTS.settings[key] ?? "");
+// Owner info is on the Name step; the access card stays here, outside the blocks.
+const ACCESS = SETTINGS.filter((d) => d.card === "access");
+const keysOf = (block: Block) => SETTINGS.filter((d) => d.card === block);
 
 const setSetting = (key: SettingKey, value: string | number) => {
   const plan = store.plan.peek();
   store.plan.value = { ...plan, settings: { ...plan.settings, [key]: value } };
 };
 
-const RECOMMENDED: Partial<Record<SettingKey, string | number>> = {
-  dutycycle: RECOMMENDED_SETTINGS.dutycycle,
-  floodAdvertHours: RECOMMENDED_SETTINGS.floodAdvertHours,
-  advertIntervalMinutes: RECOMMENDED_SETTINGS.advertIntervalMinutes,
-  floodMax: RECOMMENDED_SETTINGS.floodMax,
-  pathHashMode: RECOMMENDED_SETTINGS.pathHashMode,
-  loopDetect: RECOMMENDED_SETTINGS.loopDetect,
-};
-
-/** How a field differs from what the repeater has (snapshot) or, without one, from the form default. */
-function baselineOf(key: SettingKey): string {
-  const was = store.snapshot.value?.settings[key];
-  return was !== undefined ? String(was) : defaultOf(key);
-}
-
-function isChanged(plan: Plan, key: SettingKey): boolean {
+/** Differs from the start plan; the admin password counts as soon as it holds text (it is never read). */
+function isChanged(plan: Plan, start: Plan, key: SettingKey): boolean {
   if (key === "adminPassword") return rawOf(plan, key).trim() !== "";
-  return !same(rawOf(plan, key), baselineOf(key));
+  return !same(rawOf(plan, key), rawOf(start, key));
 }
 
 type CardState = { kind: "unchanged" } | { kind: "recommended" } | { kind: "changes"; count: number };
 
-/** Badge for a group of fields, measured against the form defaults and the #BEmesh recommendation. */
-function cardState(plan: Plan, defs: SettingDef[], withRadio: boolean): CardState {
-  const differs = defs.filter((d) =>
-    d.key === "adminPassword" ? rawOf(plan, d.key).trim() !== "" : !same(rawOf(plan, d.key), defaultOf(d.key)),
-  );
-  const radioDiffers = withRadio && !sameRadio(plan.radio, DEFAULTS.radio);
-  const count = differs.length + (radioDiffers ? 1 : 0);
+/** A block's badge: changes counted against the start plan, "recommended" when its button would change nothing. */
+function blockState(plan: Plan, start: Plan, block: Block): CardState {
+  const count = blockChanges(plan, start, block);
   if (count === 0) return { kind: "unchanged" };
-  const hasHops = defs.some((d) => HOP_KEYS.includes(d.key));
-  const matches = defs.every((d) => {
-    if (HOP_KEYS.includes(d.key)) return allowanceOf(plan) !== null;
-    return same(rawOf(plan, d.key), RECOMMENDED[d.key] ?? defaultOf(d.key));
-  });
-  const radioOk = !withRadio || sameRadio(plan.radio, BEMESH_RADIO);
-  const hasRecommendation = withRadio || hasHops || defs.some((d) => d.key in RECOMMENDED);
-  return matches && radioOk && hasRecommendation ? { kind: "recommended" } : { kind: "changes", count };
+  return isBlockRecommended(plan, block) ? { kind: "recommended" } : { kind: "changes", count };
 }
 
 function Badge({ state }: { state: CardState }) {
   if (state.kind === "unchanged") return <span class="badge">{t("settings.badge.unchanged")}</span>;
   if (state.kind === "recommended") return <span class="badge ok">{t("settings.badge.recommended")}</span>;
   return <span class="badge warn">{t("changes", { count: state.count })}</span>;
-}
-
-function applyRecommendedSettings(): void {
-  const plan = store.plan.peek();
-  const pill = allowanceOf(plan) ?? "average";
-  const [unscoped, advert] = FLOOD_ALLOWANCE[pill];
-  store.plan.value = {
-    ...plan,
-    settings: {
-      ...plan.settings,
-      ...RECOMMENDED,
-      dutycycle: RECOMMENDED_SETTINGS.dutycycle,
-      floodMaxUnscoped: unscoped,
-      floodMaxAdvert: advert,
-    },
-  };
 }
 
 function Segmented({ def, value }: { def: SettingDef; value: string }) {
@@ -175,12 +133,15 @@ export function SettingField({ def }: { def: SettingDef }) {
   const error = !result.ok ? t(`error.${result.errorKey}`) : ownerBad ? t("error.ownerInfoTooLong") : null;
   const was = snapshot?.settings[def.key];
   const showWas = def.key !== "adminPassword" && was !== undefined && !same(raw, was);
-  const changed = isChanged(plan, def.key);
+  const changed = isChanged(plan, store.startPlan.value, def.key);
   return (
     <div class={`field${changed ? " changed" : ""}${error ? " invalid" : ""}`} data-key={def.key}>
-      <label class="field-label" for={`set-${def.key}`} id={`lbl-${def.key}`}>
-        {t(`setting.${def.key}`)}
-      </label>
+      <div class="label-line">
+        <label class="field-label" for={`set-${def.key}`} id={`lbl-${def.key}`}>
+          {t(`setting.${def.key}`)}
+        </label>
+        {showWas ? <RepeaterValue value={String(was)} onRestore={() => setSetting(def.key, was!)} /> : null}
+      </div>
       <Control def={def} raw={raw} invalid={!!error} />
       {owner ? (
         <span class={`sub counter${owner.ok ? "" : " over"}`}>
@@ -191,7 +152,6 @@ export function SettingField({ def }: { def: SettingDef }) {
         </span>
       ) : null}
       {error ? <span class="field-error">{error}</span> : null}
-      {showWas ? <span class="sub was">{t("settings.was", { value: String(was) })}</span> : null}
       <span class="sub help">{t(def.helpKey)}</span>
     </div>
   );
@@ -230,60 +190,77 @@ function Pills() {
           </button>
         ))}
       </div>
+      {current === "tight" ? <span class="sub help">{t("help.allowance.tight")}</span> : null}
     </div>
   );
 }
 
-function SettingsCard({ card }: { card: Card }) {
-  const plan = store.plan.value;
-  const defs = keysOf(card);
-  const state = cardState(plan, defs, card === "radio");
+function TimingPills() {
   return (
-    <section class={`card card-${card}`}>
+    <div class="field">
+      <span class="field-label">{t("settings.timing")}</span>
+      <SiteChoices compact />
+    </div>
+  );
+}
+
+function BlockCard({ block }: { block: Block }) {
+  const plan = store.plan.value;
+  const start = store.startPlan.value;
+  const changes = blockChanges(plan, start, block);
+  const name = t(`settings.card.${block}`);
+  const undo = t("settings.undo", { block: name });
+  return (
+    <section class={`card card-${block}`}>
       <header class="card-head">
-        <h3>{t(`settings.card.${card}`)}</h3>
-        <Badge state={state} />
+        <h3>{name}</h3>
+        <Badge state={blockState(plan, start, block)} />
+        {changes > 0 ? (
+          <button
+            type="button"
+            class="icon undo"
+            aria-label={undo}
+            title={undo}
+            onClick={() => (store.plan.value = undoBlock(store.plan.peek(), store.startPlan.peek(), block))}
+          >
+            ↺
+          </button>
+        ) : null}
       </header>
-      {card === "radio" ? <RadioFields /> : null}
-      {defs.map((d) => (
+      {block === "radio" ? <RadioFields /> : null}
+      {keysOf(block).map((d) => (
         <Fragment key={d.key}>
-          {card === "advertising" && d.key === "floodMaxUnscoped" ? <Pills /> : null}
+          {d.key === "floodMaxUnscoped" ? <Pills /> : null}
+          {d.key === "txdelay" ? <TimingPills /> : null}
           <SettingField def={d} />
         </Fragment>
       ))}
-      {card === "radio" || card === "advertising" ? (
-        <button
-          type="button"
-          class="btn small"
-          onClick={card === "radio" ? applyRecommendedRadio : applyRecommendedSettings}
-        >
-          {t("settings.recommend")}
-        </button>
-      ) : null}
+      <button
+        type="button"
+        class="btn small"
+        onClick={() => (store.plan.value = recommendedFor(store.plan.peek(), block))}
+      >
+        {t("settings.recommend")}
+      </button>
     </section>
   );
 }
 
-function AdvancedBar() {
+/** Admin and guest password: no recommendation and no undo. */
+function AccessCard() {
   const plan = store.plan.value;
-  const changed = EXPERT.filter((d) => !same(rawOf(plan, d.key), defaultOf(d.key))).length;
+  const start = store.startPlan.value;
+  const count = ACCESS.filter((d) => isChanged(plan, start, d.key)).length;
   return (
-    <details class="advanced" open>
-      <summary>
-        <strong>{t("settings.advanced")}</strong>
-        <span class="sub"> · {t("settings.advanced.sub", { count: EXPERT.length })}</span>
-        {changed ? (
-          <span class="badge warn">{t("changes", { count: changed })}</span>
-        ) : (
-          <span class="badge ok">{t("settings.advanced.allRecommended")}</span>
-        )}
-      </summary>
-      <div class="card-grid">
-        {EXPERT.map((d) => (
-          <SettingField key={d.key} def={d} />
-        ))}
-      </div>
-    </details>
+    <section class="card card-access">
+      <header class="card-head">
+        <h3>{t("settings.card.access")}</h3>
+        <Badge state={count ? { kind: "changes", count } : { kind: "unchanged" }} />
+      </header>
+      {ACCESS.map((d) => (
+        <SettingField key={d.key} def={d} />
+      ))}
+    </section>
   );
 }
 
@@ -316,16 +293,25 @@ export function Advanced() {
   const locked = busy.value;
   return (
     <div class="panel-body step-settings">
-      <h2>{t("settings.title")}</h2>
+      <div class="step-head">
+        <h2>{t("settings.title")}</h2>
+        <button
+          type="button"
+          class="btn small"
+          onClick={() => (store.plan.value = recommendedForAll(store.plan.peek()))}
+        >
+          {t("settings.recommendAll")}
+        </button>
+      </div>
       <p class="sub">{t("settings.sub")}</p>
       <div class="settings-layout">
         <div class="settings-main">
           <div class="card-grid">
-            {CARDS.map((c) => (
-              <SettingsCard key={c} card={c} />
+            {BLOCKS.map((b) => (
+              <BlockCard key={b} block={b} />
             ))}
+            <AccessCard />
           </div>
-          <AdvancedBar />
         </div>
         <aside class="settings-side">
           <MiniMap />

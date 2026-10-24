@@ -1,10 +1,10 @@
 /** The radio card's preset select and the four custom radio fields. */
 import { useState } from "preact/hooks";
-import { recommendedFor, withPreset } from "../../core/blocks";
-import { defaultPlan } from "../../core/plan";
+import { withPreset } from "../../core/blocks";
 import { parseRadioField, presetForRadio, RADIO_PRESETS, type RadioFieldId } from "../../core/presets";
 import { t } from "../../i18n/t";
 import { store } from "../../state/store";
+import { RepeaterValue } from "./RepeaterValue";
 
 const CUSTOM = "custom";
 const FIELDS: { id: RadioFieldId; label: string }[] = [
@@ -13,10 +13,16 @@ const FIELDS: { id: RadioFieldId; label: string }[] = [
   { id: "sf", label: "settings.radio.sf" },
   { id: "cr", label: "settings.radio.cr" },
 ];
-const DEFAULT_RADIO = defaultPlan().radio;
 
-export function applyRecommendedRadio(): void {
-  store.plan.value = recommendedFor(store.plan.peek(), "radio");
+/** The field back to a valid value, dropping its invalid text. */
+function restoreField(id: RadioFieldId, value: number): void {
+  const plan = store.plan.peek();
+  const { [id]: _drop, ...others } = plan.radioText ?? {};
+  store.plan.value = {
+    ...plan,
+    radio: { ...plan.radio, [id]: value },
+    radioText: Object.keys(others).length ? others : undefined,
+  };
 }
 
 /** Valid text updates the radio; invalid text is kept raw in the plan so its error survives blur and navigation. */
@@ -35,6 +41,7 @@ function editField(id: RadioFieldId, text: string): void {
 
 export function RadioFields() {
   const { radio, radioText, radioCustom } = store.plan.value;
+  const startRadio = store.startPlan.value.radio;
   const snapshotRadio = store.snapshot.value?.radio;
   // Text being typed (kept while valid so "868." can become "868.1"); cleared on blur.
   const [draft, setDraft] = useState<Partial<Record<RadioFieldId, string>>>({});
@@ -64,14 +71,24 @@ export function RadioFields() {
       <div class="field-grid">
         {FIELDS.map(({ id, label }) => {
           const invalid = radioText?.[id] !== undefined;
-          const baseline = snapshotRadio?.[id] ?? DEFAULT_RADIO[id];
-          const changed = invalid || radio[id] !== baseline;
-          const was = snapshotRadio && (invalid || radio[id] !== snapshotRadio[id]) ? snapshotRadio : null;
+          const changed = invalid || radio[id] !== startRadio[id];
+          const was = snapshotRadio && (invalid || radio[id] !== snapshotRadio[id]) ? snapshotRadio[id] : null;
           return (
             <div key={id} class={`field${changed ? " changed" : ""}${invalid ? " invalid" : ""}`}>
-              <label class="field-label" for={`set-radio-${id}`}>
-                {t(label)}
-              </label>
+              <div class="label-line">
+                <label class="field-label" for={`set-radio-${id}`}>
+                  {t(label)}
+                </label>
+                {was !== null ? (
+                  <RepeaterValue
+                    value={String(was)}
+                    onRestore={() => {
+                      setDraft({});
+                      restoreField(id, was);
+                    }}
+                  />
+                ) : null}
+              </div>
               <input
                 id={`set-radio-${id}`}
                 type="text"
@@ -85,7 +102,6 @@ export function RadioFields() {
                 onBlur={() => setDraft({})}
               />
               {invalid ? <span class="field-error">{t(`settings.radio.invalid.${id}`)}</span> : null}
-              {was ? <span class="sub was">{t("settings.radio.was", { value: String(was[id]) })}</span> : null}
             </div>
           );
         })}

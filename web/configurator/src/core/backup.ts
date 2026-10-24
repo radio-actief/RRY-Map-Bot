@@ -4,6 +4,7 @@
  */
 import { POWER_EMOJIS, prefixFormatFromLegacy, type PowerEmoji } from "./naming";
 import { defaultPlan, hasValidCoords, type Plan, type Radio } from "./plan";
+import { checkRadioValue, RADIO_FIELD_SPECS, type RadioFieldId } from "./presets";
 import { anchorFromChoice, applyLegacyPolicyFields, policyFor } from "./regions";
 import { locationChoices, type Place } from "./search";
 import { validateSetting, type SettingKey } from "./settings";
@@ -135,18 +136,18 @@ function radioFromV1(f: Record<string, unknown>): Radio | null {
 
 /** Old RADIO_FIELD_SPECS: all four fields must be valid, or none is used. */
 function radioFromFields(f: Record<string, unknown>): Radio | null {
-  const num = (id: string, min: number, max: number, integer: boolean) => {
+  const num = (id: string, field: RadioFieldId) => {
     const raw = String(f[id] ?? "").trim();
     if (!raw) return null;
-    const v = integer ? parseInt(raw, 10) : parseFloat(raw);
-    return Number.isFinite(v) && v >= min && v <= max ? v : null;
+    const v = RADIO_FIELD_SPECS[field].integer ? parseInt(raw, 10) : parseFloat(raw);
+    return checkRadioValue(field, v);
   };
-  const freq = num("setting-radio-freq", 150, 2500, false);
-  const sf = num("setting-radio-sf", 5, 12, true);
-  const bw = num("setting-radio-bw", 7, 500, false);
-  const cr = num("setting-radio-cr", 5, 8, true);
+  const freq = num("setting-radio-freq", "freq");
+  const sf = num("setting-radio-sf", "sf");
+  const bw = num("setting-radio-bw", "bw");
+  const cr = num("setting-radio-cr", "cr");
   if (freq === null || sf === null || bw === null || cr === null) return null;
-  return { freq, sf, bw: Math.round(bw * 1000) / 1000, cr };
+  return { freq, sf, bw, cr };
 }
 
 /**

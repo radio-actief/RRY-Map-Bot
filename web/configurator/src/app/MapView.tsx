@@ -9,8 +9,8 @@ import { regionsByState } from "../core/regions";
 import { t } from "../i18n/t";
 import { municipalities as municipalityList, setLocation, store } from "../state/store";
 
-const TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
-const ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+export const TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+export const ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 const BELGIUM: L.LatLngTuple = [50.6, 4.6];
 const PIN_ZOOM = 11;
 
@@ -19,6 +19,10 @@ const featuresOf = (data: unknown): Feature[] =>
   Array.isArray(data) ? (data as Feature[]) : ((data as { features?: Feature[] } | undefined)?.features ?? []);
 
 const asLatLng = (p: LatLon): L.LatLngTuple => [p.lat, p.lon];
+
+/** The gold location pin. */
+export const pinIcon = (): L.DivIcon =>
+  L.divIcon({ className: "map-pin", html: "<span></span>", iconSize: [28, 36], iconAnchor: [14, 36] });
 
 function nodeIcon(type: number): L.DivIcon {
   const repeater = type === 2;
@@ -104,11 +108,7 @@ export function MapView() {
       pin.current.marker.setLatLng(ll);
       pin.current.ring.setLatLng(ll);
     } else {
-      const marker = L.marker(ll, {
-        draggable: true,
-        title: t("map.pin"),
-        icon: L.divIcon({ className: "map-pin", html: "<span></span>", iconSize: [28, 36], iconAnchor: [14, 36] }),
-      }).addTo(map);
+      const marker = L.marker(ll, { draggable: true, title: t("map.pin"), icon: pinIcon() }).addTo(map);
       marker.on("dragend", () => {
         const p = marker.getLatLng();
         pick(p.lat, p.lng);

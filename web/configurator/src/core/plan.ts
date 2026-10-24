@@ -12,7 +12,13 @@ import {
   type PowerEmoji,
   type PrefixFormat,
 } from "./naming";
-import { BEMESH_PRESET_TITLE, FIRMWARE_DEFAULT_RADIO, RADIO_PRESETS } from "./presets";
+import {
+  BEMESH_PRESET_TITLE,
+  checkRadioValue,
+  FIRMWARE_DEFAULT_RADIO,
+  RADIO_PRESETS,
+  type RadioFieldId,
+} from "./presets";
 import {
   defaultRegionCode,
   deviceRegionsFromRead,
@@ -39,6 +45,10 @@ export type Plan = {
   nameSuffix: string;
   power: PowerEmoji;
   radio: Radio;
+  /** Raw text of radio fields the user typed that is not valid (the numeric radio keeps the last valid value). */
+  radioText?: Partial<Record<RadioFieldId, string>>;
+  /** The user chose "Custom" (or typed a field), so the preset select stays on Custom. */
+  radioCustom?: boolean;
   settings: Partial<Record<SettingKey, string | number>>;
   regions: RegionPolicy | null;
 };
@@ -155,7 +165,7 @@ export function settingValue(plan: Plan, key: SettingKey): string | number | nul
   return r.value;
 }
 
-export type PlanError = { key: SettingKey | "name" | "ownerInfo" | "location"; errorKey: string };
+export type PlanError = { key: SettingKey | "name" | "ownerInfo" | "location" | "radio"; errorKey: string };
 
 /**
  * Everything in the plan the script cannot send as entered: invalid settings, a name that is
@@ -177,6 +187,10 @@ export function planErrors(plan: Plan): PlanError[] {
   const owner = checkSetting(plan, "ownerInfo");
   if (owner?.ok && !checkOwnerInfo(String(owner.value)).ok) {
     errors.push({ key: "ownerInfo", errorKey: "ownerInfoTooLong" });
+  }
+  const radioIds: RadioFieldId[] = ["freq", "sf", "bw", "cr"];
+  if (Object.keys(plan.radioText ?? {}).length || radioIds.some((id) => checkRadioValue(id, plan.radio[id]) === null)) {
+    errors.push({ key: "radio", errorKey: "radioInvalid" });
   }
   if (plan.location && !sendableLocation(plan)) errors.push({ key: "location", errorKey: "coords" });
   return errors;

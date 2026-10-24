@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("leaflet", async () => await import("./fakes/leaflet"));
 
-import { defaultPlan } from "../src/core/plan";
+import { defaultPlan, planErrors } from "../src/core/plan";
 import type { Place } from "../src/core/search";
 import { Regions } from "../src/steps/Regions";
 import { Settings } from "../src/steps/Settings";
@@ -35,7 +35,6 @@ describe("Settings step", () => {
   it("explains the admin password and always lists it in the summary", () => {
     render(<Settings />);
     expect(screen.getByPlaceholderText("Leave empty to keep the current one")).toBeTruthy();
-    expect(screen.getByText("Factory default is “password”. Max 15 characters.")).toBeTruthy();
     expect(screen.getByText("Admin password stays as it is")).toBeTruthy();
     type("Admin password", "secret");
     expect(screen.getByText("Admin password will be changed")).toBeTruthy();
@@ -133,6 +132,67 @@ describe("Settings step", () => {
     const details = document.querySelector("details.advanced") as HTMLDetailsElement;
     expect(details.open).toBe(false);
     expect(within(details).getByText("all recommended")).toBeTruthy();
+  });
+});
+
+describe("Radio fields", () => {
+  const field = (n: string) => screen.getByLabelText(n) as HTMLInputElement;
+
+  it("rejects out-of-range values with an inline error and a plan error, keeping the last valid radio", () => {
+    render(<Settings />);
+    type("Spreading factor", "13");
+    expect(screen.getByText("Spreading factor must be a whole number from 5 to 12.")).toBeTruthy();
+    expect(store.plan.value.radio.sf).toBe(8);
+    expect(planErrors(store.plan.value).some((e) => e.key === "radio")).toBe(true);
+    store.step.value = 5;
+    expect(stepStatus(4)).toBe("attention");
+  });
+
+  it("keeps the invalid text across blur and a remount until the value becomes valid", () => {
+    const { unmount } = render(<Settings />);
+    type("Frequency (MHz)", "99");
+    fireEvent.blur(field("Frequency (MHz)"));
+    expect(field("Frequency (MHz)").value).toBe("99");
+    unmount();
+    render(<Settings />);
+    expect(field("Frequency (MHz)").value).toBe("99");
+    expect((screen.getByLabelText("Preset") as HTMLSelectElement).value).toBe("custom");
+    type("Frequency (MHz)", "868.1");
+    expect(store.plan.value.radioText).toBeUndefined();
+    expect(planErrors(store.plan.value).some((e) => e.key === "radio")).toBe(false);
+  });
+
+  it("limits: freq 150-2500, bandwidth 7-500 rounded to 3 decimals, whole SF and CR", () => {
+    render(<Settings />);
+    type("Bandwidth (kHz)", "62.12345");
+    expect(store.plan.value.radio.bw).toBe(62.123);
+    type("Bandwidth (kHz)", "501");
+    expect(store.plan.value.radioText?.bw).toBe("501");
+    type("Coding rate", "5.5");
+    expect(store.plan.value.radioText?.cr).toBe("5.5");
+    type("Frequency (MHz)", "2501");
+    expect(store.plan.value.radioText?.freq).toBe("2501");
+  });
+
+  it("keeps Custom selected after choosing it, and picking a preset clears the custom state", () => {
+    const { unmount } = render(<Settings />);
+    fireEvent.change(screen.getByLabelText("Preset"), { target: { value: "custom" } });
+    unmount();
+    render(<Settings />);
+    expect((screen.getByLabelText("Preset") as HTMLSelectElement).value).toBe("custom");
+    type("Frequency (MHz)", "99");
+    fireEvent.change(screen.getByLabelText("Preset"), { target: { value: "Australia" } });
+    expect(store.plan.value.radioText).toBeUndefined();
+    expect(store.plan.value.radioCustom).toBeUndefined();
+    expect((screen.getByLabelText("Preset") as HTMLSelectElement).value).toBe("Australia");
+  });
+
+  it("outlines against snapshot.radio and shows what the repeater has", () => {
+    store.snapshot.value = { radio: { freq: 869.618, sf: 8, bw: 62.5, cr: 5 }, settings: {}, missing: [] };
+    render(<Settings />);
+    expect(field("Coding rate").closest(".field")!.classList.contains("changed")).toBe(true);
+    expect(screen.getByText("Was 5 on the repeater.")).toBeTruthy();
+    expect(field("Spreading factor").closest(".field")!.classList.contains("changed")).toBe(false);
   });
 });
 

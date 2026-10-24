@@ -217,7 +217,6 @@
   "settings.allowance.extended": "Extended {pair}",
   "settings.allowance.full": "Full {pair}",
   "settings.adminPassword.placeholder": "Leave empty to keep the current one",
-  "settings.adminPassword.hint": "Factory default is “password”. Max 15 characters.",
   "settings.ownerInfo.placeholder": "Shown to anyone who asks the repeater",
   "settings.ownerInfo.bytes": "{bytes} / {max} bytes",
   "settings.preset": "Preset",
@@ -228,7 +227,6 @@
   "settings.radio.bw": "Bandwidth (kHz)",
   "settings.radio.sf": "Spreading factor",
   "settings.radio.cr": "Coding rate",
-  "settings.radio.invalid": "Enter a number above zero.",
   "settings.advanced": "Advanced",
   "settings.advanced.sub": "{count} expert settings (tx/rx delays, RX gain, interference threshold, AGC reset, multi-acks, path hash)",
   "settings.advanced.allRecommended": "all recommended",
@@ -307,5 +305,11 @@
   "opt.dutycycle.1": "1 %",
   "opt.dutycycle.10": "10 %",
   "opt.dutycycle.50": "50 %",
-  "opt.dutycycle.100": "100 %"
+  "opt.dutycycle.100": "100 %",
+  "error.radioInvalid": "The radio settings are out of range.",
+  "settings.radio.invalid.freq": "Frequency must be 150–2500 MHz.",
+  "settings.radio.invalid.sf": "Spreading factor must be a whole number from 5 to 12.",
+  "settings.radio.invalid.bw": "Bandwidth must be 7–500 kHz.",
+  "settings.radio.invalid.cr": "Coding rate must be a whole number from 5 to 8.",
+  "settings.radio.was": "Was {value} on the repeater."
 }

@@ -59,14 +59,23 @@ function validAnchor(a: unknown): boolean {
   );
 }
 
-/** A free region row needs a valid region code and a parent that is a code or null (top level). */
+const REGION_CODE = /^[a-z0-9-]{1,30}$/;
+
+/** A free region row needs a valid region code and a parent that is a valid code or null (top level). */
 function validFreeRow(r: unknown): boolean {
   if (!isObject(r) || r.group !== "free") return true;
   return (
     typeof r.code === "string" &&
-    /^[a-z0-9-]{1,30}$/.test(r.code) &&
-    (r.parent === null || typeof r.parent === "string")
+    REGION_CODE.test(r.code) &&
+    (r.parent === null || (typeof r.parent === "string" && REGION_CODE.test(r.parent)))
   );
+}
+
+/** Each free row's code is on no other row. */
+function uniqueFreeCodes(rows: unknown[]): boolean {
+  const codes = rows.map((r) => (isObject(r) ? r.code : undefined));
+  const once = (code: unknown) => codes.filter((c) => c === code).length === 1;
+  return rows.every((r) => !isObject(r) || r.group !== "free" || once(r.code));
 }
 
 function planFromV2(raw: unknown): Plan {
@@ -82,7 +91,10 @@ function planFromV2(raw: unknown): Plan {
     (raw.location === null || (isObject(raw.location) && isNum(raw.location.lat) && isNum(raw.location.lon))) &&
     validAnchor(raw.anchor) &&
     (raw.regions === null ||
-      (isObject(raw.regions) && Array.isArray(raw.regions.rows) && raw.regions.rows.every(validFreeRow)));
+      (isObject(raw.regions) &&
+        Array.isArray(raw.regions.rows) &&
+        raw.regions.rows.every(validFreeRow) &&
+        uniqueFreeCodes(raw.regions.rows)));
   if (!ok) throw new BackupError("backup.error.invalid");
   // Owner info may hold newlines (sent as '|'); nothing else may hold a control character.
   const { settings, ...rest } = raw;

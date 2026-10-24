@@ -184,14 +184,31 @@ describe("rejected input", () => {
       deny: false,
       parent,
     });
-    const regions = (row: unknown) => ({ rows: [row], untaggedFlood: true, homeOverride: null, defaultScope: null });
-    const plan = (row: unknown) => ({
+    const regions = (...rows: unknown[]) => ({ rows, untaggedFlood: true, homeOverride: null, defaultScope: null });
+    const plan = (...rows: unknown[]) => ({
       app: "bemesh-configurator",
       version: 2,
-      plan: { ...defaultPlan(), regions: regions(row) },
+      plan: { ...defaultPlan(), regions: regions(...rows) },
     });
     expect(key(plan(freeRow("A B", null)))).toBe("backup.error.invalid");
     expect(key(plan(freeRow("zone", 5)))).toBe("backup.error.invalid");
     expect(importBackup(plan(freeRow("zone", null)), PLACES).regions!.rows[0].code).toBe("zone");
+    // The parent is a region code too.
+    for (const parent of ["", "Be Wht", "be_wht", "*", "x".repeat(31)]) {
+      expect(key(plan(freeRow("zone", parent)))).toBe("backup.error.invalid");
+    }
+    expect(importBackup(plan(freeRow("zone", "be-wht")), PLACES).regions!.rows[0].parent).toBe("be-wht");
+    // A free code that another row already has.
+    const structured = {
+      code: "be-wht",
+      label: "Henegouwen (be-wht)",
+      labelKey: "region.kind.neighbourProvince",
+      group: "neighbourProvince",
+      allow: false,
+      deny: false,
+    };
+    expect(key(plan(structured, freeRow("be-wht", null)))).toBe("backup.error.invalid");
+    expect(key(plan(freeRow("zone", null), freeRow("zone", null)))).toBe("backup.error.invalid");
+    expect(importBackup(plan(structured, freeRow("zone", "be-wht")), PLACES).regions!.rows).toHaveLength(2);
   });
 });

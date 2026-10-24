@@ -210,7 +210,8 @@ describe("Connect step", () => {
       store.drawerOpen.value = true;
       const drawer = render(<DeviceDrawer />);
       expect((screen.getByRole("button", { name: "Copy public key" }) as HTMLButtonElement).disabled).toBe(true);
-      expect(screen.getByText(/not read/)).toBeTruthy();
+      // Neither the clock nor the public key of B has been read.
+      expect(screen.getAllByText(/not read/)).toHaveLength(2);
       drawer.unmount();
       store.drawerOpen.value = false;
 

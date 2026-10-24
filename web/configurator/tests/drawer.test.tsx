@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/preact";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/preact";
 import nacl from "tweetnacl";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 /** The vanity search's give-up limit, lowered by the test that hits it. */
@@ -48,6 +48,13 @@ async function connectApp(replies: Record<string, string>) {
 }
 
 const button = (name: string | RegExp) => screen.getByRole("button", { name }) as HTMLButtonElement;
+
+/** Write to device asks first: tick that the old key is backed up (or not needed), then replace. */
+function confirmReplace() {
+  fireEvent.click(button("Write to device"));
+  fireEvent.click(screen.getByRole("checkbox", { name: t("identity.backedUp") }));
+  fireEvent.click(button("Replace identity"));
+}
 const logText = () => store.log.value.map((l) => l.text).join("\n");
 let writeText: ReturnType<typeof vi.fn>;
 
@@ -81,6 +88,7 @@ describe("Device tools drawer: without a device", () => {
     expect(button("Factory reset…").disabled).toBe(true);
     expect(button("Flood advert").disabled).toBe(true);
     expect(button("Generate vanity key…").disabled).toBe(true);
+    expect(button("Generate random key…").disabled).toBe(true);
     expect(button("Export JSON").disabled).toBe(false);
     expect(button("Import JSON").disabled).toBe(false);
   });
@@ -235,7 +243,7 @@ describe("Device tools drawer: confirmations", () => {
     expect(port.received.filter((l) => l === cmd)).toHaveLength(1);
   });
 
-  it("a double click on an advert or on Write to device sends it once", async () => {
+  it("a double click on an advert or on Replace identity sends it once", async () => {
     vi.spyOn(nacl, "randomBytes").mockImplementation(() => fromHex(SEED));
     const port = await connectApp({ advert: "OK", [`set prv.key ${MESHCORE_PRV}`]: `OK, reboot to apply! New pubkey: ${MESHCORE_PUB}` });
     render(<DeviceDrawer />);
@@ -248,9 +256,11 @@ describe("Device tools drawer: confirmations", () => {
     fireEvent.input(screen.getByLabelText("Public key prefix"), { target: { value: "03" } });
     fireEvent.click(button("Generate"));
     await screen.findByText(MESHCORE_PUB);
-    const write = button("Write to device");
-    fireEvent.click(write);
-    fireEvent.click(write);
+    fireEvent.click(button("Write to device"));
+    fireEvent.click(screen.getByRole("checkbox", { name: t("identity.backedUp") }));
+    const replace = button("Replace identity");
+    fireEvent.click(replace);
+    fireEvent.click(replace);
     await screen.findByText(t("vanity.written", { key: MESHCORE_PUB }));
     expect(port.received.filter((l) => l.startsWith("set prv.key"))).toHaveLength(1);
   });
@@ -286,7 +296,7 @@ describe("Device tools drawer: device info", () => {
     await screen.findByText(t("tools.syncFailed", { reason: "(ERR: clock cannot go backwards)" }));
   });
 
-  it("sends the zero-hop and flood adverts and copies the public key", async () => {
+  it("sends the zero-hop and flood adverts", async () => {
     const port = await connectApp({ "advert.zerohop": "OK - zerohop advert sent", advert: "OK - Advert sent" });
     store.snapshot.value = { settings: {}, missing: [], publicKey: PUB };
     render(<DeviceDrawer />);
@@ -296,8 +306,6 @@ describe("Device tools drawer: device info", () => {
     await waitFor(() => expect(port.received.at(-1)).toBe("advert"));
     await waitFor(() => expect(store.commandBusy.value).toBe(false));
     expect(port.received).toContain("advert.zerohop");
-    fireEvent.click(button("Copy public key"));
-    expect(writeText).toHaveBeenCalledWith(PUB);
   });
 
   it("device actions are disabled while another command holds the lock", async () => {
@@ -311,6 +319,65 @@ describe("Device tools drawer: device info", () => {
 });
 
 describe("Device tools drawer: identity", () => {
+  const identity = () => screen.getByRole("heading", { name: "Identity" }).closest("section") as HTMLElement;
+
+  it("shows the public key in full with its Copy, next to the private key", async () => {
+    await connectApp({});
+    store.snapshot.value = { settings: {}, missing: [], publicKey: PUB };
+    render(<DeviceDrawer />);
+    expect(within(identity()).getByText(PUB)).toBeTruthy();
+    expect(within(identity()).getByText("Private key")).toBeTruthy();
+    fireEvent.click(within(identity()).getByRole("button", { name: "Copy public key" }));
+    expect(writeText).toHaveBeenCalledWith(PUB);
+    const device = screen.getByRole("heading", { name: "Device" }).closest("section") as HTMLElement;
+    expect(within(device).queryByRole("button", { name: "Copy public key" })).toBeNull();
+  });
+
+  it("asks before replacing the identity and offers to back up the old private key first", async () => {
+    vi.spyOn(nacl, "randomBytes").mockImplementation(() => fromHex(SEED));
+    const port = await connectApp({
+      "get prv.key": `> ${SECRET}`,
+      [`set prv.key ${MESHCORE_PRV}`]: `OK, reboot to apply! New pubkey: ${MESHCORE_PUB}`,
+    });
+    render(<DeviceDrawer />);
+    fireEvent.click(button("Generate vanity key…"));
+    fireEvent.input(screen.getByLabelText("Public key prefix"), { target: { value: "03" } });
+    fireEvent.click(button("Generate"));
+    await screen.findByText(MESHCORE_PUB);
+    fireEvent.click(button("Write to device"));
+    expect(screen.getByText(t("identity.replaceWarn"))).toBeTruthy();
+    expect(port.received.some((l) => l.startsWith("set prv.key"))).toBe(false);
+    expect(button("Replace identity").disabled).toBe(true);
+    // Back goes to the found key without writing.
+    fireEvent.click(button("Back"));
+    expect(screen.getByText(MESHCORE_PUB)).toBeTruthy();
+    fireEvent.click(button("Write to device"));
+    // Copying the old key ticks the backup box.
+    fireEvent.click(button("Copy current private key"));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(SECRET));
+    const box = screen.getByRole("checkbox", { name: t("identity.backedUp") }) as HTMLInputElement;
+    await waitFor(() => expect(box.checked).toBe(true));
+    expect(document.body.textContent).not.toContain(SECRET);
+    await waitFor(() => expect(button("Replace identity").disabled).toBe(false));
+    fireEvent.click(button("Replace identity"));
+    await screen.findByText(t("vanity.written", { key: MESHCORE_PUB }));
+    expect(port.received.filter((l) => l.startsWith("set prv.key"))).toHaveLength(1);
+  });
+
+  it("generates a random key and writes it after the same confirmation", async () => {
+    vi.spyOn(nacl, "randomBytes").mockImplementation(() => fromHex(SEED));
+    const port = await connectApp({ [`set prv.key ${MESHCORE_PRV}`]: `OK, reboot to apply! New pubkey: ${MESHCORE_PUB}` });
+    render(<DeviceDrawer />);
+    fireEvent.click(button("Generate random key…"));
+    expect(screen.queryByLabelText("Public key prefix")).toBeNull();
+    fireEvent.click(button("Generate"));
+    await screen.findByText(MESHCORE_PUB);
+    confirmReplace();
+    await screen.findByText(t("vanity.written", { key: MESHCORE_PUB }));
+    expect(port.received.filter((l) => l.startsWith("set prv.key"))).toEqual([`set prv.key ${MESHCORE_PRV}`]);
+    expect(logText()).not.toContain(MESHCORE_PRV);
+  });
+
   it("Reveal reads the private key only on click, Copy copies it, and closing the drawer hides it", async () => {
     const port = await connectApp({ "get prv.key": `> ${SECRET}` });
     const first = render(<DeviceDrawer />);
@@ -318,7 +385,7 @@ describe("Device tools drawer: identity", () => {
     expect(first.container.textContent).not.toContain(SECRET);
     fireEvent.click(button("Reveal"));
     await screen.findByText(SECRET);
-    fireEvent.click(button("Copy"));
+    fireEvent.click(button("Copy private key"));
     await waitFor(() => expect(writeText).toHaveBeenCalledWith(SECRET));
     expect(logText()).not.toContain(SECRET);
     store.drawerOpen.value = false;
@@ -355,7 +422,7 @@ describe("Device tools drawer: identity", () => {
     fireEvent.input(screen.getByLabelText("Public key prefix"), { target: { value: "03" } });
     fireEvent.click(button("Generate"));
     await screen.findByText(MESHCORE_PUB);
-    fireEvent.click(button("Write to device"));
+    confirmReplace();
     await waitFor(() => expect(port.received.at(-1)).toBe(`set prv.key ${MESHCORE_PRV}`));
     return port;
   }
@@ -381,7 +448,7 @@ describe("Device tools drawer: identity", () => {
     fireEvent.input(screen.getByLabelText("Public key prefix"), { target: { value: "03" } });
     fireEvent.click(button("Generate"));
     await screen.findByText(MESHCORE_PUB);
-    fireEvent.click(button("Write to device"));
+    confirmReplace();
     await screen.findByText(t("vanity.written", { key: MESHCORE_PUB }));
     expect(container.textContent).not.toContain(SECRET);
     expect(button("Reveal")).toBeTruthy();
@@ -390,7 +457,7 @@ describe("Device tools drawer: identity", () => {
     expect(writeText).toHaveBeenCalledWith(MESHCORE_PUB);
     // Copy of the private key reads it from the device again instead of using the old one.
     await waitFor(() => expect(store.commandBusy.value).toBe(false));
-    fireEvent.click(button("Copy"));
+    fireEvent.click(button("Copy private key"));
     await waitFor(() => expect(port.received.filter((l) => l === "get prv.key")).toHaveLength(2));
   });
 
@@ -417,8 +484,8 @@ describe("Device tools drawer: identity", () => {
     expect(logText()).not.toContain(MESHCORE_PRV);
     // Still the found key: write again without searching.
     expect(screen.getByText(MESHCORE_PUB)).toBeTruthy();
-    await waitFor(() => expect(button("Write to device").disabled).toBe(false));
-    fireEvent.click(button("Write to device"));
+    await waitFor(() => expect(button("Replace identity").disabled).toBe(false));
+    fireEvent.click(button("Replace identity"));
     await waitFor(() => expect(port.received.filter((l) => l.startsWith("set prv.key")).length).toBe(2));
   });
 

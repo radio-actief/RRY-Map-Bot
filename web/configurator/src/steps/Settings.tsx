@@ -18,7 +18,7 @@ import { applyRecommendedRadio, BEMESH_RADIO, RadioFields } from "./settings/Rad
 
 type Card = "access" | "radio" | "advertising" | "owner" | "repeating";
 const CARDS: Card[] = ["access", "radio", "advertising", "owner", "repeating"];
-/** Expert settings the mockup folds away, besides the SETTINGS "advanced" card. */
+/** Expert settings in the Advanced section, besides the SETTINGS "advanced" card. */
 const EXPERT_EXTRA: SettingKey[] = ["pathHashMode", "txdelay", "directTxdelay"];
 const isExpert = (d: SettingDef) => d.card === "advanced" || EXPERT_EXTRA.includes(d.key);
 const keysOf = (card: Card) => SETTINGS.filter((d) => d.card === card && !isExpert(d));
@@ -288,7 +288,7 @@ function AdvancedBar() {
   const plan = store.plan.value;
   const changed = EXPERT.filter((d) => !same(rawOf(plan, d.key), defaultOf(d.key))).length;
   return (
-    <details class="advanced">
+    <details class="advanced" open>
       <summary>
         <strong>{t("settings.advanced")}</strong>
         <span class="sub"> · {t("settings.advanced.sub", { count: EXPERT.length })}</span>

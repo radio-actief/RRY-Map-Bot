@@ -402,7 +402,10 @@
   "tools.syncHint": "Set the repeater's clock to this computer's time.",
   "tools.synced": "Clock set to this computer's time.",
   "tools.syncFailed": "Clock sync failed: {reason}",
+  "tools.publicKey": "Public key",
+  "tools.notRead": "not read",
   "tools.copyPublicKey": "Copy public key",
+  "tools.copyPrivateKey": "Copy private key",
   "tools.copied": "Copied",
   "tools.copyFailed": "Couldn't copy: {reason}",
   "tools.zeroHop": "Zero-hop advert",
@@ -418,6 +421,7 @@
   "tools.hide": "Hide",
   "tools.copy": "Copy",
   "tools.keyFailed": "Couldn't read the private key: {reason}",
+  "tools.random": "Generate random key…",
   "tools.vanity": "Generate vanity key…",
   "tools.backup": "Backup",
   "tools.export": "Export JSON",
@@ -459,5 +463,12 @@
   "vanity.written": "Identity written; the device confirms public key {key}. Reboot the device to apply.",
   "vanity.mismatch": "The device reports a different public key ({got}) than expected ({want}). It has saved that key: generate and write a new one before it restarts.",
   "vanity.noneInReply": "none in reply",
-  "vanity.writeFailed": "Writing the identity failed: {reason}"
+  "vanity.writeFailed": "Writing the identity failed: {reason}",
+  "random.title": "Generate random key",
+  "random.hint": "Creates a new random identity for this repeater. Nothing is written until you confirm.",
+  "identity.replaceWarn": "This replaces the repeater's current identity. Its old private key is lost for good, and other nodes will see it as a new node. Back up the old private key first if you might still need it.",
+  "identity.backup": "Copy current private key",
+  "identity.backedUp": "I have a backup of the old private key, or I don't need it",
+  "identity.back": "Back",
+  "identity.replace": "Replace identity"
 }

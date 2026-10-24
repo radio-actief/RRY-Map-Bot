@@ -1,6 +1,7 @@
 /**
- * The 🛠 Device tools drawer (port of the old device tools card): clock, public key and adverts;
- * the private key and a vanity identity; backup export / import; reboot and OTA; factory reset.
+ * The 🛠 Device tools drawer (port of the old device tools card): clock and adverts; the identity
+ * (public and private key, a new random or vanity key); backup export / import; reboot and OTA;
+ * factory reset.
  * Every device command goes through the busy lock in state/device.
  */
 import nacl from "tweetnacl";
@@ -70,7 +71,7 @@ export function clockOffset(reply: string, at: number): string | null {
 const reasonOf = (err: unknown) => (err instanceof Error && err.message ? err.message : String(err));
 
 type Note = { kind: NoticeKind; text: string } | null;
-type Modal = null | "reboot" | "ota" | "reset" | "vanity";
+type Modal = null | "reboot" | "ota" | "reset" | KeyMode;
 
 export function DeviceDrawer() {
   return store.drawerOpen.value ? <Drawer /> : null;
@@ -166,6 +167,24 @@ function Drawer() {
     if (key) await copy(key, "prv");
   }
 
+  /** Copy the current private key before it is replaced; the text says why it failed. */
+  async function backupSecret(): Promise<string | null> {
+    let key = secret;
+    if (!key) {
+      const r = await readPrivateKey();
+      if (!r) return t("tools.noDevice");
+      if (!r.ok) return t("tools.keyFailed", { reason: r.error });
+      key = r.reply;
+      setSecret(key);
+    }
+    try {
+      await navigator.clipboard.writeText(key);
+      return null;
+    } catch (err) {
+      return t("tools.copyFailed", { reason: reasonOf(err) });
+    }
+  }
+
   /**
    * Write the generated identity. A failed write keeps the dialog and its key, so writing can be
    * retried without searching again; the returned text says why it failed. Once the device has
@@ -246,14 +265,6 @@ function Drawer() {
             </span>
           </div>
           <div class="drawer-actions">
-            <button
-              type="button"
-              class="btn small"
-              disabled={!connected || !publicKey}
-              onClick={() => publicKey && void copy(publicKey, "pub")}
-            >
-              {flash === "pub" ? t("tools.copied") : t("tools.copyPublicKey")}
-            </button>
             <button type="button" class="btn small" disabled={off} onClick={() => void advert("advert.zerohop")}>
               {t("tools.zeroHop")}
             </button>
@@ -266,19 +277,47 @@ function Drawer() {
         <section class="drawer-section">
           <h3>{t("tools.identity")}</h3>
           <div class="drawer-row">
+            <span>{t("tools.publicKey")}</span>
+            <span class="drawer-value">
+              {publicKey ? null : t("tools.notRead")}
+              {publicKey && store.snapshot.value?.publicKeyPending ? (
+                <span class="badge warn">{t("device.afterReboot")}</span>
+              ) : null}{" "}
+              <button
+                type="button"
+                class="link"
+                aria-label={t("tools.copyPublicKey")}
+                disabled={!connected || !publicKey}
+                onClick={() => publicKey && void copy(publicKey, "pub")}
+              >
+                {flash === "pub" ? t("tools.copied") : t("tools.copy")}
+              </button>
+            </span>
+          </div>
+          {publicKey ? <code class="secret">{publicKey}</code> : null}
+          <div class="drawer-row">
             <span>{t("tools.privateKey")}</span>
             <span class="drawer-value">
               {shown ? null : <span aria-hidden="true">{t("tools.masked")}</span>}{" "}
               <button type="button" class="link" disabled={!shown && off} onClick={() => void reveal()}>
                 {shown ? t("tools.hide") : t("tools.reveal")}
               </button>{" "}
-              <button type="button" class="link" disabled={!secret && off} onClick={() => void copySecret()}>
+              <button
+                type="button"
+                class="link"
+                aria-label={t("tools.copyPrivateKey")}
+                disabled={!secret && off}
+                onClick={() => void copySecret()}
+              >
                 {flash === "prv" ? t("tools.copied") : t("tools.copy")}
               </button>
             </span>
           </div>
           {shown && secret ? <code class="secret">{secret}</code> : null}
           <div class="drawer-actions">
+            <button type="button" class="btn small" disabled={off} onClick={() => setModal("random")}>
+              {t("tools.random")}
+            </button>
             <button type="button" class="btn small" disabled={off} onClick={() => setModal("vanity")}>
               {t("tools.vanity")}
             </button>
@@ -352,7 +391,16 @@ function Drawer() {
         </Dialog>
       ) : null}
       {modal === "reset" ? <ResetDialog disabled={off} onClose={() => setModal(null)} onReset={() => restart("erase")} /> : null}
-      {modal === "vanity" ? <VanityDialog disabled={off} onClose={() => setModal(null)} onWrite={write} /> : null}
+      {modal === "vanity" || modal === "random" ? (
+        <KeyDialog
+          key={modal}
+          mode={modal}
+          disabled={off}
+          onClose={() => setModal(null)}
+          onWrite={write}
+          onBackup={backupSecret}
+        />
+      ) : null}
     </>
   );
 }
@@ -392,24 +440,45 @@ function ResetDialog({ disabled, onClose, onReset }: { disabled: boolean; onClos
   );
 }
 
-type VanityPhase =
-  | { kind: "input"; gaveUp?: number }
-  | { kind: "running"; tried: number }
-  | { kind: "found"; key: VanityKey; tried: number; secs: string; writing?: boolean; writeError?: string };
+/** A new identity: any random key, or one whose public key starts with a chosen prefix. */
+type KeyMode = "random" | "vanity";
+
+type Found = {
+  kind: "found";
+  key: VanityKey;
+  tried: number;
+  secs: string;
+  writing?: boolean;
+  writeError?: string;
+  /** Write to device was pressed: the replace question is showing. */
+  confirming?: boolean;
+  /** Ticked: the old private key is backed up, or not needed. */
+  backedUp?: boolean;
+  copied?: boolean;
+  backupError?: string;
+};
+
+type VanityPhase = { kind: "input"; gaveUp?: number } | { kind: "running"; tried: number } | Found;
 
 /**
- * Vanity identity (old generateVanityKey): a hex prefix, a search that yields to the UI between
- * slices with a running count and Cancel (and gives up after VANITY_MAX_ATTEMPTS), then the found
- * key and the question to write it. A failed write keeps the key for another try.
+ * A new identity. Vanity (old generateVanityKey): a hex prefix, a search that yields to the UI
+ * between slices with a running count and Cancel (and gives up after VANITY_MAX_ATTEMPTS). Random:
+ * the first key the firmware accepts. Then the found key; Write to device first asks to confirm
+ * the old identity is replaced, with a copy of the old private key at hand. A failed write keeps
+ * the key for another try.
  */
-function VanityDialog({
+function KeyDialog({
+  mode,
   disabled,
   onClose,
   onWrite,
+  onBackup,
 }: {
+  mode: KeyMode;
   disabled: boolean;
   onClose: () => void;
   onWrite: (key: VanityKey) => Promise<string | null>;
+  onBackup: () => Promise<string | null>;
 }) {
   const [prefix, setPrefix] = useState("");
   const [phase, setPhase] = useState<VanityPhase>({ kind: "input" });
@@ -417,9 +486,10 @@ function VanityDialog({
   const run = useRef(0);
   useEffect(() => () => void run.current++, []);
 
-  const p = prefix.trim().toLowerCase();
+  const random = mode === "random";
+  const p = random ? "" : prefix.trim().toLowerCase();
   const error = !p ? null : !VANITY_PREFIX.test(p) ? t("vanity.invalid") : !isAllowedPrefix(p) ? t("vanity.notAllowed") : null;
-  const valid = !!p && !error;
+  const valid = random || (!!p && !error);
 
   function start() {
     const token = ++run.current;
@@ -452,10 +522,18 @@ function VanityDialog({
     setPhase({ kind: "input" });
   }
 
-  async function write(found: Extract<VanityPhase, { kind: "found" }>) {
+  async function write(found: Found) {
     setPhase({ ...found, writing: true, writeError: undefined });
     const error = await onWrite(found.key);
     setPhase((cur) => (cur.kind === "found" ? { ...cur, writing: false, writeError: error ?? undefined } : cur));
+  }
+
+  const patch = (f: Partial<Found>) => setPhase((cur) => (cur.kind === "found" ? { ...cur, ...f } : cur));
+
+  async function backup() {
+    patch({ backupError: undefined });
+    const error = await onBackup();
+    patch(error ? { backupError: error } : { copied: true, backedUp: true });
   }
 
   const actions =
@@ -472,32 +550,62 @@ function VanityDialog({
       <button type="button" class="btn" onClick={stop}>
         {t("tools.cancel")}
       </button>
+    ) : phase.confirming ? (
+      <>
+        <button type="button" class="btn" disabled={phase.writing} onClick={() => patch({ confirming: false })}>
+          {t("identity.back")}
+        </button>
+        <button
+          type="button"
+          class="btn primary"
+          disabled={disabled || phase.writing || !phase.backedUp}
+          onClick={() => void write(phase)}
+        >
+          {t("identity.replace")}
+        </button>
+      </>
     ) : (
       <>
         <button type="button" class="btn" onClick={onClose}>
           {t("vanity.discard")}
         </button>
-        <button
-          type="button"
-          class="btn primary"
-          disabled={disabled || phase.writing}
-          onClick={() => void write(phase)}
-        >
+        <button type="button" class="btn primary" disabled={disabled} onClick={() => patch({ confirming: true })}>
           {t("vanity.write")}
         </button>
       </>
     );
 
   return (
-    <Dialog open title={t("vanity.title")} onClose={onClose} actions={actions}>
+    <Dialog open title={t(random ? "random.title" : "vanity.title")} onClose={onClose} actions={actions}>
       {phase.kind === "found" ? (
         <>
-          <p>{t("vanity.found", { count: numbers.format(phase.tried), secs: phase.secs })}</p>
+          {random ? null : <p>{t("vanity.found", { count: numbers.format(phase.tried), secs: phase.secs })}</p>}
           <span class="field-label">{t("vanity.publicKey")}</span>
           <code class="secret">{phase.key.publicKey}</code>
-          <p>{t("vanity.writeQuestion")}</p>
+          {phase.confirming ? (
+            <>
+              <Notice kind="warn">{t("identity.replaceWarn")}</Notice>
+              <button type="button" class="btn small" disabled={phase.writing} onClick={() => void backup()}>
+                {phase.copied ? t("tools.copied") : t("identity.backup")}
+              </button>
+              {phase.backupError ? <Notice kind="error">{phase.backupError}</Notice> : null}
+              <label class="check-line">
+                <input
+                  type="checkbox"
+                  checked={!!phase.backedUp}
+                  disabled={phase.writing}
+                  onChange={(e) => patch({ backedUp: e.currentTarget.checked })}
+                />
+                <span>{t("identity.backedUp")}</span>
+              </label>
+            </>
+          ) : (
+            <p>{t("vanity.writeQuestion")}</p>
+          )}
           {phase.writeError ? <Notice kind="error">{phase.writeError}</Notice> : null}
         </>
+      ) : random ? (
+        <p class="sub">{t("random.hint")}</p>
       ) : (
         <>
           <label class="field">

@@ -135,10 +135,10 @@ describe("Settings step", () => {
     expect(ofKind("marker").length).toBe(1);
   });
 
-  it("folds the advanced settings", () => {
+  it("shows the advanced settings open", () => {
     render(<Settings />);
     const details = document.querySelector("details.advanced") as HTMLDetailsElement;
-    expect(details.open).toBe(false);
+    expect(details.open).toBe(true);
     expect(within(details).getByText("all recommended")).toBeTruthy();
   });
 });

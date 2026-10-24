@@ -111,10 +111,12 @@ function Drawer() {
     return () => document.removeEventListener("keydown", onKey);
   }, [modalOpen]);
 
-  // Another (or no) device: forget its private key.
+  // Another (or no) device: forget its private key and close any dialog, so a generated identity
+  // (kept by the vanity dialog) can never be written to a second device.
   useEffect(() => {
     setSecret(null);
     setShown(false);
+    setModal(null);
   }, [link]);
 
   async function copy(text: string, which: "pub" | "prv") {

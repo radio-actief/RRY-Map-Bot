@@ -396,6 +396,31 @@ describe("Device tools drawer: identity", () => {
     expect(JSON.stringify(r)).toContain("(hidden)");
   });
 
+  it("a truncated echo of the key after prv.key is masked too", async () => {
+    await connectApp({ [`set prv.key ${SECRET}`]: `unknown config: prv.key ${SECRET.slice(0, 8)}…` });
+    const r = await deviceCommand(`set prv.key ${SECRET}`);
+    expect(r).toEqual({ ok: false, error: "unknown config: prv.key (hidden)…" });
+    expect(logText()).not.toContain("abab");
+  });
+
+  it("a device change closes the vanity dialog and drops the generated key", async () => {
+    vi.spyOn(nacl, "randomBytes").mockImplementation(() => fromHex(SEED));
+    await connectApp({});
+    render(<DeviceDrawer />);
+    fireEvent.click(button("Generate vanity key…"));
+    fireEvent.input(screen.getByLabelText("Public key prefix"), { target: { value: "03" } });
+    fireEvent.click(button("Generate"));
+    await screen.findByText(MESHCORE_PUB);
+    const second = await connectApp({});
+    await waitFor(() => expect(screen.queryByText(MESHCORE_PUB)).toBeNull());
+    expect(screen.queryByRole("button", { name: "Write to device" })).toBeNull();
+    // Opening it again starts from the prefix, not the old key.
+    fireEvent.click(button("Generate vanity key…"));
+    expect(screen.getByLabelText("Public key prefix")).toBeTruthy();
+    expect(screen.queryByText(MESHCORE_PUB)).toBeNull();
+    expect(second.received.some((l) => l.startsWith("set prv.key"))).toBe(false);
+  });
+
   it("gives up after the attempt limit with the old message", async () => {
     cap.max = 64;
     vi.spyOn(nacl, "randomBytes").mockImplementation(() => fromHex(SEED));

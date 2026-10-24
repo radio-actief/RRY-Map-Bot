@@ -46,14 +46,16 @@ export function clearLog(): void {
 
 /**
  * Masks the private key of a `set prv.key` line wherever it shows up (the command, a reply that
- * echoes it, a "line too long" error that quotes its start). Used for the log and for every reply
- * or error text a drawer command hands back.
+ * echoes it in full or in part, a "line too long" error that quotes its start), and any hex that
+ * follows `prv.key`. Used for the log and for every reply or error text a drawer command hands back.
  */
 export function secretMask(cmd: string): (text: string) => string {
   const hidden = t("log.hidden");
   const secret = /^set\s+prv\.key\s+(\S+)/i.exec(cmd)?.[1];
   return (text) => {
-    const masked = text.replace(/(set\s+prv\.key)\s+\S+/gi, `$1 ${hidden}`);
+    const masked = text
+      .replace(/(set\s+prv\.key)\s+\S+/gi, `$1 ${hidden}`)
+      .replace(/(prv\.key)\s+[0-9a-f]+/gi, `$1 ${hidden}`);
     return secret ? masked.split(secret).join(hidden) : masked;
   };
 }

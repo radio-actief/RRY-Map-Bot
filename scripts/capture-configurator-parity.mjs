@@ -8,7 +8,6 @@ import path from 'node:path';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const outDir = path.join(root, 'web/configurator/tests/fixtures/parity');
 const PORT = 8799;
-const CHROME = '/home/confi/.cache/ms-playwright/chromium-1234/chrome-linux/chrome';
 
 const locode = JSON.parse(readFileSync(path.join(root, 'data/be-locode.json'), 'utf8'));
 const vovCodes = locode.filter((r) => r.province_code === 'be-vov').map((r) => r.city_code);
@@ -43,9 +42,14 @@ const scenarios = [
 ];
 
 const server = spawn('python3', ['-m', 'http.server', String(PORT)], { cwd: root, stdio: 'ignore' });
-const browser = await chromium.launch({ executablePath: CHROME });
+let browser;
 try {
-  await new Promise((r) => setTimeout(r, 1000));
+  server.on('error', (e) => { throw e; });
+  for (let i = 0; ; i++) {
+    try { await fetch(`http://localhost:${PORT}/configurator.html`); break; }
+    catch (e) { if (i >= 50) throw new Error('http server did not start'); await new Promise((r) => setTimeout(r, 100)); }
+  }
+  browser = await chromium.launch(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {});
   mkdirSync(outDir, { recursive: true });
   for (const sc of scenarios) {
     const page = await browser.newPage({ acceptDownloads: true });
@@ -94,7 +98,6 @@ try {
       }
     }, sc.fields);
     if (await page.isChecked('#cli-show-defaults')) throw new Error('show defaults is on');
-    await page.waitForTimeout(500);
     const script = await page.evaluate(() => document.getElementById('commands-block').textContent);
     const [dl] = await Promise.all([
       page.waitForEvent('download'),
@@ -106,6 +109,6 @@ try {
     await page.close();
   }
 } finally {
-  await browser.close();
+  await browser?.close();
   server.kill();
 }

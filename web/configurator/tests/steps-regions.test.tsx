@@ -15,7 +15,7 @@ beforeEach(() => {
   resetPlan(defaultPlan());
   store.data.value = { failed: new Set(), places: PLACES };
   store.deviceRegions.value = undefined;
-  store.step.value = 3;
+  store.step.value = "regions";
 });
 afterEach(cleanup);
 

@@ -1,4 +1,4 @@
-/** Step 1: connect over USB, the device card, Read (asks before overwriting edits), or go on without a device. */
+/** Connect step: connect over USB, the device card, Read (asks before overwriting edits), or go on without a device. */
 import { useState } from "preact/hooks";
 import { Dialog } from "../app/Dialog";
 import { Notice } from "../app/Notice";
@@ -93,7 +93,7 @@ export function Connect() {
       <ReadResult />
       <p class="continue">
         {serial ? `${t("connect.noRepeater")} ` : null}
-        <button type="button" class="link" disabled={locked} onClick={() => (store.step.value = 2)}>
+        <button type="button" class="link" disabled={locked} onClick={() => (store.step.value = "place")}>
           {t("connect.continue")}
         </button>
       </p>

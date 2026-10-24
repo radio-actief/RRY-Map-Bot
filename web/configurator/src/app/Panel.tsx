@@ -1,14 +1,16 @@
 import { useEffect, useState } from "preact/hooks";
 import { t } from "../i18n/t";
-import { busy, store, type Step } from "../state/store";
+import { busy, isWide, NUMBERED, store, type Step } from "../state/store";
 import { disconnectUsb } from "../state/device";
+import { Advanced } from "../steps/Advanced";
 import { Connect } from "../steps/Connect";
-import { PlaceName } from "../steps/PlaceName";
+import { Name } from "../steps/Name";
+import { Place } from "../steps/Place";
 import { Regions } from "../steps/Regions";
-import { Review } from "../steps/Review";
-import { Settings } from "../steps/Settings";
+import { Send } from "../steps/Send";
+import { Site } from "../steps/Site";
 import { Notice } from "./Notice";
-import { Stepper, stepName } from "./Stepper";
+import { nextStep, Stepper, stepName } from "./Stepper";
 
 const NARROW = "(max-width: 767px)";
 
@@ -30,20 +32,23 @@ export function useMediaQuery(query: string): boolean {
 const SHEET_NEXT = { peek: "half", half: "full", full: "peek" } as const;
 
 function StepBody({ step }: { step: Step }) {
-  if (step === 1) return <Connect />;
-  if (step === 2) return <PlaceName />;
-  if (step === 3) return <Regions />;
-  if (step === 4) return <Settings />;
-  return <Review />;
+  if (step === "connect") return <Connect />;
+  if (step === "place") return <Place />;
+  if (step === "name") return <Name />;
+  if (step === "site") return <Site />;
+  if (step === "regions") return <Regions />;
+  if (step === "advanced") return <Advanced />;
+  return <Send />;
 }
 
 export function Panel() {
   const step = store.step.value;
   const sheet = useMediaQuery(NARROW);
-  const wide = step >= 4 && !sheet;
-  const height = step >= 4 ? "full" : store.sheet.value;
+  const wide = isWide(step) && !sheet;
+  const height = isWide(step) ? "full" : store.sheet.value;
   const mode = sheet ? `sheet ${height}` : wide ? "wide" : "docked";
-  const next = step < 5 ? ((step + 1) as Step) : null;
+  const back = NUMBERED[NUMBERED.indexOf(step) - 1];
+  const next = nextStep(step);
   const notice = store.notice.value;
   const locked = busy.value;
   return (
@@ -75,16 +80,11 @@ export function Panel() {
         </div>
       ) : null}
       <StepBody step={step} />
-      {/* Steps 4 and 5 carry their own Back / Next. */}
-      {step >= 4 ? null : (
+      {/* Advanced and Send carry their own Back / Next. */}
+      {isWide(step) ? null : (
         <footer class="panel-foot">
-          {step > 1 ? (
-            <button
-              type="button"
-              class="btn"
-              disabled={locked}
-              onClick={() => (store.step.value = (step - 1) as Step)}
-            >
+          {back ? (
+            <button type="button" class="btn" disabled={locked} onClick={() => (store.step.value = back)}>
               {t("step.back")}
             </button>
           ) : store.device.value.status === "connected" ? (
@@ -94,11 +94,18 @@ export function Panel() {
           ) : (
             <span />
           )}
-          {next ? (
-            <button type="button" class="btn primary" disabled={locked} onClick={() => (store.step.value = next)}>
-              {t("step.nextButton", { name: stepName(next) })}
-            </button>
-          ) : null}
+          <span class="foot-end">
+            {step === "regions" ? (
+              <button type="button" class="link" disabled={locked} onClick={() => (store.step.value = "advanced")}>
+                {t("step.advancedLink")}
+              </button>
+            ) : null}
+            {next ? (
+              <button type="button" class="btn primary" disabled={locked} onClick={() => (store.step.value = next)}>
+                {t("step.nextButton", { name: stepName(next) })}
+              </button>
+            ) : null}
+          </span>
         </footer>
       )}
     </section>

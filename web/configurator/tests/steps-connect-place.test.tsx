@@ -7,23 +7,27 @@ vi.mock("leaflet", async () => await import("./fakes/leaflet"));
 
 import { MapView } from "../src/app/MapView";
 import { Panel } from "../src/app/Panel";
-import { defaultPlan } from "../src/core/plan";
-import type { Place } from "../src/core/search";
+import { defaultPlan, planErrors } from "../src/core/plan";
+import type { Place as PlaceRow } from "../src/core/search";
 import { SerialLink } from "../src/device/serial";
 import { Connect } from "../src/steps/Connect";
 import { DeviceDrawer } from "../src/app/DeviceDrawer";
 import { connectUsb, disconnectUsb, readDevice } from "../src/state/device";
-import { Review } from "../src/steps/Review";
-import { PlaceName } from "../src/steps/PlaceName";
+import { Name } from "../src/steps/Name";
+import { Place } from "../src/steps/Place";
+import { Send } from "../src/steps/Send";
 import { canApply, resetPlan, setLocation, stepStatus, store } from "../src/state/store";
 import { FakePort } from "./fakes/fake-port";
 import { ofKind, resetFake } from "./fakes/leaflet";
 import read from "./fixtures/read-ronse.json";
 
-const PLACES: Place[] = JSON.parse(readFileSync(resolve(__dirname, "../../../data/be-locode.json"), "utf8"));
+const PLACES: PlaceRow[] = JSON.parse(readFileSync(resolve(__dirname, "../../../data/be-locode.json"), "utf8"));
 const MUNIS = JSON.parse(readFileSync(resolve(__dirname, "fixtures/municipalities-3.json"), "utf8"));
 const RONSE = PLACES.find((p) => p.city_code === "beron")!;
 const FAST = { interCommandDelayMs: 0, bootDrainMs: 0, disconnectSettleMs: 0, replyTimeoutMs: 40 };
+
+const type = (label: RegExp | string, value: string) =>
+  fireEvent.input(screen.getByLabelText(label), { target: { value } });
 
 const node = (name: string, lat: number, lon: number, type = 2) => ({
   public_key: name,
@@ -41,7 +45,7 @@ beforeEach(() => {
   store.notice.value = null;
   store.reading.value = false;
   store.lastRead.value = null;
-  store.step.value = 2;
+  store.step.value = "place";
   store.device.value = { status: "none", link: null, firmware: null };
   store.data.value = { failed: new Set(), places: PLACES, municipalities: MUNIS };
 });
@@ -59,16 +63,16 @@ async function connectedLink(replies: Record<string, string> = read) {
 
 describe("Connect step", () => {
   it("without Web Serial explains why and offers to continue without a device", () => {
-    store.step.value = 1;
+    store.step.value = "connect";
     render(<Connect />);
     expect(screen.getByText(/can't talk to USB devices/)).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Connect over USB" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /Continue without a device/ }));
-    expect(store.step.value).toBe(2);
+    expect(store.step.value).toBe("place");
   });
 
   it("connecting checks the firmware once and fills the device card", async () => {
-    store.step.value = 1;
+    store.step.value = "connect";
     const port = new FakePort(read);
     await connectUsb({ requestPort: async () => port, timing: FAST });
     expect(port.received).toEqual(["ver"]);
@@ -201,7 +205,7 @@ describe("Connect step", () => {
       expect(store.device.value.status).toBe("connected");
       forgotten();
 
-      store.step.value = 1;
+      store.step.value = "connect";
       const card = render(<Connect />);
       expect(screen.queryByText("BE-RON-Kluisberg🌞")).toBeNull();
       expect(screen.getAllByText("—").length).toBe(2);
@@ -215,13 +219,13 @@ describe("Connect step", () => {
       drawer.unmount();
       store.drawerOpen.value = false;
 
-      const review = render(<Review />);
+      const send = render(<Send />);
       expect(document.querySelector(".rv-from")).toBeNull();
-      review.unmount();
+      send.unmount();
 
       // A's own node no longer counts as "this repeater" for B.
       store.data.value = { ...store.data.value, nodes: [{ ...node("BE-RON-Kluisberg", 50.76, 3.61), public_key: A_KEY }] };
-      render(<PlaceName />);
+      render(<Name />);
       expect(screen.getByText(/already used nearby/)).toBeTruthy();
     });
 
@@ -238,14 +242,14 @@ describe("Connect step", () => {
   it("while reading, step navigation is disabled", () => {
     store.reading.value = true;
     render(<Panel />);
-    expect((screen.getByRole("button", { name: /Next: Regions/ }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: /Next: Name/ }) as HTMLButtonElement).disabled).toBe(true);
     expect((screen.getByRole("button", { name: "← Back" }) as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it("shows Disconnect in the panel footer on step 1 while connected", async () => {
+  it("shows Disconnect in the panel footer on Connect while connected", async () => {
     const { link } = await connectedLink();
     store.device.value = { status: "connected", link, firmware: "v1.17.1" };
-    store.step.value = 1;
+    store.step.value = "connect";
     render(<Panel />);
     fireEvent.click(screen.getByRole("button", { name: "Disconnect" }));
     await waitFor(() => expect(store.device.value.status).toBe("none"));
@@ -253,9 +257,9 @@ describe("Connect step", () => {
   });
 });
 
-describe("Place & name step", () => {
+describe("Place step", () => {
   it("searching Ronse and picking the first result sets the anchor and the prefix", () => {
-    render(<PlaceName />);
+    render(<Place />);
     const box = screen.getByRole("combobox", { name: "Search a place" });
     fireEvent.input(box, { target: { value: "Ronse" } });
     fireEvent.click(screen.getAllByRole("option")[0]);
@@ -264,12 +268,14 @@ describe("Place & name step", () => {
     expect(plan.anchor?.place?.city_code).toBe("beron");
     expect(plan.location).toEqual({ lat: RONSE.lat, lon: RONSE.lon });
     expect(plan.regions?.rows.some((r) => r.code === "beron")).toBe(true);
+    cleanup();
+    render(<Name />);
     expect(screen.getByText("BE-RON-")).toBeTruthy();
   });
 
   it("picking the municipality the pin is already in keeps the precise location", () => {
     store.plan.value = { ...store.plan.value, location: { lat: 50.745, lon: 3.6 } };
-    render(<PlaceName />);
+    render(<Place />);
     fireEvent.input(screen.getByRole("combobox", { name: "Search a place" }), { target: { value: "Ronse" } });
     fireEvent.click(screen.getAllByRole("option")[0]);
     expect(store.plan.value.anchor?.place?.city_code).toBe("beron");
@@ -278,7 +284,7 @@ describe("Place & name step", () => {
 
   it("on blur the search shows the chosen place again", () => {
     act(() => setLocation({ lat: 50.745, lon: 3.6 }));
-    render(<PlaceName />);
+    render(<Place />);
     const box = screen.getByRole("combobox", { name: "Search a place" }) as HTMLInputElement;
     fireEvent.input(box, { target: { value: "Gen" } });
     fireEvent.blur(box);
@@ -286,7 +292,7 @@ describe("Place & name step", () => {
   });
 
   it("typed coordinates (comma decimals) move the pin and resolve the place", () => {
-    render(<PlaceName />);
+    render(<Place />);
     const lat = screen.getByRole("textbox", { name: "Latitude" });
     const lon = screen.getByRole("textbox", { name: "Longitude" });
     fireEvent.input(lat, { target: { value: "50,745" } });
@@ -300,7 +306,7 @@ describe("Place & name step", () => {
 
   it("invalid typed coordinates show an error and keep the pin", () => {
     act(() => setLocation({ lat: 50.745, lon: 3.6 }));
-    render(<PlaceName />);
+    render(<Place />);
     const lat = screen.getByRole("textbox", { name: "Latitude" });
     fireEvent.input(lat, { target: { value: "95" } });
     fireEvent.change(lat, { target: { value: "95" } });
@@ -310,25 +316,25 @@ describe("Place & name step", () => {
 
   it("Clear removes the coordinates and keeps the place", () => {
     act(() => setLocation({ lat: 50.745, lon: 3.6 }));
-    render(<PlaceName />);
+    render(<Place />);
     fireEvent.click(screen.getByRole("button", { name: "Clear" }));
     expect(store.plan.value.location).toBeNull();
     expect(store.plan.value.anchor?.place?.city_code).toBe("beron");
   });
 
-  it("with Fixed position, Clear location flags step 2 and blocks Apply until a position is set", async () => {
+  it("with Fixed position, Clear location flags Place and blocks Apply until a position is set", async () => {
     act(() => setLocation({ lat: 50.745, lon: 3.6 }));
     store.plan.value = { ...store.plan.value, nameSuffix: "Kluisberg", advertLoc: "prefs" };
     const { link } = await connectedLink();
     store.device.value = { status: "connected", link, firmware: "v1.17.1" };
     expect(canApply.value.ok).toBe(true);
-    render(<PlaceName />);
+    render(<Place />);
     fireEvent.click(screen.getByRole("button", { name: "Clear" }));
     expect(canApply.value.ok).toBe(false);
-    expect(canApply.value.reasons).toEqual(["error.coordsRequired"]);
+    expect(canApply.value.reasons).toEqual([{ key: "error.coordsRequired" }]);
     expect(screen.getByText(/with Fixed position the advert sends the stored coordinates/)).toBeTruthy();
-    store.step.value = 5;
-    expect(stepStatus(2)).toBe("attention");
+    store.step.value = "send";
+    expect(stepStatus("place")).toBe("attention");
     act(() => void (store.plan.value = { ...store.plan.value, advertLoc: "none" }));
     expect(canApply.value.ok).toBe(true);
   });
@@ -346,7 +352,7 @@ describe("Place & name step", () => {
 
   it("says the place can't be detected from the map when the borders failed", () => {
     store.data.value = { failed: new Set(["municipalities"]), places: PLACES };
-    render(<PlaceName />);
+    render(<Place />);
     expect(screen.getByText(/can't be detected from the map/)).toBeTruthy();
   });
 
@@ -354,7 +360,7 @@ describe("Place & name step", () => {
     render(
       <>
         <MapView />
-        <PlaceName />
+        <Place />
       </>,
     );
     act(() => ofKind("map")[0].fire("click", { latlng: { lat: 51.6, lng: 2.5 } }));
@@ -364,7 +370,7 @@ describe("Place & name step", () => {
   });
 
   it("a map pick inside a municipality resolves it as the anchor", () => {
-    render(<PlaceName />);
+    render(<Place />);
     act(() => setLocation({ lat: 50.745, lon: 3.6 }));
     expect(store.plan.value.anchor?.place?.city_code).toBe("beron");
     expect(store.plan.value.regions).not.toBeNull();
@@ -372,61 +378,15 @@ describe("Place & name step", () => {
     expect(screen.queryByText(/outside Belgium/)).toBeNull();
   });
 
-  it("a suffix that makes a 24-byte name with a location turns the counter red and blocks Apply", () => {
-    act(() => setLocation({ lat: 50.745, lon: 3.6 }));
-    render(<PlaceName />);
-    fireEvent.input(screen.getByRole("textbox", { name: "Name after the prefix" }), {
-      target: { value: "Kluisberg-Noord-1" },
-    });
-    const counter = screen.getByText("24 / 23 bytes");
-    expect(counter.classList.contains("bad")).toBe(true);
-    expect(canApply.value.ok).toBe(false);
-    expect(canApply.value.reasons).toContain("error.nameTooLong");
-  });
-
-  it("shows an error for characters the firmware rejects", () => {
-    render(<PlaceName />);
-    fireEvent.input(screen.getByRole("textbox", { name: "Name after the prefix" }), { target: { value: "a:b" } });
-    expect(screen.getByText(/cannot contain/)).toBeTruthy();
-  });
-
-  it("warns when a node within 25 km already uses the name", () => {
-    store.data.value = { ...store.data.value, nodes: [node("BE-RON-Kluisberg", 50.76, 3.61)] };
-    act(() => setLocation({ lat: 50.745, lon: 3.6 }));
-    store.plan.value = { ...store.plan.value, nameSuffix: "Kluisberg", power: "🌞" };
-    render(<PlaceName />);
-    expect(screen.getByText(/already used nearby/)).toBeTruthy();
-  });
-
-  it("does not count the own repeater (public key read in capitals) as a nearby name", () => {
-    store.data.value = { ...store.data.value, nodes: [{ ...node("BE-RON-Kluisberg", 50.76, 3.61), public_key: "3f5a9c0e" }] };
-    store.snapshot.value = { settings: {}, missing: [], publicKey: "3F5A9C0E" };
-    act(() => setLocation({ lat: 50.745, lon: 3.6 }));
-    store.plan.value = { ...store.plan.value, nameSuffix: "Kluisberg", power: "🌞" };
-    render(<PlaceName />);
-    expect(screen.queryByText(/already used nearby/)).toBeNull();
-    expect(screen.getByText(/No node within 25 km/)).toBeTruthy();
-  });
-
-  it("says when nearby names could not be checked", () => {
-    store.data.value = { ...store.data.value, failed: new Set(["nodes"]) };
-    act(() => setLocation({ lat: 50.745, lon: 3.6 }));
-    store.plan.value = { ...store.plan.value, nameSuffix: "Kluisberg" };
-    render(<PlaceName />);
-    expect(screen.getByText(/couldn't check nearby names/i)).toBeTruthy();
-  });
-
-  it("the advert-location segment and power buttons edit the plan", () => {
-    render(<PlaceName />);
+  it("the advert-location segment edits the plan", () => {
+    render(<Place />);
     fireEvent.click(screen.getByRole("button", { name: "No" }));
     expect(store.plan.value.advertLoc).toBe("none");
-    fireEvent.click(screen.getByRole("button", { name: /Solar/ }));
-    expect(store.plan.value.power).toBe("🌞");
   });
 
   it("hides Use my location on a secure origin without geolocation", () => {
     vi.stubGlobal("isSecureContext", true);
-    render(<PlaceName />);
+    render(<Place />);
     expect(screen.queryByRole("button", { name: "Use my location" })).toBeNull();
   });
 
@@ -434,7 +394,7 @@ describe("Place & name step", () => {
     vi.stubGlobal("isSecureContext", false);
     Object.defineProperty(navigator, "geolocation", { value: { getCurrentPosition: vi.fn() }, configurable: true });
     try {
-      render(<PlaceName />);
+      render(<Place />);
       expect(screen.queryByRole("button", { name: "Use my location" })).toBeNull();
     } finally {
       delete (navigator as unknown as Record<string, unknown>).geolocation;
@@ -447,9 +407,9 @@ describe("Place & name step", () => {
     const getCurrentPosition = vi.fn((ok: PositionCallback) => void (answer = ok));
     Object.defineProperty(navigator, "geolocation", { value: { getCurrentPosition }, configurable: true });
     try {
-      render(<PlaceName />);
+      render(<Place />);
       fireEvent.click(screen.getByRole("button", { name: "Use my location" }));
-      store.step.value = 3;
+      store.step.value = "name";
       answer({ coords: { latitude: 50.745, longitude: 3.6 } } as GeolocationPosition);
       expect(store.plan.value.location).toBeNull();
     } finally {
@@ -458,7 +418,7 @@ describe("Place & name step", () => {
   });
 
   it("offers Use my location only on a secure origin with geolocation", () => {
-    const { unmount } = render(<PlaceName />);
+    const { unmount } = render(<Place />);
     expect(screen.queryByRole("button", { name: "Use my location" })).toBeNull();
     unmount();
     vi.stubGlobal("isSecureContext", true);
@@ -467,7 +427,7 @@ describe("Place & name step", () => {
     );
     Object.defineProperty(navigator, "geolocation", { value: { getCurrentPosition }, configurable: true });
     try {
-      render(<PlaceName />);
+      render(<Place />);
       fireEvent.click(screen.getByRole("button", { name: "Use my location" }));
       // Rounded to 6 decimals, as the old page did.
       expect(store.plan.value.location).toEqual({ lat: 50.745, lon: 3.6 });
@@ -475,5 +435,82 @@ describe("Place & name step", () => {
     } finally {
       delete (navigator as unknown as Record<string, unknown>).geolocation;
     }
+  });
+});
+
+describe("Name step", () => {
+  beforeEach(() => {
+    store.step.value = "name";
+  });
+
+  it("a suffix that makes a 24-byte name with a location turns the counter red and blocks Apply", () => {
+    act(() => setLocation({ lat: 50.745, lon: 3.6 }));
+    render(<Name />);
+    fireEvent.input(screen.getByRole("textbox", { name: "Name after the prefix" }), {
+      target: { value: "Kluisberg-Noord-1" },
+    });
+    const counter = screen.getByText("24 / 23 bytes");
+    expect(counter.classList.contains("bad")).toBe(true);
+    expect(canApply.value.ok).toBe(false);
+    expect(canApply.value.reasons).toContainEqual({ key: "error.nameTooLong" });
+  });
+
+  it("shows an error for characters the firmware rejects", () => {
+    render(<Name />);
+    fireEvent.input(screen.getByRole("textbox", { name: "Name after the prefix" }), { target: { value: "a:b" } });
+    expect(screen.getByText(/cannot contain/)).toBeTruthy();
+  });
+
+  it("warns when a node within 25 km already uses the name", () => {
+    store.data.value = { ...store.data.value, nodes: [node("BE-RON-Kluisberg", 50.76, 3.61)] };
+    act(() => setLocation({ lat: 50.745, lon: 3.6 }));
+    store.plan.value = { ...store.plan.value, nameSuffix: "Kluisberg", power: "🌞" };
+    render(<Name />);
+    expect(screen.getByText(/already used nearby/)).toBeTruthy();
+  });
+
+  it("does not count the own repeater (public key read in capitals) as a nearby name", () => {
+    store.data.value = { ...store.data.value, nodes: [{ ...node("BE-RON-Kluisberg", 50.76, 3.61), public_key: "3f5a9c0e" }] };
+    store.snapshot.value = { settings: {}, missing: [], publicKey: "3F5A9C0E" };
+    act(() => setLocation({ lat: 50.745, lon: 3.6 }));
+    store.plan.value = { ...store.plan.value, nameSuffix: "Kluisberg", power: "🌞" };
+    render(<Name />);
+    expect(screen.queryByText(/already used nearby/)).toBeNull();
+    expect(screen.getByText(/No node within 25 km/)).toBeTruthy();
+  });
+
+  it("says when nearby names could not be checked", () => {
+    store.data.value = { ...store.data.value, failed: new Set(["nodes"]) };
+    act(() => setLocation({ lat: 50.745, lon: 3.6 }));
+    store.plan.value = { ...store.plan.value, nameSuffix: "Kluisberg" };
+    render(<Name />);
+    expect(screen.getByText(/couldn't check nearby names/i)).toBeTruthy();
+  });
+
+  it("the power buttons edit the plan", () => {
+    render(<Name />);
+    fireEvent.click(screen.getByRole("button", { name: /Solar/ }));
+    expect(store.plan.value.power).toBe("🌞");
+  });
+
+  it("shows owner info below power, counted in the | form with its byte limit", () => {
+    render(<Name />);
+    expect(screen.getByRole("heading", { name: "Owner info" })).toBeTruthy();
+    expect(screen.getByText("0 / 119 bytes")).toBeTruthy();
+    type("Contact or notes", "a\r\nb");
+    expect(screen.getByText("3 / 119 bytes")).toBeTruthy();
+    type("Contact or notes", "x".repeat(120));
+    expect(screen.getByText("Too long. Owner info allows 119 bytes.")).toBeTruthy();
+    expect(stepStatus("name")).toBe("current");
+    store.step.value = "send";
+    expect(stepStatus("name")).toBe("attention");
+  });
+
+  it("the owner info counter counts what is sent (trimmed), as the Apply gate does", () => {
+    render(<Name />);
+    type("Contact or notes", `  ${"x".repeat(119)}  `);
+    expect(screen.getByText("119 / 119 bytes")).toBeTruthy();
+    expect(screen.queryByText("Too long. Owner info allows 119 bytes.")).toBeNull();
+    expect(planErrors(store.plan.value).some((e) => e.key === "ownerInfo")).toBe(false);
   });
 });

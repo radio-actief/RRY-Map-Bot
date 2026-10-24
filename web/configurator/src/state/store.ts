@@ -3,8 +3,16 @@ import { computed, effect, signal } from "@preact/signals";
 import { municipalityAt, type LatLon, type MeshNode, type MunicipalityFeature } from "../core/geo";
 import type { LocationChoice, Place } from "../core/search";
 import { parseVersion, supportsRegionDef } from "../core/firmware";
-import { defaultPlan, planErrors, type DeviceSnapshot, type Plan } from "../core/plan";
-import { anchorCenter, anchorFromChoice, policyFor, type Anchor, type DeviceRegions } from "../core/regions";
+import { newPlan, planErrors, type DeviceSnapshot, type Plan } from "../core/plan";
+import {
+  anchorCenter,
+  anchorFromChoice,
+  MAX_REGIONS,
+  policyFor,
+  regionCountAfterApply,
+  type Anchor,
+  type DeviceRegions,
+} from "../core/regions";
 import type { SerialLink } from "../device/serial";
 import type { UsbInfo } from "../device/usb";
 import type { GeoJsonCollection } from "../core/data";
@@ -33,7 +41,23 @@ export const prefs = {
   },
 };
 
-export type Step = 1 | 2 | 3 | 4 | 5;
+export type Step = "connect" | "place" | "name" | "site" | "regions" | "advanced" | "send";
+
+/** The guided order; Advanced is an optional side step between Regions and Send. */
+export const STEPS: Step[] = ["connect", "place", "name", "site", "regions", "advanced", "send"];
+/** The steps the counter numbers ("N / 6"): every step but Advanced. */
+export const NUMBERED: Step[] = STEPS.filter((s) => s !== "advanced");
+
+/** 1–6 for the numbered steps, null for Advanced. */
+export function stepNumber(s: Step): number | null {
+  const i = NUMBERED.indexOf(s);
+  return i < 0 ? null : i + 1;
+}
+
+/** The full-width steps: the map is hidden and the panel is wide. */
+export function isWide(s: Step): boolean {
+  return s === "advanced" || s === "send";
+}
 export type Theme = "system" | "light" | "dark";
 export type StepStatus = "done" | "current" | "attention" | "todo";
 
@@ -100,12 +124,14 @@ export type ApplyState =
 /** One line of the command log: a command, a reply, a note, or the separator before an Apply. */
 export type LogLine = { text: string; kind: "cmd" | "ok" | "error" | "muted" | "sep" };
 
-const initialPlan = defaultPlan();
+const initialPlan = newPlan();
 
 export const store = {
   plan: signal<Plan>(initialPlan),
   /** The plan as the last default or Read left it; any other plan counts as edited. */
   planBase: signal<Plan>(initialPlan),
+  /** What the plan started from: the app's new plan, the last Read or the last import. */
+  startPlan: signal<Plan>(initialPlan),
   snapshot: signal<DeviceSnapshot | null>(null),
   /** The device's `clock` reply and when it was read (Date.now()), for the drawer's clock offset. */
   clock: signal<{ reply: string; at: number } | null>(null),
@@ -123,7 +149,7 @@ export const store = {
   /** The session's command log (Apply, the console, and Read when "Show command log" is on). */
   log: signal<LogLine[]>([]),
   device: signal<DeviceState>({ status: "none", link: null, firmware: null }),
-  step: signal<Step>(1),
+  step: signal<Step>("connect"),
   sheet: signal<"peek" | "half" | "full">("half"),
   layers: signal(storedLayers()),
   theme: signal<Theme>(storedTheme()),
@@ -154,27 +180,40 @@ effect(() => {
   else prefs.set(LAYERS_PREF, JSON.stringify(layers));
 });
 
-export function stepStatus(n: Step): StepStatus {
-  const errors = planErrors(store.plan.value);
+/** How many named regions the device holds after applying the plan's regions (0 without an anchor). */
+export const regionCount = computed(() => {
+  const { anchor, regions } = store.plan.value;
+  return anchor && regions ? regionCountAfterApply(anchor, regions, store.data.value.places ?? []) : 0;
+});
+
+export function stepStatus(s: Step): StepStatus {
+  const plan = store.plan.value;
+  const errors = planErrors(plan);
   const has = (...keys: string[]) => errors.some((e) => keys.includes(e.key));
   let attention = false;
-  if (n === 2) attention = has("name", "location");
-  else if (n === 3) attention = store.plan.value.anchor === null || has("regions");
-  else if (n === 4) attention = errors.some((e) => !["name", "location", "regions"].includes(e.key));
-  if (store.step.value === n) return "current";
+  if (s === "place") attention = has("location");
+  else if (s === "name") attention = has("name", "ownerInfo");
+  else if (s === "regions") attention = plan.anchor === null || has("regions") || regionCount.value > MAX_REGIONS;
+  else if (s === "send") attention = has("adminPassword", "guestPassword");
+  if (store.step.value === s) return "current";
   const seen = visited.value;
-  if (attention) return seen.has(n) || seen.has(5) ? "attention" : "todo";
-  return seen.has(n) ? "done" : "todo";
+  if (attention) return seen.has(s) || seen.has("send") ? "attention" : "todo";
+  return seen.has(s) ? "done" : "todo";
 }
 
+/** Why Apply is blocked: a translation key, with its parameters when the message needs them. */
+export type ApplyReason = { key: string; params?: Record<string, string | number> };
+
 export const canApply = computed(() => {
-  const reasons: string[] = [];
+  const reasons: ApplyReason[] = [];
   const { status, firmware } = store.device.value;
-  if (status !== "connected") reasons.push("apply.noDevice");
-  if (!store.plan.value.anchor) reasons.push("apply.noLocation");
-  for (const e of planErrors(store.plan.value)) reasons.push(`error.${e.errorKey}`);
+  if (status !== "connected") reasons.push({ key: "apply.noDevice" });
+  if (!store.plan.value.anchor) reasons.push({ key: "apply.noLocation" });
+  for (const e of planErrors(store.plan.value)) reasons.push({ key: `error.${e.errorKey}` });
+  const count = regionCount.value;
+  if (count > MAX_REGIONS) reasons.push({ key: "error.regionCount", params: { count, max: MAX_REGIONS } });
   const version = parseVersion(firmware);
-  if (version && !supportsRegionDef(version)) reasons.push("apply.firmwareTooOld");
+  if (version && !supportsRegionDef(version)) reasons.push({ key: "apply.firmwareTooOld" });
   return { ok: reasons.length === 0, reasons };
 });
 
@@ -184,10 +223,11 @@ export const busy = computed(() => store.reading.value || store.applying.value |
 /** True once the plan differs from what the last default or Read gave. */
 export const dirty = computed(() => store.plan.value !== store.planBase.value);
 
-/** Replace the plan with a fresh one (default or Read) that does not count as edited. */
+/** Replace the plan with a fresh one (default or Read) that does not count as edited; it is also the new start plan. */
 export function resetPlan(plan: Plan): void {
   store.plan.value = plan;
   store.planBase.value = plan;
+  store.startPlan.value = plan;
 }
 
 /** The municipality polygons, whether loaded as a list or a FeatureCollection. */

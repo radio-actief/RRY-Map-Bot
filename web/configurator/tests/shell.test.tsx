@@ -28,31 +28,33 @@ afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
   store.plan.value = defaultPlan();
-  store.step.value = 1;
-  visited.value = new Set([1]);
+  store.step.value = "connect";
+  visited.value = new Set(["connect"]);
   store.device.value = { status: "none", link: null, firmware: null };
   store.drawerOpen.value = false;
   store.snapshot.value = null;
 });
 
 describe("app shell", () => {
-  it("clicking segment 4 goes to step 4 and hides the map", () => {
+  it("clicking the Advanced segment goes to Advanced and hides the map", () => {
     const { container } = render(<App />);
     const map = container.querySelector(".map-container") as HTMLElement;
     expect(map.hidden).toBe(false);
-    fireEvent.click(screen.getAllByRole("button", { name: /Settings/ })[0]);
-    expect(store.step.value).toBe(4);
+    fireEvent.click(screen.getAllByRole("button", { name: /Advanced \(optional\)/ })[0]);
+    expect(store.step.value).toBe("advanced");
     expect(map.hidden).toBe(true);
     expect(container.querySelector(".panel")?.classList.contains("wide")).toBe(true);
   });
 
-  it("shows the place chip on step 4 and clicking it returns to step 2", () => {
+  it("shows the place chip on Advanced and Send, and clicking it returns to Place", () => {
     store.plan.value = { ...defaultPlan(), anchor: ronse, nameSuffix: "Kluisberg" };
-    store.step.value = 4;
+    store.step.value = "advanced";
     render(<App />);
     const chip = screen.getByRole("button", { name: /BE-RON-Kluisberg · Ronse/ });
     fireEvent.click(chip);
-    expect(store.step.value).toBe(2);
+    expect(store.step.value).toBe("place");
+    act(() => void (store.step.value = "send"));
+    expect(screen.getByRole("button", { name: /BE-RON-Kluisberg · Ronse/ })).toBeTruthy();
   });
 
   it("the Not connected chip opens the USB port picker", async () => {
@@ -78,18 +80,20 @@ describe("app shell", () => {
     expect(screen.queryByRole("button", { name: /connect over USB/ })).toBeNull();
   });
 
-  it("hides the place chip on steps 1 to 3", () => {
+  it("hides the place chip on the steps beside the map", () => {
     store.plan.value = { ...defaultPlan(), anchor: ronse, nameSuffix: "Kluisberg" };
-    store.step.value = 3;
+    store.step.value = "regions";
     render(<App />);
+    expect(screen.queryByText(/BE-RON-Kluisberg/)).toBeNull();
+    act(() => void (store.step.value = "site"));
     expect(screen.queryByText(/BE-RON-Kluisberg/)).toBeNull();
   });
 
-  it("marks segment 3 as attention when there is no anchor", () => {
-    store.step.value = 3;
-    store.step.value = 1;
+  it("marks the Regions segment as attention when there is no anchor", () => {
+    store.step.value = "regions";
+    store.step.value = "connect";
     const { container } = render(<App />);
-    expect(container.querySelectorAll(".stepper .seg")[2].classList.contains("attention")).toBe(true);
+    expect(container.querySelectorAll(".stepper .seg")[4].classList.contains("attention")).toBe(true);
   });
 
   it("renders a bottom sheet with a grab handle under 768 px", () => {
@@ -107,18 +111,26 @@ describe("app shell", () => {
     expect(store.sheet.value).toBe("full");
   });
 
-  it("forces the sheet to full height on steps 4 and 5 and restores the user's height after", () => {
+  it("forces the sheet to full height on Advanced and Send and restores the user's height after", () => {
     stubWidth(500);
     store.sheet.value = "peek";
     const { container } = render(<App />);
     const panel = () => container.querySelector(".panel")!;
     expect(panel().classList.contains("peek")).toBe(true);
     act(() => {
-      store.step.value = 4;
+      store.step.value = "advanced";
     });
     expect(panel().classList.contains("full")).toBe(true);
     act(() => {
-      store.step.value = 2;
+      store.step.value = "place";
+    });
+    expect(panel().classList.contains("peek")).toBe(true);
+    act(() => {
+      store.step.value = "send";
+    });
+    expect(panel().classList.contains("full")).toBe(true);
+    act(() => {
+      store.step.value = "regions";
     });
     expect(panel().classList.contains("peek")).toBe(true);
     store.sheet.value = "half";
@@ -127,7 +139,7 @@ describe("app shell", () => {
   it("lets the top bar chips shrink at 360 px", () => {
     stubWidth(360);
     store.plan.value = { ...defaultPlan(), anchor: ronse, nameSuffix: "Kluisberg" };
-    store.step.value = 4;
+    store.step.value = "advanced";
     const { container } = render(<App />);
     const chips = container.querySelectorAll(".topbar .chip");
     expect(chips.length).toBe(2);
@@ -135,10 +147,10 @@ describe("app shell", () => {
   });
 
   it("exposes step status to assistive tech", () => {
-    store.step.value = 3;
-    store.step.value = 1;
+    store.step.value = "regions";
+    store.step.value = "connect";
     const { container } = render(<App />);
-    expect(container.querySelectorAll(".stepper .seg")[2].textContent).toContain("Regions — needs attention");
+    expect(container.querySelectorAll(".stepper .seg")[4].textContent).toContain("Regions — needs attention");
   });
 
   it("shows connection state and toggles the drawer and theme", () => {
@@ -161,10 +173,10 @@ describe("app shell", () => {
   it("Back and Next move between steps", () => {
     render(<App />);
     expect(screen.queryByRole("button", { name: "← Back" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Next: Place & name →" }));
-    expect(store.step.value).toBe(2);
+    fireEvent.click(screen.getByRole("button", { name: "Next: Place →" }));
+    expect(store.step.value).toBe("place");
     fireEvent.click(screen.getByRole("button", { name: "← Back" }));
-    expect(store.step.value).toBe(1);
+    expect(store.step.value).toBe("connect");
   });
 });
 

@@ -1,4 +1,4 @@
-/** The Leaflet map: location pin, 25 km ring, nearby nodes, borders and (step 3) region colours. */
+/** The Leaflet map: location pin, 25 km ring, nearby nodes, borders and (Regions step) region colours. */
 import * as L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { GeoJsonObject } from "geojson";
@@ -7,7 +7,7 @@ import { GEWEST_NAMES } from "../core/be-regions";
 import { municipalityAt, nodesWithin, NEIGHBOR_RADIUS_KM, roundCoord, type LatLon } from "../core/geo";
 import { regionsByState } from "../core/regions";
 import { t } from "../i18n/t";
-import { municipalities as municipalityList, setLocation, store } from "../state/store";
+import { isWide, municipalities as municipalityList, setLocation, store } from "../state/store";
 
 export const TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
 export const ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
@@ -162,12 +162,12 @@ export function MapView() {
     if (match) L.geoJSON(match as unknown as GeoJsonObject, pathClass("map-municipality")).addTo(g);
   }, [layers.borders, municipalities, location]);
 
-  // Step 3: allowed / denied region polygons.
+  // Regions step: allowed / denied region polygons.
   useEffect(() => {
     const g = groups.current?.regions;
     if (!g) return;
     g.clearLayers();
-    if (step !== 3 || !plan.regions) return;
+    if (step !== "regions" || !plan.regions) return;
     const { allowed, denied } = regionsByState(plan.regions);
     const byCity = new Map<string, Feature[]>();
     for (const f of municipalities as unknown as Feature[]) {
@@ -189,17 +189,17 @@ export function MapView() {
     }
   }, [step, plan.regions, municipalities, data.countries, data.provinces, data.gewesten]);
 
-  // The container is hidden on steps 4-5; Leaflet must re-measure when it comes back.
+  // The container is hidden on the wide steps (Advanced, Send); Leaflet must re-measure when it comes back.
   useEffect(() => {
-    if (step <= 3) mapRef.current?.invalidateSize();
-  }, [step <= 3]);
+    if (!isWide(step)) mapRef.current?.invalidateSize();
+  }, [isWide(step)]);
 
   const nodesFailed = failed.has("nodes");
   const bordersFailed = ["countries", "provinces", "gewesten", "municipalities"].every((n) => failed.has(n));
   const toggle = (key: "nodes" | "borders") => (store.layers.value = { ...store.layers.peek(), [key]: !store.layers.peek()[key] });
 
   return (
-    <div class="map-container" hidden={step >= 4}>
+    <div class="map-container" hidden={isWide(step)}>
       <div class="map-canvas" ref={host} />
       <svg class="map-defs" width="0" height="0" aria-hidden="true">
         <defs>

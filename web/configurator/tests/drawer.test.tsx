@@ -154,6 +154,18 @@ describe("Device tools drawer: backup", () => {
     expect(store.notice.value).toEqual({ kind: "ok", text: t("tools.imported") });
   });
 
+  it("an import sets the start plan and leaves the plan base", async () => {
+    const base = store.planBase.value;
+    const text = readFileSync(resolve(__dirname, "fixtures/parity/ronse-solar.backup.json"), "utf8");
+    const { container } = render(<DeviceDrawer />);
+    const input = container.querySelector("input[type=file]") as HTMLInputElement;
+    Object.defineProperty(input, "files", { value: [new File([text], "backup.json")], configurable: true });
+    fireEvent.change(input);
+    await waitFor(() => expect(store.drawerOpen.value).toBe(false));
+    expect(store.startPlan.value).toBe(store.plan.value);
+    expect(store.planBase.value).toBe(base);
+  });
+
   it("a file that is not a backup shows the BackupError message and keeps the plan", async () => {
     const before = store.plan.value;
     const { container } = render(<DeviceDrawer />);

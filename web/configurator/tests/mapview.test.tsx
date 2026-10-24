@@ -34,7 +34,7 @@ const nodesGroup = () => ofKind("group")[3];
 beforeEach(() => {
   resetFake();
   store.plan.value = defaultPlan();
-  store.step.value = 2;
+  store.step.value = "place";
   store.layers.value = { nodes: true, borders: true };
   store.data.value = { failed: new Set() };
 });
@@ -126,8 +126,8 @@ describe("MapView", () => {
     expect((highlighted[0].args[0] as any).properties.city_code).toBe("beaaa");
   });
 
-  it("colours allowed and denied regions on step 3 only", () => {
-    store.step.value = 3;
+  it("colours allowed and denied regions on the Regions step only", () => {
+    store.step.value = "regions";
     store.plan.value = {
       ...defaultPlan(),
       regions: {
@@ -150,13 +150,13 @@ describe("MapView", () => {
     expect(cls("map-region-allowed")).toHaveLength(1);
     expect(cls("map-region-denied")).toHaveLength(1);
     act(() => {
-      store.step.value = 2;
+      store.step.value = "place";
     });
     expect(regionsGroup().children).toHaveLength(0);
   });
 
   it("draws larger regions first so a denied municipality shows on top of an allowed province", () => {
-    store.step.value = 3;
+    store.step.value = "regions";
     store.plan.value = {
       ...defaultPlan(),
       regions: {
@@ -196,7 +196,7 @@ describe("MapView", () => {
   });
 
   it("fills allowed countries under the gewest, province and municipality fills", () => {
-    store.step.value = 3;
+    store.step.value = "regions";
     store.plan.value = {
       ...defaultPlan(),
       regions: {
@@ -243,13 +243,23 @@ describe("MapView", () => {
     expect((screen.getByRole("checkbox", { name: "Borders" }) as HTMLInputElement).disabled).toBe(false);
   });
 
+  it("hides the map on the wide steps (Advanced and Send)", () => {
+    const { container } = render(<MapView />);
+    const box = () => (container.querySelector(".map-container") as HTMLElement).hidden;
+    expect(box()).toBe(false);
+    for (const [step, hidden] of [["advanced", true], ["name", false], ["send", true], ["site", false]] as const) {
+      act(() => void (store.step.value = step));
+      expect(box()).toBe(hidden);
+    }
+  });
+
   it("re-measures the map when it is shown again", () => {
-    store.step.value = 4;
+    store.step.value = "advanced";
     render(<MapView />);
     const map = ofKind("map")[0];
     const before = map.invalidated;
     act(() => {
-      store.step.value = 3;
+      store.step.value = "regions";
     });
     expect(map.invalidated).toBeGreaterThan(before);
   });

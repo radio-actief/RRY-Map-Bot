@@ -1,4 +1,4 @@
-/** Step 5: the planned changes, the exact command script (copy, download, console) and Apply. */
+/** Send step: the planned changes, the exact command script (copy, download, console) and Apply. */
 import { useState } from "preact/hooks";
 import { Console } from "../app/Console";
 import { Dialog } from "../app/Dialog";
@@ -125,7 +125,7 @@ function readIncludeDefaults(): boolean {
   return prefs.get(INCLUDE_DEFAULTS_PREF) === "1";
 }
 
-export function Review() {
+export function Send() {
   const [includeDefaults, setIncludeDefaults] = useState(readIncludeDefaults);
   const [consoleOpen, setConsoleOpen] = useState(false);
   const [flash, setFlash] = useState<{ kind: NoticeKind; text: string } | null>(null);
@@ -204,9 +204,11 @@ export function Review() {
           {!gate.ok && !locked ? (
             <Notice kind="warn">
               <ul class="reasons">
-                {[...new Set(gate.reasons)].map((r) => (
-                  <li key={r}>{t(r)}</li>
-                ))}
+                {gate.reasons
+                  .filter((r, i, all) => all.findIndex((o) => o.key === r.key) === i)
+                  .map((r) => (
+                    <li key={r.key}>{t(r.key, r.params)}</li>
+                  ))}
               </ul>
             </Notice>
           ) : null}
@@ -221,7 +223,7 @@ export function Review() {
               {t("review.console")}
             </button>
             <span class="spacer" />
-            <button type="button" class="btn" disabled={locked} onClick={() => (store.step.value = 4)}>
+            <button type="button" class="btn" disabled={locked} onClick={() => (store.step.value = "regions")}>
               {t("step.back")}
             </button>
             {status !== "connected" && hasWebSerial() ? (

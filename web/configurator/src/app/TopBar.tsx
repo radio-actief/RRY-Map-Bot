@@ -5,7 +5,7 @@ import { planName } from "../core/plan";
 import { hasWebSerial } from "../device/serial";
 import { usbLabel } from "../device/usb";
 import { connectUsb } from "../state/device";
-import { busy, store, type Theme } from "../state/store";
+import { busy, isWide, store, type Theme } from "../state/store";
 
 const NEXT_THEME: Record<Theme, Theme> = { system: "light", light: "dark", dark: "system" };
 
@@ -70,13 +70,13 @@ export function TopBar() {
         {t("app.nameRest")}
       </span>
       <ConnectionChip />
-      {step >= 4 && chip ? (
+      {isWide(step) && chip ? (
         <button
           type="button"
           class="chip place trunc"
           title={t("top.place")}
           disabled={busy.value}
-          onClick={() => (store.step.value = 2)}
+          onClick={() => (store.step.value = "place")}
         >
           <span class="chip-text">{`📍 ${chip}`}</span>
         </button>

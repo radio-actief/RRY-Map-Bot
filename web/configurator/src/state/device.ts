@@ -86,13 +86,13 @@ effect(() => {
   link.onCommand(logCommand);
 });
 
-// A changed plan, or coming back to step 5, starts Apply afresh (old notices and progress go).
+// A changed plan, or coming back to Send, starts Apply afresh (old notices and progress go).
 let lastPlan = store.plan.peek();
 let lastStep = store.step.peek();
 effect(() => {
   const plan = store.plan.value;
   const step = store.step.value;
-  const fresh = plan !== lastPlan || (step === 5 && lastStep !== 5);
+  const fresh = plan !== lastPlan || (step === "send" && lastStep !== "send");
   lastPlan = plan;
   lastStep = step;
   if (fresh && !store.applying.peek() && store.apply.peek().phase !== "idle") store.apply.value = { phase: "idle" };

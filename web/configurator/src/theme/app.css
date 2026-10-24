@@ -220,6 +220,12 @@ button {
   border-top: 1px solid var(--line);
 }
 
+.foot-end {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .btn {
   padding: 6px 12px;
   border-radius: 8px;
@@ -269,6 +275,11 @@ button {
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
+}
+
+/* Advanced: an optional side step, narrower than the numbered ones. */
+.seg.optional {
+  flex: 0.6;
 }
 
 .seg.done {
@@ -504,7 +515,7 @@ path.map-region-denied {
   fill: url(#map-hatch);
 }
 
-/* Steps 1-2 */
+/* Connect, Place and Name */
 .btn:disabled {
   opacity: 0.6;
   cursor: default;
@@ -789,7 +800,7 @@ path.map-region-denied {
   margin-bottom: 4px;
 }
 
-/* Step 3 */
+/* Regions */
 .bulk {
   display: flex;
   flex-wrap: wrap;
@@ -881,7 +892,7 @@ path.map-region-denied {
   border-color: var(--gold);
 }
 
-/* Step 4 */
+/* Advanced */
 .settings-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 280px;
@@ -1083,7 +1094,7 @@ path.map-region-denied {
   }
 }
 
-/* Step 5 */
+/* Send */
 .review-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);

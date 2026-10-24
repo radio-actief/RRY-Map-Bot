@@ -1,4 +1,4 @@
-/** Step 4: settings cards with help text and change markers, the radio preset, and the live "what will change" column. */
+/** Advanced step (optional): settings cards with help text and change markers, the radio preset, and the live "what will change" column. */
 import { Fragment } from "preact";
 import { stepName } from "../app/Stepper";
 import { allowanceOf, BEMESH_RADIO, blockKeys, rawOf, same, sameRadio } from "../core/blocks";
@@ -18,8 +18,9 @@ import { MiniMap } from "./settings/MiniMap";
 import { applyRecommendedRadio, RadioFields } from "./settings/RadioFields";
 
 
-type Card = "access" | "radio" | "advertising" | "owner" | "repeating";
-const CARDS: Card[] = ["access", "radio", "advertising", "owner", "repeating"];
+type Card = "access" | "radio" | "advertising" | "repeating";
+// Owner info is on the Name step.
+const CARDS: Card[] = ["access", "radio", "advertising", "repeating"];
 const keysOf = (card: Card) => SETTINGS.filter((d) => d.card === card);
 const EXPERT = SETTINGS.filter((d) => blockKeys("advanced").includes(d.key));
 const HOP_KEYS: SettingKey[] = ["floodMaxUnscoped", "floodMaxAdvert"];
@@ -163,7 +164,7 @@ function Control({ def, raw, invalid }: { def: SettingDef; raw: string; invalid:
   );
 }
 
-function SettingField({ def }: { def: SettingDef }) {
+export function SettingField({ def }: { def: SettingDef }) {
   const plan = store.plan.value;
   const raw = rawOf(plan, def.key);
   const snapshot = store.snapshot.value;
@@ -309,9 +310,9 @@ function Summary() {
   );
 }
 
-const goto = (n: Step) => (store.step.value = n);
+const goto = (s: Step) => (store.step.value = s);
 
-export function Settings() {
+export function Advanced() {
   const locked = busy.value;
   return (
     <div class="panel-body step-settings">
@@ -330,11 +331,11 @@ export function Settings() {
           <MiniMap />
           <Summary />
           <div class="side-nav">
-            <button type="button" class="btn" disabled={locked} onClick={() => goto(3)}>
+            <button type="button" class="btn" disabled={locked} onClick={() => goto("regions")}>
               {t("step.back")}
             </button>
-            <button type="button" class="btn primary" disabled={locked} onClick={() => goto(5)}>
-              {t("step.nextButton", { name: stepName(5) })}
+            <button type="button" class="btn primary" disabled={locked} onClick={() => goto("send")}>
+              {t("step.nextButton", { name: stepName("send") })}
             </button>
           </div>
         </aside>

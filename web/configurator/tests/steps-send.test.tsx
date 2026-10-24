@@ -27,11 +27,11 @@ vi.mock("../src/device/repeater", async (importOriginal) => {
 
 import { buildScript, commandLines } from "../src/core/cli";
 import { defaultPlan } from "../src/core/plan";
-import { regionsAfterApply } from "../src/core/regions";
+import { addFreeRegion, regionCountAfterApply, regionsAfterApply } from "../src/core/regions";
 import type { Place } from "../src/core/search";
 import { SerialLink } from "../src/device/serial";
 import { Panel } from "../src/app/Panel";
-import { Review } from "../src/steps/Review";
+import { Send } from "../src/steps/Send";
 import { connectUsb, disconnectUsb, readDevice } from "../src/state/device";
 import { chooseLocation, prefs, resetPlan, store } from "../src/state/store";
 import { FakePort } from "./fakes/fake-port";
@@ -90,7 +90,7 @@ beforeEach(() => {
   force.extraLine = "";
   store.apply.value = { phase: "idle" };
   store.log.value = [];
-  store.step.value = 5;
+  store.step.value = "send";
   store.device.value = { status: "none", link: null, firmware: null };
   store.data.value = { failed: new Set(), places: PLACES, municipalities: MUNIS };
   prefs.set("configurator.includeDefaults", "0");
@@ -104,9 +104,9 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("Review step: script", () => {
+describe("Send step: script", () => {
   it("starts with # group headers and its command lines are commandLines(...)", () => {
-    render(<Review />);
+    render(<Send />);
     const text = scriptText();
     expect(text.startsWith("# ")).toBe(true);
     const lines = text
@@ -118,7 +118,7 @@ describe("Review step: script", () => {
   });
 
   it("Include unchanged defaults adds the default values and is remembered", () => {
-    render(<Review />);
+    render(<Send />);
     const without = scriptText();
     fireEvent.click(screen.getByLabelText("Include unchanged defaults"));
     const lines = scriptText()
@@ -131,7 +131,7 @@ describe("Review step: script", () => {
 
   it("uses the device regions from the last Read for the removals", () => {
     store.deviceRegions.value = { named: ["bemak"], home: null, default: null };
-    render(<Review />);
+    render(<Send />);
     expect(scriptText()).toContain("region remove bemak");
   });
 
@@ -140,7 +140,7 @@ describe("Review step: script", () => {
     const revokeObjectURL = vi.fn();
     Object.assign(URL, { createObjectURL, revokeObjectURL });
     const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
-    render(<Review />);
+    render(<Send />);
     expect(applyButton().disabled).toBe(true);
     expect(screen.getByText("Connect a repeater first.")).toBeTruthy();
 
@@ -160,11 +160,11 @@ describe("Review step: script", () => {
     const requestPort = vi.fn(async () => port);
     Object.defineProperty(navigator, "serial", { value: { requestPort }, configurable: true });
     try {
-      render(<Review />);
+      render(<Send />);
       fireEvent.click(screen.getByRole("button", { name: "Connect over USB" }));
       await waitFor(() => expect(store.device.value.status).toBe("connected"), { timeout: 3000 });
       expect(requestPort).toHaveBeenCalledTimes(1);
-      expect(store.step.value).toBe(5);
+      expect(store.step.value).toBe("send");
       expect(store.plan.value.nameSuffix).toBe("Kluisberg");
       expect(screen.queryByRole("button", { name: "Connect over USB" })).toBeNull();
     } finally {
@@ -175,24 +175,24 @@ describe("Review step: script", () => {
 
   it("a failed copy shows a notice", async () => {
     writeText.mockRejectedValueOnce(new Error("denied"));
-    render(<Review />);
+    render(<Send />);
     fireEvent.click(screen.getByRole("button", { name: "Copy script" }));
     expect(await screen.findByText(/Couldn't copy/)).toBeTruthy();
   });
 
   it("lists the changes grouped, with the admin password line", () => {
-    render(<Review />);
+    render(<Send />);
     expect(screen.getByText("Name & location")).toBeTruthy();
     expect(screen.getByText("BE-RON-Kluisberg", { selector: ".rv-to" })).toBeTruthy();
     expect(screen.getByText(/Admin password stays as it is/)).toBeTruthy();
   });
 });
 
-describe("Review step: Apply", () => {
+describe("Send step: Apply", () => {
   it("firmware v1.15.0 never writes, shows the blocking notice and keeps Apply disabled", async () => {
     // Connected as 1.17.1, but the board was swapped: Apply re-reads `ver`.
     const { port } = await connect(okReplies(applyLines(), "v1.15.0 (Build: 01-Jan-2026)"));
-    render(<Review />);
+    render(<Send />);
     expect(applyButton().disabled).toBe(false);
     fireEvent.click(applyButton());
     expect(await screen.findByText(/runs MeshCore v1.15.0/, { selector: ".notice" })).toBeTruthy();
@@ -204,7 +204,7 @@ describe("Review step: Apply", () => {
   it("a successful Apply shows progress reaching M/M, then the reboot dialog", async () => {
     const lines = applyLines();
     const { port } = await connect(okReplies(lines));
-    render(<Review />);
+    render(<Send />);
     fireEvent.click(applyButton());
     expect(await screen.findByRole("button", { name: "Reboot now" })).toBeTruthy();
     const m = lines.length;
@@ -219,7 +219,7 @@ describe("Review step: Apply", () => {
 
   it("Reboot now sends reboot and the expected disconnect shows no error", async () => {
     const { port } = await connect(okReplies(applyLines()));
-    render(<Review />);
+    render(<Send />);
     fireEvent.click(applyButton());
     fireEvent.click(await screen.findByRole("button", { name: "Reboot now" }));
     // The lock holds while `reboot` is in flight and the link settles.
@@ -236,7 +236,7 @@ describe("Review step: Apply", () => {
     const lines = applyLines();
     // `ver` is the first line the port receives, so command 3 of Apply is its 4th.
     await connect(okReplies(lines), { disconnectAfter: 4 });
-    render(<Review />);
+    render(<Send />);
     fireEvent.click(applyButton());
     expect(
       await screen.findByText(`Stopped at command 3 of ${lines.length}: ${lines[2]}`, { selector: ".notice p" }),
@@ -251,7 +251,7 @@ describe("Review step: Apply", () => {
     const lines = applyLines();
     // connect's `ver`, Apply's `ver`, then commands 1-3.
     await connectApp(okReplies(lines), { disconnectAfter: 5 });
-    render(<Review />);
+    render(<Send />);
     fireEvent.click(applyButton());
     expect(await screen.findByText(`Stopped at command 3 of ${lines.length}: ${lines[2]}`, { selector: ".notice p" })).toBeTruthy();
     expect(store.notice.value).toEqual({ kind: "error", text: expect.stringMatching(/repeater was disconnected/) });
@@ -260,7 +260,7 @@ describe("Review step: Apply", () => {
 
   it("an unplug during the firmware check goes back to idle without asking", async () => {
     await connect(okReplies(applyLines()), { disconnectAfter: 1 });
-    render(<Review />);
+    render(<Send />);
     fireEvent.click(applyButton());
     await waitFor(() => expect(store.applying.value).toBe(false));
     expect(store.apply.value).toEqual({ phase: "idle" });
@@ -271,7 +271,7 @@ describe("Review step: Apply", () => {
     // 85 characters, 155 bytes
     force.extraLine = `set owner.info ${"é".repeat(70)}`;
     const { port } = await connect(okReplies(applyLines()));
-    render(<Review />);
+    render(<Send />);
     fireEvent.click(applyButton());
     expect(await screen.findByText(/longer than the 151 bytes/)).toBeTruthy();
     expect(screen.getByText(force.extraLine, { selector: "code" })).toBeTruthy();
@@ -280,7 +280,7 @@ describe("Review step: Apply", () => {
 
   it("shows a control character in the script as a visible symbol", () => {
     force.extraLine = "set name x\rerase";
-    render(<Review />);
+    render(<Send />);
     expect(scriptText()).toContain("set name x␍erase");
     expect(scriptText()).not.toContain("\r");
   });
@@ -288,7 +288,7 @@ describe("Review step: Apply", () => {
   it("an empty script is not applied", async () => {
     const { port } = await connect({ ver: VER });
     force.emptyScript = true;
-    render(<Review />);
+    render(<Send />);
     fireEvent.click(applyButton());
     expect(await screen.findByText("No commands to apply.")).toBeTruthy();
     expect(port.received).toEqual([]);
@@ -297,34 +297,45 @@ describe("Review step: Apply", () => {
   it("an unexpected error ends Apply with a notice and releases the lock", async () => {
     await connect(okReplies(applyLines()));
     force.applyThrows = true;
-    render(<Review />);
+    render(<Send />);
     fireEvent.click(applyButton());
     expect(await screen.findByText("Apply failed: boom", { selector: ".notice" })).toBeTruthy();
     expect(store.applying.value).toBe(false);
   });
 
+  it("blocks Apply and says how many regions the plan needs over the repeater's 32", async () => {
+    await connect({});
+    let regions = store.plan.value.regions!;
+    const anchor = store.plan.value.anchor!;
+    for (let i = 0; regionCountAfterApply(anchor, regions, PLACES) < 33; i++) regions = addFreeRegion(regions, `zone${i}`, null);
+    store.plan.value = { ...store.plan.value, regions };
+    render(<Send />);
+    expect(applyButton().disabled).toBe(true);
+    expect(screen.getByText("The repeater holds at most 32 regions; this plan needs 33.")).toBeTruthy();
+  });
+
   it("needs a location", () => {
     store.plan.value = { ...store.plan.value, anchor: null, regions: null };
-    render(<Review />);
+    render(<Send />);
     expect(applyButton().disabled).toBe(true);
     expect(screen.getByText("Choose a location first: the region commands need one.")).toBeTruthy();
   });
 
-  it("a changed plan or coming back to step 5 clears the last outcome", () => {
+  it("a changed plan or coming back to Send clears the last outcome", () => {
     store.apply.value = { phase: "old", version: "v1.15.0" };
     store.plan.value = { ...store.plan.value, nameSuffix: "Other" };
     expect(store.apply.value).toEqual({ phase: "idle" });
     store.apply.value = { phase: "empty" };
-    store.step.value = 4;
+    store.step.value = "advanced";
     expect(store.apply.value).toEqual({ phase: "empty" });
-    store.step.value = 5;
+    store.step.value = "send";
     expect(store.apply.value).toEqual({ phase: "idle" });
   });
 
   it("unreadable firmware asks first; Continue anyway applies", async () => {
     const lines = applyLines();
     const { port } = await connect(okReplies(lines, "MeshCore"));
-    render(<Review />);
+    render(<Send />);
     fireEvent.click(applyButton());
     expect(await screen.findByRole("dialog", { name: "Firmware version unreadable" })).toBeTruthy();
     expect(port.received).toEqual(["ver"]);
@@ -342,7 +353,7 @@ describe("Review step: Apply", () => {
     const lines = applyLines();
     expect(lines).toContain("region remove bemak");
     await connect(okReplies(lines));
-    render(<Review />);
+    render(<Send />);
     fireEvent.click(applyButton());
     await screen.findByRole("button", { name: "Reboot now" });
     const plan = store.plan.value;
@@ -367,7 +378,7 @@ describe("Console", () => {
   it("logs Apply traffic and console commands, with history", async () => {
     const lines = applyLines();
     await connect({ ...okReplies(lines), "get name": "BE-RON-Kluisberg" });
-    render(<Review />);
+    render(<Send />);
     fireEvent.click(applyButton());
     fireEvent.click(await screen.findByRole("button", { name: "Later" }));
     fireEvent.click(screen.getByRole("button", { name: /Console/ }));
@@ -387,7 +398,7 @@ describe("Console", () => {
 
   it("does not keep a typed set prv.key in the history", async () => {
     await connect({ ver: VER, "get name": "X" });
-    render(<Review />);
+    render(<Send />);
     fireEvent.click(screen.getByRole("button", { name: /Console/ }));
     const input = screen.getByLabelText("Console command") as HTMLInputElement;
     for (const cmd of ["get name", `set prv.key ${"ab".repeat(64)}`]) {
@@ -402,7 +413,7 @@ describe("Console", () => {
   });
 
   it("the input is disabled without a device, and Show command log is remembered", () => {
-    render(<Review />);
+    render(<Send />);
     fireEvent.click(screen.getByRole("button", { name: /Console/ }));
     expect((screen.getByLabelText("Console command") as HTMLInputElement).disabled).toBe(true);
     fireEvent.click(screen.getByLabelText("Show command log"));
@@ -421,7 +432,7 @@ describe("Console", () => {
 
   it("a console `reboot` is an expected disconnect: no unplug notice", async () => {
     await connectApp({ ver: VER });
-    render(<Review />);
+    render(<Send />);
     fireEvent.click(screen.getByRole("button", { name: /Console/ }));
     const input = screen.getByLabelText("Console command") as HTMLInputElement;
     fireEvent.input(input, { target: { value: "reboot" } });
@@ -432,7 +443,7 @@ describe("Console", () => {
 
   it("keeps the last 50 commands in the history and offers the old suggestions", async () => {
     await connect({ ver: VER });
-    render(<Review />);
+    render(<Send />);
     fireEvent.click(screen.getByRole("button", { name: /Console/ }));
     const input = screen.getByLabelText("Console command") as HTMLInputElement;
     expect(input.getAttribute("list")).toBe("console-commands");
@@ -450,7 +461,7 @@ describe("Console", () => {
     store.log.value = Array.from({ length: 600 }, (_, i) => ({ text: `old ${i}`, kind: "muted" as const }));
     const lines = applyLines();
     await connect(okReplies(lines));
-    render(<Review />);
+    render(<Send />);
     fireEvent.click(applyButton());
     await screen.findByRole("button", { name: "Reboot now" });
     const log = store.log.value;

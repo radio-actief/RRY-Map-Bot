@@ -1,4 +1,4 @@
-/** Step 3: which regions the repeater floods (Allow / Deny per row), bulk buttons and the folded region CLI options. */
+/** Regions step: which regions the repeater floods (Allow / Deny per row), bulk buttons and the folded region CLI options. */
 import {
   bulk,
   defaultScopeOptions,

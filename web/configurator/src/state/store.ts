@@ -12,13 +12,13 @@ const memory = new Map<string, string>();
 /** localStorage that never throws; falls back to memory for this session. */
 export const prefs = {
   get(key: string): string | null {
+    const written = memory.get(key);
+    if (written !== undefined) return written;
     try {
-      const v = localStorage.getItem(key);
-      if (v !== null) return v;
+      return localStorage.getItem(key);
     } catch {
-      /* storage unavailable */
+      return null;
     }
-    return memory.get(key) ?? null;
   },
   set(key: string, value: string): void {
     memory.set(key, value);
@@ -65,6 +65,7 @@ export const store = {
   layers: signal({ nodes: true, borders: true }),
   theme: signal<Theme>(storedTheme()),
   data: signal<AppData>({ failed: new Set() }),
+  drawerOpen: signal(false),
 };
 
 export const visited = signal<ReadonlySet<Step>>(new Set<Step>([store.step.peek()]));

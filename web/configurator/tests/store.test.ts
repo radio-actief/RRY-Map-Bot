@@ -82,4 +82,13 @@ describe("theme and prefs", () => {
     expect(document.documentElement.getAttribute("data-theme")).toBe("light");
     expect(prefs.get("configurator.theme")).toBe("light");
   });
+  it("prefers the value written this session over a stale stored one", () => {
+    localStorage.setItem("configurator.stale", "old");
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("denied");
+    });
+    prefs.set("configurator.stale", "new");
+    expect(prefs.get("configurator.stale")).toBe("new");
+    localStorage.removeItem("configurator.stale");
+  });
 });

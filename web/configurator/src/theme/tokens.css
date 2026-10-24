@@ -10,6 +10,9 @@
   --panel: #ffffff;
   --bar: #f6f7f9;
   --page: #ffffff;
+  --on-gold: #1f1600;
+  --shadow: rgb(0 0 0 / 0.12);
+  color-scheme: light dark;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -27,7 +30,12 @@
   }
 }
 
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
 :root[data-theme="dark"] {
+  color-scheme: dark;
   --gold-bg: #3a2f10;
   --ink: #e6edf3;
   --mut: #8b949e;

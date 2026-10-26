@@ -2451,8 +2451,8 @@ createApp({
 
     const filtersActive = computed(
       () =>
-        app.filteredNodes.length &&
-        app.nodes.length !== app.filteredNodes.length,
+        filtersRestrictMapView() ||
+        app.clusteringZoom !== DEFAULT_CLUSTERING_ZOOM,
     );
 
     watch(

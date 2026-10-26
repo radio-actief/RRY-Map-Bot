@@ -135,4 +135,12 @@ export default async function (ctx) {
   await phone.locator("#menu-toggle").click();
   ctx.check("map: opening ☰ closes Filters", (await phone.locator("#page-menu").isVisible()) && !(await phone.locator("#node-filter").isVisible()));
   await phone.close();
+
+  // Filters that match no node still read as active, with Clear filters on offer.
+  const none = await ctx.open("/?source=app&claimed=claimed&nodes=2,3&city=Gent", { setup: withNodes() });
+  await none.waitForSelector('button[aria-controls="node-filter"]', { timeout: 10000 });
+  ctx.check("map: zero-match filters read Filters active", text(await none.locator('button[aria-controls="node-filter"]').textContent()).includes("Filters active"));
+  await none.locator('button[aria-controls="node-filter"]').click();
+  ctx.check("map: zero-match filters show Clear filters", await none.locator("#node-filter").getByRole("button", { name: "Clear filters" }).isVisible());
+  await none.close();
 }

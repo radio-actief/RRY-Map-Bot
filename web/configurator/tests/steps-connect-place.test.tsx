@@ -110,7 +110,7 @@ describe("Connect step", () => {
     expect(store.plan.value.anchor?.place?.city_code).toBe("beron");
     expect(store.plan.value.nameSuffix).toBe("Kluisberg");
     expect(store.deviceRegions.value?.named).toContain("bemak");
-    expect(await screen.findByText(/Read 32 settings/)).toBeTruthy();
+    expect(await screen.findByText(/Read 33 settings/)).toBeTruthy();
     expect(screen.getByText("BE-RON-Kluisberg🌞")).toBeTruthy();
   });
 
@@ -178,9 +178,9 @@ describe("Connect step", () => {
     const B = { ver: "v1.17.1 (Build: 12-Oct-2026)" };
     const A_KEY = read["get public.key"].replace(/^> /, "");
 
-    /** Device A connected through the app and read (32 commands after `ver`), the next command unplugs it. */
+    /** Device A connected through the app and read (33 commands after `ver`), the next command unplugs it. */
     async function readA() {
-      const port = new FakePort(read, { disconnectAfter: 34 });
+      const port = new FakePort(read, { disconnectAfter: 35 });
       await connectUsb({ requestPort: async () => port, timing: FAST });
       await readDevice();
       expect(store.snapshot.value?.publicKey).toBe(A_KEY);

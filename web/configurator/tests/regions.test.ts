@@ -25,6 +25,7 @@ import {
   policyFor,
   policyFromDevice,
   regionCommandLines,
+  parseRegionTree,
   regionsAfterApply,
   regionsByState,
   setRowState,
@@ -727,6 +728,33 @@ describe("free regions", () => {
   });
 });
 
+describe("parseRegionTree", () => {
+  it("maps each region to its parent (null = top level)", () => {
+    expect(parseRegionTree("* F\n be F\n  be-vov^ F\n   beron F\n zone\n  sub F\n")).toEqual({
+      be: null,
+      "be-vov": "be",
+      beron: "be-vov",
+      zone: null,
+      sub: "zone",
+    });
+  });
+
+  it("drops a last line the 160-byte reply cut off", () => {
+    expect(parseRegionTree("* F\n be F\n  be-vov F\n  be-w")).toEqual({ be: null, "be-vov": "be" });
+  });
+
+  it("stops at a line that skips a level", () => {
+    expect(parseRegionTree("* F\n be F\n   x F\n nl F\n")).toEqual({ be: null });
+  });
+
+  it("is empty for a bare wildcard or an unexpected reply", () => {
+    expect(parseRegionTree("*\n")).toEqual({});
+    expect(parseRegionTree("* F\n")).toEqual({});
+    expect(parseRegionTree("Unknown command\n")).toEqual({});
+    expect(parseRegionTree("")).toEqual({});
+  });
+});
+
 describe("removing free regions from the device", () => {
   const ronse = cityAnchor("Ronse");
   const base = policyFor(ronse, PLACES);
@@ -740,6 +768,17 @@ describe("removing free regions from the device", () => {
     let p = addFreeRegion(addFreeRegion(base, "longparent", null, ronse), "a", "longparent", ronse);
     p = setRowState(setRowState(p, "a", "none"), "longparent", "none");
     expect(removes(p, ["longparent", "a"])).toEqual(["region remove a", "region remove longparent"]);
+  });
+
+  it("removes children first by the tree read from the device", () => {
+    // Not in the plan: only the device knows ab sits under abcdef (length order would get it wrong).
+    const lines = regionCommandLines(ronse, base, PLACES, {
+      named: ["be", "be-vov", "abcdef", "ab", "x"],
+      home: "be-vov",
+      default: "be",
+      parents: { be: null, "be-vov": "be", abcdef: null, ab: "abcdef", x: "ab" },
+    }).filter((l) => l.startsWith("region remove "));
+    expect(lines).toEqual(["region remove x", "region remove ab", "region remove abcdef"]);
   });
 
   it("removes a free child before the structured parent it sits under", () => {

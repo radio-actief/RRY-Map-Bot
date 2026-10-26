@@ -33,6 +33,18 @@ describe("reply framing", () => {
     expect(await link.command("get a", 1000)).toBe("A");
   });
 
+  it("the region tree reply keeps all its lines, over many USB chunks", async () => {
+    const tree = "* F\n be F\n  be-vov^ F\n   beron F\n zone\n";
+    const { link } = await linkTo({ region: tree, "get a": "A" }, { chunkSize: 5 });
+    expect(await link.command("region", 2000)).toBe(tree);
+    expect(await link.command("get a", 2000)).toBe("A");
+  });
+
+  it("other replies still end at their first line", async () => {
+    const { link } = await linkTo({}, { raw: { "get x": "get x\r\n  -> one\r\ntwo\r\n" } });
+    expect(await link.command("get x", 2000)).toBe("one");
+  });
+
   it("on timeout the started part of the reply line is returned", async () => {
     const { link } = await linkTo({}, { raw: { "get x": "get x\r\n  -> partial rep" } });
     expect(await link.command("get x")).toBe("partial rep");

@@ -880,8 +880,38 @@ function packRegionDefLines(tokens: string[], entries: Entry[]): string[] {
 // ---------------------------------------------------------------------------
 // Script lines
 
-/** Named regions on the device at the last read (or after the last Apply), with its home and default scope. */
-export type DeviceRegions = { named: string[]; home: string | null; default: string | null };
+/**
+ * Named regions on the device at the last read (or after the last Apply), with its home and default
+ * scope, and each region's parent (null = under *) where the tree was read.
+ */
+export type DeviceRegions = {
+  named: string[];
+  home: string | null;
+  default: string | null;
+  parents?: Record<string, string | null>;
+};
+
+/**
+ * The bare `region` reply: one line per region, indented one space per level under `*`, the name
+ * then `^` for home and ` F` when flood is allowed. The firmware cuts the reply at 159 bytes, so a
+ * last line without its LF is dropped; parents come before children, so every whole line is right.
+ */
+export function parseRegionTree(reply: string): Record<string, string | null> {
+  const parents: Record<string, string | null> = {};
+  const lines = String(reply || "").split("\n");
+  lines.pop(); // the text after the last LF: empty, or a line the cap cut off
+  if (!/^\*( F)?$/.test(lines[0] ?? "")) return parents;
+  const path: string[] = [];
+  for (const line of lines.slice(1)) {
+    const depth = line.length - line.trimStart().length;
+    const name = line.trim().replace(/ F$/, "").replace(/\^$/, "");
+    if (depth < 1 || depth > path.length + 1 || !name || /\s/.test(name)) break;
+    path.length = depth - 1;
+    parents[name] = depth === 1 ? null : path[depth - 2];
+    path.push(name);
+  }
+  return parents;
+}
 
 /** Device region state from the read replies (old rememberDeviceRegionsFromRead). */
 export function deviceRegionsFromRead(
@@ -913,11 +943,16 @@ function regionHierarchyDepth(code: string, cities: Map<string, Place>): number 
 }
 
 /**
- * Removal order: by regionHierarchyDepth, except that a free row of the plan goes before the
- * parent it sits under when both are removed (the plan knows that parent; for other device
- * codes the tree is not known, so the depth heuristic stands).
+ * Removal order: by regionHierarchyDepth, except that a child goes before the parent it sits under
+ * when both are removed. The parent comes from the tree read from the device, else from the plan's
+ * free row; for a code neither knows, the depth heuristic stands.
  */
-function orderRegionRemovesDeepestFirst(codes: string[], cities: Map<string, Place>, freeParents: FreeParents): string[] {
+function orderRegionRemovesDeepestFirst(
+  codes: string[],
+  cities: Map<string, Place>,
+  freeParents: FreeParents,
+  deviceParents: Record<string, string | null> = {},
+): string[] {
   const sorted = codes.slice().sort((a, b) => {
     const d = regionHierarchyDepth(b, cities) - regionHierarchyDepth(a, cities);
     if (d !== 0) return d;
@@ -927,7 +962,7 @@ function orderRegionRemovesDeepestFirst(codes: string[], cities: Map<string, Pla
   const removing = new Set(codes);
   const children = new Map<string, string[]>();
   for (const c of sorted) {
-    const parent = freeParents.get(c);
+    const parent = Object.prototype.hasOwnProperty.call(deviceParents, c) ? deviceParents[c] : freeParents.get(c);
     if (parent && parent !== c && removing.has(parent)) children.set(parent, [...(children.get(parent) ?? []), c]);
   }
   const out: string[] = [];
@@ -1005,7 +1040,7 @@ export function regionCommandLines(
     const toRemove = device.named.filter((c) => c && c !== "*" && c.toLowerCase() !== "<null>" && !needed.has(c));
     if (device.default && toRemove.includes(device.default)) lines.push("region default <null>");
     if (device.home && device.home !== "*" && toRemove.includes(device.home)) lines.push("region home *");
-    for (const c of orderRegionRemovesDeepestFirst(toRemove, cities, freeParentsOf(policy))) {
+    for (const c of orderRegionRemovesDeepestFirst(toRemove, cities, freeParentsOf(policy), device.parents)) {
       lines.push(`region remove ${c}`);
     }
   }

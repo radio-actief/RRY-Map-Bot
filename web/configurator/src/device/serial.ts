@@ -20,6 +20,11 @@ export interface PortLike {
 export const MAX_LINE_LEN = 151;
 /** The firmware ends a command at CR; no control character may reach it inside a line. */
 const CONTROL_CHAR = /[\x00-\x1f\x7f]/;
+/**
+ * Commands whose reply spans several lines: the region tree's lines end in LF and the reply in
+ * CRLF, so the reply runs to the first CRLF and keeps its LFs.
+ */
+const MULTI_LINE_REPLY = new Set(["region"]);
 
 const encoder = new TextEncoder();
 
@@ -199,6 +204,12 @@ export class SerialLink {
     const echo = this.buffer.indexOf(line + "\r");
     if (echo < 0) return null;
     const after = this.buffer.slice(echo + line.length + 1);
+    if (MULTI_LINE_REPLY.has(line)) {
+      const m = /(?:^|\n)[ \t]*->[ \t]*([\s\S]*?)(\r\n|$)/.exec(after);
+      if (!m || (!final && !m[2])) return null;
+      this.buffer = after.slice(m.index + m[0].length);
+      return m[1];
+    }
     const m = /(?:^|\n)[ \t]*->[ \t]*([^\r\n]*)(\r?\n|\r?$)/.exec(after);
     if (!m || (!final && !m[2].endsWith("\n"))) return null;
     this.buffer = after.slice(m.index + m[0].length);

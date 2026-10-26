@@ -27,6 +27,7 @@
   "region default": " default scope is be",
   "region list allowed": "*,be,be-vov,beron",
   "region list denied": "bemak",
+  "region": "* F\n be F\n  be-vov F\n   beron^ F\n   bemak\n",
   "ver": "v1.17.1 (Build: 12-Oct-2026)",
   "get role": "> repeater",
   "get public.key": "> 3f5a9c0e1b2d4f6a8c0e2b4d6f8a0c2e4b6d8f0a2c4e6b8d0f2a4c6e8b0d2f4a",

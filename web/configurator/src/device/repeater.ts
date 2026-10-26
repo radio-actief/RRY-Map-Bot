@@ -32,6 +32,7 @@ export const READ_COMMANDS = [
   "region default",
   "region list allowed",
   "region list denied",
+  "region",
   "ver",
   "get role",
   "get public.key",

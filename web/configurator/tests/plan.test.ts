@@ -37,6 +37,26 @@ describe("defaultPlan", () => {
   });
 });
 
+describe("the region tree from a Read", () => {
+  const replies = {
+    "region home": "home is be-vov",
+    "region default": "default scope is be",
+    "region list allowed": "be,be-vov,zone",
+    "region list denied": "-none-",
+  };
+
+  it("gives the device regions their parents", () => {
+    const s = snapshotFromReplies({ ...replies, region: "* F\n be F\n  be-vov^ F\n zone F\n" });
+    expect(deviceRegionsFromSnapshot(s)?.parents).toEqual({ be: null, "be-vov": "be", zone: null });
+  });
+
+  it("leaves the parents unknown when the tree was not read", () => {
+    const s = snapshotFromReplies(replies, ["region"]);
+    expect(deviceRegionsFromSnapshot(s)?.named.sort()).toEqual(["be", "be-vov", "zone"]);
+    expect(deviceRegionsFromSnapshot(s)?.parents).toBeUndefined();
+  });
+});
+
 describe("snapshotFromReplies", () => {
   it("parses the read replies like the old page", () => {
     const s = snapshotFromReplies(RONSE);
@@ -61,6 +81,7 @@ describe("snapshotFromReplies", () => {
       default: "be",
       allowed: ["*", "be", "be-vov", "beron"],
       denied: ["bemak"],
+      parents: { be: null, "be-vov": "be", beron: "be-vov", bemak: "be-vov" },
     });
     expect(s.version).toBe("v1.17.1 (Build: 12-Oct-2026)");
     expect([s.role, s.clock]).toEqual(["repeater", "14:05 - 24/10/2026 UTC"]);

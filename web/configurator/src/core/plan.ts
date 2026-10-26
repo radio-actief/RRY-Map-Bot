@@ -25,6 +25,7 @@ import {
   deviceRegionsFromRead,
   HOME_OVERRIDE_OMIT,
   homeRegionCode,
+  parseRegionTree,
   policyFor,
   policyFromDevice,
   regionsByState,
@@ -61,7 +62,14 @@ export type DeviceSnapshot = {
   lat?: number;
   lon?: number;
   advertLoc?: Plan["advertLoc"];
-  regions?: { home?: string; default?: string; allowed: string[]; denied: string[] };
+  regions?: {
+    home?: string;
+    default?: string;
+    allowed: string[];
+    denied: string[];
+    /** Each region's parent from the bare `region` tree (null = under *); absent when it was not read. */
+    parents?: Record<string, string | null>;
+  };
   version?: string;
   role?: string;
   publicKey?: string;
@@ -370,6 +378,7 @@ export function snapshotFromReplies(replies: Record<string, string>, missing: st
       ...(def !== undefined ? { default: afterPrefix(def, /^default scope is\s+(.+)$/i) } : {}),
       allowed: allowed !== undefined ? parseRegionList(allowed) : [],
       denied: denied !== undefined ? parseRegionList(denied) : [],
+      ...(Object.prototype.hasOwnProperty.call(replies, "region") ? { parents: parseRegionTree(replies.region) } : {}),
     };
   }
 
@@ -394,7 +403,8 @@ const REGION_READS = ["region home", "region default", "region list allowed", "r
 export function deviceRegionsFromSnapshot(s: DeviceSnapshot): DeviceRegions | undefined {
   const r = s.regions;
   if (!r || REGION_READS.some((cmd) => s.missing.includes(cmd))) return undefined;
-  return deviceRegionsFromRead(r.allowed, r.denied, r.home ?? null, r.default ?? null);
+  const regions = deviceRegionsFromRead(r.allowed, r.denied, r.home ?? null, r.default ?? null);
+  return r.parents && !s.missing.includes("region") ? { ...regions, parents: r.parents } : regions;
 }
 
 type Detection = { anchor: Anchor; format: PrefixFormat };

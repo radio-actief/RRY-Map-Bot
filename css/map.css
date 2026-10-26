@@ -316,6 +316,8 @@ body.map-page {
 .leaflet-bottom.leaflet-left {
   display: flex;
   flex-direction: column;
+  /* Each control keeps its own width; an open layers panel must not stretch the zoom bar. */
+  align-items: flex-start;
   gap: 6px;
   bottom: calc(10px + var(--map-safe-bottom));
   left: max(10px, env(safe-area-inset-left, 0px));
@@ -335,6 +337,10 @@ body.map-page {
 }
 
 .leaflet-bottom.leaflet-left .leaflet-control-zoom a {
+  /* Same size as the layers button below, so the stack lines up. */
+  width: 36px;
+  height: 36px;
+  line-height: 36px;
   background: var(--panel) !important;
   color: var(--ink) !important;
   border-color: var(--line) !important;

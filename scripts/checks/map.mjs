@@ -178,4 +178,21 @@ export default async function (ctx) {
   const deepLabel = text(await deep.locator('button[aria-controls="node-filter"]').textContent());
   ctx.check("map: a ?node= deep link leaves Filters inactive", deepLabel === "Filters", deepLabel);
   await deep.close();
+
+  // Opening the layers panel leaves the zoom bar its own width.
+  const zoom = await ctx.open("/", { setup: withNodes() });
+  const zoomWidth = () => zoom.locator(".leaflet-control-zoom").evaluate((e) => Math.round(e.getBoundingClientRect().width));
+  const before = await zoomWidth();
+  const toggle = await zoom.locator(".leaflet-control-layers-toggle").boundingBox();
+  await zoom.mouse.move(toggle.x + toggle.width / 2, toggle.y + toggle.height / 2);
+  await zoom.waitForTimeout(400);
+  const open = await zoom.locator(".leaflet-control-layers-expanded").count();
+  const after = await zoomWidth();
+  ctx.check("map: the layers panel opens", open === 1);
+  ctx.check("map: the zoom bar keeps its width with the layers panel open", before > 0 && after === before, `${before} -> ${after}`);
+  await zoom.mouse.move(700, 400);
+  await zoom.waitForTimeout(400);
+  const layersWidth = await zoom.locator(".leaflet-control-layers").evaluate((e) => Math.round(e.getBoundingClientRect().width));
+  ctx.check("map: the zoom bar and the closed layers button are equally wide", layersWidth === before, `${before} / ${layersWidth}`);
+  await zoom.close();
 }

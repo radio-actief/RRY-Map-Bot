@@ -90,5 +90,30 @@ class TestNodeClaimsLog(unittest.TestCase):
         self.assertEqual(events, [("pkclaim01", "111", "claim")])
 
 
+    def test_claim_of_claimed_node_is_rejected_and_does_not_log(self):
+        from backend.discord_queries import update_ownership
+
+        self.assertTrue(update_ownership("pkclaim01", "111", "alice"))
+        self.assertFalse(update_ownership("pkclaim01", "222", "bob"))
+
+        conn = sqlite3.connect(self.db_path)
+        try:
+            owner = conn.execute(
+                "SELECT discord_owner_id FROM belgian_nodes WHERE public_key = ?",
+                ("pkclaim01",),
+            ).fetchone()[0]
+        finally:
+            conn.close()
+        self.assertEqual(owner, "111")
+        self.assertEqual(self._claims(), [("pkclaim01", "111", "claim")])
+
+    def test_claim_by_current_owner_is_rejected(self):
+        from backend.discord_queries import update_ownership
+
+        self.assertTrue(update_ownership("pkclaim01", "111", "alice"))
+        self.assertFalse(update_ownership("pkclaim01", "111", "alice"))
+        self.assertEqual(self._claims(), [("pkclaim01", "111", "claim")])
+
+
 if __name__ == "__main__":
     unittest.main()

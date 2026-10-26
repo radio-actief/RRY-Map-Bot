@@ -169,22 +169,24 @@
           var provinceCodes = PROVINCE_CODES.filter(function (pc) {
             return GEWEST_OF_PROVINCE[pc] === gc;
           });
-          var provinceNames = provinceCodes
-            .map(function (pc) {
-              return PROVINCE_NAMES[pc] || pc;
-            })
-            .join(", ");
           var rows = [
             locodePopupPair(
               gewestName || '<span class="node-popup__muted">—</span>',
               gewestCodeCell,
             ),
             locodePopupPair(escapeHtml("Belgium"), "<code>be</code>"),
-            locodePopupPair(
-              escapeHtml("Provinces (optional under gewest)"),
-              escapeHtml(provinceNames),
-            ),
           ];
+          if (provinceCodes.length) {
+            rows.push('<div class="region-map-locode-popup__label node-popup__muted">Provinces</div>');
+            provinceCodes.forEach(function (pc) {
+              rows.push(
+                locodePopupPair(
+                  escapeHtml(PROVINCE_NAMES[pc] || pc),
+                  "<code>" + escapeHtml(pc) + "</code>",
+                ),
+              );
+            });
+          }
           return (
             '<div class="node-popup region-map-locode-popup--compact" data-status="none">' +
             '<div class="node-popup__body">' +
@@ -474,6 +476,13 @@
           overlayMode = mode;
           syncOverlayButtons();
           updateOverlays();
+        }
+
+        /** Borders follow the search: a foreign country shows Countries; anything Belgian leaves Countries for Provinces. */
+        function followSearchBorders(code) {
+          if (!code) return;
+          if (isForeignRegion(code)) setOverlayMode("countries");
+          else if (overlayMode === "countries") setOverlayMode("provinces");
         }
 
         function addCircleMarkersToContainer(container, matched) {
@@ -766,10 +775,10 @@
           lastMatches = matched;
           var normCode = (code || "").trim().toLowerCase();
           var t = type || "";
+          followSearchBorders(normCode);
           if (t === "province" || PROVINCE_CODES.indexOf(normCode) >= 0) {
             fitProvincePolygonBounds(normCode);
           } else if (isForeignRegion(normCode)) {
-            setOverlayMode("countries");
             fitCountryBounds(normCode);
           } else if (t === "country" || normCode === "be") {
             fitAllProvincesBounds();
@@ -1006,10 +1015,10 @@
               lastMatches = m;
               currentSearch = raw;
               var nc = normalize(raw);
+              followSearchBorders(nc);
               if (PROVINCE_CODES.indexOf(nc) >= 0) {
                 fitProvincePolygonBounds(nc);
               } else if (isForeignRegion(nc)) {
-                setOverlayMode("countries");
                 fitCountryBounds(nc);
               } else if (nc === "be") {
                 fitAllProvincesBounds();

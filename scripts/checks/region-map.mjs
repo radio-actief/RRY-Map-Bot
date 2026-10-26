@@ -84,4 +84,40 @@ export default async function (ctx) {
   });
   ctx.check("region map: a collapsed panel cannot take focus", !reachable);
   await rows.close();
+
+  // A foreign country switches borders to Countries; Belgium or a Belgian province switches back to Provinces.
+  const back = await ctx.open("/region-map");
+  await back.waitForSelector(".hierarchy-node", { timeout: 8000 });
+  const pressedBorder = () => back.locator('#overlay-seg button[aria-pressed="true"]').innerText();
+  await back.locator('.hierarchy-node[data-code="nl"]').click();
+  ctx.check("region map: a foreign country switches borders to Countries", (await pressedBorder()).trim() === "Countries", await pressedBorder());
+  await back.locator('.hierarchy-node[data-code="be"]').click();
+  ctx.check("region map: Belgium switches borders back to Provinces", (await pressedBorder()).trim() === "Provinces", await pressedBorder());
+  await back.locator('.hierarchy-node[data-code="nl"]').click();
+  await back.locator('.hierarchy-node[data-code="be-vov"]').click();
+  ctx.check("region map: a Belgian province switches borders back to Provinces", (await pressedBorder()).trim() === "Provinces", await pressedBorder());
+  await back.getByRole("button", { name: "Gewesten" }).click();
+  await back.locator('.hierarchy-node[data-code="be-van"]').click();
+  ctx.check("region map: a chosen Gewesten stays on a Belgian province", (await pressedBorder()).trim() === "Gewesten", await pressedBorder());
+
+  // The gewest popup lists its provinces as short name / code rows, not one squeezed column.
+  await back.locator('.hierarchy-node[data-code="be"]').click();
+  await back.getByRole("button", { name: "Gewesten" }).click();
+  await back.waitForTimeout(500);
+  const shapes = back.locator(".leaflet-overlay-pane path.leaflet-interactive");
+  let popup = null;
+  for (let i = 0; i < (await shapes.count()) && !popup; i++) {
+    const box = await shapes.nth(i).boundingBox();
+    if (!box) continue;
+    await back.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    await back.waitForTimeout(300);
+    if (await back.locator(".leaflet-popup").count()) popup = back.locator(".leaflet-popup");
+  }
+  const popupText = popup ? await popup.innerText() : "";
+  const popupHeight = popup ? (await popup.boundingBox()).height : 0;
+  ctx.check("region map: the gewest popup opens", !!popup);
+  ctx.check("region map: the gewest popup has no long label", !/optional under gewest/.test(popupText), popupText);
+  ctx.check("region map: the gewest popup lists provinces with their codes", /\bbe-(van|wht)\b/.test(popupText), popupText);
+  ctx.check("region map: the gewest popup stays compact", popupHeight > 0 && popupHeight < 320, String(popupHeight));
+  await back.close();
 }

@@ -1717,7 +1717,6 @@ createApp({
     /** Empty or all four node types → same as “no nodes= restriction” in the URL. */
     function nodeFilterIsAllTypes() {
       if (!app.nodeFilter.length) return true;
-      if (app.nodeFilter.length !== 4) return false;
       const set = new Set(app.nodeFilter.map((t) => String(Number(t))));
       return ALL_NODE_TYPE_KEYS.every((k) => set.has(k));
     }

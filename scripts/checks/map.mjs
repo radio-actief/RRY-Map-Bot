@@ -171,4 +171,11 @@ export default async function (ctx) {
   await wide.locator("#menu-toggle").click();
   ctx.check("map: desktop ☰ leaves My nodes to the top-bar chip", !(await wide.locator("#page-menu .menu-mynodes").isVisible()));
   await wide.close();
+
+  // A ?node= deep link filters nothing, so Filters does not read as active.
+  const deep = await ctx.open(`/?node=${nodes[0].public_key}`, { setup: withNodes() });
+  await deep.waitForSelector('button[aria-controls="node-filter"]', { timeout: 10000 });
+  const deepLabel = text(await deep.locator('button[aria-controls="node-filter"]').textContent());
+  ctx.check("map: a ?node= deep link leaves Filters inactive", deepLabel === "Filters", deepLabel);
+  await deep.close();
 }

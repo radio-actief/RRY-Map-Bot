@@ -236,6 +236,54 @@ describe("MapView", () => {
     expect(codes.slice(2)).toEqual(["be-vov", "beaaa"]);
   });
 
+  it("draws no border line for the European Union", () => {
+    store.data.value = {
+      failed: new Set(),
+      countries: {
+        type: "FeatureCollection",
+        features: [
+          { type: "Feature", properties: { code: "be", name: "Belgium" }, geometry: square(3, 50) },
+          { type: "Feature", properties: { code: "eu", name: "European Union" }, geometry: square(0, 46) },
+        ],
+      },
+    };
+    render(<MapView />);
+    const outlines = bordersGroup().children.filter((g) => g.options.className === "map-outline-country");
+    expect(outlines.map((g) => (g.args[0] as any).properties.code)).toEqual(["be"]);
+  });
+
+  it("fills the European Union under the countries", () => {
+    store.step.value = "regions";
+    store.plan.value = {
+      ...defaultPlan(),
+      regions: {
+        rows: [
+          { code: "be", labelKey: "", label: "Belgium", group: "country", allow: false, deny: true },
+          { code: "eu", labelKey: "", label: "European Union", group: "country", allow: true, deny: false },
+        ],
+        untaggedFlood: false,
+        homeOverride: null,
+        defaultScope: null,
+      },
+    };
+    store.data.value = {
+      failed: new Set(),
+      countries: {
+        type: "FeatureCollection",
+        features: [
+          { type: "Feature", properties: { code: "be", name: "Belgium" }, geometry: square(2, 49) },
+          { type: "Feature", properties: { code: "eu", name: "European Union" }, geometry: square(0, 46) },
+        ],
+      },
+    };
+    render(<MapView />);
+    const kids = regionsGroup().children;
+    expect(kids.map((g) => [(g.args[0] as any).properties.code, g.options.className])).toEqual([
+      ["eu", "map-region-allowed"],
+      ["be", "map-region-denied"],
+    ]);
+  });
+
   it("renders the map without countries when they failed to load", () => {
     store.data.value = { failed: new Set(["countries"]) };
     render(<MapView />);

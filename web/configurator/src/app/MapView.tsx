@@ -144,7 +144,8 @@ export function MapView() {
     if (!g) return;
     g.clearLayers();
     if (!layers.borders) return;
-    for (const f of featuresOf(data.countries)) {
+    // The European Union shares most of its edge with the countries; only its fill is drawn.
+    for (const f of featuresOf(data.countries).filter((f) => f.properties?.code !== "eu")) {
       L.geoJSON(f as GeoJsonObject, pathClass("map-outline-country", { style: () => ({ fill: false, weight: 2 }) })).addTo(g);
     }
     for (const c of [data.provinces, data.gewesten]) {
@@ -176,9 +177,10 @@ export function MapView() {
     }
     const byCode = new Map<string, Feature>();
     for (const f of [...featuresOf(data.countries), ...featuresOf(data.provinces), ...featuresOf(data.gewesten)]) byCode.set(String(f.properties?.code), f);
-    // Largest area first (country, gewest, province, municipality), so a smaller area stays visible on top.
+    // Largest area first (eu, country, gewest, province, municipality), so a smaller area stays visible on top.
     const countryCodes = new Set(featuresOf(data.countries).map((f) => String(f.properties?.code)));
-    const level = (code: string) => (byCity.has(code) ? 2 : GEWEST_NAMES[code] ? 0 : countryCodes.has(code) ? -1 : 1);
+    const level = (code: string) =>
+      byCity.has(code) ? 2 : GEWEST_NAMES[code] ? 0 : code === "eu" ? -2 : countryCodes.has(code) ? -1 : 1;
     const wanted = [
       ...denied.map((code) => ({ code, className: "map-region-denied" })),
       ...allowed.map((code) => ({ code, className: "map-region-allowed" })),

@@ -8,7 +8,7 @@
     />
     <meta
       name="description"
-      content="Map of Belgian MeshCore regions (be, be-*) — province boundaries and municipality location points"
+      content="Map of #BEmesh region codes (eu, be, be-* and the neighbouring countries) — country, province and gewest boundaries and municipality location points"
     />
     <link rel="icon" href="./favicon.ico" sizes="any" />
     <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png" />
@@ -58,7 +58,7 @@
                 id="code-input"
                 type="text"
                 class="form-control"
-                placeholder="e.g. be-vwv, Belgium, or a place name…"
+                placeholder="e.g. be-vwv, nl, Belgium, or a place name…"
                 aria-label="Search region codes"
                 spellcheck="false"
                 autocomplete="off"
@@ -91,6 +91,10 @@
                 <label>
                   <input type="radio" name="overlay" value="gewesten" />
                   Gewesten (optional)
+                </label>
+                <label>
+                  <input type="radio" name="overlay" value="countries" />
+                  Countries and EU
                 </label>
               </div>
             </div>

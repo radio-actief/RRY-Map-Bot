@@ -65,6 +65,8 @@ export type DeviceSnapshot = {
   lat?: number;
   lon?: number;
   advertLoc?: Plan["advertLoc"];
+  /** The duty cycle as read (settings.dutycycle is snapped to the nearest option). */
+  dutycycleRaw?: number;
   /** The access list from `get acl`; absent when the read failed. */
   acl?: AclEntry[];
   regions?: {
@@ -366,6 +368,9 @@ export function snapshotFromReplies(replies: Record<string, string>, missing: st
     const v = parse(reply);
     if (v !== undefined) s.settings[def.key] = v;
   }
+  const dutycycle = get("get dutycycle");
+  const dutycycleRaw = dutycycle === undefined ? NaN : parseFloat(dutycycle.replace(/%$/, ""));
+  if (Number.isFinite(dutycycleRaw)) s.dutycycleRaw = dutycycleRaw;
 
   const lat = get("get lat");
   const lon = get("get lon");

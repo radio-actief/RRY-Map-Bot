@@ -166,6 +166,24 @@ describe("buildScript with a snapshot", () => {
     expect(sent(withSettings(planOf(s), { floodAdvertHours: 47 }), s)).toEqual(["set flood.advert.interval 47"]);
   });
 
+  it("compares the duty cycle with the value read, not the snapped one", () => {
+    const at = (reply: string) => snapshotFromReplies({ ...replies, "get dutycycle": reply });
+    const quarter = at("> 25.0%");
+    expect(sent(planOf(quarter), quarter)).toEqual(["set dutycycle 10"]);
+    const ten = at("> 10.0%");
+    expect(sent(planOf(ten), ten)).toEqual([]);
+    const unknown = snap();
+    delete unknown.dutycycleRaw;
+    expect(sent(planOf(snap()), unknown)).toEqual(["set dutycycle 10"]);
+  });
+
+  it("compares guest password and owner info as text", () => {
+    const s = snapshotFromReplies({ ...replies, "get guest.password": "> 000", "get owner.info": "> 1234" });
+    const p = withSettings(planOf(s), { guestPassword: "0000", ownerInfo: "01234" });
+    expect(sent(p, s)).toEqual(["set owner.info 01234", "set guest.password 0000"]);
+    expect(sent(planOf(s), s)).toEqual([]);
+  });
+
   it("sends a setting the Read missed", () => {
     const s = snap();
     const p = planOf(s);

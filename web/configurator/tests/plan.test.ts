@@ -89,6 +89,15 @@ describe("snapshotFromReplies", () => {
     expect(s.missing).toEqual([]);
   });
 
+  it("keeps the duty cycle as read next to the snapped one", () => {
+    expect(snapshotFromReplies(RONSE).dutycycleRaw).toBe(10);
+    const odd = snapshotFromReplies({ "get dutycycle": "> 9.9%" });
+    expect([odd.settings.dutycycle, odd.dutycycleRaw]).toEqual(["10", 9.9]);
+    const quarter = snapshotFromReplies({ "get dutycycle": "> 25.0%" });
+    expect([quarter.settings.dutycycle, quarter.dutycycleRaw]).toEqual(["10", 25]);
+    expect(snapshotFromReplies({ "get dutycycle": "> ?" }).dutycycleRaw).toBeUndefined();
+  });
+
   it("leaves unanswered commands out and keeps the missing list it is given", () => {
     const s = snapshotFromReplies({ "get name": "> X", "region list denied": "-none-" }, ["get radio"]);
     expect(s.radio).toBeUndefined();

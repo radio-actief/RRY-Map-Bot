@@ -72,10 +72,17 @@ function settingLine(plan: Plan, key: SettingKey, includeDefaults: boolean): str
   }
 }
 
-/** The repeater already holds this setting's value. The admin password is never read, so never held. */
+/**
+ * The repeater already holds this setting's value. The admin password is never read, so never
+ * held; the duty cycle compares with the value read, not the snapped one; text compares as text.
+ */
 function settingHeld(plan: Plan, key: SettingKey, snapshot: DeviceSnapshot): boolean {
-  if (key === "adminPassword" || !Object.prototype.hasOwnProperty.call(snapshot.settings, key)) return false;
-  return same(settingValue(plan, key), snapshot.settings[key]);
+  const v = settingValue(plan, key);
+  if (key === "adminPassword") return false;
+  if (key === "dutycycle") return snapshot.dutycycleRaw !== undefined && same(v, snapshot.dutycycleRaw);
+  if (!Object.prototype.hasOwnProperty.call(snapshot.settings, key)) return false;
+  if (key === "guestPassword" || key === "ownerInfo") return String(v ?? "").trim() === String(snapshot.settings[key]).trim();
+  return same(v, snapshot.settings[key]);
 }
 
 /**

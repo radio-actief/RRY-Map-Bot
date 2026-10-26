@@ -4,7 +4,7 @@
   "get repeat": "> on",
   "get owner.info": "> Kluisberg site|ops@example.org",
   "get guest.password": "> ",
-  "get dutycycle": "> 9.9%",
+  "get dutycycle": "> 10.0%",
   "get flood.advert.interval": "> 3",
   "get advert.interval": "> 120",
   "get flood.max.unscoped": "> 12",

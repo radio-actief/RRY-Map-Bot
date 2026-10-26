@@ -115,5 +115,28 @@ class TestStaticFiles(unittest.TestCase):
                 r.close()
 
 
+class TestRadioCustomParams(unittest.TestCase):
+    def _parse(self, query):
+        with api.app.test_request_context("/api/v1/stats?" + query):
+            return api._parse_radio_custom_from_request()
+
+    def test_single_params_are_parsed(self):
+        self.assertEqual(self._parse("freq=869.618"), {"freq": 869.618})
+        self.assertEqual(self._parse("sf=8"), {"sf": 8})
+        self.assertEqual(self._parse("bw=62.5"), {"bw": 62.5})
+        self.assertEqual(self._parse("cr=8"), {"cr": 8})
+
+    def test_combined_params_without_cr_are_parsed(self):
+        self.assertEqual(
+            self._parse("freq=869.618&sf=8&bw=62.5"),
+            {"freq": 869.618, "sf": 8, "bw": 62.5},
+        )
+
+    def test_no_params_or_invalid_value_is_none(self):
+        self.assertIsNone(self._parse(""))
+        self.assertIsNone(self._parse("freq=abc"))
+        self.assertIsNone(self._parse("sf=8&bw=5000"))
+
+
 if __name__ == "__main__":
     unittest.main()

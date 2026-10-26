@@ -419,7 +419,7 @@ def _parse_radio_custom_from_request():
         if not (4 <= cr_i <= 9):
             return None
         out["cr"] = cr_i
-        return out if out else None
+    return out if out else None
 
 
 def _chart_day_expr(table_alias: str = "b") -> str:

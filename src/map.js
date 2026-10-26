@@ -2962,8 +2962,8 @@ createApp({
           targetNode = null;
         }
         if (targetNode) {
-          const type = String(Number(targetNode.type) || 1);
-          if (app.nodeFilter.length > 0 && !app.nodeFilter.includes(type)) {
+          const type = Number(targetNode.type) || 1;
+          if (app.nodeFilter.length > 0 && !app.nodeFilter.map(Number).includes(type)) {
             app.nodeFilter = [...app.nodeFilter, type];
           }
         }

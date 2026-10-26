@@ -45,6 +45,18 @@ describe("checkupLines", () => {
     expect(byId.loopDetect.labelKey).toBe("setting.loopDetect");
   });
 
+  it("a repeater read on the Suburban timing has no Timing line", () => {
+    const s = snapshotFromReplies({
+      ...RONSE,
+      "get txdelay": "> 0.8",
+      "get direct.txdelay": "> 0.3999999",
+      "get rxdelay": "> 3.0",
+    });
+    const plan = planFromSnapshot(s, PLACES);
+    expect([plan.settings.txdelay, plan.settings.directTxdelay, plan.settings.rxdelay]).toEqual([0.8, 0.4, 3]);
+    expect(checkupLines(plan, PLACES).map((l) => l.id)).not.toContain("timing");
+  });
+
   it("the name is listed, not ticked, with its note", () => {
     const name = checkupLines(P, PLACES)[0];
     expect(name).toMatchObject({ id: "name", ticked: false, noteKey: "checkup.nameNote" });

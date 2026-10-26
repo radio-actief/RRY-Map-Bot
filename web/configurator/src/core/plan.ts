@@ -295,6 +295,11 @@ const floatOf = (s: string) => {
   const n = parseFloat(s);
   return Number.isFinite(n) ? n : undefined;
 };
+/** A float the firmware prints with 7 truncated decimals (0.4 as 0.3999999), rounded to 3 decimals. */
+const float3Of = (s: string) => {
+  const n = floatOf(s);
+  return n === undefined ? undefined : round3(n);
+};
 
 /** `get radio`; the firmware prints the frequency as a float (869.618 as 869.6179809), so it is rounded to 3 decimals. */
 function parseRadio(s: string): Radio | undefined {
@@ -353,9 +358,9 @@ const SETTING_PARSERS: Partial<Record<SettingKey, SettingParser>> = {
   floodMax: intOf,
   pathHashMode: oneOf("pathHashMode"),
   loopDetect: oneOf("loopDetect"),
-  txdelay: floatOf,
-  directTxdelay: floatOf,
-  rxdelay: floatOf,
+  txdelay: float3Of,
+  directTxdelay: float3Of,
+  rxdelay: float3Of,
   radioRxgain: oneOf("radioRxgain"),
   txPower: intOf,
   intThresh: intOf,

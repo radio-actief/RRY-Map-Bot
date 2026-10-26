@@ -222,6 +222,18 @@ describe("buildScript with a snapshot", () => {
     expect(sent({ ...p, location: { lat: 51.41209, lon: 4.395 } }, after)).toEqual(["set lat 51.41209", "set lon 4.395"]);
   });
 
+  it("the timing as the firmware prints it counts as held", () => {
+    const s = snapshotFromReplies({
+      ...replies,
+      "get txdelay": "> 0.8",
+      "get direct.txdelay": "> 0.3999999",
+      "get rxdelay": "> 3.0",
+    });
+    const p = withSettings(planOf(s), { txdelay: 0.8, directTxdelay: 0.4, rxdelay: 3 });
+    expect(sent(p, s).filter((l) => /^set (direct\.)?(tx|rx)delay /.test(l))).toEqual([]);
+    expect(sent(planOf(snap()), snap())).toEqual([]);
+  });
+
   it("the access list group", () => {
     const s = snap();
     const p = planOf(s);

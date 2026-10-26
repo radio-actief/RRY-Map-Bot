@@ -13,7 +13,7 @@
   "get path.hash.mode": "> 1",
   "get loop.detect": "> minimal",
   "get txdelay": "> 0.5",
-  "get direct.txdelay": "> 0.2",
+  "get direct.txdelay": "> 0.1999999",
   "get rxdelay": "> 0.0",
   "get radio.rxgain": "> on",
   "get tx": "> 22",

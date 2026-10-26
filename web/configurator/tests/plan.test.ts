@@ -71,6 +71,7 @@ describe("snapshotFromReplies", () => {
       advertIntervalMinutes: 120,
       floodMaxUnscoped: 12,
       txdelay: 0.5,
+      directTxdelay: 0.2,
       rxdelay: 0,
       txPower: 22,
       loopDetect: "minimal",
@@ -109,6 +110,12 @@ describe("snapshotFromReplies", () => {
   it("rounds the frequency the firmware prints as a float to 3 decimals", () => {
     expect(snapshotFromReplies({ "get radio": "> 869.6179809,62.5,8,8" }).radio).toEqual({ freq: 869.618, sf: 8, bw: 62.5, cr: 8 });
     expect(snapshotFromReplies({ "get radio": "> 869.5250244,250,11,5" }).radio?.freq).toBe(869.525);
+  });
+
+  it("rounds the timing the firmware prints as a float to 3 decimals", () => {
+    const s = snapshotFromReplies({ "get txdelay": "> 0.8", "get direct.txdelay": "> 0.3999999", "get rxdelay": "> 3.0" });
+    expect(s.settings).toEqual({ txdelay: 0.8, directTxdelay: 0.4, rxdelay: 3 });
+    expect(snapshotFromReplies({ "get direct.txdelay": "> 0.0999999" }).settings.directTxdelay).toBe(0.1);
   });
 
   it("ignores replies it cannot parse", () => {

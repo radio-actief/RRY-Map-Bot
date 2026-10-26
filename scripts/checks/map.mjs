@@ -156,4 +156,19 @@ export default async function (ctx) {
   const chosenDark = await invert("light", "dark");
   const sysLight = await invert("light", null);
   ctx.check("map: layers icon inverted in system dark and chosen dark, not in light", sysDark === chosenDark && sysDark.includes("invert") && !sysLight.includes("invert"), `${sysDark} | ${chosenDark} | ${sysLight}`);
+
+  // Signed in on a phone, ☰ shows the user's node count under @user (the top-bar chip is hidden there).
+  const me = (extra) => withNodes(async (p) => {
+    await p.route("**/auth/me", (r) => r.fulfill({ contentType: "application/json", body: JSON.stringify({ authenticated: true, user: { id: "1", username: "tester" } }) }));
+    if (extra) await extra(p);
+  });
+  const mine = await ctx.open("/", { width: 390, height: 800, setup: me() });
+  await mine.locator("#menu-toggle").click();
+  const mt = text(await mine.locator("#page-menu").textContent());
+  ctx.check("map: phone ☰ shows My nodes 9 under @tester", /@tester\s*My nodes 9/.test(mt), mt);
+  await mine.close();
+  const wide = await ctx.open("/", { setup: me() });
+  await wide.locator("#menu-toggle").click();
+  ctx.check("map: desktop ☰ leaves My nodes to the top-bar chip", !(await wide.locator("#page-menu .menu-mynodes").isVisible()));
+  await wide.close();
 }

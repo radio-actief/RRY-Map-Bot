@@ -1157,6 +1157,9 @@
               item.className = "stats-topday-item" + (isLead ? " is-lead" : "");
               item.innerHTML =
                 "<span>" +
+                '<span class="stats-topday-rank muted">' +
+                (i + 1) +
+                "</span> " +
                 formatDateOnly(row.date) +
                 "</span>" +
                 '<span class="stats-topday-value">' +

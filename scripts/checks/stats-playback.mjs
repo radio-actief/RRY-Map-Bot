@@ -97,6 +97,9 @@ export default async function (ctx) {
   await page.waitForTimeout(1200);
   ctx.check("playback: second click pauses", d2 === (await dateText()), d2);
 
+  const ranks = await page.locator("#stats-topday-growth .stats-topday-item .stats-topday-rank").allTextContents();
+  ctx.check("playback: top repeater days keep a rank", ranks.length > 0 && ranks[0].trim() === "1", ranks.join("|"));
+
   const link = await page.evaluate(() => {
     const a = document.querySelector(".stats-links a");
     const probe = document.createElement("span");

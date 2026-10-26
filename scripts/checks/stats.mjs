@@ -128,4 +128,17 @@ export default async function (ctx) {
   await phone.locator("#stats-download-btn").click();
   ctx.check("stats: opening download closes ☰", !(await phone.locator("#page-menu").isVisible()) && (await phone.locator("#stats-download-menu").isVisible()));
   await phone.close();
+
+  // Type tiles are keyboard-usable buttons that report aria-pressed.
+  const tiles = await open(ctx);
+  await ready(tiles);
+  const tags = await tiles.locator(".tile[data-type]").evaluateAll((els) => els.map((e) => e.tagName + ":" + e.getAttribute("aria-pressed")));
+  ctx.check("stats: type tiles are buttons with aria-pressed", tags.length === 4 && tags.every((t) => t === "BUTTON:false"), tags.join());
+  const rep = tiles.locator("#stats-chip-repeaters-wrap");
+  await rep.focus();
+  await tiles.keyboard.press("Enter");
+  ctx.check("stats: Enter on a tile presses it", (await rep.getAttribute("aria-pressed")) === "true");
+  await tiles.keyboard.press("Space");
+  ctx.check("stats: Space on a pressed tile releases it", (await rep.getAttribute("aria-pressed")) === "false");
+  await tiles.close();
 }

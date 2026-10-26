@@ -867,7 +867,7 @@
           var hasEu = !!countryFeature("eu");
           var node = function (indent, code, type, name, count, label) {
             return (
-              '<div class="hierarchy-node region-row indent-' +
+              '<button type="button" class="hierarchy-node region-row indent-' +
               indent +
               '" data-code="' +
               code +
@@ -881,7 +881,7 @@
               (count != null
                 ? '<span class="region-count">' + count + "</span>"
                 : "") +
-              "</div>"
+              "</button>"
             );
           };
           var html = hasEu ? node(0, "eu", "country", countryName("eu"), null, "wider region") : "";
@@ -930,6 +930,7 @@
             .addEventListener("click", function () {
               var panel = document.getElementById("controls");
               panel.classList.toggle("collapsed");
+              panel.inert = panel.classList.contains("collapsed");
               var expanded = !panel.classList.contains("collapsed");
               this.setAttribute("aria-expanded", expanded ? "true" : "false");
               window.setTimeout(function () {
@@ -996,6 +997,7 @@
 
           var input = document.getElementById("code-input");
           input.addEventListener("input", function () {
+            markActiveRow(this.value);
             var items = buildAutocompleteItems(this.value);
             showAutocomplete(items);
             if (!items.length && this.value.trim()) {

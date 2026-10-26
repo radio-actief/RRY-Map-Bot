@@ -63,4 +63,25 @@ export default async function (ctx) {
   await phone.keyboard.press("Escape");
   ctx.check("region map: Escape closes ☰ and returns focus", !(await phone.locator("#page-menu").isVisible()) && (await phone.locator("#menu-toggle").getAttribute("aria-expanded")) === "false" && (await phone.locator("#menu-toggle").evaluate((el) => el === document.activeElement)));
   await phone.close();
+
+  // Rows are buttons, the highlight follows typing, and a collapsed panel leaves the tab order.
+  const rows = await ctx.open("/region-map");
+  await rows.waitForSelector(".hierarchy-node", { timeout: 8000 });
+  const tags = await rows.locator(".hierarchy-node").evaluateAll((els) => [...new Set(els.map((e) => e.tagName + ":" + e.getAttribute("type")))]);
+  ctx.check("region map: code rows are buttons", tags.join() === "BUTTON:button", tags.join());
+  const province = rows.locator('.hierarchy-node[data-type="province"]').first();
+  await province.focus();
+  await rows.keyboard.press("Enter");
+  ctx.check("region map: Enter on a row selects it", await province.evaluate((e) => e.classList.contains("active")));
+  await rows.locator("#code-input").fill("zzzz");
+  ctx.check("region map: typing clears the highlighted row", (await rows.locator(".hierarchy-node.active").count()) === 0);
+  await rows.locator("#toggle-controls").click();
+  await rows.waitForTimeout(400);
+  const reachable = await rows.evaluate(() => {
+    const el = document.getElementById("code-input");
+    el.focus();
+    return document.activeElement === el;
+  });
+  ctx.check("region map: a collapsed panel cannot take focus", !reachable);
+  await rows.close();
 }

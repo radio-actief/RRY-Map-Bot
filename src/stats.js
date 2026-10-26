@@ -126,6 +126,10 @@
             } catch (err) {}
           }, 120);
         }
+        function setTileFiltered(tile, on) {
+          tile.classList.toggle("is-chart-filtered", on);
+          tile.setAttribute("aria-pressed", on ? "true" : "false");
+        }
         // Closes every header menu except the one named (preset, download or pages).
         function closeStatsMenus(except) {
           var wasOpen = false;
@@ -902,7 +906,7 @@
               ".stats-header-chip.chip-filterable.is-chart-filtered",
             )
             .forEach(function (c) {
-              c.classList.remove("is-chart-filtered");
+              setTileFiltered(c, false);
             });
           loadingEl.style.display = "none";
           if (!history || history.length === 0) {
@@ -1016,7 +1020,7 @@
             document
               .querySelectorAll(".stats-header-chip.chip-filterable")
               .forEach(function (c) {
-                c.classList.remove("is-chart-filtered");
+                setTileFiltered(c, false);
               });
             if (statsChartInstance) applyChartRange(currentChartRange);
           };
@@ -1031,10 +1035,7 @@
             document
               .querySelectorAll(".stats-header-chip.chip-filterable")
               .forEach(function (c) {
-                c.classList.toggle(
-                  "is-chart-filtered",
-                  c.getAttribute("data-type") === chartFilterType,
-                );
+                setTileFiltered(c, c.getAttribute("data-type") === chartFilterType);
               });
             if (statsChartInstance) applyChartRange(currentChartRange);
           };

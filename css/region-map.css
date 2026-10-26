@@ -133,6 +133,10 @@ html.region-map-embed .topbar {
 
 /* Region code rows, as in the configurator. */
 .hierarchy-node {
+  width: 100%;
+  border: 0;
+  background: none;
+  text-align: left;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -141,6 +145,11 @@ html.region-map-embed .topbar {
   border-bottom: 1px solid var(--line);
   border-radius: 6px;
   cursor: pointer;
+}
+
+.hierarchy-node:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: -2px;
 }
 
 .hierarchy-node:hover {

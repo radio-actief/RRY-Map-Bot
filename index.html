@@ -126,6 +126,9 @@
             <template v-if="auth.authenticated && auth.user">
               <hr />
               <span class="menu-user">@{{ auth.user.username }}</span>
+              <span class="menu-user menu-mynodes menu-page"
+                >My nodes <b>{{ myNodesCount }}</b></span
+              >
               <a href="/auth/logout" title="Logout">Log out</a>
             </template>
             <template v-else>

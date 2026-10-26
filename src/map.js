@@ -2665,6 +2665,16 @@ createApp({
     });
 
     // Personal stats for logged-in user
+    const myNodesCount = computed(() =>
+      !auth.authenticated || !auth.user
+        ? 0
+        : app.nodes.filter(
+            (node) =>
+              node.discord_owner_id &&
+              String(node.discord_owner_id) === String(auth.user.id),
+          ).length,
+    );
+
     const personalStats = computed(() => {
       if (!auth.authenticated || !auth.user) {
         return [];
@@ -3020,6 +3030,7 @@ createApp({
       stats,
       totals,
       personalStats,
+      myNodesCount,
       searchResults,
       filtersActive,
       showNode,

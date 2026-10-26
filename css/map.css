@@ -166,6 +166,12 @@ body.map-page {
   display: none;
 }
 
+.menu-mynodes {
+  padding-top: 0;
+  font-weight: 400;
+  color: var(--mut);
+}
+
 /* Search and filters */
 .search-box {
   top: 10px;

@@ -126,7 +126,7 @@ export function CheckupDialog({ open, onClose }: { open: boolean; onClose: () =>
                   <span class="checkup-text">
                     <span class="checkup-label">{t(l.labelKey)}</span>
                     <span class="checkup-change">
-                      {l.from} → {l.to}
+                      {l.from === l.to ? t("checkup.unchanged", { value: l.from }) : `${l.from} → ${l.to}`}
                     </span>
                     {l.detail ? <span class="checkup-note">{detailText(l.detail)}</span> : null}
                     {l.noteKey ? <span class="checkup-note">{t(l.noteKey)}</span> : null}

@@ -37,8 +37,16 @@ const visible = (line: string) =>
 
 const GUEST = SETTINGS.find((d) => d.key === "guestPassword")!;
 
-/** One read-only value with a link to where it is changed. */
-function ReadOnlyLine({ text }: { text: string }) {
+/** The radio, duty cycle and TX power on one read-only line, with a link to Settings. */
+function RadioLine() {
+  const plan = store.plan.value;
+  const preset = presetForRadio(plan.radio);
+  const tx = rawOf(plan, "txPower").trim();
+  const text = t("send.radioLine", {
+    preset: preset && !plan.radioCustom && !plan.radioText ? preset.title : t("settings.preset.custom"),
+    duty: t(`opt.dutycycle.${rawOf(plan, "dutycycle")}`),
+    tx: tx ? t("send.txPower", { value: tx }) : t("send.txPowerKept"),
+  });
   return (
     <div class="ro-line">
       <span>{text}</span>
@@ -50,20 +58,14 @@ function ReadOnlyLine({ text }: { text: string }) {
 }
 
 function BeforeYouSend() {
-  const plan = store.plan.value;
-  const preset = presetForRadio(plan.radio);
-  const duty = rawOf(plan, "dutycycle");
-  const tx = rawOf(plan, "txPower").trim();
   return (
     <section class="card card-before">
       <header class="card-head">
         <h3>{t("send.before")}</h3>
       </header>
+      <RadioLine />
       <PasswordField />
       <SettingField def={GUEST} />
-      <ReadOnlyLine text={t("send.radio", { preset: preset ? preset.title : t("settings.preset.custom") })} />
-      <ReadOnlyLine text={t("send.dutycycle", { value: t(`opt.dutycycle.${duty}`) })} />
-      <ReadOnlyLine text={t("send.txPower", { value: tx || t("send.txPowerKept") })} />
     </section>
   );
 }
@@ -72,7 +74,6 @@ function Changes() {
   const { changes, adminPassword } = summarize(store.plan.value, store.snapshot.value ?? undefined);
   return (
     <div class="review-changes">
-      <BeforeYouSend />
       <div class="card review-table">
         {changes.length ? (
           GROUPS.map((g) => {
@@ -94,8 +95,9 @@ function Changes() {
         ) : (
           <p class="sub rv-empty">{t("review.empty")}</p>
         )}
+        <p class={`rv-admin ${adminPassword}`}>{`🔒 ${t(`summary.adminPassword.${adminPassword}`)}`}</p>
       </div>
-      <Notice kind="ok">{`🔒 ${t(`summary.adminPassword.${adminPassword}`)}`}</Notice>
+      <BeforeYouSend />
     </div>
   );
 }
@@ -281,46 +283,49 @@ export function Send() {
             </Notice>
           ) : null}
           <div class="review-actions">
-            <button type="button" class="btn" disabled={!text} onClick={() => void copy(text, say)}>
-              {t("review.copy")}
-            </button>
-            <button type="button" class="btn" disabled={!text} onClick={() => download(text)}>
-              {t("review.download")}
-            </button>
-            <button type="button" class="btn" onClick={() => setConsoleOpen(true)}>
-              {t("review.console")}
-            </button>
-            <span class="spacer" />
-            <button type="button" class="btn" disabled={locked} onClick={() => (store.step.value = "settings")}>
-              {t("step.back")}
-            </button>
-            {status !== "connected" && hasWebSerial() ? (
+            <div class="review-tools">
+              <button type="button" class="btn" disabled={!text} onClick={() => void copy(text, say)}>
+                {t("review.copy")}
+              </button>
+              <button type="button" class="btn" disabled={!text} onClick={() => download(text)}>
+                {t("review.download")}
+              </button>
+              <button type="button" class="btn" onClick={() => setConsoleOpen(true)}>
+                {t("review.console")}
+              </button>
+            </div>
+            <div class="review-nav">
+              <button type="button" class="btn" disabled={locked} onClick={() => (store.step.value = "settings")}>
+                {t("step.back")}
+              </button>
+              {status !== "connected" && hasWebSerial() ? (
+                <button
+                  type="button"
+                  class="btn primary"
+                  disabled={status === "connecting"}
+                  onClick={() => void connectUsb()}
+                >
+                  {status === "connecting" ? t("connect.connecting") : t("connect.button")}
+                </button>
+              ) : null}
               <button
                 type="button"
                 class="btn primary"
-                disabled={status === "connecting"}
-                onClick={() => void connectUsb()}
+                disabled={!gate.ok || locked || (!!against && !count)}
+                onClick={() => {
+                  setFlash(null);
+                  void applyPlan(script);
+                }}
               >
-                {status === "connecting" ? t("connect.connecting") : t("connect.button")}
+                {store.applying.value
+                  ? t("apply.sending")
+                  : !against
+                    ? t("apply.button")
+                    : count
+                      ? t("apply.buttonChanges", { count })
+                      : t("apply.nothing")}
               </button>
-            ) : null}
-            <button
-              type="button"
-              class="btn primary"
-              disabled={!gate.ok || locked || (!!against && !count)}
-              onClick={() => {
-                setFlash(null);
-                void applyPlan(script);
-              }}
-            >
-              {store.applying.value
-                ? t("apply.sending")
-                : !against
-                  ? t("apply.button")
-                  : count
-                    ? t("apply.buttonChanges", { count })
-                    : t("apply.nothing")}
-            </button>
+            </div>
           </div>
           {flash ? <Notice kind={flash.kind}>{flash.text}</Notice> : null}
         </div>

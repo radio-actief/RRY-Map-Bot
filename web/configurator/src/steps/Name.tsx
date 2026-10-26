@@ -89,7 +89,6 @@ export function Name() {
         ))}
       </div>
 
-      <h3 class="field-label">{t("settings.card.owner")}</h3>
       <SettingField def={OWNER_INFO} />
     </div>
   );

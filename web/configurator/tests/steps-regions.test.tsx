@@ -259,6 +259,15 @@ describe("Regions step", () => {
       expect(within(rowFor("child")).getByRole("button", { name: "Remove child" }).hasAttribute("aria-describedby")).toBe(false);
     });
 
+    it("leaves out a row's kind where its group heading already says it", () => {
+      chooseLocation({ type: "city", label: "Ronse", place: RONSE } as never);
+      render(<Regions />);
+      expect(rowFor("bemak").querySelector(".sub")).toBeNull();
+      expect(rowFor("nl").querySelector(".sub")).toBeNull();
+      expect(within(rowFor("be-vov")).getByText("Province")).toBeTruthy();
+      expect(within(rowFor("eu")).getByText("Wider region")).toBeTruthy();
+    });
+
     it("shows where each free region sits in its sub-label", () => {
       chooseLocation({ type: "city", label: "Ronse", place: RONSE } as never);
       render(<Regions />);

@@ -77,6 +77,7 @@ export function TopBar() {
       <span class="wordmark">
         <b>{t("app.nameGold")}</b>
         {t("app.nameRest")}
+        <span class="wordmark-tail">{t("app.nameTail")}</span>
       </span>
       <ConnectionChip placeName={showPlace ? name : null} />
       {showPlace ? (

@@ -812,9 +812,13 @@ path.map-region-denied {
 /* Regions */
 .bulk {
   display: flex;
-  flex-wrap: wrap;
   gap: 6px;
   margin: 8px 0;
+}
+
+.bulk .btn {
+  flex: 1 1 auto;
+  white-space: nowrap;
 }
 
 .region-list {
@@ -1343,11 +1347,17 @@ path.map-region-denied {
   padding-left: 16px;
 }
 
-.review-actions {
+.review-actions,
+.review-tools,
+.review-nav {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
+}
+
+.review-actions {
+  justify-content: space-between;
 }
 
 .review-actions .btn {
@@ -1542,6 +1552,43 @@ path.map-region-denied {
     width: 100%;
     border-left: 0;
   }
+
+  /* One top bar row: the wordmark's tail goes, the chips shorten. */
+  .topbar {
+    flex-wrap: nowrap;
+  }
+
+  .wordmark-tail {
+    display: none;
+  }
+
+  .topbar .chip.trunc {
+    flex: 0 1 auto;
+  }
+
+  /* Settings and Send keep their step buttons at the bottom of the screen. */
+  .step-settings .side-nav,
+  .step-review .review-nav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 6;
+    flex-wrap: nowrap;
+    padding: 8px 16px calc(8px + env(safe-area-inset-bottom));
+    background: var(--panel);
+    border-top: 1px solid var(--line);
+    box-shadow: 0 -4px 16px var(--shadow);
+  }
+
+  .step-review .review-nav .btn.primary {
+    flex: 1;
+  }
+
+  .panel-body.step-settings,
+  .panel-body.step-review {
+    padding-bottom: 72px;
+  }
 }
 
 /* Send: Before you send */
@@ -1566,6 +1613,17 @@ path.map-region-denied {
 .icon.eye.held {
   background: var(--gold-bg);
   border-color: var(--gold);
+}
+
+.rv-admin {
+  margin: 0;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--ok);
+}
+
+.rv-admin.changed {
+  color: var(--warn);
 }
 
 .ro-line {
@@ -1658,7 +1716,6 @@ path.map-region-denied {
 .checkup-group h3 {
   margin: 0.8rem 0 0.2rem;
   font-size: 0.85rem;
-  text-transform: uppercase;
   color: var(--mut);
 }
 .checkup-line {
@@ -1685,16 +1742,13 @@ path.map-region-denied {
   margin: 0 0 0.4rem 1.6rem;
 }
 .checkup-own-row {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 0.2rem 0.6rem;
   align-items: center;
 }
-.checkup-own-row .checkup-label {
-  min-width: 8rem;
-}
 .checkup-own-row .checkup-note {
-  flex-basis: 100%;
+  grid-column: 1 / -1;
 }
 .checkup-count {
   margin-right: auto;

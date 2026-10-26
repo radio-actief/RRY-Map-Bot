@@ -133,6 +133,16 @@ describe("Quick check-up dialog", () => {
     expect(store.plan.value).toEqual(applyCheckup(P, PLACES, ids, new Set(["beron"])));
   });
 
+  it("says unchanged when a line's value stays, and lines Keep / Discard up in one column", () => {
+    afterRead(fromRead);
+    const d = within(openDialog());
+    expect(d.getByText("beron (unchanged)")).toBeTruthy();
+    expect(d.queryByText("beron → beron")).toBeNull();
+    const rows = [...document.querySelectorAll(".checkup-own-row")];
+    expect(rows.length).toBe(2);
+    for (const row of rows) expect(row.querySelector(":scope > .segmented")).not.toBeNull();
+  });
+
   it("Open in the steps applies and opens Place", () => {
     afterRead(P);
     const d = within(openDialog());

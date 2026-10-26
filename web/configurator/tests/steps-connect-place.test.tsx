@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/preact";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/preact";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("leaflet", async () => await import("./fakes/leaflet"));
@@ -65,7 +65,7 @@ describe("Connect step", () => {
   it("without Web Serial explains why and offers to continue without a device", () => {
     store.step.value = "connect";
     render(<Connect />);
-    expect(screen.getByText(/can't talk to USB devices/)).toBeTruthy();
+    expect(screen.getByText(/can't use USB/)).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Connect over USB" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /Continue without a device/ }));
     expect(store.step.value).toBe("place");
@@ -110,8 +110,14 @@ describe("Connect step", () => {
     expect(store.plan.value.anchor?.place?.city_code).toBe("beron");
     expect(store.plan.value.nameSuffix).toBe("Kluisberg");
     expect(store.deviceRegions.value?.named).toContain("bemak");
-    expect(await screen.findByText(/Read 34 settings/)).toBeTruthy();
+    const card = (await screen.findByText("34 settings")).closest(".device-card") as HTMLElement;
+    expect(within(card).getByText("Last read")).toBeTruthy();
     expect(screen.getByText("BE-RON-Kluisberg🌞")).toBeTruthy();
+    // After a Read: one gold button (Next), Read again is a plain one, and no plug-in hint.
+    const again = screen.getByRole("button", { name: "Read again" });
+    expect(again.classList.contains("primary")).toBe(false);
+    expect(screen.queryByRole("button", { name: "Read settings from repeater" })).toBeNull();
+    expect(screen.queryByText(/Plug it in with a USB cable/)).toBeNull();
   });
 
   it("Read keeps the repeater's access list in the snapshot and the plan", async () => {
@@ -541,11 +547,13 @@ describe("Name step", () => {
 
   it("shows owner info below power, counted in the | form with its byte limit", () => {
     render(<Name />);
-    expect(screen.getByRole("heading", { name: "Owner info" })).toBeTruthy();
+    // One label: the field's own, no heading above it.
+    expect(screen.queryByRole("heading", { name: "Owner info" })).toBeNull();
+    expect(screen.getByText("Owner info").tagName).toBe("LABEL");
     expect(screen.getByText("0 / 119 bytes")).toBeTruthy();
-    type("Contact or notes", "a\r\nb");
+    type("Owner info", "a\r\nb");
     expect(screen.getByText("3 / 119 bytes")).toBeTruthy();
-    type("Contact or notes", "x".repeat(120));
+    type("Owner info", "x".repeat(120));
     expect(screen.getByText("Too long. Owner info allows 119 bytes.")).toBeTruthy();
     expect(stepStatus("name")).toBe("current");
     store.step.value = "send";
@@ -554,7 +562,7 @@ describe("Name step", () => {
 
   it("the owner info counter counts what is sent (trimmed), as the Apply gate does", () => {
     render(<Name />);
-    type("Contact or notes", `  ${"x".repeat(119)}  `);
+    type("Owner info", `  ${"x".repeat(119)}  `);
     expect(screen.getByText("119 / 119 bytes")).toBeTruthy();
     expect(screen.queryByText("Too long. Owner info allows 119 bytes.")).toBeNull();
     expect(planErrors(store.plan.value).some((e) => e.key === "ownerInfo")).toBe(false);

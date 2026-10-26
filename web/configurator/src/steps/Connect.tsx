@@ -16,6 +16,7 @@ const shortKey = (k: string) => (k.length > 12 ? `${k.slice(0, 4)}…${k.slice(-
 function DeviceCard() {
   const { firmware } = store.device.value;
   const snap = store.snapshot.value;
+  const read = store.lastRead.value;
   const version = parseVersion(firmware);
   const state = version ? (supportsRegionDef(version) ? "ok" : "old") : "unknown";
   const location = snap && hasValidCoords(snap.lat, snap.lon) ? `${snap.lat!.toFixed(4)}, ${snap.lon!.toFixed(4)}` : null;
@@ -39,22 +40,23 @@ function DeviceCard() {
         </dd>
         <dt>{t("device.location")}</dt>
         <dd>{location ?? t("device.notRead")}</dd>
+        {read?.ok ? (
+          <>
+            <dt>{t("device.lastRead")}</dt>
+            <dd>{t("device.settingsRead", { count: read.count })}</dd>
+          </>
+        ) : null}
       </dl>
     </div>
   );
 }
 
-/** The outcome of the last Read: how much was read and what got no reply, or why it failed. */
+/** What went wrong in the last Read: no reply to some commands, or why it failed. The count is in the device card. */
 function ReadResult() {
   const r = store.lastRead.value;
   if (!r) return null;
   if (!r.ok) return <Notice kind="error">{t("read.failed", { reason: r.reason })}</Notice>;
-  return (
-    <>
-      <Notice kind="ok">{t("read.done", { count: r.count })}</Notice>
-      {r.missing.length ? <Notice kind="warn">{t("read.missing", { commands: r.missing.join(", ") })}</Notice> : null}
-    </>
-  );
+  return r.missing.length ? <Notice kind="warn">{t("read.missing", { commands: r.missing.join(", ") })}</Notice> : null;
 }
 
 const GROUP_ORDER: CheckupGroup[] = ["radio", "advertising", "repeating", "timing", "regions", "advanced"];
@@ -96,6 +98,7 @@ export function Connect() {
   const reading = store.reading.value;
   const locked = busy.value;
   const serial = hasWebSerial();
+  const readOnce = !!store.lastRead.value?.ok && !!store.snapshot.value;
 
   function read() {
     setAsking(false);
@@ -105,7 +108,7 @@ export function Connect() {
   return (
     <div class="panel-body step-connect">
       <h2>{t("connect.title")}</h2>
-      <p class="sub">{t("connect.sub")}</p>
+      {status !== "connected" ? <p class="sub">{t("connect.sub")}</p> : null}
       {!serial ? <Notice kind="warn">{t("connect.noSerial")}</Notice> : null}
       {serial && status !== "connected" ? (
         <button type="button" class="btn primary block" disabled={status === "connecting"} onClick={() => void connectUsb()}>
@@ -117,11 +120,11 @@ export function Connect() {
           <DeviceCard />
           <button
             type="button"
-            class="btn primary block"
+            class={`btn block${readOnce ? "" : " primary"}`}
             disabled={locked}
             onClick={() => (dirty.value ? setAsking(true) : read())}
           >
-            {reading ? t("read.reading") : t("read.button")}
+            {reading ? t("read.reading") : readOnce ? t("read.again") : t("read.button")}
           </button>
         </>
       ) : null}

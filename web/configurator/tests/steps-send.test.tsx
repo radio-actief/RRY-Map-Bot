@@ -132,6 +132,15 @@ describe("Send step: script", () => {
     expect(scriptText()).toContain("region remove bemak");
   });
 
+  it("keeps the script tools apart from Back and Apply, which a phone pins to the bottom", () => {
+    render(<Send />);
+    const tools = document.querySelector(".review-tools") as HTMLElement;
+    const nav = document.querySelector(".review-nav") as HTMLElement;
+    for (const name of ["Copy script", "Download .txt", "Console ›"]) expect(within(tools).getByRole("button", { name })).toBeTruthy();
+    expect(within(nav).getByRole("button", { name: "← Back" })).toBeTruthy();
+    expect(within(nav).getAllByRole("button").at(-1)!.classList.contains("primary")).toBe(true);
+  });
+
   it("Copy script and Download work without a device, Apply lists why it can't run", async () => {
     const createObjectURL = vi.fn(() => "blob:x");
     const revokeObjectURL = vi.fn();
@@ -177,11 +186,17 @@ describe("Send step: script", () => {
     expect(await screen.findByText(/Couldn't copy/)).toBeTruthy();
   });
 
-  it("lists the changes grouped, with the admin password line", () => {
+  it("lists the changes grouped, with the admin password line in the same card, before the passwords", () => {
     render(<Send />);
     expect(screen.getByText("Name & location")).toBeTruthy();
     expect(screen.getByText("BE-RON-Kluisberg", { selector: ".rv-to" })).toBeTruthy();
-    expect(screen.getByText(/Admin password stays as it is/)).toBeTruthy();
+    const kept = screen.getByText(/Admin password stays as it is/);
+    expect(kept.closest(".review-table")).not.toBeNull();
+    const column = document.querySelector(".review-changes") as HTMLElement;
+    const cards = [...column.children].map((c) => c.className);
+    expect(cards[0]).toContain("review-table");
+    expect(cards[1]).toContain("card-before");
+    expect(cards.length).toBe(2);
   });
 });
 
@@ -758,14 +773,12 @@ describe("Send step: Before you send", () => {
     expect(screen.getByPlaceholderText("Leave empty to keep the current one")).toBeTruthy();
   });
 
-  it("lists the radio, duty cycle and TX power read-only, each linking to Settings", () => {
+  it("shows the radio, duty cycle and TX power on one read-only line that links to Settings", () => {
     store.plan.value = { ...store.plan.value, settings: { ...store.plan.value.settings, txPower: 14 } };
     render(<Send />);
-    expect(screen.getByText(/^Radio: /)).toBeTruthy();
-    expect(screen.getByText(/^Duty cycle: /)).toBeTruthy();
-    expect(screen.getByText("TX power: 14")).toBeTruthy();
-    const links = screen.getAllByRole("button", { name: "Change in Settings" });
-    expect(links.length).toBe(3);
+    expect(screen.getByText("Radio: EU/UK (Narrow) · 10 % · 14 dBm")).toBeTruthy();
+    const links = screen.getAllByRole("button", { name: "Change" });
+    expect(links.length).toBe(1);
     fireEvent.click(links[0]);
     expect(store.step.value).toBe("settings");
   });
@@ -779,6 +792,6 @@ describe("Send step: Before you send", () => {
 
   it("says TX power is unchanged when none is set", () => {
     render(<Send />);
-    expect(screen.getByText("TX power: unchanged")).toBeTruthy();
+    expect(screen.getByText("Radio: EU/UK (Narrow) · 10 % · TX power unchanged")).toBeTruthy();
   });
 });

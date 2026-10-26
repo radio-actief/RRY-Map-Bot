@@ -112,6 +112,13 @@ describe("app shell", () => {
     expect(container.querySelectorAll(".stepper .seg")[3].classList.contains("attention")).toBe(true);
   });
 
+  it("the wordmark's tail can hide on a phone", () => {
+    const { container } = render(<App />);
+    const mark = container.querySelector(".wordmark") as HTMLElement;
+    expect(mark.textContent).toBe("#BEmesh configurator");
+    expect(mark.querySelector(".wordmark-tail")!.textContent).toBe(" configurator");
+  });
+
   it("renders a bottom sheet with a grab handle under 768 px", () => {
     stubWidth(500);
     const { container } = render(<App />);

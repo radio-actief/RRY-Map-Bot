@@ -41,7 +41,7 @@ describe("Settings step", () => {
   it("no longer shows owner info (it is on Name)", () => {
     render(<SettingsStep />);
     expect(screen.queryByRole("heading", { name: "Owner info" })).toBeNull();
-    expect(screen.queryByLabelText("Contact or notes")).toBeNull();
+    expect(screen.queryByLabelText("Owner info")).toBeNull();
   });
 
   it("lists the admin password line in the summary and no longer shows the password fields", async () => {

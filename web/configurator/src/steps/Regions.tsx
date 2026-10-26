@@ -53,8 +53,19 @@ const update = (f: (p: RegionPolicy) => RegionPolicy) => {
   if (plan.regions) store.plan.value = { ...plan, regions: f(plan.regions) };
 };
 
-/** A row's sub-label; a free row also says where it sits. */
-function kindLabel(row: RegionRow, policy: RegionPolicy): string {
+/** Groups whose heading already names the kind of every row in them. */
+const KIND_IN_HEADING = new Set<RegionRow["group"]>([
+  "municipality",
+  "neighbourMunicipality",
+  "neighbourProvince",
+  "neighbourRegion",
+  "neighbourCountry",
+  "device",
+]);
+
+/** A row's sub-label (none where the group heading says it); a free row also says where it sits. */
+function kindLabel(row: RegionRow, policy: RegionPolicy): string | null {
+  if (KIND_IN_HEADING.has(row.group)) return null;
   if (row.group !== "free") return t(row.labelKey);
   if (!row.parent) return t("region.kind.freeTop");
   const parent = policy.rows.find((r) => r.code === row.parent)?.label ?? row.parent;
@@ -67,6 +78,7 @@ function RegionRowView({ row, home, policy }: { row: RegionRow; home: boolean; p
   const reason = locked ? lockedReason(row) : undefined;
   const inUse = isFreeParent(policy, row.code);
   const inUseId = `free-in-use-${row.code}`;
+  const kind = kindLabel(row, policy);
   return (
     <li class="region-row" data-code={row.code}>
       <span class="region-name">
@@ -74,7 +86,7 @@ function RegionRowView({ row, home, policy }: { row: RegionRow; home: boolean; p
           {row.label}
           {home ? <span class="badge home">{t("regions.home.badge")}</span> : null}
         </span>
-        <span class="sub">{kindLabel(row, policy)}</span>
+        {kind ? <span class="sub">{kind}</span> : null}
       </span>
       <div class="segmented region-state" role="group" aria-label={row.label} title={reason}>
         {STATES.map((s) => (

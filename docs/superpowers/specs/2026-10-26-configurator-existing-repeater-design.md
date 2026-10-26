@@ -43,26 +43,49 @@ Part 3 is done when:
   the Timing preset on Settings; Advanced is a numbered step named Settings; the hop allowance
   advice is always Average 8/12; the repeater's own regions are kept or discarded one by one;
   the 1 % duty cycle option is gone.
+- Layout review (user, 2026-10-26): Timing is its own block, Site & timing; max flood hops
+  joins the hop allowance in Adverts & hops; presets fold their numbers under Fine-tune; field
+  help is one line with the rest behind ⓘ; each card's button reads "#BEmesh Recommended".
+- Own region codes (user, 2026-10-26): the parent is top level or any region on Allow or Deny,
+  neighbouring countries included.
 
 ## Steps
 
 Connect → Place → Name → Regions → Settings → Send, numbered 1 to 6. Settings and Send are the
-wide steps. Settings holds the four blocks and the access list:
+wide steps. Settings holds five blocks as cards, then the access list:
 
-- **Hop allowance preset (unscoped / advert):** Tight, Minimal, Average, Extended, Full.
+| Card | Settings |
+|---|---|
+| Radio | preset (one summary line; the four fields only for Custom), duty cycle, TX power |
+| Adverts & hops | flood advert, zero-hop advert, hop allowance preset, max flood hops |
+| Repeating | repeat, loop detection |
+| Site & timing | timing preset; the three delays |
+| Advanced | path hash size, RX gain boost, interference threshold, AGC reset, extra acknowledgements |
+
+- Each card header has the badge, ↺ and "#BEmesh Recommended" (off when the card already
+  matches). "#BEmesh Recommended for all" sits by the step title.
+- **Hop allowance preset (unscoped / advert):** Tight, Minimal, Average, Extended, Full. The
+  two numbers fold under Fine-tune, open when they match no preset.
 - **Timing preset:** Hilltop, Foothills, Suburban, Local and Custom, with the chosen site's
   description and how many repeaters the map shows nearby. Custom is pressed when the timing is
-  no site; clicking it puts back the repeater's timing (the firmware's without a Read).
+  no site; clicking it puts back the repeater's timing (the firmware's without a Read). The
+  three delays fold under Fine-tune, open on Custom.
+- **Radio:** on a preset, a Read radio that differs is tagged by the preset with ↺, which puts
+  it back (as Custom when it is no preset).
 - **Duty cycle:** 10, 50 or 100 %. The firmware raises anything under 10 % to 10 % at every
   start, so a backup holding 1 % imports as 10 %.
+- **Help:** one short line under each field; a longer text, where there is one, behind ⓘ.
+- **Phone:** Back and Next stay pinned at the bottom of Settings, Back and Apply on Send.
 
 ## Connect after a Read
 
-A new notice under the device card, shown when a Read succeeded and at least one thing differs
-from the recommendation:
+The device card gains a "Last read · N settings" row, the Read button becomes a plain "Read
+again" and the plug-in hint goes. Commands without a reply still get their own notice. A notice
+under the card, shown when a Read succeeded and at least one thing differs from the
+recommendation:
 
 > **6 settings differ from #BEmesh**
-> Radio 1 · Advertising & hops 2 · Repeating 1 · Regions · Advanced 1. The name differs too.
+> Radio 1 · Adverts & hops 2 · Repeating 1 · Site & timing 1 · Regions. The name differs too.
 > [Quick check-up…]
 
 - The headline counts the check-up lines that are ticked by default (each setting line, and
@@ -78,12 +101,13 @@ from the recommendation:
 
 A dialog over the panel, titled "Quick check-up", subtitle "<name> compared with the #BEmesh
 recommendation". It lists each difference between the current plan and the recommended plan,
-grouped in this order: Name, Radio, Advertising & hops, Repeating, Regions, Advanced.
+grouped in this order: Name, Radio, Adverts & hops, Repeating, Site & timing, Regions, Advanced.
+A line whose value stays the same reads "value (unchanged)".
 
 ### The recommended plan
 
-- **Settings:** `recommendedForAll(plan)` from part 2: the hop allowance always Average 8/12,
-  the timing on the plan's site (Suburban when none matches), as the per-block buttons do.
+- **Settings:** `recommendedForAll(plan)`: the hop allowance always Average 8/12 with max flood
+  hops 64, the timing on the plan's site (Suburban when none matches), as the card buttons do.
 - **Regions:** `policyFor(anchor, places)`, the default policy for the repeater's location, with
   the repeater's own regions on top (those the default policy leaves out), except the ones the
   user discards. Without an anchor the Regions line is shown, not ticked and disabled, with
@@ -137,6 +161,9 @@ Without a snapshot (the new-repeater path), Apply sends the full script as today
 
 The Send step:
 
+- lists the changes first, with the admin password line in the same card, then "Before you
+  send": one read-only line "Radio: preset · duty cycle · TX power" with Change, and the
+  admin and guest passwords;
 - shows "N changes to send" with a badge "M settings unchanged", and the script shows only the
   lines that will go out, under their group headers;
 - has a switch "Send every setting, also the unchanged ones" that makes Apply and the script
@@ -237,3 +264,22 @@ leaves the plan's access list as it was.
 - Companion channels and the "Why regions" page (part 5).
 - Room servers (needs `MAX_LINE_LEN` 150, parked from part 1).
 - Guest entries in the access list (the firmware does not store them).
+
+## Own region codes and the region map
+
+- **Parent region:** the add form ("Region code", "Parent region") offers top level and every
+  row set to Allow or Deny, in table order, neighbouring countries included. A row with an own
+  code under it cannot go back to neither ("Another region sits under this one."). When a lock
+  clears the parent anyway (clearing Belgium locks the neighbouring countries), or a backup has
+  an own code under a region on neither, the code moves to top level.
+- **European Union border:** `data/countries.geojson` also holds `eu`, the merged outline of
+  the 27 member states in Europe (Azores and Canary Islands to Cyprus), built by
+  `scripts/generate-countries-geojson.py` from Natural Earth.
+- **Region codes map (`/region-map`):** a "Countries and EU" boundary mode draws Belgium, the
+  neighbouring countries and the dashed EU outline, with name tooltips and popups (the parent
+  region eu, or the countries under it). Search finds the country codes and names and zooms to
+  them; the region list starts with European Union (eu), Belgium and its provinces under it,
+  then the other countries.
+- **Configurator map:** an allowed or denied eu is filled under the countries; it gets no
+  border line of its own.
+

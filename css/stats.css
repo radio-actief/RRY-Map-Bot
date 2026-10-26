@@ -490,7 +490,7 @@ button.chip {
 }
 
 .stats-links a {
-  color: var(--gold);
+  color: var(--node);
   text-decoration: none;
 }
 

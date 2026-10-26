@@ -36,9 +36,9 @@ export default async function (ctx) {
   await page.mouse.click(5, 400);
 
   const labels = await text(page.locator(".stats-tiles .tile .tile-label"));
-  ctx.check("stats: tile labels in order", labels.join(",") === "Network,Companions,Repeaters,Rooms,Sensors,New · 1d / 7d / 30d,Claimed,Discord users", labels.join(","));
+  ctx.check("stats: tile labels in order", labels.join(",") === "Network,Companions,Repeaters,Rooms,Sensors,Active · 1d / 7d / 30d,Claimed,Discord users", labels.join(","));
   const newTile = (await text(page.locator("#stats-chip-new")))[0] || "";
-  ctx.check("stats: New tile reads a · b · c", /^[\d,]+ · [\d,]+ · [\d,]+$/.test(newTile), newTile);
+  ctx.check("stats: Active tile reads a · b · c", /^[\d,]+ · [\d,]+ · [\d,]+$/.test(newTile), newTile);
   ctx.check("stats: Network tile has the gold highlight", await page.locator(".tile.is-hero").count() === 1);
   const total = (await text(page.locator("#stats-chip-total")))[0];
   ctx.check("stats: Network number is filled", /\d/.test(total || ""), total);

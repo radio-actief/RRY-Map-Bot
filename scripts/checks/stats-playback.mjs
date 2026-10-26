@@ -100,13 +100,13 @@ export default async function (ctx) {
   const link = await page.evaluate(() => {
     const a = document.querySelector(".stats-links a");
     const probe = document.createElement("span");
-    probe.style.color = "var(--gold)";
+    probe.style.color = "var(--node)";
     document.body.appendChild(probe);
-    const gold = getComputedStyle(probe).color;
+    const want = getComputedStyle(probe).color;
     probe.remove();
-    return { color: getComputedStyle(a).color, deco: getComputedStyle(a).textDecorationLine, gold };
+    return { color: getComputedStyle(a).color, deco: getComputedStyle(a).textDecorationLine, want };
   });
-  ctx.check("playback: Links colour is --gold, no underline", link.color === link.gold && link.deco === "none", JSON.stringify(link));
+  ctx.check("playback: Links colour is --node, no underline", link.color === link.want && link.deco === "none", JSON.stringify(link));
   ctx.check("playback: no page errors", !page.errors.length, page.errors.join("; "));
   await page.close();
 

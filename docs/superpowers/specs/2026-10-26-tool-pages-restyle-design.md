@@ -48,7 +48,7 @@ The main map (`/`), stats (`/stats`) and region map (`/region-map`) look and beh
 - A row of number tiles:
   - Network, highlighted.
   - Companions, repeaters, rooms and sensors.
-  - New 1d / 7d / 30d.
+  - Active 1d / 7d / 30d.
   - Claimed and Discord users.
 - Second row:
   - **Changes**: the range as segmented buttons (7d, Month, 3m, 6m, YTD, 1y, All) above the existing chart.

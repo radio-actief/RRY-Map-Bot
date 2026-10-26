@@ -456,14 +456,23 @@
           } catch (e) {}
         }
 
-        /** Switch the boundaries radio (and the map) to one mode. */
+        /** Press the borders button that matches overlayMode. */
+        function syncOverlayButtons() {
+          document
+            .querySelectorAll("#overlay-seg button")
+            .forEach(function (b) {
+              b.setAttribute(
+                "aria-pressed",
+                b.dataset.value === overlayMode ? "true" : "false",
+              );
+            });
+        }
+
+        /** Switch the borders control (and the map) to one mode. */
         function setOverlayMode(mode) {
           if (overlayMode === mode) return;
           overlayMode = mode;
-          var radio = document.querySelector(
-            'input[name="overlay"][value="' + mode + '"]',
-          );
-          if (radio) radio.checked = true;
+          syncOverlayButtons();
           updateOverlays();
         }
 
@@ -748,9 +757,10 @@
           if (firstAc) firstAc.classList.add("active");
         }
 
-        function runCodeSearch(code, type) {
+        function runCodeSearch(code, type, keepInput) {
           var input = document.getElementById("code-input");
-          if (input) input.value = code;
+          if (input && !keepInput) input.value = code;
+          markActiveRow(code);
           currentSearch = code;
           var matched = matchLocations(code);
           lastMatches = matched;
@@ -768,6 +778,13 @@
           updateCounter(matched.length);
         }
 
+        function markActiveRow(code) {
+          var c = (code || "").trim().toLowerCase();
+          document.querySelectorAll(".hierarchy-node").forEach(function (n) {
+            n.classList.toggle("active", !!c && n.dataset.code === c);
+          });
+        }
+
         function updateCounter(count) {
           var txt = document.getElementById("counter-text");
           var sp = document.getElementById("spinner");
@@ -775,8 +792,7 @@
           var normQ = normalize((currentSearch || "").trim());
           if (count === undefined) {
             if (!currentSearch) {
-              txt.textContent =
-                "Enter a province code (be-*), be, or a place name";
+              txt.textContent = "";
             } else if (isForeignRegion(normQ)) {
               txt.textContent = countryName(normQ) + " (" + normQ + ")";
             } else if (normQ === "be") {
@@ -851,45 +867,43 @@
         function buildHierarchy() {
           var withCoords = getLocationsWithCoords();
           var hasEu = !!countryFeature("eu");
-          var node = function (indent, code, type, label) {
+          var node = function (indent, code, type, name, count) {
             return (
-              '<div class="hierarchy-node indent-' +
+              '<div class="hierarchy-node region-row indent-' +
               indent +
               '" data-code="' +
               code +
               '" data-type="' +
               type +
-              '">' +
-              escapeHtml(label) +
+              '"><span class="region-name"><span class="region-title">' +
+              escapeHtml(name) +
+              '</span><span class="region-meta muted">' +
+              escapeHtml(code + " · " + type) +
+              "</span></span>" +
+              (count != null
+                ? '<span class="region-count">' + count + "</span>"
+                : "") +
               "</div>"
             );
           };
-          var html = hasEu
-            ? node(0, "eu", "country", countryName("eu") + " (eu)")
-            : "";
+          var html = hasEu ? node(0, "eu", "country", countryName("eu")) : "";
           var top = hasEu ? 1 : 0;
-          html += node(top, "be", "country", "Belgium (be)");
+          html += node(top, "be", "country", "Belgium", withCoords.length);
           PROVINCE_CODES.forEach(function (p) {
             var locs = withCoords.filter(function (l) {
               return l.province_code === p;
             });
             if (!locs.length) return;
-            html +=
-              '<div class="hierarchy-node indent-' +
-              (top + 1) +
-              '" data-code="' +
-              p +
-              '" data-type="province">' +
-              (PROVINCE_NAMES[p] || p) +
-              " (" +
-              p +
-              ") [" +
-              locs.length +
-              "]</div>";
+            html += node(
+              top + 1,
+              p,
+              "province",
+              PROVINCE_NAMES[p] || p,
+              locs.length,
+            );
           });
           countryCodes().forEach(function (c) {
-            if (c !== "be")
-              html += node(top, c, "country", countryName(c) + " (" + c + ")");
+            if (c !== "be") html += node(top, c, "country", countryName(c));
           });
           var el = document.getElementById("hierarchy");
           if (el) {
@@ -900,6 +914,7 @@
               });
             });
           }
+          markActiveRow(currentSearch);
         }
 
         function init() {
@@ -940,13 +955,29 @@
           });
 
           document
-            .querySelectorAll('input[name="overlay"]')
-            .forEach(function (r) {
-              r.addEventListener("change", function () {
-                overlayMode = this.value;
+            .querySelectorAll("#overlay-seg button")
+            .forEach(function (b) {
+              b.addEventListener("click", function () {
+                overlayMode = this.dataset.value;
+                syncOverlayButtons();
                 updateOverlays();
               });
             });
+
+          var menuBtn = document.getElementById("menu-toggle");
+          var menu = document.getElementById("page-menu");
+          if (menuBtn && menu) {
+            menuBtn.addEventListener("click", function (e) {
+              e.stopPropagation();
+              var open = menu.hidden;
+              menu.hidden = !open;
+              menuBtn.setAttribute("aria-expanded", open ? "true" : "false");
+            });
+            document.addEventListener("click", function () {
+              menu.hidden = true;
+              menuBtn.setAttribute("aria-expanded", "false");
+            });
+          }
 
           document
             .getElementById("show-places")
@@ -1063,15 +1094,12 @@
               provinceBoundariesFC = results[1];
               gewestBoundariesFC = results[2];
               countryBoundariesFC = results[3];
-              var pr = document.querySelector(
-                'input[name="overlay"][value="provinces"]',
-              );
-              if (pr) pr.checked = true;
               overlayMode = "provinces";
+              syncOverlayButtons();
               buildHierarchy();
               updateOverlays();
               /* Same as clicking hierarchy indent-0 Belgium (be) */
-              runCodeSearch("be", "country");
+              runCodeSearch("be", "country", true);
               if (map) map.invalidateSize({ animate: false });
             })
             .catch(function () {

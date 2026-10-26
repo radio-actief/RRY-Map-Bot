@@ -1,0 +1,303 @@
+/* Region map page: side panel + map under the shared #BEmesh top bar. */
+html,
+body {
+  height: 100%;
+}
+
+body.region-map-body {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+html.region-map-embed .topbar {
+  display: none;
+}
+
+.menu-wrap {
+  position: relative;
+  display: none;
+}
+
+.menu-wrap .menu {
+  top: 34px;
+  right: 0;
+}
+
+.menu[hidden] {
+  display: none;
+}
+
+.menu a[aria-current="page"] {
+  background: var(--gold-bg);
+}
+
+@media (max-width: 600px) {
+  .menu-wrap {
+    display: block;
+  }
+}
+
+.region-map-layout {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.region-map-controls {
+  width: 300px;
+  flex-shrink: 0;
+  background: var(--panel);
+  border-right: 1px solid var(--line);
+  overflow-y: auto;
+  transition: width 0.2s ease;
+}
+
+.region-map-controls.collapsed {
+  width: 0;
+  border-right: 0;
+  overflow: hidden;
+}
+
+.region-map-controls-inner {
+  width: 300px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.region-map-search-wrap {
+  position: relative;
+}
+
+#counter {
+  font-size: 12px;
+  min-height: 1em;
+}
+
+.field-label {
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.region-map-places-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.region-map-places-check input {
+  accent-color: var(--gold);
+}
+
+#autocomplete {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 1000;
+  max-height: 220px;
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px var(--shadow);
+}
+
+#autocomplete:empty {
+  display: none;
+}
+
+.autocomplete-item {
+  padding: 6px 10px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--line);
+}
+
+.autocomplete-item:last-child {
+  border-bottom: 0;
+}
+
+.autocomplete-item:hover,
+.autocomplete-item.active {
+  background: var(--gold-bg);
+}
+
+.autocomplete-item code {
+  color: var(--mut);
+}
+
+/* Region code rows, as in the configurator. */
+.hierarchy-node {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.hierarchy-node:hover {
+  background: var(--bar);
+}
+
+.hierarchy-node.active {
+  background: var(--gold-bg);
+}
+
+.hierarchy-node.indent-1 {
+  padding-left: 20px;
+}
+
+.hierarchy-node.indent-2 {
+  padding-left: 32px;
+}
+
+.region-name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.region-title {
+  overflow-wrap: anywhere;
+}
+
+.region-meta {
+  font-size: 11px;
+}
+
+.region-count {
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.region-map-main {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+#region-map-container {
+  position: absolute;
+  inset: 0;
+  background: var(--bar);
+}
+
+.region-map-controls-toggle {
+  position: absolute;
+  z-index: 900;
+  top: 50%;
+  left: 300px;
+  width: 20px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-left: 0;
+  border-radius: 0 8px 8px 0;
+  background: var(--panel);
+  cursor: pointer;
+  transition: left 0.2s ease;
+}
+
+.region-map-controls.collapsed + .region-map-controls-toggle {
+  left: 0;
+}
+
+.region-map-controls.collapsed + .region-map-controls-toggle span {
+  display: inline-block;
+  transform: rotate(180deg);
+}
+
+/* Leaflet popups and tooltips follow the theme. */
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip,
+.leaflet-tooltip.region-map-tooltip {
+  background: var(--panel);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  box-shadow: 0 2px 8px var(--shadow);
+}
+
+.leaflet-tooltip.region-map-tooltip::before {
+  display: none;
+}
+
+.leaflet-popup-content {
+  margin: 10px 28px 10px 12px;
+  font-family: inherit;
+  font-size: 13px;
+}
+
+.leaflet-container a.leaflet-popup-close-button {
+  color: var(--mut);
+}
+
+.region-locode-popup .leaflet-popup-content {
+  min-width: 14rem;
+}
+
+.region-map-locode-popup__grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.region-map-locode-popup__pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px 10px;
+  align-items: start;
+}
+
+.region-map-locode-popup__name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.region-map-locode-popup__code code {
+  padding: 1px 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bar);
+  color: var(--ink);
+}
+
+.node-popup__muted {
+  color: var(--mut);
+}
+
+@media (max-width: 767px) {
+  .region-map-layout {
+    flex-direction: column;
+  }
+
+  .region-map-main {
+    order: -1;
+    flex: 0 0 45vh;
+  }
+
+  .region-map-controls,
+  .region-map-controls.collapsed {
+    width: 100%;
+    flex: 1;
+    min-height: 0;
+    border-right: 0;
+    border-top: 1px solid var(--line);
+    overflow-y: auto;
+  }
+
+  .region-map-controls-inner {
+    width: auto;
+  }
+
+  .region-map-controls-toggle {
+    display: none;
+  }
+}

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" class="region-map-page">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta
@@ -20,18 +20,16 @@
       href="https://fonts.googleapis.com/css2?family=Figtree:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="./lib/css/bootstrap.min.css" />
-    <link rel="stylesheet" href="./lib/css/bootstrap-icons.css" />
-    <link rel="stylesheet" href="./css/bootstrap-rry-theme.css" />
-    <link rel="stylesheet" href="./css/style.css" />
-    <link rel="stylesheet" href="./css/rry-tool-pages.css" />
-    <link rel="stylesheet" href="./css/region-map-page.css" />
+    <link rel="stylesheet" href="./src/shared/bemesh-tokens.css" />
+    <link rel="stylesheet" href="./src/shared/bemesh-shell.css" />
+    <link rel="stylesheet" href="./css/region-map.css" />
     <link rel="stylesheet" href="./lib/css/leaflet.css" />
     <link rel="stylesheet" href="./lib/css/MarkerCluster.css" />
     <link rel="stylesheet" href="./lib/css/MarkerCluster.Default.css" />
+    <script src="./src/shared/theme.js"></script>
     <title>Region codes map – #BEmesh</title>
   </head>
-  <body class="light map-page region-map-body rty-map-view">
+  <body class="region-map-body">
     <script>
       (function () {
         var q = new URLSearchParams(window.location.search || "");
@@ -48,121 +46,94 @@
         }
       })();
     </script>
+    <header class="topbar">
+      <span class="wordmark"><b>#BE</b>mesh region map</span>
+      <nav class="switcher" aria-label="Pages">
+        <a href="/">Map</a><a href="/stats">Stats</a
+        ><a href="/region-map" aria-current="page">Region map</a
+        ><a href="/configurator">Configurator</a>
+      </nav>
+      <span class="spacer"></span>
+      <span class="menu-wrap">
+        <button
+          type="button"
+          class="icon menu-toggle"
+          id="menu-toggle"
+          aria-label="Pages"
+          aria-expanded="false"
+        >
+          ☰
+        </button>
+        <nav class="menu" id="page-menu" aria-label="Pages" hidden>
+          <a href="/">Map</a>
+          <a href="/stats">Stats</a>
+          <a href="/region-map" aria-current="page">Region map</a>
+          <a href="/configurator">Configurator</a>
+        </nav>
+      </span>
+      <button type="button" class="icon" data-theme-toggle aria-label="Theme">
+        ◐
+      </button>
+    </header>
     <div class="region-map-layout">
-      <div class="region-map-controls" id="controls">
+      <aside class="region-map-controls" id="controls">
         <div class="region-map-controls-inner">
-          <div class="region-map-controls-top">
-            <h3>Search region codes</h3>
-            <div class="region-map-search-wrap">
-              <input
-                id="code-input"
-                type="text"
-                class="form-control"
-                placeholder="e.g. be-vwv, nl, Belgium, or a place name…"
-                aria-label="Search region codes"
-                spellcheck="false"
-                autocomplete="off"
-              />
-              <div id="autocomplete"></div>
-            </div>
-            <div id="counter">
-              <span id="counter-text"
-                >Enter a province code (be-*), be, or a place name</span
-              >
-              <div class="spinner" id="spinner" style="display: none"></div>
-            </div>
+          <div class="region-map-search-wrap">
+            <input
+              id="code-input"
+              type="text"
+              class="input"
+              placeholder="Search city, province or region"
+              aria-label="Search city, province or region"
+              spellcheck="false"
+              autocomplete="off"
+            />
+            <div id="autocomplete"></div>
           </div>
-          <div class="region-map-controls-scroll">
-            <div class="region-map-overlays">
-              <div class="region-map-overlays-title">Region boundaries</div>
-              <div class="region-map-overlays-radios">
-                <label>
-                  <input type="radio" name="overlay" value="" /> Off
-                </label>
-                <label>
-                  <input
-                    type="radio"
-                    name="overlay"
-                    value="provinces"
-                    checked
-                  />
-                  Provinces
-                </label>
-                <label>
-                  <input type="radio" name="overlay" value="gewesten" />
-                  Gewesten (optional)
-                </label>
-                <label>
-                  <input type="radio" name="overlay" value="countries" />
-                  Countries and EU
-                </label>
-              </div>
-            </div>
-            <div class="region-map-places-check">
-              <label>
-                <input type="checkbox" id="show-places" checked /> Show location
-                points
-              </label>
-            </div>
-            <div class="region-map-hierarchy">
-              <h4>Region codes</h4>
-              <div class="hierarchy-tree" id="hierarchy"></div>
-            </div>
+          <div id="counter" class="muted">
+            <span id="counter-text"></span>
+            <span id="spinner" hidden></span>
           </div>
+          <div class="field-label" id="borders-label">Borders</div>
+          <div
+            class="segmented"
+            id="overlay-seg"
+            role="group"
+            aria-labelledby="borders-label"
+          >
+            <button type="button" data-value="" aria-pressed="false">Off</button>
+            <button type="button" data-value="provinces" aria-pressed="true">
+              Provinces
+            </button>
+            <button type="button" data-value="gewesten" aria-pressed="false">
+              Gewesten
+            </button>
+            <button type="button" data-value="countries" aria-pressed="false">
+              Countries
+            </button>
+          </div>
+          <label class="region-map-places-check">
+            <input type="checkbox" id="show-places" checked /> Location points
+          </label>
+          <div class="field-label">Region codes</div>
+          <div class="hierarchy-tree" id="hierarchy"></div>
         </div>
-      </div>
+      </aside>
       <button
         type="button"
         class="region-map-controls-toggle"
         id="toggle-controls"
         title="Toggle side panel"
+        aria-label="Toggle side panel"
         aria-expanded="true"
       >
-        <span class="region-map-controls-chevron" aria-hidden="true"></span>
+        <span aria-hidden="true">‹</span>
       </button>
       <div class="region-map-main">
-        <div class="region-map-header-bar rty-glass-surface rty-chrome-accent-bar">
-          <div class="region-map-header-main">
-            <div class="region-map-header-brand">
-              <img
-                src="./favicon-32.png"
-                alt=""
-                class="region-map-header-logo"
-                width="32"
-                height="32"
-                decoding="async"
-                aria-hidden="true"
-              />
-              <div>
-                <h1>Region codes map</h1>
-                <p class="region-map-attrib" aria-hidden="false">
-                  #BEmesh region map
-                </p>
-              </div>
-            </div>
-          </div>
-          <nav class="region-map-header-links" aria-label="Page navigation">
-            <a href="/" class="rty-back-link">← Back to map</a>
-            <a href="/configurator" class="rty-back-link">Configurator</a>
-            <a
-              href="/stats"
-              class="region-map-header-icon-btn"
-              title="Open statistics"
-              aria-label="Open statistics"
-            >
-              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                <path
-                  d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zM7 15h2v-4H7v4zm4 0h2v-8h-2v8zm4 0h2v-5h-2v5z"
-                />
-              </svg>
-            </a>
-          </nav>
-        </div>
         <div id="region-map-container"></div>
       </div>
     </div>
 
-    <script src="./lib/js/bootstrap.bundle.min.js"></script>
     <script src="./lib/leaflet.js"></script>
     <script src="./lib/leaflet.markercluster.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>

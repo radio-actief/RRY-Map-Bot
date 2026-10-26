@@ -1,28 +1,8 @@
 // Stats page: top bar, tiles, range buttons, chart colours, cards, and no horizontal scroll on a phone.
-// The local database may have no sync history, so the stats endpoints come from the public site once.
-const LIVE = "https://meshmap.radio-actief.be";
-const cache = new Map();
+// The stats endpoints come from small fixtures, so the check never needs the public site.
+import { mockStats } from "./fixtures/mock-stats.mjs";
 
-async function liveJson(path) {
-  if (!cache.has(path)) {
-    const res = await fetch(LIVE + path);
-    if (!res.ok) throw new Error(`${path}: ${res.status}`);
-    cache.set(path, await res.text());
-  }
-  return cache.get(path);
-}
-
-async function mockStats(page) {
-  for (const path of ["/api/v1/stats", "/api/v1/sync-history", "/api/v1/node-changes"]) {
-    await page.route(`**${path}*`, async (route) => {
-      const url = new URL(route.request().url());
-      const body = path === "/api/v1/node-changes" ? "[]" : await liveJson(url.pathname + (url.search || ""));
-      await route.fulfill({ contentType: "application/json", body });
-    });
-  }
-}
-
-const open = (ctx, opts = {}) => ctx.open("/stats", { ...opts, setup: mockStats });
+const open = (ctx, opts = {}) => ctx.open("/stats", { ...opts, setup: (p) => mockStats(p) });
 const ready = (page) => page.waitForSelector("#stats-chart .apexcharts-yaxis-label", { timeout: 15000 }).catch(() => {});
 const text = async (loc) => ((await loc.allTextContents()).map((s) => s.replace(/\s+/g, " ").trim()));
 const categories = (page) => page.evaluate(() => window.__statsChartInstance?.w.globals.labels.length ?? -1);

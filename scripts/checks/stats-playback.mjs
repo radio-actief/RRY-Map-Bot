@@ -1,15 +1,5 @@
 // Stats timeline playback: controls on the map, keyboard stepping, Links colour, phone theme switch.
-const LIVE = "https://meshmap.radio-actief.be";
-const cache = new Map();
-
-async function liveJson(path) {
-  if (!cache.has(path)) {
-    const res = await fetch(LIVE + path);
-    if (!res.ok) throw new Error(`${path}: ${res.status}`);
-    cache.set(path, await res.text());
-  }
-  return cache.get(path);
-}
+import { mockStats } from "./fixtures/mock-stats.mjs";
 
 function changes() {
   const rows = [];
@@ -30,17 +20,7 @@ function changes() {
   return JSON.stringify(rows);
 }
 
-async function mockStats(page) {
-  for (const path of ["/api/v1/stats", "/api/v1/sync-history", "/api/v1/node-changes"]) {
-    await page.route(`**${path}*`, async (route) => {
-      const url = new URL(route.request().url());
-      const body = path === "/api/v1/node-changes" ? changes() : await liveJson(url.pathname + (url.search || ""));
-      await route.fulfill({ contentType: "application/json", body });
-    });
-  }
-}
-
-const open = (ctx, opts = {}) => ctx.open("/stats", { ...opts, setup: mockStats });
+const open = (ctx, opts = {}) => ctx.open("/stats", { ...opts, setup: (p) => mockStats(p, changes()) });
 const ready = async (page) => {
   await page.waitForSelector("#stats-chart .apexcharts-yaxis-label", { timeout: 15000 }).catch(() => {});
   await page.waitForSelector("#playback-slider", { state: "attached", timeout: 15000 }).catch(() => {});

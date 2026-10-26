@@ -1647,6 +1647,7 @@ createApp({
       freqFilter: [],
       availableFreqs: [],
       filterMenuOpen: false,
+      menuOpen: false,
     }));
 
     Object.defineProperty(app, "nodes", {
@@ -1752,6 +1753,8 @@ createApp({
       const nodePopup = markRaw(
         L.popup({
           ...getLeafletNodePopupSize(),
+          autoPanPaddingTopLeft: [10, 60],
+          autoPanPaddingBottomRight: [10, 10],
           content: () => getTable(node, auth, app.nodes),
         }),
       );
@@ -2125,6 +2128,8 @@ createApp({
       const tempMarker = L.marker([lat, lon], { icon, title: node.adv_name });
       const deepLinkPopup = L.popup({
         ...getLeafletNodePopupSize(),
+        autoPanPaddingTopLeft: [10, 60],
+        autoPanPaddingBottomRight: [10, 10],
         content: () => getTable(node, auth, app.nodes),
       });
       tempMarker.bindPopup(deepLinkPopup);
@@ -2605,27 +2610,41 @@ createApp({
       const roomServersCount = nodes.filter((n) => n.type === 3).length;
       const sensorsCount = nodes.filter((n) => n.type === 4).length;
 
-      let statsString = `<span>all nodes: <b>${nodes.length}</b></span>&nbsp;|`;
-      statsString += ` <img src="img/node_types/1.svg" class="node-type pointer-help" style="width: 24px; height: 24px; vertical-align: middle; margin-left: 7px; margin-right: 4px;" title="Total client nodes" alt="Client"><b>${companionsCount}</b>&nbsp;|`;
-      statsString += ` <img src="img/node_types/2.svg" class="node-type pointer-help" style="width: 24px; height: 24px; vertical-align: middle; margin-left: 7px; margin-right: 4px;" title="Total repeater nodes" alt="Repeater"><b>${repeatersCount}</b>&nbsp;|`;
-      statsString += ` <img src="img/node_types/3.svg" class="node-type pointer-help" style="width: 24px; height: 24px; vertical-align: middle; margin-left: 7px; margin-right: 4px;" title="Total room server nodes" alt="Room server"><b>${roomServersCount}</b>`;
-
+      const dot = (type, title, count) =>
+        `<span class="count-item pointer-help" title="${title}"><i class="dot dot-${type}" aria-hidden="true"></i><b>${count}</b></span>`;
+      let statsString = `<span><b>${nodes.length}</b> nodes</span>`;
+      statsString += dot(1, "Total client nodes", companionsCount);
+      statsString += dot(2, "Total repeater nodes", repeatersCount);
+      statsString += dot(3, "Total room server nodes", roomServersCount);
       if (sensorsCount > 0) {
-        statsString += `&nbsp;| <img src="img/node_types/4.svg" class="node-type pointer-help" style="width: 24px; height: 24px; vertical-align: middle; margin-left: 7px; margin-right: 4px;" title="Total sensor nodes" alt="Sensor"><b>${sensorsCount}</b>`;
+        statsString += dot(4, "Total sensor nodes", sensorsCount);
       }
 
       result.push(statsString);
       result.push(
-        `<span class="pointer-help" title="Nodes added in last 24 hours">24h: <b>${c1}</b></span>`,
+        `<span class="pointer-help" title="Nodes added in last 24 hours">24h <b>${c1}</b></span>`,
       );
       result.push(
-        `<span class="pointer-help" title="Nodes added in last 7 days">7d: <b>${c7}</b></span>`,
+        `<span class="pointer-help" title="Nodes added in last 7 days">7d <b>${c7}</b></span>`,
       );
       result.push(
-        `<span class="pointer-help" title="Nodes added in last 30 days">30d: <b>${c30}</b></span>`,
+        `<span class="pointer-help" title="Nodes added in last 30 days">30d <b>${c30}</b></span>`,
       );
 
       return result;
+    });
+
+    // Phone chip: total and nodes added in the last 7 days
+    const totals = computed(() => {
+      const nodes = app.nodes;
+      if (!nodes || !nodes.length) return null;
+      const t7 = Date.now() - 7 * 86400000;
+      let week = 0;
+      for (const n of nodes) {
+        const ins = n.insertDate || new Date(n.inserted_date);
+        if (ins.getTime() > t7) week++;
+      }
+      return { total: nodes.length, week };
     });
 
     // Personal stats for logged-in user
@@ -2643,7 +2662,7 @@ createApp({
 
       if (userNodes.length === 0) {
         return [
-          `<span class="pointer-help" title="Your owned nodes">my nodes: <b>0</b></span>`,
+          `<span class="pointer-help" title="Your owned nodes">my nodes <b>0</b></span>`,
         ];
       }
 
@@ -2656,18 +2675,20 @@ createApp({
       const sensorsCount = userNodes.filter((n) => n.type === 4).length;
 
       // Build personal stats string (black color, not green)
-      let statsString = `<span class="pointer-help" title="Your owned nodes">my nodes: <b>${userNodes.length}</b></span>&nbsp;|`;
+      const dot = (type, title, count) =>
+        `<span class="count-item pointer-help" title="${title}"><i class="dot dot-${type}" aria-hidden="true"></i><b>${count}</b></span>`;
+      let statsString = `<span class="pointer-help" title="Your owned nodes">my nodes <b>${userNodes.length}</b></span>`;
       if (companionsCount > 0) {
-        statsString += ` <img src="img/node_types/1.svg" class="node-type pointer-help" style="width: 24px; height: 24px; vertical-align: middle; margin-left: 7px; margin-right: 4px;" title="Your client nodes" alt="Client"><b>${companionsCount}</b>`;
+        statsString += dot(1, "Your client nodes", companionsCount);
       }
       if (repeatersCount > 0) {
-        statsString += `&nbsp;| <img src="img/node_types/2.svg" class="node-type pointer-help" style="width: 24px; height: 24px; vertical-align: middle; margin-left: 7px; margin-right: 4px;" title="Your repeater nodes" alt="Repeater"><b>${repeatersCount}</b>`;
+        statsString += dot(2, "Your repeater nodes", repeatersCount);
       }
       if (roomServersCount > 0) {
-        statsString += `&nbsp;| <img src="img/node_types/3.svg" class="node-type pointer-help" style="width: 24px; height: 24px; vertical-align: middle; margin-left: 7px; margin-right: 4px;" title="Your room server nodes" alt="Room server"><b>${roomServersCount}</b>`;
+        statsString += dot(3, "Your room server nodes", roomServersCount);
       }
       if (sensorsCount > 0) {
-        statsString += `&nbsp;| <img src="img/node_types/4.svg" class="node-type pointer-help" style="width: 24px; height: 24px; vertical-align: middle; margin-left: 7px; margin-right: 4px;" title="Your sensor nodes" alt="Sensor"><b>${sensorsCount}</b>`;
+        statsString += dot(4, "Your sensor nodes", sensorsCount);
       }
 
       result.push(statsString);
@@ -2691,19 +2712,19 @@ createApp({
       // Show stats only if > 0 (hide if 0)
       if (active24h > 0) {
         result.push(
-          `<span class="pointer-help" title="Your nodes active in last 24 hours">24h: <b>${active24h}</b></span>`,
+          `<span class="pointer-help" title="Your nodes active in last 24 hours">24h <b>${active24h}</b></span>`,
         );
       }
 
       if (active7d > 0) {
         result.push(
-          `<span class="pointer-help" title="Your nodes active in last 7 days">7d: <b>${active7d}</b></span>`,
+          `<span class="pointer-help" title="Your nodes active in last 7 days">7d <b>${active7d}</b></span>`,
         );
       }
 
       if (active30d > 0) {
         result.push(
-          `<span class="pointer-help" title="Your nodes active in last 30 days">30d: <b>${active30d}</b></span>`,
+          `<span class="pointer-help" title="Your nodes active in last 30 days">30d <b>${active30d}</b></span>`,
         );
       }
 
@@ -2980,14 +3001,19 @@ createApp({
       // @click.stop, so its own clicks never reach these document listeners;
       // clicks inside the menu (checkboxes, sliders) keep it open.
       function filterMenuOutsideClose(e) {
+        const pageMenu = document.getElementById("page-menu");
+        if (app.menuOpen && !(pageMenu && pageMenu.contains(e.target))) {
+          app.menuOpen = false;
+        }
         if (!app.filterMenuOpen) return;
         const menu = document.getElementById("node-filter");
         if (menu && menu.contains(e.target)) return;
         app.filterMenuOpen = false;
       }
       function filterMenuEscClose(e) {
-        if (e.key === "Escape" && app.filterMenuOpen) {
+        if (e.key === "Escape") {
           app.filterMenuOpen = false;
+          app.menuOpen = false;
         }
       }
       document.addEventListener("click", filterMenuOutsideClose);
@@ -3017,6 +3043,7 @@ createApp({
       auth,
       refreshMap,
       stats,
+      totals,
       personalStats,
       searchResults,
       filtersActive,

@@ -20,6 +20,7 @@ import {
   bulk,
   DEFAULT_SCOPE_NONE,
   deviceRegionsFromRead,
+  expectedRegions,
   HOME_OVERRIDE_OMIT,
   homeRegionCode,
   policyFor,
@@ -28,10 +29,12 @@ import {
   parseRegionTree,
   regionsAfterApply,
   regionsByState,
+  regionsMatch,
   setRowState,
   type Anchor,
   type RegionPolicy,
 } from "../src/core/regions";
+import { deviceRegionsFromSnapshot, planFromSnapshot, snapshotFromReplies } from "../src/core/plan";
 import { locationChoices, rankPlaces, type Place } from "../src/core/search";
 
 const PLACES: Place[] = JSON.parse(readFileSync(resolve(process.cwd(), "data/be-locode.json"), "utf8"));
@@ -826,5 +829,82 @@ describe("removing free regions from the device", () => {
       "region remove be-vov",
       "region remove sub",
     ]);
+  });
+});
+
+/** What a repeater holds after running these region lines: the read replies and the device state. */
+function runRegionLines(lines: string[]) {
+  const parents: Record<string, string | null> = {};
+  const flood = new Map<string, boolean>([["*", false]]);
+  let home: string = "*";
+  let def: string = "<null>";
+  for (const line of lines) {
+    const [, cmd, ...args] = line.split(" ");
+    if (cmd === "def") {
+      let cursor = "*";
+      for (const tok of args) {
+        const [name, jump] = tok.split("|");
+        parents[name] = cursor === "*" ? null : cursor;
+        flood.set(name, true);
+        cursor = jump ?? name;
+      }
+    } else if (cmd === "remove") {
+      delete parents[args[0]];
+      flood.delete(args[0]);
+    } else if (cmd === "allowf") flood.set(args[0], true);
+    else if (cmd === "denyf") flood.set(args[0], false);
+    else if (cmd === "home") home = args[0];
+    else if (cmd === "default") def = args[0];
+  }
+  const allowed = [...flood].filter(([, f]) => f).map(([c]) => c);
+  const denied = [...flood].filter(([, f]) => !f).map(([c]) => c);
+  const read = { home, default: def, allowed, denied, parents };
+  return { read, device: { ...deviceRegionsFromRead(allowed, denied, home, def), parents: { ...parents } } };
+}
+
+describe("regionsMatch", () => {
+  const ronse = cityAnchor("Ronse");
+  const base = policyFor(ronse, PLACES);
+  const applied = () => runRegionLines(regionCommandLines(ronse, base, PLACES));
+
+  it("a repeater read after an Apply of the same policy matches", () => {
+    const { read, device } = applied();
+    expect(regionsMatch(expectedRegions(ronse, base, PLACES), read, device)).toBe(true);
+  });
+
+  it("an extra region on the repeater does not match", () => {
+    const expected = expectedRegions(ronse, base, PLACES);
+    const { read, device } = applied();
+    expect(regionsMatch(expected, read, { ...device, named: [...device.named, "oldzone"] })).toBe(false);
+  });
+
+  it("a different home, default, flood flag or parent does not match", () => {
+    const expected = expectedRegions(ronse, base, PLACES);
+    const { read, device } = applied();
+    expect(regionsMatch(expected, { ...read, home: "be" }, { ...device, home: "be" })).toBe(false);
+    expect(regionsMatch(expected, { ...read, default: "<null>" }, { ...device, default: null })).toBe(false);
+    const floodOff = { ...read, allowed: read.allowed.filter((c) => c !== "*"), denied: [...read.denied, "*"] };
+    expect(regionsMatch(expected, floodOff, device)).toBe(false);
+    const vovOff = { ...read, allowed: read.allowed.filter((c) => c !== "be-vov"), denied: [...read.denied, "be-vov"] };
+    expect(regionsMatch(expected, vovOff, device)).toBe(false);
+    expect(regionsMatch(expected, read, { ...device, parents: { ...device.parents, "be-vov": null } })).toBe(false);
+  });
+
+  it("parents are compared only where the tree was read", () => {
+    const expected = expectedRegions(ronse, base, PLACES);
+    const { read, device } = applied();
+    expect(regionsMatch(expected, read, { ...device, parents: undefined })).toBe(true);
+    const { "be-vov": _, ...partial } = device.parents;
+    expect(regionsMatch(expected, read, { ...device, parents: partial })).toBe(true);
+  });
+
+  it("a plan built from a Read matches that Read", () => {
+    const replies: Record<string, string> = JSON.parse(
+      readFileSync(resolve(__dirname, "fixtures/read-ronse.json"), "utf8"),
+    );
+    const snapshot = snapshotFromReplies(replies);
+    const plan = planFromSnapshot(snapshot, PLACES);
+    const expected = expectedRegions(plan.anchor!, plan.regions!, PLACES);
+    expect(regionsMatch(expected, snapshot.regions!, deviceRegionsFromSnapshot(snapshot)!)).toBe(true);
   });
 });

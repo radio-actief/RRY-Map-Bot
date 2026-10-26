@@ -6,6 +6,7 @@
 import { GEWEST_NAMES, GEWEST_OF_PROVINCE, PROVINCE_ADJACENCY, PROVINCE_NAMES } from "./be-regions";
 import { t } from "../i18n/t";
 import { findGeographicNeighbors, neighborsInRadius } from "./geo";
+import type { DeviceSnapshot } from "./plan";
 import type { LocationChoice, Place } from "./search";
 
 export type Anchor = { mode: "city" | "province" | "country"; province_code: string | null; place: Place | null };
@@ -1024,6 +1025,62 @@ export function regionsAfterApply(anchor: Anchor, policy: RegionPolicy, places: 
   const home = homeLineCode(policy);
   const def = defaultLineCode(policy);
   return { named, home: home || "*", default: def.toLowerCase() === "<null>" ? null : def };
+}
+
+/**
+ * The regions the region script leaves on a repeater: the defined codes (`*` not counted), which
+ * of them plus `*` allow or deny flood, home (null: the script leaves it alone; `*` = none), default
+ * scope (null = none) and each code's parent (null = under *).
+ */
+export type ExpectedRegions = {
+  named: string[];
+  allowed: string[];
+  denied: string[];
+  home: string | null;
+  default: string | null;
+  parents: Record<string, string | null>;
+};
+
+/** What the region script for this policy leaves on the repeater; `region def` allows flood on each named region. */
+export function expectedRegions(anchor: Anchor, policy: RegionPolicy, places: Place[]): ExpectedRegions {
+  const cities = cityIndex(places);
+  const needed = scriptNeeded(anchor, policy, cities);
+  const named = withoutStar(Array.from(needed));
+  const denied = withoutStar(regionsByState(policy).denied);
+  if (!policy.untaggedFlood) denied.push("*");
+  const allowed = named.filter((c) => !denied.includes(c));
+  if (policy.untaggedFlood) allowed.push("*");
+  const homeCity = anchor.mode === "city" && anchor.place ? anchor.place : null;
+  const parents: Record<string, string | null> = {};
+  for (const e of buildOrderedRegionEntries(needed, homeCity, cities, freeParentsOf(policy))) parents[e.code] = e.parent;
+  const def = defaultLineCode(policy);
+  const defaultScope = def.toLowerCase() === "<null>" ? null : def;
+  return { named, allowed, denied, home: homeLineCode(policy), default: defaultScope, parents };
+}
+
+/**
+ * Whether a repeater's regions (its read and the device state from it) already equal what the
+ * script leaves. Codes compare as sets; home only when the script sets it; parents only for the
+ * codes in the tree read from the device.
+ */
+export function regionsMatch(
+  expected: ExpectedRegions,
+  read: NonNullable<DeviceSnapshot["regions"]>,
+  device: DeviceRegions,
+): boolean {
+  const sameSet = (a: string[], b: string[]) => {
+    const sa = new Set(a.map((c) => c.trim()).filter(Boolean));
+    const sb = new Set(b.map((c) => c.trim()).filter(Boolean));
+    return sa.size === sb.size && [...sa].every((c) => sb.has(c));
+  };
+  if (!sameSet(expected.named, device.named)) return false;
+  if (!sameSet(expected.allowed, read.allowed) || !sameSet(expected.denied, read.denied)) return false;
+  if (expected.home !== null && (device.home || "*") !== expected.home) return false;
+  if (device.default !== expected.default) return false;
+  for (const [code, parent] of Object.entries(device.parents ?? {})) {
+    if (!Object.prototype.hasOwnProperty.call(expected.parents, code) || expected.parents[code] !== parent) return false;
+  }
+  return true;
 }
 
 /**

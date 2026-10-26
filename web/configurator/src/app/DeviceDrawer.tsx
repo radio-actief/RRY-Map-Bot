@@ -27,6 +27,7 @@ import {
 import { busy, importPlan, store } from "../state/store";
 import { Dialog } from "./Dialog";
 import { Notice, type NoticeKind } from "./Notice";
+import { PageSwitcher } from "./TopBar";
 
 /** The word the factory reset dialog asks for. */
 const RESET_WORD = "RESET";
@@ -259,6 +260,7 @@ function Drawer() {
             ✕
           </button>
         </header>
+        <PageSwitcher inDrawer />
         {note ? <Notice kind={note.kind}>{note.text}</Notice> : null}
 
         <section class="drawer-section">

@@ -1,64 +1,10 @@
 @import "./tokens.css";
-
-* {
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-  background: var(--page);
-  color: var(--ink);
-  font-family: "Figtree", system-ui, sans-serif;
-  font-size: 13px;
-}
-
-button {
-  font: inherit;
-  font-size: inherit;
-  color: inherit;
-}
+@import "../../../../src/shared/bemesh-shell.css";
 
 .app {
   display: flex;
   flex-direction: column;
   height: 100dvh;
-}
-
-.topbar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 12px;
-  background: var(--bar);
-  border-bottom: 1px solid var(--line);
-  flex-wrap: wrap;
-  z-index: 5;
-}
-
-.wordmark {
-  font-weight: 700;
-  flex-shrink: 0;
-}
-
-.wordmark b {
-  color: var(--gold);
-}
-
-.spacer {
-  flex: 1;
-}
-
-.chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 3px 10px;
-  border-radius: 999px;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  font-size: 12px;
-  white-space: nowrap;
-  min-width: 0;
 }
 
 .chip.trunc {
@@ -100,20 +46,6 @@ button {
 
 .dot.off {
   background: var(--mut);
-}
-
-.icon {
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
-  border: 1px solid var(--line);
-  background: var(--panel);
-  cursor: pointer;
-}
-
-.icon.on {
-  background: var(--gold-bg);
-  border-color: var(--gold);
 }
 
 .stage {
@@ -226,15 +158,6 @@ button {
   gap: 12px;
 }
 
-.btn {
-  white-space: nowrap;
-  padding: 6px 12px;
-  border-radius: 8px;
-  border: 1px solid var(--line);
-  background: var(--panel);
-  cursor: pointer;
-}
-
 .panel.docked .panel-foot {
   flex-wrap: wrap;
 }
@@ -248,13 +171,6 @@ button {
   order: -1;
   flex-basis: 100%;
   text-align: right;
-}
-
-.btn.primary {
-  background: var(--gold);
-  border-color: var(--gold);
-  color: var(--on-gold);
-  font-weight: 700;
 }
 
 .segs {
@@ -527,21 +443,11 @@ path.map-region-denied {
 }
 
 /* Connect, Place and Name */
-.btn:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
-
 .btn.block {
   display: block;
   width: 100%;
   margin: 10px 0;
   padding: 9px 12px;
-}
-
-.btn.small {
-  padding: 3px 8px;
-  font-size: 12px;
 }
 
 .link {
@@ -715,33 +621,6 @@ path.map-region-denied {
   flex-direction: column;
   gap: 3px;
   margin-bottom: 6px;
-}
-
-.segmented {
-  display: flex;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.segmented button {
-  flex: 1;
-  padding: 6px 4px;
-  border: 0;
-  border-left: 1px solid var(--line);
-  background: var(--panel);
-  cursor: pointer;
-  font-size: 12px;
-  white-space: nowrap;
-}
-
-.segmented button:first-child {
-  border-left: 0;
-}
-
-.segmented button[aria-pressed="true"] {
-  background: var(--ink);
-  color: var(--panel);
 }
 
 .name-row {
@@ -1484,6 +1363,16 @@ path.map-region-denied {
   box-shadow: -4px 0 16px var(--shadow);
 }
 
+.drawer-pages {
+  display: none;
+  margin: 0 16px 12px;
+}
+
+.drawer-pages a {
+  flex: 1;
+  text-align: center;
+}
+
 .drawer-head {
   display: flex;
   align-items: center;
@@ -1597,6 +1486,15 @@ path.map-region-denied {
 
   .wordmark-tail {
     display: none;
+  }
+
+  /* The page links move from the top bar into the device drawer. */
+  .topbar .switcher {
+    display: none;
+  }
+
+  .drawer .drawer-pages {
+    display: flex;
   }
 
   .topbar .chip.trunc {

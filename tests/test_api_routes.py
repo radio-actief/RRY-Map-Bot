@@ -36,6 +36,17 @@ class TestStaticFiles(unittest.TestCase):
                 self.assertEqual(r.status_code, 200)
                 r.close()
 
+    def test_shared_restyle_assets_are_served(self):
+        for path in (
+            "/src/shared/bemesh-shell.css",
+            "/src/shared/bemesh-tokens.css",
+            "/src/shared/theme.js",
+        ):
+            with self.subTest(path=path):
+                r = self.client.get(path)
+                self.assertEqual(r.status_code, 200)
+                r.close()
+
     def test_project_files_outside_the_allowlist_are_404(self):
         for path in (
             "/backend/database.py",

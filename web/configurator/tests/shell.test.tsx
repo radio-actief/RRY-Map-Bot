@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/preact";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/preact";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "../src/app/App";
 import { Dialog } from "../src/app/Dialog";
@@ -110,6 +110,22 @@ describe("app shell", () => {
     store.step.value = "connect";
     const { container } = render(<App />);
     expect(container.querySelectorAll(".stepper .seg")[3].classList.contains("attention")).toBe(true);
+  });
+
+  it("the page switcher links the four tool pages with Configurator current", () => {
+    render(<App />);
+    const nav = screen.getByRole("navigation", { name: "Pages" });
+    const links = [...nav.querySelectorAll("a")].map((a) => [a.textContent, a.getAttribute("href")]);
+    expect(links).toEqual([
+      ["Map", "/"],
+      ["Stats", "/stats"],
+      ["Region map", "/region-map"],
+      ["Configurator", "/configurator"],
+    ]);
+    expect(screen.getByRole("link", { name: "Configurator" }).getAttribute("aria-current")).toBe("page");
+    fireEvent.click(screen.getByRole("button", { name: "Device tools" }));
+    const drawer = screen.getByRole("dialog", { name: "Device tools" });
+    expect(within(drawer).getByRole("navigation", { name: "Pages" }).querySelectorAll("a")).toHaveLength(4);
   });
 
   it("the wordmark's tail can hide on a phone", () => {

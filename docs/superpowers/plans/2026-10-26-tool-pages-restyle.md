@@ -37,7 +37,7 @@
 **Files:**
 - Create: `src/shared/bemesh-tokens.css`. Move the whole body of `web/configurator/src/theme/tokens.css` into it.
 - Modify: `web/configurator/src/theme/tokens.css`. It becomes only `@import "../../../../src/shared/bemesh-tokens.css";`
-- Create: `css/bemesh-shell.css`. It defines `body`, `.topbar`, `.wordmark`, `.switcher`, `.spacer`, `.chip`, `.card`, `.btn`, `.btn.gold`, `.seg`, `.icon-btn`, `.menu` (☰ dropdown), `.map-float` (floating panel on a map), `.field` and `input`. Values are copied from `web/configurator/src/theme/app.css` so the pages match.
+- Create: `src/shared/bemesh-shell.css`. It defines `body`, `.topbar`, `.wordmark`, `.switcher`, `.spacer`, `.chip`, `.card`, `.btn`, `.btn.primary`, `.segmented` (buttons with `aria-pressed`), `.icon`, `.menu` (☰ dropdown), `.map-float` (floating panel on a map), `.field` and `input`. Values are copied from `web/configurator/src/theme/app.css` so the pages match.
 - Create: `src/shared/theme.js`, a classic script with no module and no globals except `window.BEmeshTheme`.
 - Create: `scripts/check-tool-pages.mjs`, the Playwright check that later tasks extend.
 - Modify: `web/configurator/src/app/TopBar.tsx`. Add the switcher after the wordmark, with Configurator current.
@@ -54,7 +54,7 @@
       <nav class="switcher" aria-label="Pages"><a href="/" aria-current="page">Map</a><a href="/stats">Stats</a><a href="/region-map">Region map</a><a href="/configurator">Configurator</a></nav>
       <span class="spacer"></span>
       <!-- page controls -->
-      <button class="icon-btn" data-theme-toggle aria-label="Theme">◐</button>
+      <button class="icon" data-theme-toggle aria-label="Theme">◐</button>
     </header>
     ```
     `theme.js` wires every `[data-theme-toggle]` on DOMContentLoaded. Below 600 px `.switcher` is hidden and its links appear in the page's ☰ `.menu`.

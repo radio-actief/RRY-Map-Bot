@@ -2,9 +2,23 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { BackupError, exportBackup, importBackup } from "../src/core/backup";
-import { buildScript, commandLines, scriptText, SETTINGS_ORDER } from "../src/core/cli";
-import { defaultPlan, planErrors, type Plan } from "../src/core/plan";
-import { anchorFromChoice, deviceRegionsFromRead, policyFor } from "../src/core/regions";
+import { buildScript, commandLines, scriptText, SETTINGS_ORDER, unchangedCount } from "../src/core/cli";
+import {
+  defaultPlan,
+  deviceRegionsFromSnapshot,
+  planErrors,
+  planFromSnapshot,
+  snapshotFromReplies,
+  type DeviceSnapshot,
+  type Plan,
+} from "../src/core/plan";
+import {
+  anchorFromChoice,
+  deviceRegionsFromRead,
+  policyFor,
+  regionCommandLines,
+  setRowState,
+} from "../src/core/regions";
 import { locationChoices, type Place } from "../src/core/search";
 import { SETTINGS } from "../src/core/settings";
 
@@ -126,6 +140,79 @@ describe("buildScript", () => {
   it("has no location or region lines without a location", () => {
     const plan = { ...defaultPlan(), nameSuffix: "Test" };
     expect(buildScript(plan, PLACES, { includeDefaults: false }).map((g) => g.titleKey)).toEqual(["name", "settings"]);
+  });
+});
+
+describe("buildScript with a snapshot", () => {
+  const replies: Record<string, string> = JSON.parse(
+    readFileSync(resolve(__dirname, "fixtures/read-ronse.json"), "utf8"),
+  );
+  const snap = (): DeviceSnapshot => snapshotFromReplies(replies);
+  const planOf = (s: DeviceSnapshot) => planFromSnapshot(s, PLACES);
+  const groups = (p: Plan, s: DeviceSnapshot) =>
+    buildScript(p, PLACES, { includeDefaults: true, device: deviceRegionsFromSnapshot(s), snapshot: s });
+  const sent = (p: Plan, s: DeviceSnapshot) => commandLines(groups(p, s));
+  const withSettings = (p: Plan, settings: Plan["settings"]): Plan => ({ ...p, settings: { ...p.settings, ...settings } });
+  const KEY_A = "a1".repeat(32);
+  const KEY_B = "b2".repeat(32);
+
+  it("with a snapshot of the same repeater nothing is sent", () => {
+    const s = snap();
+    expect(sent(planOf(s), s)).toEqual([]);
+  });
+
+  it("only a changed setting is sent", () => {
+    const s = snap();
+    expect(sent(withSettings(planOf(s), { floodAdvertHours: 47 }), s)).toEqual(["set flood.advert.interval 47"]);
+  });
+
+  it("sends a setting the Read missed", () => {
+    const s = snap();
+    const p = planOf(s);
+    delete s.settings.rxdelay;
+    s.missing.push("get rxdelay");
+    expect(sent(p, s).some((l) => l.startsWith("set rxdelay "))).toBe(true);
+  });
+
+  it("the regions go as one group when they differ", () => {
+    const s = snap();
+    const p = planOf(s);
+    const regions = setRowState(p.regions!, "be-vov", "deny");
+    const changed = { ...p, regions };
+    const group = groups(changed, s).find((g) => g.titleKey === "regions");
+    expect(group?.lines).toEqual(regionCommandLines(p.anchor, regions, PLACES, deviceRegionsFromSnapshot(s)));
+    expect(group?.lines.at(-1)).toBe("region save");
+  });
+
+  it("name, location and gps advert only when changed", () => {
+    const s = snap();
+    const p = planOf(s);
+    const keys = (plan: Plan) => groups(plan, s).map((g) => g.titleKey);
+    expect(keys(p)).not.toContain("name");
+    expect(keys(p)).not.toContain("location");
+    expect(sent({ ...p, nameSuffix: "Hoogte" }, s)).toEqual(["set name BE-RON-Hoogte🌞"]);
+    expect(sent({ ...p, location: { lat: 50.75, lon: 3.60209 } }, s)).toEqual(["set lat 50.75", "set lon 3.60209"]);
+    expect(sent({ ...p, advertLoc: "share" }, s)).toEqual(["gps advert share"]);
+  });
+
+  it("the access list group", () => {
+    const s = snap();
+    const p = planOf(s);
+    expect(p.acl).toEqual([{ key: KEY_A, role: 3 }]);
+    const changed = { ...p, acl: [{ key: KEY_B, role: 3 as const }], regions: setRowState(p.regions!, "be-vov", "deny") };
+    const out = groups(changed, s);
+    expect(out.map((g) => g.titleKey)).toEqual(["regions", "acl"]);
+    expect(out[1]).toEqual({ titleKey: "acl", lines: [`setperm ${KEY_A} 0`, `setperm ${KEY_B} 3`] });
+  });
+
+  it("unchangedCount is the name, settings and location lines the snapshot drops", () => {
+    const s = snap();
+    const p = withSettings({ ...planOf(s), nameSuffix: "Hoogte" }, { floodAdvertHours: 47, rxdelay: 3 });
+    const count = (g: ReturnType<typeof buildScript>) =>
+      g.filter((x) => ["name", "settings", "location"].includes(x.titleKey)).flatMap((x) => x.lines).length;
+    const full = count(buildScript(p, PLACES, { includeDefaults: true }));
+    expect(unchangedCount(p, PLACES, s)).toBe(full - count(groups(p, s)));
+    expect(unchangedCount(p, PLACES, s)).toBe(full - 3);
   });
 });
 

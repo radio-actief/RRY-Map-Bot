@@ -1030,7 +1030,7 @@ export function regionsAfterApply(anchor: Anchor, policy: RegionPolicy, places: 
 /**
  * The regions the region script leaves on a repeater: the defined codes (`*` not counted), which
  * of them plus `*` allow or deny flood, home (null: the script leaves it alone; `*` = none), default
- * scope (null = none) and each code's parent (null = under *).
+ * scope (null = none), each code's parent (null = under *) and the own (free) regions among them.
  */
 export type ExpectedRegions = {
   named: string[];
@@ -1039,6 +1039,7 @@ export type ExpectedRegions = {
   home: string | null;
   default: string | null;
   parents: Record<string, string | null>;
+  free: string[];
 };
 
 /** What the region script for this policy leaves on the repeater; `region def` allows flood on each named region. */
@@ -1051,17 +1052,19 @@ export function expectedRegions(anchor: Anchor, policy: RegionPolicy, places: Pl
   const allowed = named.filter((c) => !denied.includes(c));
   if (policy.untaggedFlood) allowed.push("*");
   const homeCity = anchor.mode === "city" && anchor.place ? anchor.place : null;
+  const freeParents = freeParentsOf(policy);
   const parents: Record<string, string | null> = {};
-  for (const e of buildOrderedRegionEntries(needed, homeCity, cities, freeParentsOf(policy))) parents[e.code] = e.parent;
+  for (const e of buildOrderedRegionEntries(needed, homeCity, cities, freeParents)) parents[e.code] = e.parent;
   const def = defaultLineCode(policy);
   const defaultScope = def.toLowerCase() === "<null>" ? null : def;
-  return { named, allowed, denied, home: homeLineCode(policy), default: defaultScope, parents };
+  const free = [...freeParents.keys()].filter((c) => named.includes(c));
+  return { named, allowed, denied, home: homeLineCode(policy), default: defaultScope, parents, free };
 }
 
 /**
  * Whether a repeater's regions (its read and the device state from it) already equal what the
- * script leaves. Codes compare as sets; home only when the script sets it; parents only for the
- * codes in the tree read from the device.
+ * script leaves. Codes compare as sets; home only when the script sets it; parents for the codes
+ * in the tree read from the device, and an own region must be in that tree (its parent is the user's).
  */
 export function regionsMatch(
   expected: ExpectedRegions,
@@ -1077,6 +1080,7 @@ export function regionsMatch(
   if (!sameSet(expected.allowed, read.allowed) || !sameSet(expected.denied, read.denied)) return false;
   if (expected.home !== null && (device.home || "*") !== expected.home) return false;
   if (device.default !== expected.default) return false;
+  if (expected.free.some((c) => !has(device.parents ?? {}, c))) return false;
   for (const [code, parent] of Object.entries(device.parents ?? {})) {
     if (!Object.prototype.hasOwnProperty.call(expected.parents, code) || expected.parents[code] !== parent) return false;
   }

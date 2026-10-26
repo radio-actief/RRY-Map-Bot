@@ -1,8 +1,10 @@
 /**
  * The command script for a plan, in the old page's order (buildConfiguratorSections and
- * buildGeneralSettingsCli): name, settings, location, regions.
+ * buildGeneralSettingsCli): name, settings, location, regions, then the access list.
  */
 import en from "../i18n/en.json";
+import { aclLines } from "./acl";
+import { same, sameRadio } from "./blocks";
 import { encodeOwnerInfo } from "./naming";
 import {
   formatRadio,
@@ -11,13 +13,14 @@ import {
   sendableLocation,
   sendableName,
   settingValue,
+  type DeviceSnapshot,
   type Plan,
 } from "./plan";
-import { policyFor, regionCommandLines, type DeviceRegions } from "./regions";
+import { expectedRegions, policyFor, regionCommandLines, regionsMatch, type DeviceRegions } from "./regions";
 import type { Place } from "./search";
 import { adminPasswordCliLine, SETTINGS, type SettingKey } from "./settings";
 
-export type ScriptGroup = { titleKey: "name" | "settings" | "location" | "regions"; lines: string[] };
+export type ScriptGroup = { titleKey: "name" | "settings" | "location" | "regions" | "acl"; lines: string[] };
 
 /** The general settings in the old buildGeneralSettingsCli order (radio comes first). */
 export const SETTINGS_ORDER: SettingKey[] = [
@@ -69,41 +72,73 @@ function settingLine(plan: Plan, key: SettingKey, includeDefaults: boolean): str
   }
 }
 
+/** The repeater already holds this setting's value. The admin password is never read, so never held. */
+function settingHeld(plan: Plan, key: SettingKey, snapshot: DeviceSnapshot): boolean {
+  if (key === "adminPassword" || !Object.prototype.hasOwnProperty.call(snapshot.settings, key)) return false;
+  return same(settingValue(plan, key), snapshot.settings[key]);
+}
+
 /**
  * The script as groups. Values equal to the firmware default are left out unless
  * includeDefaults; `device` (the regions read from the repeater) adds the region removals.
+ * With `snapshot` (a Read of this repeater) every line whose value the repeater already holds
+ * is left out, the regions go only when they differ (as a whole, and only with `device`), and
+ * the access list group holds the `setperm` lines that turn the read list into the plan's.
  */
 export function buildScript(
   plan: Plan,
   places: Place[],
-  opts: { includeDefaults: boolean; device?: DeviceRegions },
+  opts: { includeDefaults: boolean; device?: DeviceRegions; snapshot?: DeviceSnapshot },
 ): ScriptGroup[] {
-  const { includeDefaults } = opts;
+  const { includeDefaults, snapshot: snap } = opts;
   const name = sendableName(plan);
 
   const settings: string[] = [];
-  if (includeDefaults || !radioIsFirmwareDefault(plan.radio)) settings.push(`set radio ${formatRadio(plan.radio)}`);
+  const radioHeld = !!snap?.radio && sameRadio(plan.radio, snap.radio);
+  if ((includeDefaults || !radioIsFirmwareDefault(plan.radio)) && !radioHeld) {
+    settings.push(`set radio ${formatRadio(plan.radio)}`);
+  }
   for (const key of SETTINGS_ORDER) {
     const line = settingLine(plan, key, includeDefaults);
-    if (line) settings.push(line);
+    if (line && !(snap && settingHeld(plan, key, snap))) settings.push(line);
   }
 
   const location: string[] = [];
   const coords = sendableLocation(plan);
-  if (coords) location.push(`set lat ${coords.lat}`, `set lon ${coords.lon}`);
-  if (includeDefaults || plan.advertLoc !== "prefs") location.push(`gps advert ${plan.advertLoc}`);
+  const coordsHeld = !!snap && !!coords && same(coords.lat, snap.lat) && same(coords.lon, snap.lon);
+  if (coords && !coordsHeld) location.push(`set lat ${coords.lat}`, `set lon ${coords.lon}`);
+  if ((includeDefaults || plan.advertLoc !== "prefs") && plan.advertLoc !== snap?.advertLoc) {
+    location.push(`gps advert ${plan.advertLoc}`);
+  }
 
-  const regions = plan.anchor
-    ? regionCommandLines(plan.anchor, plan.regions ?? policyFor(plan.anchor, places), places, opts.device)
-    : [];
+  let regions: string[] = [];
+  if (plan.anchor) {
+    const policy = plan.regions ?? policyFor(plan.anchor, places);
+    const held =
+      !!snap?.regions &&
+      !!opts.device &&
+      regionsMatch(expectedRegions(plan.anchor, policy, places), snap.regions, opts.device);
+    if (!held) regions = regionCommandLines(plan.anchor, policy, places, opts.device);
+  }
 
   const groups: ScriptGroup[] = [
-    { titleKey: "name", lines: name ? [`set name ${name}`] : [] },
+    { titleKey: "name", lines: name && name !== snap?.name ? [`set name ${name}`] : [] },
     { titleKey: "settings", lines: settings },
     { titleKey: "location", lines: location },
     { titleKey: "regions", lines: regions },
   ];
+  if (snap?.acl && plan.acl) groups.push({ titleKey: "acl", lines: aclLines(snap.acl, plan.acl) });
   return groups.filter((g) => g.lines.length > 0);
+}
+
+/** The name, settings and location lines of the full script (every setting) that the snapshot leaves out. */
+export function unchangedCount(plan: Plan, places: Place[], snapshot: DeviceSnapshot): number {
+  const count = (groups: ScriptGroup[]) =>
+    groups.filter((g) => g.titleKey !== "regions" && g.titleKey !== "acl").reduce((n, g) => n + g.lines.length, 0);
+  return (
+    count(buildScript(plan, places, { includeDefaults: true })) -
+    count(buildScript(plan, places, { includeDefaults: true, snapshot }))
+  );
 }
 
 const GROUP_TITLES = en as Record<string, string>;

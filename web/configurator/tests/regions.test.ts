@@ -898,6 +898,17 @@ describe("regionsMatch", () => {
     expect(regionsMatch(expected, read, { ...device, parents: partial })).toBe(true);
   });
 
+  it("an own region matches only where the tree shows it", () => {
+    const policy = addFreeRegion(base, "zone", "be-vov", ronse);
+    const expected = expectedRegions(ronse, policy, PLACES);
+    const { read, device } = runRegionLines(regionCommandLines(ronse, policy, PLACES));
+    expect(device.parents.zone).toBe("be-vov");
+    expect(regionsMatch(expected, read, device)).toBe(true);
+    expect(regionsMatch(expected, read, { ...device, parents: undefined })).toBe(false);
+    const { zone: _, ...cut } = device.parents;
+    expect(regionsMatch(expected, read, { ...device, parents: cut })).toBe(false);
+  });
+
   it("a plan built from a Read matches that Read", () => {
     const replies: Record<string, string> = JSON.parse(
       readFileSync(resolve(__dirname, "fixtures/read-ronse.json"), "utf8"),

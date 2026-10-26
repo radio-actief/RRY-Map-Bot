@@ -44,6 +44,7 @@
   "script.group.settings": "Settings",
   "script.group.location": "Location",
   "script.group.regions": "Regions",
+  "script.group.acl": "Access list",
   "backup.error.unknown": "This file is not a configurator backup.",
   "backup.error.newer": "This backup comes from a newer version of the configurator.",
   "backup.error.invalid": "This backup is damaged or incomplete.",

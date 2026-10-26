@@ -79,3 +79,25 @@ describe("what send refuses", () => {
     expect(await link.command(fits)).toBe("unknown config: owner.info");
   });
 });
+
+describe("get acl", () => {
+  const K1 = "A1".repeat(32);
+  const K2 = "B2".repeat(32);
+  const ACL_FAST = { ...FAST, rawQuietMs: 30 };
+
+  it("get acl keeps every line until the output goes quiet, over small chunks", async () => {
+    const port = new FakePort({}, { chunkSize: 5, raw: { "get acl": `get acl\r\nACL:\r\n03 ${K1}\n02 ${K2}\n` } });
+    const link = new SerialLink(port, ACL_FAST);
+    await link.open();
+    const reply = await link.command("get acl", 2000);
+    expect(reply).toContain(K1);
+    expect(reply).toContain(K2);
+  });
+
+  it("get acl with an empty list returns the ACL: line", async () => {
+    const port = new FakePort({}, { raw: { "get acl": "get acl\r\nACL:\r\n" } });
+    const link = new SerialLink(port, ACL_FAST);
+    await link.open();
+    expect(await link.command("get acl", 2000)).toContain("ACL:");
+  });
+});

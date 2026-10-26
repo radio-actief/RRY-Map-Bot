@@ -2,6 +2,7 @@
  * The plan (what the user wants on the repeater), the device snapshot a Read gives, the port of
  * the old page's read parsing (applyReadResultsToForm and its helpers) and the change summary.
  */
+import { parseAcl, type AclEntry } from "./acl";
 import { PROVINCE_NAMES } from "./be-regions";
 import {
   buildName,
@@ -53,6 +54,8 @@ export type Plan = {
   radioCustom?: boolean;
   settings: Partial<Record<SettingKey, string | number>>;
   regions: RegionPolicy | null;
+  /** The repeater's access list as read; absent when it was not read. */
+  acl?: AclEntry[];
 };
 
 export type DeviceSnapshot = {
@@ -62,6 +65,8 @@ export type DeviceSnapshot = {
   lat?: number;
   lon?: number;
   advertLoc?: Plan["advertLoc"];
+  /** The access list from `get acl`; absent when the read failed. */
+  acl?: AclEntry[];
   regions?: {
     home?: string;
     default?: string;
@@ -383,6 +388,9 @@ export function snapshotFromReplies(replies: Record<string, string>, missing: st
     };
   }
 
+  const acl = Object.prototype.hasOwnProperty.call(replies, "get acl") ? parseAcl(replies["get acl"]) : null;
+  if (acl) s.acl = acl;
+
   const version = get("ver");
   const role = get("get role");
   const publicKey = get("get public.key");
@@ -480,6 +488,7 @@ export function planFromSnapshot(s: DeviceSnapshot, places: Place[]): Plan {
   plan.settings = { ...plan.settings, ...s.settings };
   if (hasValidCoords(s.lat, s.lon)) plan.location = { lat: s.lat!, lon: s.lon! };
   if (s.advertLoc) plan.advertLoc = s.advertLoc;
+  if (s.acl) plan.acl = s.acl.map((e) => ({ ...e }));
   if (plan.anchor) {
     plan.regions = s.regions ? policyFromDevice(plan.anchor, places, s.regions) : policyFor(plan.anchor, places);
   }

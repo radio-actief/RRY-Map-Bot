@@ -256,3 +256,15 @@ describe("summarize", () => {
     expect(summarize(planFromSnapshot(s, PLACES), s).changes).toEqual([]);
   });
 });
+
+describe("the access list from a Read", () => {
+  const K1 = "a1".repeat(32);
+  it("is in the snapshot and the plan", () => {
+    const s = snapshotFromReplies({ "get acl": `ACL:\n03 ${K1}\n` });
+    expect(s.acl).toEqual([{ key: K1, role: 3 }]);
+    expect(planFromSnapshot(s, PLACES).acl).toEqual(s.acl);
+  });
+  it("is absent when the reply has no ACL: line", () => {
+    expect(snapshotFromReplies({ "get acl": "??: acl" }).acl).toBeUndefined();
+  });
+});

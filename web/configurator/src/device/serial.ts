@@ -25,6 +25,12 @@ const CONTROL_CHAR = /[\x00-\x1f\x7f]/;
  * CRLF, so the reply runs to the first CRLF and keeps its LFs.
  */
 const MULTI_LINE_REPLY = new Set(["region"]);
+/**
+ * Commands that print their lines with no "->" line and no end marker (`get acl`): the reply is
+ * everything after the echo, and counts once the output has been quiet for `rawQuietMs`.
+ */
+const RAW_LINES_REPLY = new Set(["get acl"]);
+const RAW_QUIET_MS = 400;
 
 const encoder = new TextEncoder();
 
@@ -43,6 +49,8 @@ export type LinkTiming = {
   disconnectSettleMs: number;
   /** Replaces the per-command reply timeouts (tests use a short one). */
   replyTimeoutMs?: number;
+  /** How long the output of a raw-lines command (`get acl`) must be quiet before its reply is complete (default 400). */
+  rawQuietMs?: number;
 };
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -204,6 +212,12 @@ export class SerialLink {
     const echo = this.buffer.indexOf(line + "\r");
     if (echo < 0) return null;
     const after = this.buffer.slice(echo + line.length + 1);
+    if (RAW_LINES_REPLY.has(line)) {
+      const text = after.replace(/^[\r\n]+/, "");
+      if (!text) return null;
+      this.buffer = "";
+      return text;
+    }
     if (MULTI_LINE_REPLY.has(line)) {
       const m = /(?:^|\n)[ \t]*->[ \t]*([\s\S]*?)(\r\n|$)/.exec(after);
       if (!m || (!final && !m[2])) return null;
@@ -222,11 +236,20 @@ export class SerialLink {
       let timer: ReturnType<typeof setTimeout> | undefined;
       const finish = (reply: string) => {
         if (timer) clearTimeout(timer);
+        if (quiet) clearTimeout(quiet);
         if (this.waiter === check) this.waiter = null;
         resolve(reply);
       };
+      const raw = RAW_LINES_REPLY.has(line);
+      let quiet: ReturnType<typeof setTimeout> | undefined;
       const check = () => {
         if (!this.connected) return finish("");
+        if (raw) {
+          if (quiet) clearTimeout(quiet);
+          if (!this.hasRawText(line)) return;
+          quiet = setTimeout(() => finish(this.extractReply(line, true) ?? ""), this.timing.rawQuietMs ?? RAW_QUIET_MS);
+          return;
+        }
         const reply = this.extractReply(line, false);
         if (reply !== null) return finish(reply);
       };
@@ -234,6 +257,12 @@ export class SerialLink {
       timer = setTimeout(() => finish(this.extractReply(line, true) ?? ""), timeoutMs);
       check();
     });
+  }
+
+  /** Whether any output followed the echo of a raw-lines command yet. */
+  private hasRawText(line: string): boolean {
+    const echo = this.buffer.indexOf(line + "\r");
+    return echo >= 0 && /[^\r\n]/.test(this.buffer.slice(echo + line.length + 1));
   }
 
   private notify(): void {

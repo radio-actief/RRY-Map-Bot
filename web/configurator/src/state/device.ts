@@ -4,11 +4,11 @@
  */
 import { effect } from "@preact/signals";
 import { buildScript, commandLines } from "../core/cli";
-import { deviceRegionsFromSnapshot, planFromSnapshot } from "../core/plan";
+import { deviceRegionsFromSnapshot, planFromSnapshot, type DeviceSnapshot } from "../core/plan";
 import { policyFor, regionsAfterApply } from "../core/regions";
 import { REGION_DEF_MIN_TEXT } from "../core/firmware";
 import { pubkeyFromSetReply, type VanityKey } from "../core/vanity";
-import { apply, checkFirmware, readAll, READ_COMMANDS, run } from "../device/repeater";
+import { apply, checkFirmware, IDENTITY_READS, readAll, READ_BACK_COMMANDS, READ_COMMANDS, run } from "../device/repeater";
 import {
   expectsDeviceDisconnect,
   isErrorReply,
@@ -191,6 +191,30 @@ export async function readDevice(): Promise<void> {
   }
 }
 
+/** Snapshot fields the read-back keeps from the last Read (a written key waits for a reboot). */
+const KEPT_ON_READ_BACK = ["version", "role", "publicKey", "publicKeyPending", "previousPublicKeys", "clock"] as const;
+
+/**
+ * After Apply: read back what Apply can change, so the repeater's values on screen are the new
+ * ones and the device regions carry the tree. The identity, firmware version and clock stay from
+ * the last Read. When the link goes, the regions that were sent stand in.
+ */
+async function readBack(link: SerialLink): Promise<void> {
+  try {
+    const fresh = await readAll(link, READ_BACK_COMMANDS);
+    if (!link.connected || store.device.peek().link !== link) return;
+    const old = store.snapshot.peek();
+    const snapshot: DeviceSnapshot = { ...fresh };
+    if (old) for (const k of KEPT_ON_READ_BACK) if (old[k] !== undefined) Object.assign(snapshot, { [k]: old[k] });
+    snapshot.missing = [...fresh.missing, ...(old ? old.missing : IDENTITY_READS).filter((c) => IDENTITY_READS.includes(c))];
+    store.snapshot.value = snapshot;
+    const regions = deviceRegionsFromSnapshot(snapshot);
+    if (regions) store.deviceRegions.value = regions;
+  } catch {
+    /* link lost: the unplug notice says it */
+  }
+}
+
 /** Lines whose change only takes effect after a reboot (old offerRepeaterReboot hint). */
 const NEEDS_REBOOT = /^set (radio|freq|radio\.rxgain) /;
 
@@ -199,7 +223,8 @@ const NEEDS_REBOOT = /^set (radio|freq|radio\.rxgain) /;
  * console's length limit. Then `ver` is re-read: old firmware stops here, unreadable firmware waits
  * for "Continue anyway" (which calls this again with skipFirmwareCheck). The full script is sent,
  * unchanged defaults included as the old page did, stopping at the first failure. On success the
- * device regions become what was sent and a reboot is offered, never sent.
+ * plan that was sent becomes the starting point, the repeater is read back (see readBack) and a
+ * reboot is offered, never sent.
  */
 export async function applyPlan({ skipFirmwareCheck = false } = {}): Promise<void> {
   const link = store.device.peek().link;
@@ -250,6 +275,11 @@ export async function applyPlan({ skipFirmwareCheck = false } = {}): Promise<voi
     if (plan.anchor) {
       store.deviceRegions.value = regionsAfterApply(plan.anchor, plan.regions ?? policyFor(plan.anchor, places), places);
     }
+    // The repeater now holds the plan that was sent: it is the new starting point.
+    store.planBase.value = plan;
+    store.startPlan.value = plan;
+    store.apply.value = { phase: "readBack", total };
+    await readBack(link);
     appendLog({ text: t("log.applied"), kind: "ok" });
     store.apply.value = { phase: "done", total, offerReboot: true, radioChanged: lines.some((l) => NEEDS_REBOOT.test(l)) };
   } catch (err) {

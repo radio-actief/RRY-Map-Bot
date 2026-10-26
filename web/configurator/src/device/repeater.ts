@@ -39,14 +39,20 @@ export const READ_COMMANDS = [
   "clock",
 ];
 
+/** The reads Apply never changes: the identity, firmware version and clock. */
+export const IDENTITY_READS = ["ver", "get role", "get public.key", "clock"];
+
+/** What the read-back after Apply asks: every read Apply can change. */
+export const READ_BACK_COMMANDS = READ_COMMANDS.filter((c) => !IDENTITY_READS.includes(c));
+
 /**
- * Ask every read command. An error reply, a timeout (empty reply) or a lost link puts the command
- * in `missing`; only good replies reach the parser.
+ * Ask every read command (or `commands`). An error reply, a timeout (empty reply) or a lost link
+ * puts the command in `missing`; only good replies reach the parser.
  */
-export async function readAll(link: SerialLink): Promise<DeviceSnapshot> {
+export async function readAll(link: SerialLink, commands: string[] = READ_COMMANDS): Promise<DeviceSnapshot> {
   const replies: Record<string, string> = {};
   const missing: string[] = [];
-  for (const cmd of READ_COMMANDS) {
+  for (const cmd of commands) {
     if (!link.connected) {
       missing.push(cmd);
       continue;

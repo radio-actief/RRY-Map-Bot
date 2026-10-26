@@ -393,6 +393,7 @@
   "apply.progressLabel": "Commands sent",
   "apply.progress": "Sending {sent} / {total}…",
   "apply.sent": "Sent {total} / {total}.",
+  "apply.readingBack": "Sent {total} / {total}. Reading the repeater back…",
   "apply.firmwareOld": "This repeater runs MeshCore {version}. The region commands need MeshCore {min} or newer, so nothing was sent. Update the firmware at flasher.meshcore.io first.",
   "apply.unknownTitle": "Firmware version unreadable",
   "apply.unknownBody": "The firmware version could not be read. The region commands need MeshCore {min} or newer; on older firmware Apply stops partway.",

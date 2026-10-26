@@ -26,14 +26,15 @@ vi.mock("../src/device/repeater", async (importOriginal) => {
 });
 
 import { buildScript, commandLines } from "../src/core/cli";
-import { defaultPlan } from "../src/core/plan";
+import { defaultPlan, deviceRegionsFromSnapshot, snapshotFromReplies } from "../src/core/plan";
 import { addFreeRegion, regionCountAfterApply, regionsAfterApply } from "../src/core/regions";
 import type { Place } from "../src/core/search";
+import { READ_BACK_COMMANDS } from "../src/device/repeater";
 import { SerialLink } from "../src/device/serial";
 import { Panel } from "../src/app/Panel";
 import { Send } from "../src/steps/Send";
 import { connectUsb, disconnectUsb, readDevice } from "../src/state/device";
-import { chooseLocation, prefs, resetPlan, store } from "../src/state/store";
+import { chooseLocation, dirty, prefs, resetPlan, store } from "../src/state/store";
 import { FakePort } from "./fakes/fake-port";
 import { resetFake } from "./fakes/leaflet";
 import read from "./fixtures/read-ronse.json";
@@ -210,7 +211,7 @@ describe("Send step: Apply", () => {
     const m = lines.length;
     expect(screen.getByRole("progressbar").getAttribute("aria-valuenow")).toBe(String(m));
     expect(screen.getByText(new RegExp(`${m} / ${m}`))).toBeTruthy();
-    expect(port.received).toEqual(["ver", ...lines]);
+    expect(port.received).toEqual(["ver", ...lines, ...READ_BACK_COMMANDS]);
 
     fireEvent.click(screen.getByRole("button", { name: "Later" }));
     expect(screen.queryByRole("button", { name: "Reboot now" })).toBeNull();
@@ -345,7 +346,7 @@ describe("Send step: Apply", () => {
     fireEvent.click(applyButton());
     fireEvent.click(await screen.findByRole("button", { name: "Continue anyway" }));
     expect(await screen.findByRole("button", { name: "Reboot now" })).toBeTruthy();
-    expect(port.received).toEqual(["ver", "ver", ...lines]);
+    expect(port.received).toEqual(["ver", "ver", ...lines, ...READ_BACK_COMMANDS]);
   });
 
   it("after a successful Apply the device regions are what was sent, so nothing is removed twice", async () => {
@@ -359,6 +360,54 @@ describe("Send step: Apply", () => {
     const plan = store.plan.value;
     expect(store.deviceRegions.value).toEqual(regionsAfterApply(plan.anchor!, plan.regions!, PLACES));
     expect(applyLines().some((l) => l.startsWith("region remove"))).toBe(false);
+  });
+
+  it("after Apply the repeater is read back and what was sent becomes the starting point", async () => {
+    // An earlier Read, then a vanity key written: key, firmware and clock are not read again.
+    store.snapshot.value = {
+      settings: { floodAdvertHours: 3 },
+      version: "v1.17.0",
+      role: "repeater",
+      publicKey: "ab".repeat(32),
+      publicKeyPending: true,
+      previousPublicKeys: ["cd".repeat(32)],
+      clock: "12:00 - 24/10/2026 UTC",
+      missing: [],
+    };
+    store.plan.value = { ...store.plan.value, nameSuffix: "Kluisberg2" };
+    const lines = applyLines();
+    const { port } = await connect({ ...read, ...okReplies(lines) });
+    render(<Send />);
+    fireEvent.click(applyButton());
+    await screen.findByRole("button", { name: "Reboot now" });
+    expect(port.received).toEqual(["ver", ...lines, ...READ_BACK_COMMANDS]);
+    const fresh = snapshotFromReplies(read);
+    const snap = store.snapshot.value!;
+    expect([snap.name, snap.settings, snap.radio, snap.regions]).toEqual([fresh.name, fresh.settings, fresh.radio, fresh.regions]);
+    expect([snap.version, snap.publicKey, snap.publicKeyPending, snap.previousPublicKeys, snap.clock]).toEqual([
+      "v1.17.0",
+      "ab".repeat(32),
+      true,
+      ["cd".repeat(32)],
+      "12:00 - 24/10/2026 UTC",
+    ]);
+    expect(snap.missing).toEqual([]);
+    expect(store.deviceRegions.value).toEqual(deviceRegionsFromSnapshot(fresh));
+    expect(store.deviceRegions.value?.parents).toBeDefined();
+    expect(store.startPlan.value).toBe(store.plan.value);
+    expect(dirty.value).toBe(false);
+  });
+
+  it("without an earlier Read, the read-back marks the identity reads as not read", async () => {
+    const lines = applyLines();
+    await connect({ ...read, ...okReplies(lines) });
+    render(<Send />);
+    fireEvent.click(applyButton());
+    await screen.findByRole("button", { name: "Reboot now" });
+    const snap = store.snapshot.value!;
+    expect(snap.name).toBe(snapshotFromReplies(read).name);
+    expect(snap.publicKey).toBeUndefined();
+    expect(snap.missing).toEqual(["ver", "get role", "get public.key", "clock"]);
   });
 
   it("locks step navigation while sending", async () => {

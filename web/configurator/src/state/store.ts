@@ -118,6 +118,7 @@ export type ApplyState =
   | { phase: "old"; version: string }
   | { phase: "unknown" }
   | { phase: "sending"; sent: number; total: number }
+  | { phase: "readBack"; total: number }
   | { phase: "failed"; failedAt: number; total: number; command: string; error: string; remaining: string[] }
   | { phase: "error"; reason: string }
   | { phase: "done"; total: number; offerReboot: boolean; radioChanged: boolean };

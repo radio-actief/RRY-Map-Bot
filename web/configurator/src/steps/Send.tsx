@@ -117,7 +117,9 @@ function Progress({ state }: { state: ApplyState }) {
   const at =
     state.phase === "sending"
       ? { sent: state.sent, total: state.total, text: t("apply.progress", { sent: state.sent, total: state.total }) }
-      : state.phase === "done"
+      : state.phase === "readBack"
+        ? { sent: state.total, total: state.total, text: t("apply.readingBack", { total: state.total }) }
+        : state.phase === "done"
         ? { sent: state.total, total: state.total, text: t("apply.sent", { total: state.total }) }
         : state.phase === "failed"
           ? { sent: state.failedAt, total: state.total, text: "" }

@@ -244,6 +244,13 @@ describe("buildScript with a snapshot", () => {
     expect(out[1]).toEqual({ titleKey: "acl", lines: [`setperm ${KEY_A} 0`, `setperm ${KEY_B} 3`] });
   });
 
+  it("without a Read the access list is sent as additions only", () => {
+    const p = { ...defaultPlan(), acl: [{ key: KEY_A, role: 3 as const }, { key: KEY_B, role: 1 as const }] };
+    const acl = buildScript(p, PLACES, { includeDefaults: true }).find((g) => g.titleKey === "acl");
+    expect(acl).toEqual({ titleKey: "acl", lines: [`setperm ${KEY_A} 3`, `setperm ${KEY_B} 1`] });
+    expect(buildScript(defaultPlan(), PLACES, { includeDefaults: true }).some((g) => g.titleKey === "acl")).toBe(false);
+  });
+
   it("unchangedCount is the name, settings and location lines the snapshot drops", () => {
     const s = snap();
     const p = withSettings({ ...planOf(s), nameSuffix: "Hoogte" }, { floodAdvertHours: 47, rxdelay: 3 });

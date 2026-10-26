@@ -609,7 +609,7 @@ export function summarize(
     add("regions", "regionDefault", defaultRegionCode(p) ?? "<null>", dev?.default, true);
   }
 
-  const aclCount = snapshot?.acl && plan.acl ? aclChanges(snapshot.acl, plan.acl) : 0;
+  const aclCount = plan.acl ? aclChanges(snapshot?.acl ?? [], plan.acl) : 0;
   if (aclCount) changes.push({ group: "acl", labelKey: "acl", to: t("changes", { count: aclCount }) });
 
   const pw = String(plan.settings.adminPassword ?? "").trim();

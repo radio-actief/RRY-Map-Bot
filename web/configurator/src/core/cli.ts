@@ -135,7 +135,8 @@ export function buildScript(
     { titleKey: "location", lines: location },
     { titleKey: "regions", lines: regions },
   ];
-  if (snap?.acl && plan.acl) groups.push({ titleKey: "acl", lines: aclLines(snap.acl, plan.acl) });
+  // Without a Read nothing is known on the repeater: the list goes out as additions.
+  if (plan.acl) groups.push({ titleKey: "acl", lines: aclLines(snap?.acl ?? [], plan.acl) });
   return groups.filter((g) => g.lines.length > 0);
 }
 

@@ -549,7 +549,7 @@ describe("Send step: only the changes", () => {
     expect(within(row).getByText("1 change")).toBeTruthy();
   });
 
-  it("after an Apply whose read-back got no access list, the card asks for a Read", async () => {
+  it("after an Apply whose read-back got no access list, the card offers the list as additions", async () => {
     afterRead((p) => ({ ...p, acl: [...(p.acl ?? []), { key: KEY_B, role: 3 }] }));
     const setperm = `setperm ${KEY_B} 3`;
     const { "get acl": _acl, ...noAcl } = read;
@@ -561,8 +561,9 @@ describe("Send step: only the changes", () => {
     expect(store.plan.value.acl).toContainEqual({ key: KEY_B, role: 3 });
     cleanup();
     render(<AccessList />);
-    expect(screen.getByText("Read the repeater to see its access list.")).toBeTruthy();
-    expect(screen.queryByRole("combobox")).toBeNull();
+    expect(screen.getByText(/Without a Read, the keys you add are sent as additions/)).toBeTruthy();
+    expect(screen.queryByText("removed")).toBeNull();
+    expect(screen.getAllByRole("combobox").length).toBe(store.plan.value.acl!.length);
   });
 
   it("without a Read the full script is sent", async () => {

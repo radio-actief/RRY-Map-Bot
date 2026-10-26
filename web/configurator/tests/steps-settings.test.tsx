@@ -516,21 +516,31 @@ describe("Access list card", () => {
     return screen.findByText(warn);
   });
 
-  it("without a Read the card asks for one", () => {
+  it("without a Read (or a device) keys can be added; they are sent as additions", () => {
     store.snapshot.value = null;
+    store.device.value = { status: "none", link: null, firmware: null };
     resetPlan(defaultPlan());
     render(<SettingsStep />);
-    expect(within(list()).getByText("Read the repeater to see its access list.")).toBeTruthy();
+    expect(within(list()).getByText(/Without a Read, the keys you add are sent as additions/)).toBeTruthy();
+    add(K4);
+    fireEvent.click(within(list()).getByRole("button", { name: "Add" }));
+    expect(store.plan.value.acl).toEqual([{ key: K4, role: 3 }]);
+    expect(within(list()).getByText("new")).toBeTruthy();
+    expect(within(list()).getByText("1 Change")).toBeTruthy();
+    // ✕ on a key the repeater was never read with just drops it: there is nothing to remove.
+    fireEvent.click(within(list()).getByRole("button", { name: /^Remove/ }));
+    expect(store.plan.value.acl).toEqual([]);
+    expect(within(list()).queryByText("removed")).toBeNull();
+    expect(within(list()).getByText("Unchanged")).toBeTruthy();
   });
 
-  it("an access list in the plan without the repeater's Read (unplugged, another device) is not editable", () => {
+  it("an access list in the plan without the repeater's Read shows its keys as additions", () => {
     store.plan.value = { ...store.plan.value, acl: [{ key: K1, role: 3 }] };
     store.snapshot.value = null;
     render(<SettingsStep />);
-    expect(within(list()).getByText("Read the repeater to see its access list.")).toBeTruthy();
-    expect(within(list()).queryByRole("combobox")).toBeNull();
-    expect(within(list()).queryByPlaceholderText(/Paste a public key/)).toBeNull();
-    expect(within(list()).queryByText(/change/)).toBeNull();
+    expect(within(list()).getAllByRole("combobox")).toHaveLength(1);
+    expect(within(list()).getByText("new")).toBeTruthy();
+    expect(within(list()).getByText("1 Change")).toBeTruthy();
   });
 
   it("removed and new rows and the badge compare with what the repeater holds", () => {

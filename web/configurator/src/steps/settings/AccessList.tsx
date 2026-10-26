@@ -1,7 +1,7 @@
 /**
- * Access list card (Advanced): the keys that may manage the repeater, with add, role change, remove
- * and undo. The reference is the list the connected repeater holds (its Read or read-back); without
- * it the card asks for a Read, since no change could be sent.
+ * Access list card (Settings): the keys that may manage the repeater, with add, role change, remove
+ * and undo. The reference is the list the repeater holds (its Read or read-back); without a Read it
+ * is empty, so the keys on the list are sent as additions and nothing is removed.
  */
 import { useState } from "preact/hooks";
 import { ACL_MAX, aclChanges, normaliseKey, type AclEntry, type AclRole } from "../../core/acl";
@@ -16,7 +16,8 @@ const shorten = (key: string) => `${key.slice(0, 6)}…${key.slice(-6)}`;
 
 export function AccessList() {
   const plan = store.plan.value;
-  const read = store.snapshot.value?.acl;
+  const known = store.snapshot.value?.acl;
+  const read = known ?? [];
   const nodes = store.data.value.nodes ?? [];
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -30,8 +31,6 @@ export function AccessList() {
       {body}
     </section>
   );
-
-  if (!read) return card(<p class="sub">{t("acl.needRead")}</p>);
 
   const acl = plan.acl ?? read;
   const names = new Map(nodes.map((n) => [n.public_key.toLowerCase(), n.adv_name]));
@@ -78,8 +77,8 @@ export function AccessList() {
         <button
           type="button"
           class="icon undo"
-          aria-label={t("acl.undo")}
-          title={t("acl.undo")}
+          aria-label={t(known ? "acl.undo" : "acl.clear")}
+          title={t(known ? "acl.undo" : "acl.clear")}
           onClick={() => set(read.map((e) => ({ ...e })))}
         >
           ↺
@@ -91,6 +90,7 @@ export function AccessList() {
   return card(
     <>
       <p class="sub">{t("acl.help")}</p>
+      {known ? null : <p class="sub">{t("acl.noRead")}</p>}
       <ul class="acl-list">
         {rows.map(({ entry, removed, isNew }) => {
           const name = nameOf(entry.key);

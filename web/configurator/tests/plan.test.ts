@@ -315,10 +315,11 @@ describe("summarize: the access list", () => {
     expect(summarize(plan, s).changes).toContainEqual({ group: "acl", labelKey: "acl", to: "2 changes" });
     expect(summarize({ ...plan, acl: [{ key: K1, role: 3 }] }, s).changes.map((c) => c.group)).not.toContain("acl");
   });
-  it("lists nothing without the repeater's list", () => {
+  it("without the repeater's list counts every key as an addition; no list, no line", () => {
     const plan = { ...defaultPlan(), acl: [{ key: K2, role: 3 as const }] };
-    expect(summarize(plan, snapshot()).changes.map((c) => c.group)).not.toContain("acl");
-    expect(summarize(plan).changes.map((c) => c.group)).not.toContain("acl");
+    expect(summarize(plan, snapshot()).changes).toContainEqual({ group: "acl", labelKey: "acl", to: "1 change" });
+    expect(summarize(plan).changes).toContainEqual({ group: "acl", labelKey: "acl", to: "1 change" });
+    expect(summarize(defaultPlan()).changes.map((c) => c.group)).not.toContain("acl");
   });
 });
 

@@ -48,6 +48,9 @@ Part 3 is done when:
   help is one line with the rest behind ⓘ; each card's button reads "#BEmesh Recommended".
 - Own region codes (user, 2026-10-26): the parent is top level or any region on Allow or Deny,
   neighbouring countries included.
+- Max flood hops can follow the hop preset, and #BEmesh recommends following (Average → 18);
+  RX delay is no part of the timing presets and is recommended at 0; the timing recommendation
+  is always Suburban; the access list works without a Read (user, 2026-10-26).
 
 ## Steps
 
@@ -62,14 +65,23 @@ wide steps. Settings holds five blocks as cards, then the access list:
 | Site & timing | timing preset; the three delays |
 | Advanced | path hash size, RX gain boost, interference threshold, AGC reset, extra acknowledgements |
 
-- Each card header has the badge, ↺ and "#BEmesh Recommended" (off when the card already
-  matches). "#BEmesh Recommended for all" sits by the step title.
+- Each card header reads "#BEmesh Recommended" (green and off when the card matches, orange
+  when it differs), then "Unchanged" or "N Changes" (a label, orange with changes), then ↺ only
+  when there are changes. "#BEmesh Recommended for all" by the step title is green when every
+  card matches.
 - **Hop allowance preset (unscoped / advert):** Tight, Minimal, Average, Extended, Full. The
   two numbers fold under Fine-tune, open when they match no preset.
+- **Max flood hops** has a "Follow hop preset" switch. While on, the field is locked and each
+  preset sets it: Tight 5, Minimal 10, Average 18, Extended 32, Full 64; hop limits that match no
+  preset leave it as it is. Turning it off, or the repeater-value ↺, makes the field free again.
+  The switch is kept in the plan and v2 backups, never sent; a new plan and the recommendation
+  follow; after a Read it is on when the repeater's max flood hops is its preset's.
 - **Timing preset:** Hilltop, Foothills, Suburban, Local and Custom, with the chosen site's
-  description and how many repeaters the map shows nearby. Custom is pressed when the timing is
-  no site; clicking it puts back the repeater's timing (the firmware's without a Read). The
-  three delays fold under Fine-tune, open on Custom.
+  description and how many repeaters the map shows nearby. A site sets the two transmit delays
+  only; Custom is pressed when they match no site, and clicking it puts back the repeater's (the
+  firmware's without a Read). RX delay (experimental, off in the firmware) is never set by a
+  site; #BEmesh recommends 0 and the check-up lists it on its own line. The three delays fold
+  under Fine-tune, open on Custom. The card's recommendation is Suburban with RX delay 0.
 - **Radio:** on a preset, a Read radio that differs is tagged by the preset with ↺, which puts
   it back (as Custom when it is no preset).
 - **Duty cycle:** 10, 50 or 100 %. The firmware raises anything under 10 % to 10 % at every
@@ -107,7 +119,7 @@ A line whose value stays the same reads "value (unchanged)".
 ### The recommended plan
 
 - **Settings:** `recommendedForAll(plan)`: the hop allowance always Average 8/12 with max flood
-  hops 64, the timing on the plan's site (Suburban when none matches), as the card buttons do.
+  hops following it (18), the timing Suburban with RX delay 0, as the card buttons do.
 - **Regions:** `policyFor(anchor, places)`, the default policy for the repeater's location, with
   the repeater's own regions on top (those the default policy leaves out), except the ones the
   user discards. Without an anchor the Regions line is shown, not ticked and disabled, with
@@ -191,7 +203,7 @@ The Send step:
   collects lines until the output has been quiet for 400 ms (or the command times out). A reply
   without the `ACL:` line counts as no answer.
 - The snapshot holds `acl: { key, role }[]`; the plan copies it on Read. A plan made without a
-  Read has no access list (`acl: null`) and the card asks for a Read.
+  Read has no access list until a key is added.
 - The read-back after Apply also reads the list.
 
 ### The card (Settings, below the blocks)
@@ -207,12 +219,17 @@ The Send step:
   key (spaces and dashes ignored) or offers companions from the map by name or key prefix. A
   new key gets the Admin role. A key already on the list is not added twice.
 - At 32 entries the card notes that the repeater may drop the least active non-admin entries.
-- The card's ↺ resets the list to what was read. "Use #BEmesh recommended settings" never
-  changes it, and it is in no block.
+- The card's ↺ resets the list to what was read. "#BEmesh Recommended" never changes it, and
+  it is in no block.
+- **Without a Read** (or without a device) the card works the same against an empty list: every
+  key is "new" and goes out as an addition, ✕ simply drops it, and nothing is removed from the
+  repeater. A line says so: "Without a Read, the keys you add are sent as additions. Keys already
+  on the repeater stay; read it to change or remove those."
 
 ### Sending
 
-- Removed key: `setperm <key> 0`. New key or changed role: `setperm <key> <role>`.
+- Removed key: `setperm <key> 0`. New key or changed role: `setperm <key> <role>`. Without the
+  repeater's list, every key on the plan's list is a new key.
 - The lines go in their own script group, "Access list", after the regions.
 - When Apply sent a `setperm` line, the reboot offer waits until 6 seconds after the last one,
   showing "Saving the access list…", so a reboot does not lose it.

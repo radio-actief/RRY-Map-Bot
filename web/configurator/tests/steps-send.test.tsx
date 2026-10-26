@@ -490,7 +490,7 @@ describe("Send step: only the changes", () => {
     fireEvent.click(screen.getByLabelText(SEND_ALL));
     expect(prefs.get("configurator.includeDefaults")).toBe("1");
     expect(screen.queryByText(/settings? unchanged/)).toBeNull();
-    expect(screen.getByRole("heading", { name: `${full.length} changes to send` })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: `${full.length} commands to send` })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Apply to repeater" }));
     await screen.findByRole("button", { name: "Reboot now" });
     expect(port.received).toEqual(["ver", ...full, ...READ_BACK_COMMANDS]);
@@ -509,10 +509,27 @@ describe("Send step: only the changes", () => {
     expect((screen.getByRole("button", { name: "Apply to repeater" }) as HTMLButtonElement).disabled).toBe(false);
   });
 
+  it("with the switch on, an access list change still goes out", async () => {
+    afterRead((p) => ({ ...p, acl: [...(p.acl ?? []), { key: KEY_B, role: 3 }] }));
+    const setperm = `setperm ${KEY_B} 3`;
+    const full = commandLines(
+      buildScript(store.plan.value, PLACES, { includeDefaults: true, device: store.deviceRegions.value }),
+    );
+    const { port } = await connect({ ...read, ...okReplies([...full, setperm]) });
+    render(<Send />);
+    fireEvent.click(screen.getByLabelText(SEND_ALL));
+    expect(scriptText()).toContain(`# Access list\n${setperm}`);
+    expect(screen.getByRole("heading", { name: `${full.length + 1} commands to send` })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Apply to repeater" }));
+    await screen.findByRole("button", { name: "Reboot now" });
+    expect(port.received).toEqual(["ver", ...full, setperm, ...READ_BACK_COMMANDS]);
+  });
+
   it("without a Read the full script is sent", async () => {
     const full = commandLines(buildScript(store.plan.value, PLACES, { includeDefaults: true }));
     const { port } = await connect(okReplies(full));
     render(<Send />);
+    expect(screen.getByRole("heading", { name: `${full.length} commands to send` })).toBeTruthy();
     expect(screen.queryByText(/settings? unchanged/)).toBeNull();
     expect(screen.queryByLabelText(SEND_ALL)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Apply to repeater" }));

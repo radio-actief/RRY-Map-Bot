@@ -381,6 +381,8 @@
   "review.empty": "Nothing changes yet.",
   "review.toSend_one": "{count} change to send",
   "review.toSend_other": "{count} changes to send",
+  "review.commands_one": "{count} command to send",
+  "review.commands_other": "{count} commands to send",
   "review.unchanged_one": "{count} setting unchanged",
   "review.unchanged_other": "{count} settings unchanged",
   "review.sendAll": "Send every setting, also the unchanged ones",

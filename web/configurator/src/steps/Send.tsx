@@ -6,7 +6,9 @@ import { Notice, type NoticeKind } from "../app/Notice";
 import { rawOf } from "../core/blocks";
 import { buildScript, commandLines, scriptText, unchangedCount, type ScriptGroup } from "../core/cli";
 import { REGION_DEF_MIN_TEXT } from "../core/firmware";
-import { planName, summarize, type Change } from "../core/plan";
+import { planName, summarize, type Change, type DeviceSnapshot, type Plan } from "../core/plan";
+import type { DeviceRegions } from "../core/regions";
+import type { Place } from "../core/search";
 import { presetForRadio } from "../core/presets";
 import { SETTINGS } from "../core/settings";
 import { hasWebSerial, MAX_LINE_LEN } from "../device/serial";
@@ -163,6 +165,22 @@ function download(text: string) {
   setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
+/**
+ * The script the Send step shows and Apply sends: after a Read (`snapshot`) only the changes; with
+ * `sendAll`, every setting, still with the access list changes against that Read.
+ */
+function sendScript(
+  plan: Plan,
+  places: Place[],
+  device: DeviceRegions | undefined,
+  snapshot: DeviceSnapshot | undefined,
+  sendAll: boolean,
+): ScriptGroup[] {
+  const changes = buildScript(plan, places, { includeDefaults: true, device, snapshot });
+  if (!snapshot || !sendAll) return changes;
+  return [...buildScript(plan, places, { includeDefaults: true, device }), ...changes.filter((g) => g.titleKey === "acl")];
+}
+
 function readSendAll(): boolean {
   return prefs.get(SEND_ALL_PREF) === "1";
 }
@@ -175,9 +193,9 @@ export function Send() {
   const places = store.data.value.places ?? [];
   const device = store.deviceRegions.value;
   const snapshot = store.snapshot.value ?? undefined;
-  // After a Read only the changes go out, unless the switch sends everything; Apply sends what is shown.
+  // Compared against a Read: only the changes go out. Apply sends what is shown.
   const against = sendAll ? undefined : snapshot;
-  const script = buildScript(plan, places, { includeDefaults: true, device, snapshot: against });
+  const script = sendScript(plan, places, device, snapshot, sendAll);
   const text = scriptText(
     script.map((g) => ({ ...g, lines: g.lines.map(visible) })),
     groupTitle,
@@ -199,7 +217,7 @@ export function Send() {
         <Changes />
         <div class="review-send">
           <header class="send-head">
-            <h3>{t("review.toSend", { count })}</h3>
+            <h3>{t(against ? "review.toSend" : "review.commands", { count })}</h3>
             {against ? <span class="badge">{t("review.unchanged", { count: unchangedCount(plan, places, against) })}</span> : null}
           </header>
           {snapshot ? (

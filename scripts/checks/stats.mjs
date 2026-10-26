@@ -101,4 +101,31 @@ export default async function (ctx) {
     ctx.check(`stats: no horizontal scroll at 390 (${scheme})`, w <= 390, String(w));
     await p.close();
   }
+
+  // Menus: stay on screen at 390, Escape closes them and returns focus, opening one closes the others.
+  const phone = await open(ctx, { width: 390, height: 800 });
+  await ready(phone);
+  const toggles = {
+    preset: ["#stats-filter-menu-trigger", "#stats-filter-menu-dropdown"],
+    download: ["#stats-download-btn", "#stats-download-menu"],
+    pages: ["#menu-toggle", "#page-menu"],
+  };
+  for (const [name, [toggle, menu]] of Object.entries(toggles)) {
+    await phone.locator(toggle).click();
+    const rect = await phone.locator(menu).evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      return { left: r.left, right: r.right, width: r.width };
+    });
+    ctx.check(`stats: ${name} menu stays on screen at 390`, rect.width > 0 && rect.left >= 0 && rect.right <= 390, JSON.stringify(rect));
+    ctx.check(`stats: ${name} toggle reports aria-expanded`, (await phone.locator(toggle).getAttribute("aria-expanded")) === "true");
+    await phone.keyboard.press("Escape");
+    ctx.check(`stats: Escape closes the ${name} menu`, !(await phone.locator(menu).isVisible()) && (await phone.locator(toggle).getAttribute("aria-expanded")) === "false");
+    ctx.check(`stats: Escape returns focus to the ${name} toggle`, await phone.locator(toggle).evaluate((el) => el === document.activeElement));
+  }
+  await phone.locator("#stats-filter-menu-trigger").click();
+  await phone.locator("#menu-toggle").click();
+  ctx.check("stats: opening ☰ closes the preset menu", !(await phone.locator("#stats-filter-menu-dropdown").isVisible()) && (await phone.locator("#page-menu").isVisible()));
+  await phone.locator("#stats-download-btn").click();
+  ctx.check("stats: opening download closes ☰", !(await phone.locator("#page-menu").isVisible()) && (await phone.locator("#stats-download-menu").isVisible()));
+  await phone.close();
 }

@@ -74,6 +74,17 @@ button.chip {
   overflow-y: auto;
 }
 
+@media (max-width: 600px) {
+  .stats-pop > .menu.stats-filter-menu-dropdown,
+  .stats-pop > .menu {
+    position: fixed;
+    top: 48px;
+    left: 12px;
+    right: 12px;
+    width: auto;
+  }
+}
+
 .stats-menu-title {
   padding: 4px 8px;
   font-size: 11px;

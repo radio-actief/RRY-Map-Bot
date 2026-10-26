@@ -977,6 +977,12 @@
               menu.hidden = true;
               menuBtn.setAttribute("aria-expanded", "false");
             });
+            document.addEventListener("keydown", function (e) {
+              if (e.key !== "Escape" || menu.hidden) return;
+              menu.hidden = true;
+              menuBtn.setAttribute("aria-expanded", "false");
+              menuBtn.focus();
+            });
           }
 
           document

@@ -121,4 +121,18 @@ export default async function (ctx) {
   const notWhite = (c) => !!c && c !== "rgb(255, 255, 255)";
   ctx.check("map: dark popup wrapper and tip are not white", notWhite(bg.wrapper) && notWhite(bg.tip), JSON.stringify(bg));
   await dark.close();
+
+  // ☰ stays on screen at 390; ☰ and Filters never stay open together.
+  const phone = await ctx.open("/", { width: 390, height: 800, setup: withNodes() });
+  await phone.locator("#menu-toggle").click();
+  const rect = await phone.locator("#page-menu").evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    return { left: r.left, right: r.right, width: r.width };
+  });
+  ctx.check("map: ☰ menu stays on screen at 390", rect.width > 0 && rect.left >= 0 && rect.right <= 390, JSON.stringify(rect));
+  await phone.locator('button[aria-controls="node-filter"]').click();
+  ctx.check("map: opening Filters closes ☰", !(await phone.locator("#page-menu").isVisible()) && (await phone.locator("#node-filter").isVisible()));
+  await phone.locator("#menu-toggle").click();
+  ctx.check("map: opening ☰ closes Filters", (await phone.locator("#page-menu").isVisible()) && !(await phone.locator("#node-filter").isVisible()));
+  await phone.close();
 }

@@ -51,4 +51,16 @@ export default async function (ctx) {
   const notWhite = (c) => !!c && c !== "rgb(255, 255, 255)";
   ctx.check("region map: dark popup wrapper and tip are not white", notWhite(bg.wrapper) && notWhite(bg.tip), JSON.stringify(bg));
   await dark.close();
+
+  // ☰ stays on screen at 390 and Escape closes it, returning focus.
+  const phone = await ctx.open("/region-map", { width: 390, height: 800 });
+  await phone.locator("#menu-toggle").click();
+  const rect = await phone.locator("#page-menu").evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    return { left: r.left, right: r.right, width: r.width };
+  });
+  ctx.check("region map: ☰ menu stays on screen at 390", rect.width > 0 && rect.left >= 0 && rect.right <= 390, JSON.stringify(rect));
+  await phone.keyboard.press("Escape");
+  ctx.check("region map: Escape closes ☰ and returns focus", !(await phone.locator("#page-menu").isVisible()) && (await phone.locator("#menu-toggle").getAttribute("aria-expanded")) === "false" && (await phone.locator("#menu-toggle").evaluate((el) => el === document.activeElement)));
+  await phone.close();
 }

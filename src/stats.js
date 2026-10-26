@@ -114,18 +114,7 @@
         );
         const pageMenuBtn = document.getElementById("menu-toggle");
         const pageMenu = document.getElementById("page-menu");
-        if (pageMenuBtn && pageMenu) {
-          pageMenuBtn.addEventListener("click", function (e) {
-            e.stopPropagation();
-            var open = pageMenu.hidden;
-            pageMenu.hidden = !open;
-            pageMenuBtn.setAttribute("aria-expanded", open ? "true" : "false");
-          });
-          document.addEventListener("click", function () {
-            pageMenu.hidden = true;
-            pageMenuBtn.setAttribute("aria-expanded", "false");
-          });
-        }
+        const downloadBtn = document.getElementById("stats-download-btn");
         var statsHeaderPopoverResizeTimer;
         function scheduleStatsHeaderChartResize() {
           clearTimeout(statsHeaderPopoverResizeTimer);
@@ -137,28 +126,60 @@
             } catch (err) {}
           }, 120);
         }
-        function closeStatsHeaderPopovers() {
-          if (downloadChip) downloadChip.classList.remove("is-open");
-          if (filterMenu) filterMenu.classList.remove("is-open");
-          if (filterTrigger)
-            filterTrigger.setAttribute("aria-expanded", "false");
+        // Closes every header menu except the one named (preset, download or pages).
+        function closeStatsMenus(except) {
+          var wasOpen = false;
+          if (except !== "download" && downloadChip) {
+            wasOpen = wasOpen || downloadChip.classList.contains("is-open");
+            downloadChip.classList.remove("is-open");
+            if (downloadBtn) downloadBtn.setAttribute("aria-expanded", "false");
+          }
+          if (except !== "preset" && filterMenu) {
+            wasOpen = wasOpen || filterMenu.classList.contains("is-open");
+            filterMenu.classList.remove("is-open");
+            if (filterTrigger)
+              filterTrigger.setAttribute("aria-expanded", "false");
+          }
+          if (except !== "pages" && pageMenu && pageMenuBtn) {
+            pageMenu.hidden = true;
+            pageMenuBtn.setAttribute("aria-expanded", "false");
+          }
+          if (wasOpen) scheduleStatsHeaderChartResize();
         }
         document.addEventListener("click", function () {
-          var filterWasOpen =
-            filterMenu && filterMenu.classList.contains("is-open");
-          var downloadWasOpen =
-            downloadChip && downloadChip.classList.contains("is-open");
-          closeStatsHeaderPopovers();
-          if (filterWasOpen || downloadWasOpen)
-            scheduleStatsHeaderChartResize();
+          closeStatsMenus();
         });
+        document.addEventListener("keydown", function (e) {
+          if (e.key !== "Escape") return;
+          var toggles = [
+            ["preset", filterTrigger, filterMenu && filterMenu.classList.contains("is-open")],
+            ["download", downloadBtn, downloadChip && downloadChip.classList.contains("is-open")],
+            ["pages", pageMenuBtn, pageMenu && !pageMenu.hidden],
+          ];
+          var focusTarget = null;
+          toggles.forEach(function (t) {
+            if (t[2] && t[1]) focusTarget = t[1];
+          });
+          closeStatsMenus();
+          if (focusTarget) focusTarget.focus();
+        });
+        if (pageMenuBtn && pageMenu) {
+          pageMenuBtn.addEventListener("click", function (e) {
+            e.stopPropagation();
+            var open = pageMenu.hidden;
+            closeStatsMenus("pages");
+            pageMenu.hidden = !open;
+            pageMenuBtn.setAttribute("aria-expanded", open ? "true" : "false");
+          });
+        }
         if (downloadChip) {
           downloadChip.addEventListener("click", function (e) {
             e.stopPropagation();
-            if (filterMenu) filterMenu.classList.remove("is-open");
-            if (filterTrigger)
-              filterTrigger.setAttribute("aria-expanded", "false");
-            downloadChip.classList.toggle("is-open");
+            var open = !downloadChip.classList.contains("is-open");
+            closeStatsMenus("download");
+            downloadChip.classList.toggle("is-open", open);
+            if (downloadBtn)
+              downloadBtn.setAttribute("aria-expanded", open ? "true" : "false");
             scheduleStatsHeaderChartResize();
           });
           if (downloadDropdown) {
@@ -170,12 +191,10 @@
         if (filterMenu && filterTrigger && filterDropdown) {
           filterTrigger.addEventListener("click", function (e) {
             e.stopPropagation();
-            if (downloadChip) downloadChip.classList.remove("is-open");
-            filterMenu.classList.toggle("is-open");
-            filterTrigger.setAttribute(
-              "aria-expanded",
-              filterMenu.classList.contains("is-open") ? "true" : "false",
-            );
+            var open = !filterMenu.classList.contains("is-open");
+            closeStatsMenus("preset");
+            filterMenu.classList.toggle("is-open", open);
+            filterTrigger.setAttribute("aria-expanded", open ? "true" : "false");
             scheduleStatsHeaderChartResize();
           });
           filterDropdown.addEventListener("click", function (e) {

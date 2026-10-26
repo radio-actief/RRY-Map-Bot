@@ -73,7 +73,7 @@
             aria-haspopup="true"
             aria-controls="page-menu"
             :aria-expanded="app.menuOpen"
-            @click.stop="app.menuOpen = !app.menuOpen"
+            @click.stop="app.filterMenuOpen = false; app.menuOpen = !app.menuOpen"
           >
             ☰
           </button>
@@ -160,7 +160,7 @@
               :aria-expanded="app.filterMenuOpen"
               aria-haspopup="true"
               aria-controls="node-filter"
-              @click.stop="app.filterMenuOpen = !app.filterMenuOpen"
+              @click.stop="app.menuOpen = false; app.filterMenuOpen = !app.filterMenuOpen"
             >
               {{ filtersActive ? "Filters active" : "Filters" }}
             </button>

@@ -106,7 +106,7 @@ describe("stepStatus", () => {
 function ronseNeeding(count: number) {
   let policy = policyFor(RONSE_ANCHOR, PLACES);
   for (let i = 0; regionCountAfterApply(RONSE_ANCHOR, policy, PLACES) < count; i++) {
-    policy = addFreeRegion(policy, `zone${i}`, null, RONSE_ANCHOR);
+    policy = addFreeRegion(policy, `zone${i}`, null);
   }
   expect(regionCountAfterApply(RONSE_ANCHOR, policy, PLACES)).toBe(count);
   return policy;
@@ -206,7 +206,7 @@ describe("free regions survive a rebuilt policy", () => {
   it("keeps a free row and its state when the location moves", () => {
     store.data.value = { failed: new Set(), places: PLACES };
     chooseLocation({ type: "city", label: "Ronse", place: RONSE } as never);
-    const regions = addFreeRegion(store.plan.value.regions!, "zone", null, store.plan.value.anchor!);
+    const regions = addFreeRegion(store.plan.value.regions!, "zone", null);
     store.plan.value = { ...store.plan.value, regions };
     const before = store.plan.value.regions!.rows.find((r) => r.code === "zone")!;
     const kortrijk = PLACES.find((p) => p.city_code === "bekjk")!;
@@ -219,7 +219,7 @@ describe("free regions survive a rebuilt policy", () => {
   it("keeps a free row and its state when the pin moves into another municipality", () => {
     store.data.value = { failed: new Set(), places: PLACES, municipalities: MUNIS };
     chooseLocation({ type: "city", label: "Ronse", place: RONSE } as never);
-    const regions = setRowState(addFreeRegion(store.plan.value.regions!, "zone", null, store.plan.value.anchor!), "zone", "deny");
+    const regions = setRowState(addFreeRegion(store.plan.value.regions!, "zone", null), "zone", "deny");
     store.plan.value = { ...store.plan.value, regions };
     const before = store.plan.value.regions!.rows.find((r) => r.code === "zone")!;
     setLocation({ lat: 50.7788, lon: 3.5368 });

@@ -6,6 +6,7 @@ import {
   carryFreeRows,
   checkFreeCode,
   freeParentOptions,
+  settlePolicy,
   isFreeParent,
   MAX_REGIONS,
   regionCountAfterApply,
@@ -572,44 +573,40 @@ describe("free regions", () => {
     expect(checkFreeCode(base, "*")).toBe("taken");
     expect(checkFreeCode(base, "beron")).toBe("taken");
     expect(checkFreeCode(base, "my-zone1")).toBe("ok");
-    expect(checkFreeCode(addFreeRegion(base, "my-zone1", null, ronse), "my-zone1")).toBe("taken");
+    expect(checkFreeCode(addFreeRegion(base, "my-zone1", null), "my-zone1")).toBe("taken");
   });
 
   it("adds an allowed, never locked row and defines it with its parent chain", () => {
-    // Cleared first: be is not set, so the neighbour tiers (be-wht among them) are locked.
-    const p = addFreeRegion(bulk(base, "clear"), "zone", "be-wht", ronse);
-    const zone = p.rows.find((r) => r.code === "zone")!;
-    expect(zone).toMatchObject({
-      code: "zone",
-      label: "zone",
-      labelKey: "region.kind.free",
-      group: "free",
-      parent: "be-wht",
-      allow: true,
-      deny: false,
-    });
-    expect(zone.disabled).toBeUndefined();
-    expect(regionsByState(p)).toEqual({ allowed: ["zone"], denied: [] });
-    expect(defLines(p)).toEqual(["region def be be-wht zone"]);
+    // Cleared first: be is not set, so the neighbour tiers are locked; a free row is not.
+    const cleared = addFreeRegion(bulk(base, "clear"), "zone", null);
+    const top = cleared.rows.find((r) => r.code === "zone")!;
+    expect(top).toMatchObject({ code: "zone", label: "zone", labelKey: "region.kind.free", group: "free", parent: null });
+    expect(top.disabled).toBeUndefined();
+    expect(regionsByState(cleared)).toEqual({ allowed: ["zone"], denied: [] });
     // Offered as home region and default scope once allowed.
-    expect(homeOverrideOptions(p).map((o) => o.code)).toContain("zone");
-    expect(defaultScopeOptions(p).map((o) => o.code)).toEqual(["zone"]);
+    expect(homeOverrideOptions(cleared).map((o) => o.code)).toContain("zone");
+    expect(defaultScopeOptions(cleared).map((o) => o.code)).toEqual(["zone"]);
+
+    const p = addFreeRegion(setRowState(base, "be-wht", "deny"), "zone", "be-wht");
+    expect(p.rows.find((r) => r.code === "zone")).toMatchObject({ parent: "be-wht", allow: true, deny: false });
+    expect(defLines(p)).toEqual(["region def be be-vov|be be-wht zone"]);
   });
 
   it("nests a free region under another; a top-level one sits under *", () => {
-    let p = addFreeRegion(base, "zone", null, ronse);
-    p = addFreeRegion(p, "sub", "zone", ronse);
+    let p = addFreeRegion(base, "zone", null);
+    p = addFreeRegion(p, "sub", "zone");
     expect(p.rows.find((r) => r.code === "sub")!.parent).toBe("zone");
     expect(defLines(p)).toEqual(["region def be be-vov|* zone sub"]);
-    // The child alone still pulls in its parent.
-    expect(defLines(setRowState(p, "zone", "none"))).toEqual(["region def be be-vov|* zone sub"]);
+    // A parent with a region under it keeps its Allow or Deny.
+    expect(setRowState(p, "zone", "none")).toBe(p);
+    expect(setRowState(p, "zone", "deny").rows.find((r) => r.code === "zone")!.deny).toBe(true);
   });
 
   it("defines the home province and municipality ancestors when a free region sits under them", () => {
     const cleared = bulk(base, "clear");
-    const underProvince = addFreeRegion(cleared, "zone", "be-vov", ronse);
+    const underProvince = addFreeRegion(setRowState(cleared, "be-vov", "allow"), "zone", "be-vov");
     expect(defLines(underProvince)).toEqual(["region def be be-vov zone"]);
-    const underCity = addFreeRegion(cleared, "zone", "beron", ronse);
+    const underCity = addFreeRegion(setRowState(cleared, "beron", "allow"), "zone", "beron");
     expect(defLines(underCity)).toEqual(["region def be be-vov beron zone"]);
     for (const p of [underProvince, underCity]) {
       expect(regionCountAfterApply(ronse, p, PLACES)).toBe(distinctDefCodes(p));
@@ -619,7 +616,7 @@ describe("free regions", () => {
   });
 
   it("removes a free region only once no other free region sits under it", () => {
-    let p = addFreeRegion(addFreeRegion(base, "zone", null, ronse), "sub", "zone", ronse);
+    let p = addFreeRegion(addFreeRegion(base, "zone", null), "sub", "zone");
     expect(isFreeParent(p, "zone")).toBe(true);
     expect(isFreeParent(p, "sub")).toBe(false);
     expect(removeFreeRegion(p, "zone")).toBe(p);
@@ -631,48 +628,70 @@ describe("free regions", () => {
     expect(removeFreeRegion(p, "be")).toEqual(p);
   });
 
-  it("offers top level, eu, be, gewesten, provinces, the home municipality and free rows as parents", () => {
-    const p = addFreeRegion(base, "zone", null, ronse);
-    const options = freeParentOptions(p, ronse);
+  it("offers top level and every region set to Allow or Deny, in table order", () => {
+    let p = addFreeRegion(base, "zone", null);
+    for (const [c, st] of [["nl", "allow"], ["be-wht", "deny"], ["beron", "allow"]] as const) p = setRowState(p, c, st);
+    const options = freeParentOptions(p);
     expect(options[0]).toEqual({ code: "", label: "Top level" });
-    expect(options.map((o) => o.code)).toEqual([
-      "",
-      "eu",
-      "be",
-      "be-vlg",
-      "be-wal",
-      "be-vbr",
-      "be-vov",
-      "be-vwv",
-      "be-wht",
-      "beron",
-      "zone",
-    ]);
+    const set = p.rows.filter((r) => r.allow || r.deny).map((r) => r.code);
+    expect(options.slice(1).map((o) => o.code)).toEqual(set);
+    expect(options.map((o) => o.code)).toEqual(expect.arrayContaining(["nl", "be", "be-vov", "be-wht", "beron", "zone"]));
+    expect(options.map((o) => o.code)).not.toContain("eu");
+    expect(options.map((o) => o.code)).not.toContain("fr");
     expect(options.find((o) => o.code === "be-wht")!.label).toBe("Henegouwen (be-wht)");
-    expect(options.find((o) => o.code === "beron")!.label).toBe("Ronse (beron)");
+    expect(options.find((o) => o.code === "nl")!.label).toBe("Netherlands (nl)");
+    // A free region left on neither is not offered.
+    expect(freeParentOptions(setRowState(p, "zone", "none")).map((o) => o.code)).not.toContain("zone");
+  });
+
+  it("nests a free region under a neighbouring country", () => {
+    const p = addFreeRegion(setRowState(base, "nl", "allow"), "zone", "nl");
+    expect(p.rows.find((r) => r.code === "zone")!.parent).toBe("nl");
+    expect(defLines(p)).toEqual(["region def nl zone|* be be-vov"]);
+  });
+
+  it("moves a free region to top level when a lock clears its parent", () => {
+    const p = addFreeRegion(setRowState(base, "nl", "allow"), "zone", "nl");
+    // Clearing be locks the neighbouring countries, nl among them.
+    const closed = setRowState(p, "be", "none");
+    expect(closed.rows.find((r) => r.code === "nl")!.allow).toBe(false);
+    expect(closed.rows.find((r) => r.code === "zone")!.parent).toBeNull();
+    expect(defLines(closed).join(" ")).not.toMatch(/\bnl\b/);
+  });
+
+  it("settles a free region under a region on neither at top level", () => {
+    const p = addFreeRegion(setRowState(base, "nl", "allow"), "zone", "nl");
+    const raw = { ...p, rows: p.rows.map((r) => (r.code === "nl" ? { ...r, allow: false } : r)) };
+    expect(settlePolicy(raw).rows.find((r) => r.code === "zone")!.parent).toBeNull();
+    expect(settlePolicy(p)).toEqual(p);
   });
 
   it("carries free rows into a rebuilt policy", () => {
     const kortrijk = cityAnchor("Kortrijk");
-    let p = setRowState(addFreeRegion(base, "zone", "beron", ronse), "zone", "deny");
-    p = addFreeRegion(addFreeRegion(p, "sub", "zone", ronse), "wide", "eu", ronse);
-    const next = carryFreeRows(policyFor(kortrijk, PLACES), p, kortrijk);
+    const set = setRowState(setRowState(base, "beron", "allow"), "eu", "allow");
+    let p = setRowState(addFreeRegion(set, "zone", "beron"), "zone", "deny");
+    p = addFreeRegion(addFreeRegion(p, "sub", "zone"), "wide", "eu");
+    expect(p.rows.find((r) => r.code === "wide")!.parent).toBe("eu");
+    const next = carryFreeRows(policyFor(kortrijk, PLACES), p);
     const free = next.rows.filter((r) => r.group === "free");
+    // beron is no row for Kortrijk, and eu is on neither there.
     expect(free.map((r) => [r.code, r.parent, r.allow, r.deny])).toEqual([
       ["zone", null, false, true],
       ["sub", "zone", true, false],
-      ["wide", "eu", true, false],
+      ["wide", null, true, false],
     ]);
+    const eu = carryFreeRows(setRowState(policyFor(kortrijk, PLACES), "eu", "allow"), p);
+    expect(eu.rows.find((r) => r.code === "wide")!.parent).toBe("eu");
     // A free code that is a structured row in the new policy (Kortrijk is bekjk) is dropped.
-    const bekjk = carryFreeRows(policyFor(kortrijk, PLACES), addFreeRegion(base, "bekjk", null, ronse), kortrijk);
+    const bekjk = carryFreeRows(policyFor(kortrijk, PLACES), addFreeRegion(base, "bekjk", null));
     expect(bekjk.rows.filter((r) => r.code === "bekjk").map((r) => r.group)).toEqual(["municipality"]);
     const fresh = policyFor(kortrijk, PLACES);
-    expect(carryFreeRows(fresh, null, kortrijk)).toBe(fresh);
+    expect(carryFreeRows(fresh, null)).toBe(fresh);
   });
 
   it("a carried free row replaces a device row with the same code", () => {
-    const p = addFreeRegion(base, "zone", null, ronse);
-    const next = carryFreeRows(policyFor(ronse, PLACES, ["zone"]), p, ronse);
+    const p = addFreeRegion(base, "zone", null);
+    const next = carryFreeRows(policyFor(ronse, PLACES, ["zone"]), p);
     expect(next.rows.filter((r) => r.code === "zone").map((r) => r.group)).toEqual(["free"]);
   });
 
@@ -680,11 +699,11 @@ describe("free regions", () => {
     expect(regionCountAfterApply(ronse, base, PLACES)).toBe(2);
     // The default scope and its ancestors count too.
     expect(regionCountAfterApply(ronse, { ...base, defaultScope: "be-wht" }, PLACES)).toBe(3);
-    let p = addFreeRegion(addFreeRegion(bulk(base, "allowAll"), "zone", "be-wht", ronse), "sub", "zone", ronse);
+    let p = addFreeRegion(addFreeRegion(bulk(base, "allowAll"), "zone", "be-wht"), "sub", "zone");
     expect(regionCountAfterApply(ronse, p, PLACES)).toBe(distinctDefCodes(p));
     expect(regionCountAfterApply(ronse, p, PLACES)).toBeLessThanOrEqual(MAX_REGIONS);
     p = base;
-    for (let i = 0; i < 31; i++) p = addFreeRegion(p, `zone${i}`, null, ronse);
+    for (let i = 0; i < 31; i++) p = addFreeRegion(p, `zone${i}`, null);
     expect(regionCountAfterApply(ronse, p, PLACES)).toBe(33);
     expect(regionCountAfterApply(ronse, p, PLACES)).toBe(distinctDefCodes(p));
     expect(MAX_REGIONS).toBe(32);
@@ -692,19 +711,21 @@ describe("free regions", () => {
 
   it("puts a free region at top level when its parent is not offered", () => {
     // xx was a parent option, then removed: zz must not land under it.
-    const gone = removeFreeRegion(addFreeRegion(base, "xx", null, ronse), "xx");
-    const zz = addFreeRegion(gone, "zz", "xx", ronse);
+    const gone = removeFreeRegion(addFreeRegion(base, "xx", null), "xx");
+    const zz = addFreeRegion(gone, "zz", "xx");
     expect(zz.rows.find((r) => r.code === "zz")!.parent).toBeNull();
     expect(defLines(zz).join(" ")).not.toMatch(/\bxx\b/);
     // beron is offered for Ronse, not once the anchor is Kortrijk.
     const kortrijk = cityAnchor("Kortrijk");
-    const other = addFreeRegion(policyFor(kortrijk, PLACES), "zz", "beron", kortrijk);
+    const other = addFreeRegion(policyFor(kortrijk, PLACES), "zz", "beron");
     expect(other.rows.find((r) => r.code === "zz")!.parent).toBeNull();
-    expect(addFreeRegion(base, "zz", "beron", ronse).rows.find((r) => r.code === "zz")!.parent).toBe("beron");
+    expect(addFreeRegion(base, "zz", "beron").rows.find((r) => r.code === "zz")!.parent).toBeNull();
+    const beron = setRowState(base, "beron", "allow");
+    expect(addFreeRegion(beron, "zz", "beron").rows.find((r) => r.code === "zz")!.parent).toBe("beron");
   });
 
   it("removing the free region that is the default scope clears the default scope", () => {
-    const p = setDefaultScope(addFreeRegion(base, "zone", null, ronse), "zone");
+    const p = setDefaultScope(addFreeRegion(base, "zone", null), "zone");
     expect(regionCommandLines(ronse, p, PLACES)).toContain("region default zone");
     const removed = removeFreeRegion(p, "zone");
     expect(removed.defaultScope).toBeNull();
@@ -712,19 +733,19 @@ describe("free regions", () => {
     expect(lines).not.toContain("region default zone");
     expect(lines.join("\n")).not.toMatch(/\bzone\b/);
     // Another default scope is left alone.
-    const other = setDefaultScope(addFreeRegion(base, "zone", null, ronse), "be-vov");
+    const other = setDefaultScope(addFreeRegion(base, "zone", null), "be-vov");
     expect(removeFreeRegion(other, "zone").defaultScope).toBe("be-vov");
   });
 
   it("re-adds a code read from the device as your own region, in place of the device row", () => {
-    const read = policyFor(ronse, PLACES, ["zone"]);
+    const read = setRowState(policyFor(ronse, PLACES, ["zone"]), "be-wht", "deny");
     expect(checkFreeCode(read, "zone")).toBe("ok");
-    const p = addFreeRegion(read, "zone", "be-wht", ronse);
+    const p = addFreeRegion(read, "zone", "be-wht");
     const zone = p.rows.filter((r) => r.code === "zone");
     expect(zone.map((r) => [r.group, r.parent, r.allow, r.deny])).toEqual([["free", "be-wht", true, false]]);
     expect(defLines(p)).toEqual(["region def be be-vov|be be-wht zone"]);
     // The device row's Deny is kept.
-    const denied = addFreeRegion(setRowState(read, "zone", "deny"), "zone", null, ronse);
+    const denied = addFreeRegion(setRowState(read, "zone", "deny"), "zone", null);
     expect(denied.rows.filter((r) => r.code === "zone").map((r) => [r.group, r.allow, r.deny])).toEqual([
       ["free", false, true],
     ]);
@@ -771,13 +792,6 @@ describe("removing free regions from the device", () => {
       (l) => l.startsWith("region remove "),
     );
 
-  it("removes a child before its parent, whatever the code lengths", () => {
-    // Both still listed, neither Allow nor Deny: the script removes them from the device.
-    let p = addFreeRegion(addFreeRegion(base, "longparent", null, ronse), "a", "longparent", ronse);
-    p = setRowState(setRowState(p, "a", "none"), "longparent", "none");
-    expect(removes(p, ["longparent", "a"])).toEqual(["region remove a", "region remove longparent"]);
-  });
-
   it("removes children first by the tree read from the device", () => {
     // Not in the plan: only the device knows ab sits under abcdef (length order would get it wrong).
     const lines = regionCommandLines(ronse, base, PLACES, {
@@ -805,9 +819,15 @@ describe("removing free regions from the device", () => {
     expect(at("region remove oldzone")).toBeLessThan(lines.findIndex((l) => l.startsWith("region home ")));
   });
 
-  it("removes a free child before the structured parent it sits under", () => {
-    let p = setRowState(addFreeRegion(base, "a", "be-wht", ronse), "a", "none");
-    expect(removes(p, ["be-wht", "a", "bemak"])).toEqual([
+  it("removes a free child before the structured parent it sits under on the device", () => {
+    const p = setRowState(addFreeRegion(base, "a", null), "a", "none");
+    const lines = regionCommandLines(ronse, p, PLACES, {
+      named: ["be", "be-vov", "be-wht", "a", "bemak"],
+      home: "be-vov",
+      default: "be",
+      parents: { be: null, "be-vov": "be", "be-wht": "be", a: "be-wht", bemak: "be-vov" },
+    });
+    expect(lines.filter((l) => l.startsWith("region remove "))).toEqual([
       "region remove bemak",
       "region remove a",
       "region remove be-wht",
@@ -815,12 +835,12 @@ describe("removing free regions from the device", () => {
   });
 
   it("never removes a free region that is kept or carried to a new parent", () => {
-    let p = addFreeRegion(addFreeRegion(base, "zone", "beron", ronse), "sub", "zone", ronse);
+    let p = addFreeRegion(addFreeRegion(setRowState(base, "beron", "allow"), "zone", "beron"), "sub", "zone");
     p = setRowState(p, "sub", "none");
     expect(removes(p, ["beron", "zone", "sub"])).toEqual(["region remove sub"]);
     // The pin moves to Kortrijk: zone falls back to top level and stays; beron goes.
     const kortrijk = cityAnchor("Kortrijk");
-    const moved = carryFreeRows(policyFor(kortrijk, PLACES), p, kortrijk);
+    const moved = carryFreeRows(policyFor(kortrijk, PLACES), p);
     expect(moved.rows.find((r) => r.code === "zone")!.parent).toBeNull();
     const device = { named: ["be", "be-vov", "beron", "zone", "sub"], home: "be-vov", default: "be" };
     const lines = regionCommandLines(kortrijk, moved, PLACES, device);
@@ -899,7 +919,7 @@ describe("regionsMatch", () => {
   });
 
   it("an own region matches only where the tree shows it", () => {
-    const policy = addFreeRegion(base, "zone", "be-vov", ronse);
+    const policy = addFreeRegion(base, "zone", "be-vov");
     const expected = expectedRegions(ronse, policy, PLACES);
     const { read, device } = runRegionLines(regionCommandLines(ronse, policy, PLACES));
     expect(device.parents.zone).toBe("be-vov");

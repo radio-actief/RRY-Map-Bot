@@ -5,7 +5,7 @@
 import { hasControlChars, POWER_EMOJIS, prefixFormatFromLegacy, type PowerEmoji } from "./naming";
 import { defaultPlan, hasValidCoords, type Plan, type Radio } from "./plan";
 import { checkRadioValue, RADIO_FIELD_SPECS, type RadioFieldId } from "./presets";
-import { anchorFromChoice, applyLegacyPolicyFields, policyFor } from "./regions";
+import { anchorFromChoice, applyLegacyPolicyFields, policyFor, settlePolicy } from "./regions";
 import { locationChoices, type Place } from "./search";
 import { validateSetting, type SettingKey } from "./settings";
 
@@ -111,7 +111,7 @@ function planFromV2(raw: unknown): Plan {
   );
   if (badSetting || controlText(rest)) throw new BackupError("backup.error.invalid");
   const { acl: _acl, ...plan } = structuredClone(raw) as Plan;
-  return plan;
+  return plan.regions ? { ...plan, regions: settlePolicy(plan.regions) } : plan;
 }
 
 // ---------------------------------------------------------------------------

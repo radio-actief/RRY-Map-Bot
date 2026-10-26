@@ -65,7 +65,7 @@ function RegionRowView({ row, home, policy }: { row: RegionRow; home: boolean; p
   const locked = !!(row.disabled?.allow || row.disabled?.deny);
   const state = row.allow ? "allow" : row.deny ? "deny" : "none";
   const reason = locked ? lockedReason(row) : undefined;
-  const inUse = row.group === "free" && isFreeParent(policy, row.code);
+  const inUse = isFreeParent(policy, row.code);
   const inUseId = `free-in-use-${row.code}`;
   return (
     <li class="region-row" data-code={row.code}>
@@ -82,8 +82,10 @@ function RegionRowView({ row, home, policy }: { row: RegionRow; home: boolean; p
             type="button"
             key={s}
             data-state={s}
-            disabled={locked}
+            disabled={locked || (inUse && s === "none")}
             aria-pressed={state === s}
+            aria-describedby={inUse && s === "none" ? inUseId : undefined}
+            title={inUse && s === "none" ? t("regions.free.parentInUse") : undefined}
             aria-label={`${t(`regions.state.${s}`)}: ${row.label}`}
             onClick={() => update((p) => setRowState(p, row.code, s))}
           >
@@ -116,14 +118,14 @@ function RegionRowView({ row, home, policy }: { row: RegionRow; home: boolean; p
 function FreeForm({ policy, anchor }: { policy: RegionPolicy; anchor: Anchor }) {
   const [code, setCode] = useState("");
   const [chosen, setParent] = useState("");
-  const options = freeParentOptions(policy, anchor);
+  const options = freeParentOptions(policy);
   // A choice that is no longer offered (removed, or the pin moved) means top level.
   const parent = options.some((o) => o.code === chosen) ? chosen : "";
   const result = checkFreeCode(policy, code);
   const error = code && result !== "ok" ? t(`error.freeCode.${result}`) : null;
   const add = () => {
     if (result !== "ok") return;
-    update((p) => addFreeRegion(p, code, parent || null, anchor));
+    update((p) => addFreeRegion(p, code, parent || null));
     setCode("");
   };
   return (

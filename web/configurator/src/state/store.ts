@@ -311,7 +311,7 @@ export function setLocation(p: LatLon | null): void {
     ...plan,
     location: p,
     anchor,
-    regions: anchor ? carryFreeRows(policyFor(anchor, places, deviceCodes()), plan.regions, anchor) : null,
+    regions: anchor ? carryFreeRows(policyFor(anchor, places, deviceCodes()), plan.regions) : null,
   };
 }
 
@@ -347,7 +347,7 @@ export function chooseLocation(choice: LocationChoice): void {
     ...plan,
     anchor,
     location: keep ? plan.location : anchorCenter(anchor, places),
-    regions: carryFreeRows(policyFor(anchor, places, deviceCodes()), plan.regions, anchor),
+    regions: carryFreeRows(policyFor(anchor, places, deviceCodes()), plan.regions),
     prefixFormat: anchor.mode,
   };
 }

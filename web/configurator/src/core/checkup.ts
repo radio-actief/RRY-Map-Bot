@@ -95,7 +95,7 @@ function recommendedRegions(plan: Plan, places: Place[], discard: Set<string>): 
   const policy = policyFor(plan.anchor!, places);
   if (!plan.regions) return policy;
   const keep = removable(plan, policy).filter((c) => !discard.has(c));
-  return keep.length ? keepRows(policy, plan.regions, keep, plan.anchor!) : policy;
+  return keep.length ? keepRows(policy, plan.regions, keep) : policy;
 }
 
 /** Kept regions that still go, because the region they depend on is discarded. */

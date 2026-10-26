@@ -299,16 +299,31 @@ function effectiveHomeOverride(p: RegionPolicy): string | null {
   return p.rows.some((r) => r.allow && r.code === v) ? v : null;
 }
 
-/** Old finalizePolicyUiChange: re-gate, then refresh the home override. */
+/** A free region whose parent is not set to Allow or Deny (or is itself) moves to top level. */
+function settleFreeParents(rows: RegionRow[]): RegionRow[] {
+  const set = new Set(rows.filter(isSet).map((r) => r.code));
+  return rows.map((r) =>
+    r.group === "free" && r.parent && (r.parent === r.code || !set.has(r.parent)) ? { ...r, parent: null } : r,
+  );
+}
+
+/** Old finalizePolicyUiChange: re-gate, settle the free parents, then refresh the home override. */
 function finalize(p: RegionPolicy): RegionPolicy {
-  const gated = { ...p, rows: gate(p.rows) };
+  const gated = { ...p, rows: settleFreeParents(gate(p.rows)) };
   return { ...gated, homeOverride: effectiveHomeOverride(gated) };
 }
 
-/** Set one row to Allow, Deny or neither (they exclude each other). Locked or unknown rows are ignored. */
+/** A policy as the steps keep it, for one that comes from elsewhere (a backup file). */
+export const settlePolicy = finalize;
+
+/**
+ * Set one row to Allow, Deny or neither (they exclude each other). Locked or unknown rows are
+ * ignored, and so is neither on a row a free region sits under.
+ */
 export function setRowState(policy: RegionPolicy, code: string, state: "allow" | "deny" | "none"): RegionPolicy {
   const target = policy.rows.find((r) => r.code === code);
   if (!target || locked(target)) return policy;
+  if (state === "none" && isFreeParent(policy, code)) return policy;
   return finalize({
     ...policy,
     rows: policy.rows.map((r) => (r === target ? { ...r, allow: state === "allow", deny: state === "deny" } : r)),
@@ -458,23 +473,11 @@ export function checkFreeCode(policy: RegionPolicy, code: string): "ok" | "empty
   return FREE_CODE.test(code) ? "ok" : "chars";
 }
 
-/**
- * Parents a free region can sit under: top level (code ""), eu, be, the gewest and province
- * rows, the home municipality, then the free rows.
- */
-export function freeParentOptions(policy: RegionPolicy, anchor: Anchor): ScopeOption[] {
-  const codes = policy.rows.map((r) => r.code);
-  const homeCity = anchor.mode === "city" && anchor.place ? anchor.place.city_code : null;
-  const picked = [
-    ...["eu", "be"].filter((c) => codes.includes(c)),
-    ...sortCodesForCli(codes.filter(isGewest)),
-    ...sortCodesForCli(codes.filter(isProvince)),
-    ...(homeCity && codes.includes(homeCity) ? [homeCity] : []),
-    ...policy.rows.filter(isFreeRow).map((r) => r.code),
-  ];
+/** Parents a free region can sit under: top level (code ""), then every row set to Allow or Deny, in table order. */
+export function freeParentOptions(policy: RegionPolicy): ScopeOption[] {
   return [
     { code: "", label: t("regions.free.top") },
-    ...picked.map((code) => ({ code, label: optionLabel(policy, code) })),
+    ...policy.rows.filter(isSet).map((r) => ({ code: r.code, label: optionLabel(policy, r.code) })),
   ];
 }
 
@@ -483,9 +486,9 @@ export function freeParentOptions(policy: RegionPolicy, anchor: Anchor): ScopeOp
  * offer is top level too). It starts on Allow; one that replaces a device row keeps that row's
  * Allow or Deny. Invalid codes are ignored.
  */
-export function addFreeRegion(policy: RegionPolicy, code: string, parent: string | null, anchor: Anchor): RegionPolicy {
+export function addFreeRegion(policy: RegionPolicy, code: string, parent: string | null): RegionPolicy {
   if (checkFreeCode(policy, code) !== "ok") return policy;
-  const offered = !!parent && freeParentOptions(policy, anchor).some((o) => o.code === parent);
+  const offered = !!parent && freeParentOptions(policy).some((o) => o.code === parent);
   const device = policy.rows.find((r) => r.code === code);
   const state = device && isSet(device) ? { allow: device.allow, deny: device.deny } : { allow: true };
   const added = row(code, code, "free", "region.kind.free", { ...state, parent: offered ? parent : null });
@@ -510,21 +513,14 @@ export function removeFreeRegion(policy: RegionPolicy, code: string): RegionPoli
 /**
  * The free rows of `prev` (with their states) appended to a rebuilt policy. A free row whose code
  * is now a structured row is dropped; one that matches a device row replaces it. A parent that
- * is no longer offered falls back to top level.
+ * is not set to Allow or Deny there falls back to top level.
  */
-export function carryFreeRows(next: RegionPolicy, prev: RegionPolicy | null, anchor: Anchor): RegionPolicy {
+export function carryFreeRows(next: RegionPolicy, prev: RegionPolicy | null): RegionPolicy {
   const structured = new Set(next.rows.filter((r) => r.group !== "device").map((r) => r.code));
   const free = (prev?.rows ?? []).filter((r) => isFreeRow(r) && !structured.has(r.code));
   if (!free.length) return next;
   const codes = new Set(free.map((r) => r.code));
-  const merged = { ...next, rows: [...next.rows.filter((r) => !codes.has(r.code)), ...free] };
-  const offered = new Set(freeParentOptions(merged, anchor).map((o) => o.code));
-  return finalize({
-    ...merged,
-    rows: merged.rows.map((r) =>
-      isFreeRow(r) && r.parent && (r.parent === r.code || !offered.has(r.parent)) ? { ...r, parent: null } : r,
-    ),
-  });
+  return finalize({ ...next, rows: [...next.rows.filter((r) => !codes.has(r.code)), ...free] });
 }
 
 /**
@@ -532,7 +528,7 @@ export function carryFreeRows(next: RegionPolicy, prev: RegionPolicy | null, anc
  * Allow/Deny, any other row is added (free rows via carryFreeRows). Re-gated, so a neighbour
  * whose home row is not set is cleared.
  */
-export function keepRows(next: RegionPolicy, prev: RegionPolicy, codes: string[], anchor: Anchor): RegionPolicy {
+export function keepRows(next: RegionPolicy, prev: RegionPolicy, codes: string[]): RegionPolicy {
   const kept = prev.rows.filter((r) => codes.includes(r.code));
   const free = kept.filter(isFreeRow);
   const states = new Map(kept.filter((r) => !isFreeRow(r)).map((r) => [r.code, r]));
@@ -547,7 +543,7 @@ export function keepRows(next: RegionPolicy, prev: RegionPolicy, codes: string[]
       ...[...states.values()].filter((r) => !known.has(r.code)),
     ],
   });
-  return carryFreeRows(merged, { ...prev, rows: free }, anchor);
+  return carryFreeRows(merged, { ...prev, rows: free });
 }
 
 // ---------------------------------------------------------------------------

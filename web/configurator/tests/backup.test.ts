@@ -134,8 +134,8 @@ describe("v2 export and import", () => {
 
   it("round-trips free regions (code, parent, allow/deny)", () => {
     const start = importBackup(backup("neighbour-deny"), PLACES);
-    let regions = addFreeRegion(start.regions!, "zone", "be-wht", start.anchor!);
-    regions = setRowState(addFreeRegion(regions, "sub", "zone", start.anchor!), "sub", "deny");
+    let regions = addFreeRegion(setRowState(start.regions!, "be-wht", "allow"), "zone", "be-wht");
+    regions = setRowState(addFreeRegion(regions, "sub", "zone"), "sub", "deny");
     const plan = { ...start, regions };
     const imported = importBackup(JSON.parse(JSON.stringify(exportBackup(plan))), PLACES);
     expect(imported).toEqual(plan);
@@ -144,6 +144,15 @@ describe("v2 export and import", () => {
       ["zone", "be-wht", true, false],
       ["sub", "zone", false, true],
     ]);
+  });
+
+  it("puts a free region whose parent is on neither at top level", () => {
+    const start = importBackup(backup("neighbour-deny"), PLACES);
+    const regions = addFreeRegion(setRowState(start.regions!, "be-wht", "allow"), "zone", "be-wht");
+    const file = JSON.parse(JSON.stringify(exportBackup({ ...start, regions })));
+    for (const r of file.plan.regions.rows) if (r.code === "be-wht") r.allow = false;
+    const imported = importBackup(file, PLACES);
+    expect(imported.regions!.rows.find((r) => r.code === "zone")!.parent).toBeNull();
   });
 
   it("leaves the access list out: it belongs to one repeater", () => {
@@ -215,7 +224,8 @@ describe("rejected input", () => {
     for (const parent of ["", "Be Wht", "be_wht", "*", "x".repeat(31)]) {
       expect(key(plan(freeRow("zone", parent)))).toBe("backup.error.invalid");
     }
-    expect(importBackup(plan(freeRow("zone", "be-wht")), PLACES).regions!.rows[0].parent).toBe("be-wht");
+    // A valid parent that no row sets to Allow or Deny puts the region at top level.
+    expect(importBackup(plan(freeRow("zone", "be-wht")), PLACES).regions!.rows[0].parent).toBeNull();
     // A free code that another row already has.
     const structured = {
       code: "be-wht",

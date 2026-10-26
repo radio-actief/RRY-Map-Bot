@@ -12,6 +12,35 @@
           };
         }
 
+        /** Phone-only chart options; rebuilt on a theme switch so the colours stay current. */
+        function statsResponsiveOptions() {
+          return [
+            {
+              breakpoint: 641,
+              options: {
+                chart: { offsetX: 0, offsetY: -4 },
+                grid: {
+                  padding: { top: 2, right: 0, bottom: 2, left: 0 },
+                },
+                legend: {
+                  position: "bottom",
+                  horizontalAlign: "center",
+                  fontSize: "10px",
+                  itemMargin: { horizontal: 5, vertical: 2 },
+                  markers: { width: 9, height: 9, radius: 4 },
+                },
+                xaxis: {
+                  tickAmount: 5,
+                  labels: {
+                    style: { colors: statsInk().mut, fontSize: "9px" },
+                    maxHeight: 56,
+                  },
+                },
+              },
+            },
+          ];
+        }
+
         // Populate header chips immediately
         function fillHeaderChips(s) {
           var byType =
@@ -577,13 +606,21 @@
           var slider = document.getElementById("playback-slider");
           var dateEl = document.getElementById("playback-date");
           var playBtn = document.getElementById("playback-play");
-          var speedSelect = document.getElementById("playback-speed");
-          if (!slider || !dateEl || !playBtn || !speedSelect) return;
+          var speedBtns = document.querySelectorAll("#playback-speed button");
+          if (!slider || !dateEl || !playBtn || !speedBtns.length) return;
+          function currentSpeed() {
+            var on = document.querySelector(
+              '#playback-speed button[aria-pressed="true"]',
+            );
+            return (on && parseFloat(on.getAttribute("data-speed"))) || 1;
+          }
 
           var map = L.map("stats-map", {
             center: [50.8503, 4.3517],
             zoom: 7,
+            zoomControl: false,
           });
+          L.control.zoom({ position: "topright" }).addTo(map);
           window.__statsPlaybackMap = map;
           L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
             attribution:
@@ -603,15 +640,10 @@
               var t = n.type || 1;
               countsByType[t] = (countsByType[t] || 0) + 1;
             });
-            var legendEl = document.getElementById("playback-legend");
             for (var t = 1; t <= 4; t++) {
               var count = countsByType[t] || 0;
               var el = document.getElementById("playback-legend-count-" + t);
               if (el) el.textContent = count;
-              var row = legendEl
-                ? legendEl.querySelector('[data-type="' + t + '"]')
-                : null;
-              if (row) row.style.display = count > 0 ? "" : "none";
             }
             var totalEl = document.getElementById(
               "playback-legend-count-total",
@@ -671,12 +703,14 @@
             }
             playBtn.textContent = "\u25B6";
             playBtn.title = "Play";
+            playBtn.setAttribute("aria-label", "Play");
           }
           function startPlay() {
-            var speed = parseFloat(speedSelect.value) || 1;
+            var speed = currentSpeed();
             var ms = Math.max(200, 800 / speed);
             playBtn.textContent = "\u23F8";
             playBtn.title = "Pause";
+            playBtn.setAttribute("aria-label", "Pause");
             playInterval = setInterval(function () {
               var next = parseInt(slider.value, 10) + 1;
               if (next >= frames.length) next = 0;
@@ -687,25 +721,17 @@
             if (playInterval) stopPlay();
             else startPlay();
           });
-          speedSelect.addEventListener("change", function () {
-            if (playInterval) {
-              stopPlay();
-              startPlay();
-            }
+          speedBtns.forEach(function (b) {
+            b.addEventListener("click", function () {
+              speedBtns.forEach(function (o) {
+                o.setAttribute("aria-pressed", o === b ? "true" : "false");
+              });
+              if (playInterval) {
+                stopPlay();
+                startPlay();
+              }
+            });
           });
-
-          document
-            .getElementById("playback-prev")
-            .addEventListener("click", function () {
-              stopPlay();
-              setFrame(parseInt(slider.value, 10) - 1);
-            });
-          document
-            .getElementById("playback-next")
-            .addEventListener("click", function () {
-              stopPlay();
-              setFrame(parseInt(slider.value, 10) + 1);
-            });
           slider.addEventListener("input", function () {
             stopPlay();
             setFrame(parseInt(slider.value, 10));
@@ -714,13 +740,9 @@
           (function initMapFullscreen() {
             var mapWrapEl = document.getElementById("stats-map-container");
             var btn = document.getElementById("stats-map-fullscreen");
-            var dockEl = document.querySelector(".stats-playback-dock");
             if (!mapWrapEl || !btn) return;
             if (btn.__pbWired) return;
             btn.__pbWired = true;
-
-            var dockParent = dockEl ? dockEl.parentNode : null;
-            var dockNext = dockEl ? dockEl.nextSibling : null;
 
             function fsEl() {
               return (
@@ -751,22 +773,6 @@
               } catch (e) {}
             }
 
-            function moveDockIntoMap() {
-              if (!dockEl || dockEl.parentNode === mapWrapEl) return;
-              dockEl.classList.add("stats-playback-dock--map-overlay");
-              mapWrapEl.appendChild(dockEl);
-            }
-
-            function restoreDock() {
-              if (!dockEl || !dockParent) return;
-              dockEl.classList.remove("stats-playback-dock--map-overlay");
-              if (dockNext && dockNext.parentNode === dockParent) {
-                dockParent.insertBefore(dockEl, dockNext);
-              } else {
-                dockParent.appendChild(dockEl);
-              }
-            }
-
             btn.addEventListener("click", function (e) {
               e.preventDefault();
               e.stopPropagation();
@@ -784,8 +790,6 @@
             });
 
             function onChange() {
-              if (isFs()) moveDockIntoMap();
-              else restoreDock();
               syncBtn();
               invalidate();
               setTimeout(invalidate, 60);
@@ -2071,36 +2075,7 @@
                   );
                 },
               },
-              responsive: [
-                {
-                  breakpoint: 641,
-                  options: {
-                    chart: { offsetX: 0, offsetY: -4 },
-                    grid: {
-                      padding: {
-                        top: 2,
-                        right: 0,
-                        bottom: 2,
-                        left: 0,
-                      },
-                    },
-                    legend: {
-                      position: "bottom",
-                      horizontalAlign: "center",
-                      fontSize: "10px",
-                      itemMargin: { horizontal: 5, vertical: 2 },
-                      markers: { width: 9, height: 9, radius: 4 },
-                    },
-                    xaxis: {
-                      tickAmount: 5,
-                      labels: {
-                        style: { colors: statsInk().mut, fontSize: "9px" },
-                        maxHeight: 56,
-                      },
-                    },
-                  },
-                },
-              ],
+              responsive: statsResponsiveOptions(),
               dataLabels: { enabled: false },
             });
             statsChartInstance.render();
@@ -2150,6 +2125,7 @@
                   },
                   grid: { borderColor: ink.line },
                   legend: { labels: { colors: ink.mut } },
+                  responsive: statsResponsiveOptions(),
                   tooltip: {
                     theme:
                       window.BEmeshTheme && window.BEmeshTheme.isDark()

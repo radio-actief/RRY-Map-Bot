@@ -189,6 +189,28 @@
           <div class="stats-playback-body">
             <div class="stats-map-container" id="stats-map-container">
               <div id="stats-map"></div>
+              <div class="map-float playback-counts" id="playback-legend">
+                <div class="playback-line">
+                  <b id="playback-legend-count-total">0</b> on
+                  <span id="playback-date"></span>
+                </div>
+                <div class="playback-types">
+                  <span data-type="1" title="Client"><i class="dot" style="background: #2196f3; border: 1px solid #1565c0"></i><span class="legend-count" id="playback-legend-count-1">0</span></span>
+                  <span data-type="2" title="Repeater"><i class="dot" style="background: #4caf50; border: 1px solid #2e7d32"></i><span class="legend-count" id="playback-legend-count-2">0</span></span>
+                  <span data-type="3" title="Room Server"><i class="dot" style="background: #9c27b0; border: 1px solid #6a1b9a"></i><span class="legend-count" id="playback-legend-count-3">0</span></span>
+                  <span data-type="4" title="Sensor"><i class="dot" style="background: #0891b2; border: 1px solid #0e7490"></i><span class="legend-count" id="playback-legend-count-4">0</span></span>
+                </div>
+              </div>
+              <div class="map-float playback-bar">
+                <button type="button" class="btn primary" id="playback-play" title="Play" aria-label="Play">&#9658;</button>
+                <input type="range" id="playback-slider" min="0" max="0" step="1" value="0" title="Scrub timeline" aria-label="Timeline" />
+                <div class="segmented" id="playback-speed" role="group" aria-label="Playback speed">
+                  <button type="button" data-speed="0.5" aria-pressed="false">&frac12;&times;</button>
+                  <button type="button" data-speed="1" aria-pressed="true">1&times;</button>
+                  <button type="button" data-speed="2" aria-pressed="false">2&times;</button>
+                  <button type="button" data-speed="4" aria-pressed="false">4&times;</button>
+                </div>
+              </div>
               <button
                 type="button"
                 class="stats-map-fullscreen-btn"
@@ -228,105 +250,6 @@
                   <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7" />
                 </svg>
               </button>
-            </div>
-            <div class="stats-playback-dock">
-              <div class="stats-playback-controls">
-                <div class="playback-row">
-                  <div class="playback-transport">
-                    <button
-                      type="button"
-                      id="playback-prev"
-                      title="Previous frame"
-                    >
-                      &#9664;
-                    </button>
-                    <button
-                      type="button"
-                      id="playback-play"
-                      title="Play / Pause"
-                    >
-                      &#9658;
-                    </button>
-                    <button
-                      type="button"
-                      id="playback-next"
-                      title="Next frame"
-                    >
-                      &#9654;
-                    </button>
-                  </div>
-                  <div class="playback-meta">
-                    <span class="playback-date" id="playback-date"></span>
-                    <div class="playback-speed-wrap">
-                      <label for="playback-speed">Speed</label>
-                      <select id="playback-speed" title="Playback speed">
-                        <option value="0.5">0.5×</option>
-                        <option value="1" selected>1×</option>
-                        <option value="2">2×</option>
-                        <option value="4">4×</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-                <div class="playback-slider-wrap">
-                  <input
-                    type="range"
-                    id="playback-slider"
-                    min="0"
-                    max="0"
-                    value="0"
-                    title="Scrub timeline"
-                  />
-                </div>
-              </div>
-              <div class="stats-playback-legend" id="playback-legend">
-                <span class="playback-legend-total"
-                  ><span class="legend-label">Total</span
-                  ><span class="legend-count" id="playback-legend-count-total"
-                    >0</span
-                  ></span
-                >
-                <span data-type="1"
-                  ><i
-                    class="dot"
-                    style="background: #2196f3; border: 1px solid #1565c0"
-                  ></i
-                  ><span class="legend-label">Client</span
-                  ><span class="legend-count" id="playback-legend-count-1"
-                    >0</span
-                  ></span
-                >
-                <span data-type="2"
-                  ><i
-                    class="dot"
-                    style="background: #4caf50; border: 1px solid #2e7d32"
-                  ></i
-                  ><span class="legend-label">Repeater</span
-                  ><span class="legend-count" id="playback-legend-count-2"
-                    >0</span
-                  ></span
-                >
-                <span data-type="3"
-                  ><i
-                    class="dot"
-                    style="background: #9c27b0; border: 1px solid #6a1b9a"
-                  ></i
-                  ><span class="legend-label">Room Server</span
-                  ><span class="legend-count" id="playback-legend-count-3"
-                    >0</span
-                  ></span
-                >
-                <span data-type="4"
-                  ><i
-                    class="dot"
-                    style="background: #0891b2; border: 1px solid #0e7490"
-                  ></i
-                  ><span class="legend-label">Sensor</span
-                  ><span class="legend-count" id="playback-legend-count-4"
-                    >0</span
-                  ></span
-                >
-              </div>
             </div>
           </div>
         </div>

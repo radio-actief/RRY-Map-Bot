@@ -520,5 +520,11 @@
   "identity.backup": "Copy current private key",
   "identity.backedUp": "I have a backup of the old private key, or I don't need it",
   "identity.back": "Back",
-  "identity.replace": "Replace identity"
+  "identity.replace": "Replace identity",
+  "checkup.nameNote": "Not ticked: people and the map know your node by its name.",
+  "checkup.timingNote": "Pick another site in Site if the repeater is on a hill or in town.",
+  "checkup.needLocation": "Choose a location in Place first",
+  "checkup.hops.custom": "Custom {pair}",
+  "checkup.timing.value": "{site} ({tx} / {direct} / {rx})",
+  "checkup.timing.own": "own"
 }

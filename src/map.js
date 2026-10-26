@@ -11,13 +11,7 @@ import {
 } from "../lib/vue.esm-browser.prod.js";
 import * as ntools from "./node-utils.js";
 
-// MDI paths (same as @mdi/js – use with Vue :d="mdiChartLine" etc.)
-const mdiChartLine =
-  "M16,11.78L20.24,4.45L21.97,5.45L16.74,14.5L10.23,10.75L5.46,19H22V21H2V3H4V17.54L9.5,8L16,11.78Z";
-const mdiLogout =
-  "M17 7L15.59 8.41L18.17 11H8V13H18.17L15.59 15.58L17 17L22 12M4 5H12V3H4C2.9 3 2 3.9 2 5V19C2 20.1 2.9 21 4 21H12V19H4V5Z";
-const mdiCounter =
-  "M4,4H20A2,2 0 0,1 22,6V18A2,2 0 0,1 20,20H4A2,2 0 0,1 2,18V6A2,2 0 0,1 4,4M4,6V18H11V6H4M20,18V6H18.76C19,6.54 18.95,7.07 18.95,7.13C18.88,7.8 18.41,8.5 18.24,8.75L15.91,11.3L19.23,11.28L19.24,12.5L14.04,12.47L14,11.47C14,11.47 17.05,8.24 17.2,7.95C17.34,7.67 17.91,6 16.5,6C15.27,6.05 15.41,7.3 15.41,7.3L13.87,7.31C13.87,7.31 13.88,6.65 14.25,6H13V18H15.58L15.57,17.14L16.54,17.13C16.54,17.13 17.45,16.97 17.46,16.08C17.5,15.08 16.65,15.08 16.5,15.08C16.37,15.08 15.43,15.13 15.43,15.95H13.91C13.91,15.95 13.95,13.89 16.5,13.89C19.1,13.89 18.96,15.91 18.96,15.91C18.96,15.91 19,17.16 17.85,17.63L18.37,18H20M8.92,16H7.42V10.2L5.62,10.76V9.53L8.76,8.41H8.92V16Z";
+// MDI path (same as @mdi/js).
 const mdiOpenInNew =
   "M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z";
 const apiUrl = "/api/v1/belgian-nodes";
@@ -920,6 +914,25 @@ async function fillNodeQrSlotFromPopup(popupContentRoot) {
   }
 }
 
+/**
+ * The node card grows once its QR code is drawn; pan again so it stays clear of the search box.
+ * Call from a marker's popupopen, and stopWatchingPopupGrowth from popupclose.
+ */
+function watchPopupGrowth(marker, popup) {
+  const root = marker.getPopup()?.getElement();
+  if (!root || !("ResizeObserver" in window)) return;
+  marker._popupResize?.disconnect();
+  marker._popupResize = new ResizeObserver(() => {
+    if (popup.isOpen()) popup._adjustPan();
+  });
+  marker._popupResize.observe(root);
+}
+
+function stopWatchingPopupGrowth(marker) {
+  marker._popupResize?.disconnect();
+  marker._popupResize = null;
+}
+
 function bindPopupQrRefill(popup, getContentRoot) {
   if (!popup || popup._qrRefillBound) return;
   popup._qrRefillBound = true;
@@ -1776,19 +1789,11 @@ createApp({
           const content = root.querySelector(".leaflet-popup-content");
           fillNodeQrSlotFromPopup(content);
         }, 100);
-        // The card grows once its QR code is drawn; pan again so it stays clear of the search box.
-        const root = marker.getPopup()?.getElement();
-        if (root && "ResizeObserver" in window) {
-          marker._popupResize = new ResizeObserver(() => {
-            if (nodePopup.isOpen()) nodePopup._adjustPan();
-          });
-          marker._popupResize.observe(root);
-        }
+        watchPopupGrowth(marker, nodePopup);
       });
       marker.on("popupclose", function () {
         delete app.urlParams.node;
-        marker._popupResize?.disconnect();
-        marker._popupResize = null;
+        stopWatchingPopupGrowth(marker);
       });
     }
 
@@ -2158,9 +2163,11 @@ createApp({
               ?.querySelector(".leaflet-popup-content"),
           );
         }, 0);
+        watchPopupGrowth(tempMarker, deepLinkPopup);
       });
       tempMarker.on("popupclose", () => {
         delete app.urlParams.node;
+        stopWatchingPopupGrowth(tempMarker);
         map.removeLayer(tempMarker);
       });
 
@@ -2793,24 +2800,11 @@ createApp({
     window.claimNode = claimNode;
     window.unclaimNode = unclaimNode;
 
-    // Keep search below .stats: bar height changes with viewport, auth row, and wrapped chips
-    function adjustSearchPosition() {
-      const statsBar = document.querySelector(".stats");
-      const body = document.body;
-      if (!statsBar || !body.classList.contains("map-page")) return;
-      const statsHeight = statsBar.offsetHeight;
-      if (statsHeight > 0) {
-        body.style.setProperty("--stats-bar-height", `${statsHeight}px`);
-      }
-    }
-
-    let resizeObserver = null;
     let removeFilterMenuInteractionGuards = null;
     let removeViewportListeners = null;
 
     onMounted(() => {
       function onMapLayoutRefresh() {
-        adjustSearchPosition();
         try {
           map.invalidateSize({ animate: false });
         } catch {
@@ -2839,30 +2833,6 @@ createApp({
         }
         window.removeEventListener("orientationchange", onOrientationChange);
       };
-
-      // Run after layout so stats bar has its height (fixes mobile init: search was above top bar)
-      nextTick(() => {
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            adjustSearchPosition();
-          });
-        });
-      });
-
-      // When stats bar height changes (e.g. auth loads, second row appears), update search position
-      const statsBar = document.querySelector(".stats");
-      if (statsBar && typeof ResizeObserver !== "undefined") {
-        resizeObserver = new ResizeObserver(() => onMapLayoutRefresh());
-        resizeObserver.observe(statsBar);
-      }
-
-      // Also adjust when auth state changes (affects stats bar height)
-      watch(
-        () => auth.authenticated,
-        () => {
-          nextTick(() => requestAnimationFrame(adjustSearchPosition));
-        },
-      );
 
       // Check for URL parameters indicating errors
       const loginReturnParams = new URLSearchParams(window.location.search);
@@ -3038,13 +3008,8 @@ createApp({
     onBeforeUnmount(() => {
       removeViewportListeners?.();
       removeViewportListeners = null;
-      document.body.style.removeProperty("--stats-bar-height");
       removeFilterMenuInteractionGuards?.();
       removeFilterMenuInteractionGuards = null;
-      if (resizeObserver) {
-        resizeObserver.disconnect();
-        resizeObserver = null;
-      }
     });
 
     window.refreshMap = refreshMap;
@@ -3063,9 +3028,6 @@ createApp({
       checkAuth,
       claimNode,
       unclaimNode,
-      mdiChartLine,
-      mdiLogout,
-      mdiCounter,
     };
   },
 }).mount("#app");

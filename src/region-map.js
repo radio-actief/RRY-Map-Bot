@@ -787,8 +787,6 @@
 
         function updateCounter(count) {
           var txt = document.getElementById("counter-text");
-          var sp = document.getElementById("spinner");
-          if (sp) sp.style.display = "none";
           var normQ = normalize((currentSearch || "").trim());
           if (count === undefined) {
             if (!currentSearch) {

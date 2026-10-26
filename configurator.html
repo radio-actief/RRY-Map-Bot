@@ -442,9 +442,14 @@
                   <input
                     id="setting-admin-password"
                     type="text"
-                    placeholder="password"
+                    placeholder="Leave empty to keep the current password"
                     autocomplete="off"
                   />
+                  <small class="form-text">
+                    Empty keeps what the repeater has. The factory password is
+                    “password”: anyone in range can change its settings, so set
+                    your own (up to 15 characters) and write it down.
+                  </small>
                 </label>
                 <label class="config-form-field" for="setting-guest-password">
                   <span
@@ -1977,6 +1982,9 @@
     <script src="./src/configurator/location.js"></script>
     <script src="./src/configurator/naming.js"></script>
     <script src="./src/configurator/settings.js"></script>
+    <script src="./src/configurator/search.js"></script>
+    <script src="./src/configurator/firmware.js"></script>
+    <script src="./src/configurator/vanity.js"></script>
     <script src="./src/configurator/policy.js"></script>
     <script src="./src/configurator/cli.js"></script>
     <script src="./src/configurator/position.js"></script>

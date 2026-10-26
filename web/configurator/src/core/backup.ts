@@ -20,8 +20,10 @@ export class BackupError extends Error {
   }
 }
 
+/** The backup file for a plan; the access list is left out, as it belongs to one repeater. */
 export function exportBackup(plan: Plan): { app: string; version: number; plan: Plan } {
-  return { app: APP, version: VERSION, plan: structuredClone(plan) };
+  const { acl: _acl, ...rest } = plan;
+  return { app: APP, version: VERSION, plan: structuredClone(rest) };
 }
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
@@ -102,7 +104,8 @@ function planFromV2(raw: unknown): Plan {
     controlText(v, k === "ownerInfo"),
   );
   if (badSetting || controlText(rest)) throw new BackupError("backup.error.invalid");
-  return structuredClone(raw) as Plan;
+  const { acl: _acl, ...plan } = structuredClone(raw) as Plan;
+  return plan;
 }
 
 // ---------------------------------------------------------------------------

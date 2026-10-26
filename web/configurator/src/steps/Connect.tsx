@@ -70,17 +70,21 @@ function CheckupNotice({ onOpen }: { onOpen: () => void }) {
   );
   return (
     <Notice kind="warn">
-      {total ? <b>{t("checkup.differ", { count: total })}</b> : null}
-      <p>
-        {parts.join(" · ")}
-        {parts.length && nameDiffers ? ". " : ""}
-        {nameDiffers ? t("checkup.nameToo") : ""}
-      </p>
       {total ? (
-        <button type="button" class="btn" onClick={onOpen}>
-          {t("checkup.open")}
-        </button>
-      ) : null}
+        <>
+          <b>{t("checkup.differ", { count: total })}</b>
+          <p>
+            {parts.join(" · ")}
+            {parts.length && nameDiffers ? ". " : ""}
+            {nameDiffers ? t("checkup.nameToo") : ""}
+          </p>
+        </>
+      ) : (
+        <p>{t("checkup.nameOnly")}</p>
+      )}
+      <button type="button" class="btn" onClick={onOpen}>
+        {t("checkup.open")}
+      </button>
     </Notice>
   );
 }

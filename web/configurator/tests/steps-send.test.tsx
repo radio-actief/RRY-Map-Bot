@@ -526,6 +526,14 @@ describe("Send step: only the changes", () => {
     expect(port.received).toEqual(["ver", ...full, setperm, ...READ_BACK_COMMANDS]);
   });
 
+  it("the changes column lists an access list change", () => {
+    afterRead((p) => ({ ...p, acl: [...(p.acl ?? []), { key: KEY_B, role: 3 }] }));
+    render(<Send />);
+    expect(screen.queryByText("Nothing changes yet.")).toBeNull();
+    const row = screen.getByText("Access list").closest(".rv-row") as HTMLElement;
+    expect(within(row).getByText("1 change")).toBeTruthy();
+  });
+
   it("after an Apply whose read-back got no access list, the card asks for a Read", async () => {
     afterRead((p) => ({ ...p, acl: [...(p.acl ?? []), { key: KEY_B, role: 3 }] }));
     const setperm = `setperm ${KEY_B} 3`;

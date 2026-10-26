@@ -284,6 +284,22 @@ describe("summarize", () => {
   });
 });
 
+describe("summarize: the access list", () => {
+  const K1 = "a1".repeat(32);
+  const K2 = "b2".repeat(32);
+  it("lists the access list changes against the Read as one line", () => {
+    const s = snapshot({ acl: [{ key: K1, role: 3 }] });
+    const plan = { ...defaultPlan(), acl: [{ key: K1, role: 1 as const }, { key: K2, role: 3 as const }] };
+    expect(summarize(plan, s).changes).toContainEqual({ group: "acl", labelKey: "acl", to: "2 changes" });
+    expect(summarize({ ...plan, acl: [{ key: K1, role: 3 }] }, s).changes.map((c) => c.group)).not.toContain("acl");
+  });
+  it("lists nothing without the repeater's list", () => {
+    const plan = { ...defaultPlan(), acl: [{ key: K2, role: 3 as const }] };
+    expect(summarize(plan, snapshot()).changes.map((c) => c.group)).not.toContain("acl");
+    expect(summarize(plan).changes.map((c) => c.group)).not.toContain("acl");
+  });
+});
+
 describe("the access list from a Read", () => {
   const K1 = "a1".repeat(32);
   it("is in the snapshot and the plan", () => {

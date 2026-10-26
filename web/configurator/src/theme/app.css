@@ -1659,7 +1659,7 @@ button.site-card {
   margin: 0.8rem 0 0.2rem;
   font-size: 0.85rem;
   text-transform: uppercase;
-  color: var(--muted, inherit);
+  color: var(--mut);
 }
 .checkup-line {
   display: flex;

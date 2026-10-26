@@ -137,6 +137,15 @@ describe("v2 export and import", () => {
     ]);
   });
 
+  it("leaves the access list out: it belongs to one repeater", () => {
+    const plan = { ...defaultPlan(), acl: [{ key: "a1".repeat(32), role: 3 as const }] };
+    const exported = exportBackup(plan);
+    expect(exported.plan).not.toHaveProperty("acl");
+    expect(plan.acl).toHaveLength(1);
+    const file = JSON.parse(JSON.stringify({ ...exported, plan }));
+    expect(importBackup(file, PLACES)).not.toHaveProperty("acl");
+  });
+
   it("round-trips the default plan", () => {
     expect(importBackup(JSON.parse(JSON.stringify(exportBackup(defaultPlan()))), PLACES)).toEqual(defaultPlan());
   });

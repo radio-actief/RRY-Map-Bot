@@ -76,6 +76,15 @@ describe("Connect notice", () => {
     expect(screen.queryByRole("button", { name: "Quick check-up…" })).toBeNull();
   });
 
+  it("only the name differs: the name sentence and the way into the check-up", () => {
+    afterRead(recommendedForAll({ ...P, regions: policyFor(P.anchor!, PLACES) }));
+    render(<Connect />);
+    expect(screen.queryByText(/differ from #BEmesh|differs from #BEmesh/)).toBeNull();
+    expect(screen.queryByText(/follows the #BEmesh/)).toBeNull();
+    expect(screen.getByText("The name differs from the #BEmesh recommendation.")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Quick check-up…" })).toBeTruthy();
+  });
+
   it("no notice before a Read", () => {
     store.device.value = { status: "connected", link: null, firmware: "v1.17.1" };
     render(<Connect />);

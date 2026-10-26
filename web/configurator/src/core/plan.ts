@@ -2,7 +2,8 @@
  * The plan (what the user wants on the repeater), the device snapshot a Read gives, the port of
  * the old page's read parsing (applyReadResultsToForm and its helpers) and the change summary.
  */
-import { parseAcl, type AclEntry } from "./acl";
+import { t } from "../i18n/t";
+import { aclChanges, parseAcl, type AclEntry } from "./acl";
 import { PROVINCE_NAMES } from "./be-regions";
 import {
   buildName,
@@ -521,7 +522,7 @@ export function planFromSnapshot(s: DeviceSnapshot, places: Place[]): Plan {
 // Summary
 
 export type Change = {
-  group: "name" | "settings" | "location" | "regions";
+  group: "name" | "settings" | "location" | "regions" | "acl";
   labelKey: string;
   to: string;
   from?: string;
@@ -532,7 +533,8 @@ const coords = (lat: number, lon: number) => `${lat}, ${lon}`;
 /**
  * What the plan changes. Against a snapshot: each value that differs from the device (a value
  * the device did not report counts as a change when the script sets it). Without one: what the
- * script sets. The admin password is never listed; it is reported as kept or changed.
+ * script sets. The admin password is never listed; it is reported as kept or changed. The
+ * access list changes against the Read are one line with their count.
  */
 export function summarize(
   plan: Plan,
@@ -589,6 +591,9 @@ export function summarize(
     if (p.homeOverride !== HOME_OVERRIDE_OMIT) add("regions", "regionHome", homeRegionCode(p) ?? "*", dev?.home, true);
     add("regions", "regionDefault", defaultRegionCode(p) ?? "<null>", dev?.default, true);
   }
+
+  const aclCount = snapshot?.acl && plan.acl ? aclChanges(snapshot.acl, plan.acl) : 0;
+  if (aclCount) changes.push({ group: "acl", labelKey: "acl", to: t("changes", { count: aclCount }) });
 
   const pw = String(plan.settings.adminPassword ?? "").trim();
   return { changes, adminPassword: pw ? "changed" : "kept" };

@@ -26,7 +26,7 @@ export const SCRIPT_FILE = "bemesh-repeater-commands.txt";
 const GROUPS: { key: string; of: Change["group"][] }[] = [
   { key: "nameLocation", of: ["name", "location"] },
   { key: "regions", of: ["regions"] },
-  { key: "settings", of: ["settings"] },
+  { key: "settings", of: ["settings", "acl"] },
 ];
 
 const groupTitle = (k: ScriptGroup["titleKey"]) => t(`script.group.${k}`);

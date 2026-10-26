@@ -527,6 +527,29 @@ export function carryFreeRows(next: RegionPolicy, prev: RegionPolicy | null, anc
   });
 }
 
+/**
+ * The rows of `prev` with these codes kept on top of `next`: a row `next` has takes its
+ * Allow/Deny, any other row is added (free rows via carryFreeRows). Re-gated, so a neighbour
+ * whose home row is not set is cleared.
+ */
+export function keepRows(next: RegionPolicy, prev: RegionPolicy, codes: string[], anchor: Anchor): RegionPolicy {
+  const kept = prev.rows.filter((r) => codes.includes(r.code));
+  const free = kept.filter(isFreeRow);
+  const states = new Map(kept.filter((r) => !isFreeRow(r)).map((r) => [r.code, r]));
+  const known = new Set(next.rows.map((r) => r.code));
+  const merged = finalize({
+    ...next,
+    rows: [
+      ...next.rows.map((r) => {
+        const k = states.get(r.code);
+        return k ? { ...r, allow: k.allow, deny: k.deny } : r;
+      }),
+      ...[...states.values()].filter((r) => !known.has(r.code)),
+    ],
+  });
+  return carryFreeRows(merged, { ...prev, rows: free }, anchor);
+}
+
 // ---------------------------------------------------------------------------
 // Policies from an old backup or a device read
 

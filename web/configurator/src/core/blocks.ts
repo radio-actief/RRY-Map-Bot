@@ -2,7 +2,7 @@
 import type { Plan } from "./plan";
 import { BEMESH_PRESET_TITLE, RADIO_PRESETS, type RadioPreset } from "./presets";
 import { FLOOD_ALLOWANCE, SETTINGS, type SettingDef, type SettingKey } from "./settings";
-import { FIRMWARE_TIMING, SITE_PROFILES, siteOf, timingOf, withTiming, type SiteProfile } from "./site";
+import { SITE_PROFILES, siteOf, timingOf, withTiming, type SiteProfile } from "./site";
 
 export type Block = "radio" | "advertising" | "repeating" | "advanced";
 export const BLOCKS: Block[] = ["radio", "advertising", "repeating", "advanced"];
@@ -54,7 +54,7 @@ export function recommendedFor(plan: Plan, block: Block): Plan {
     return withSettings(withPreset(plan, BEMESH_RADIO), { dutycycle: "10" });
   }
   if (block === "advertising") {
-    const [unscoped, advert] = FLOOD_ALLOWANCE[allowanceOf(plan) ?? "average"];
+    const [unscoped, advert] = FLOOD_ALLOWANCE.average;
     return withSettings(plan, {
       floodAdvertHours: 47,
       advertIntervalMinutes: 0,
@@ -63,7 +63,7 @@ export function recommendedFor(plan: Plan, block: Block): Plan {
     });
   }
   if (block === "repeating") return withSettings(plan, { repeat: "on", floodMax: 64, loopDetect: "minimal" });
-  const choice = siteOf(timingOf(plan), FIRMWARE_TIMING);
+  const choice = siteOf(timingOf(plan));
   const profile: SiteProfile = choice in SITE_PROFILES ? (choice as SiteProfile) : "suburban";
   return withTiming(
     withSettings(plan, { pathHashMode: "1", radioRxgain: "on", intThresh: 0, agcResetInterval: 0, multiAcks: "0" }),

@@ -32,9 +32,15 @@ export function importBackup(json: unknown, places: Place[]): Plan {
   if (!isObject(json) || json.app !== APP || typeof json.version !== "number")
     throw new BackupError("backup.error.unknown");
   if (json.version > VERSION) throw new BackupError("backup.error.newer");
-  if (json.version === VERSION) return planFromV2(json.plan);
-  if (json.version === 1 && isObject(json.fields)) return planFromV1(json.fields, places);
+  if (json.version === VERSION) return withoutLowDutycycle(planFromV2(json.plan));
+  if (json.version === 1 && isObject(json.fields)) return withoutLowDutycycle(planFromV1(json.fields, places));
   throw new BackupError("backup.error.invalid");
+}
+
+/** Older backups may hold 1 %; the firmware raises anything under 10 % to 10 % at every start. */
+function withoutLowDutycycle(plan: Plan): Plan {
+  if (plan.settings.dutycycle !== "1") return plan;
+  return { ...plan, settings: { ...plan.settings, dutycycle: "10" } };
 }
 
 const isNum = (v: unknown) => typeof v === "number" && Number.isFinite(v);

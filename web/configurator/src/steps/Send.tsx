@@ -14,7 +14,7 @@ import { SETTINGS } from "../core/settings";
 import { hasWebSerial, MAX_LINE_LEN } from "../device/serial";
 import { t } from "../i18n/t";
 import { answerReboot, applyPlan, cancelApply, connectUsb } from "../state/device";
-import { SettingField } from "./Advanced";
+import { SettingField } from "./SettingsStep";
 import { PasswordField } from "./send/PasswordField";
 import { busy, canApply, prefs, store, type ApplyState } from "../state/store";
 
@@ -42,7 +42,7 @@ function ReadOnlyLine({ text }: { text: string }) {
   return (
     <div class="ro-line">
       <span>{text}</span>
-      <button type="button" class="btn small link" disabled={busy.value} onClick={() => (store.step.value = "advanced")}>
+      <button type="button" class="btn small link" disabled={busy.value} onClick={() => (store.step.value = "settings")}>
         {t("send.change")}
       </button>
     </div>
@@ -291,7 +291,7 @@ export function Send() {
               {t("review.console")}
             </button>
             <span class="spacer" />
-            <button type="button" class="btn" disabled={locked} onClick={() => (store.step.value = "regions")}>
+            <button type="button" class="btn" disabled={locked} onClick={() => (store.step.value = "settings")}>
               {t("step.back")}
             </button>
             {status !== "connected" && hasWebSerial() ? (

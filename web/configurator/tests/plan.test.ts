@@ -97,6 +97,8 @@ describe("snapshotFromReplies", () => {
     const quarter = snapshotFromReplies({ "get dutycycle": "> 25.0%" });
     expect([quarter.settings.dutycycle, quarter.dutycycleRaw]).toEqual(["10", 25]);
     expect(snapshotFromReplies({ "get dutycycle": "> ?" }).dutycycleRaw).toBeUndefined();
+    const low = snapshotFromReplies({ "get dutycycle": "> 1.0%" });
+    expect([low.settings.dutycycle, low.dutycycleRaw]).toEqual(["10", 1]);
   });
 
   it("leaves unanswered commands out and keeps the missing list it is given", () => {

@@ -1,6 +1,8 @@
 /** Quick check-up: the differences between the plan and the #BEmesh recommendation, to tick and apply. */
+import { Fragment } from "preact";
 import { useState } from "preact/hooks";
-import { applyCheckup, checkupLines, type CheckupGroup, type CheckupLine } from "../core/checkup";
+import { applyCheckup, checkupLines, regionsGoingToo, type CheckupGroup, type CheckupLine } from "../core/checkup";
+import type { RegionPolicy } from "../core/regions";
 import { planName } from "../core/plan";
 import { t } from "../i18n/t";
 import { store } from "../state/store";
@@ -15,10 +17,45 @@ function detailText(d: NonNullable<CheckupLine["detail"]>): string {
   return [
     d.adds.length ? t("checkup.detail.adds", { list: list(d.adds) }) : "",
     d.denies.length ? t("checkup.detail.denies", { list: list(d.denies) }) : "",
-    d.removes.length ? t("checkup.detail.removes", { list: list(d.removes) }) : "",
   ]
     .filter(Boolean)
     .join(" · ");
+}
+
+/** The repeater's own regions the recommendation leaves out, each with Keep / Discard. */
+function OwnRegions({
+  codes,
+  regions,
+  discard,
+  goingToo,
+  onChoose,
+}: {
+  codes: string[];
+  regions: RegionPolicy | null;
+  discard: Set<string>;
+  goingToo: string[];
+  onChoose: (code: string, keep: boolean) => void;
+}) {
+  const label = (code: string) => regions?.rows.find((r) => r.code === code)?.label || code;
+  return (
+    <div class="checkup-own">
+      <span class="checkup-note">{t("checkup.keep.title")}</span>
+      {codes.map((code) => (
+        <div class="checkup-own-row" key={code}>
+          <span class="checkup-label">{label(code)}</span>
+          <div class="segmented" role="group" aria-label={label(code)}>
+            <button type="button" aria-pressed={!discard.has(code)} onClick={() => onChoose(code, true)}>
+              {t("checkup.keep")}
+            </button>
+            <button type="button" aria-pressed={discard.has(code)} onClick={() => onChoose(code, false)}>
+              {t("checkup.discard")}
+            </button>
+          </div>
+          {goingToo.includes(code) ? <span class="checkup-note">{t("checkup.goesToo")}</span> : null}
+        </div>
+      ))}
+    </div>
+  );
 }
 
 export function CheckupDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -26,6 +63,7 @@ export function CheckupDialog({ open, onClose }: { open: boolean; onClose: () =>
   const plan = store.plan.value;
   const lines = checkupLines(plan, places);
   const [ticked, setTicked] = useState(() => new Set(lines.filter((l) => l.ticked && !l.disabled).map((l) => l.id)));
+  const [discard, setDiscard] = useState(() => new Set<string>());
   const n = ticked.size;
 
   function toggle(id: string) {
@@ -35,8 +73,19 @@ export function CheckupDialog({ open, onClose }: { open: boolean; onClose: () =>
     setTicked(next);
   }
 
+  /** Discarding a region is a change to the regions line, so it ticks it. */
+  function choose(code: string, keep: boolean) {
+    const next = new Set(discard);
+    if (keep) next.delete(code);
+    else {
+      next.add(code);
+      if (!ticked.has("regions")) setTicked(new Set([...ticked, "regions"]));
+    }
+    setDiscard(next);
+  }
+
   function go(step: "send" | "place") {
-    store.plan.value = applyCheckup(plan, places, ticked);
+    store.plan.value = applyCheckup(plan, places, ticked, discard);
     onClose();
     store.step.value = step;
   }
@@ -66,22 +115,33 @@ export function CheckupDialog({ open, onClose }: { open: boolean; onClose: () =>
           <section class="checkup-group" key={g}>
             <h3>{t(headingKey(g))}</h3>
             {group.map((l) => (
-              <label class="checkup-line" key={l.id}>
-                <input
-                  type="checkbox"
-                  checked={ticked.has(l.id)}
-                  disabled={l.disabled}
-                  onChange={() => toggle(l.id)}
-                />
-                <span class="checkup-text">
-                  <span class="checkup-label">{t(l.labelKey)}</span>
-                  <span class="checkup-change">
-                    {l.from} → {l.to}
+              <Fragment key={l.id}>
+                <label class="checkup-line">
+                  <input
+                    type="checkbox"
+                    checked={ticked.has(l.id)}
+                    disabled={l.disabled}
+                    onChange={() => toggle(l.id)}
+                  />
+                  <span class="checkup-text">
+                    <span class="checkup-label">{t(l.labelKey)}</span>
+                    <span class="checkup-change">
+                      {l.from} → {l.to}
+                    </span>
+                    {l.detail ? <span class="checkup-note">{detailText(l.detail)}</span> : null}
+                    {l.noteKey ? <span class="checkup-note">{t(l.noteKey)}</span> : null}
                   </span>
-                  {l.detail ? <span class="checkup-note">{detailText(l.detail)}</span> : null}
-                  {l.noteKey ? <span class="checkup-note">{t(l.noteKey)}</span> : null}
-                </span>
-              </label>
+                </label>
+                {l.removable ? (
+                  <OwnRegions
+                    codes={l.removable}
+                    regions={plan.regions}
+                    discard={discard}
+                    goingToo={regionsGoingToo(plan, places, discard)}
+                    onChoose={choose}
+                  />
+                ) : null}
+              </Fragment>
             ))}
           </section>
         );

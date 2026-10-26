@@ -42,14 +42,14 @@ export const prefs = {
   },
 };
 
-export type Step = "connect" | "place" | "name" | "site" | "regions" | "advanced" | "send";
+export type Step = "connect" | "place" | "name" | "regions" | "settings" | "send";
 
-/** The guided order; Advanced is an optional side step between Regions and Send. */
-export const STEPS: Step[] = ["connect", "place", "name", "site", "regions", "advanced", "send"];
-/** The steps the counter numbers ("N / 6"): every step but Advanced. */
-export const NUMBERED: Step[] = STEPS.filter((s) => s !== "advanced");
+/** The guided order. */
+export const STEPS: Step[] = ["connect", "place", "name", "regions", "settings", "send"];
+/** The steps the counter numbers ("N / 6"): all of them. */
+export const NUMBERED: Step[] = STEPS;
 
-/** 1–6 for the numbered steps, null for Advanced. */
+/** 1–6. */
 export function stepNumber(s: Step): number | null {
   const i = NUMBERED.indexOf(s);
   return i < 0 ? null : i + 1;
@@ -57,7 +57,7 @@ export function stepNumber(s: Step): number | null {
 
 /** The full-width steps: the map is hidden and the panel is wide. */
 export function isWide(s: Step): boolean {
-  return s === "advanced" || s === "send";
+  return s === "settings" || s === "send";
 }
 export type Theme = "system" | "light" | "dark";
 export type StepStatus = "done" | "current" | "attention" | "todo";

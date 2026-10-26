@@ -25,22 +25,21 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("step list", () => {
-  it("runs connect → place → name → site → regions → advanced → send; Advanced is not numbered", () => {
-    expect(STEPS).toEqual(["connect", "place", "name", "site", "regions", "advanced", "send"]);
-    expect(NUMBERED).toEqual(["connect", "place", "name", "site", "regions", "send"]);
-    expect(STEPS.map(stepNumber)).toEqual([1, 2, 3, 4, 5, null, 6]);
-    expect(STEPS.filter(isWide)).toEqual(["advanced", "send"]);
+  it("runs connect → place → name → regions → settings → send, every step numbered", () => {
+    expect(STEPS).toEqual(["connect", "place", "name", "regions", "settings", "send"]);
+    expect(NUMBERED).toEqual(STEPS);
+    expect(STEPS.map(stepNumber)).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(STEPS.filter(isWide)).toEqual(["settings", "send"]);
   });
 });
 
 describe("Stepper", () => {
-  it("renders 7 segments, the 6th labelled Advanced (optional) with class optional", () => {
+  it("renders 6 segments, the 5th labelled Settings, none optional", () => {
     const { container } = render(<Stepper wide={false} />);
     const segs = container.querySelectorAll(".seg");
-    expect(segs).toHaveLength(7);
-    expect(segs[5].textContent).toContain("Advanced (optional)");
-    expect(segs[5].classList.contains("optional")).toBe(true);
-    expect([...segs].filter((s) => s.classList.contains("optional"))).toHaveLength(1);
+    expect(segs).toHaveLength(6);
+    expect(segs[4].textContent).toContain("Settings");
+    expect(container.querySelector(".seg.optional")).toBeNull();
   });
 
   it("the docked line reads 2 / 6 on place, with the next numbered step", () => {
@@ -52,12 +51,12 @@ describe("Stepper", () => {
     expect(line.textContent).toContain("Next: Name");
   });
 
-  it("the docked line on Advanced shows only the name and Next: Send", () => {
-    store.step.value = "advanced";
+  it("the docked line on Settings reads 5 / 6 and Next: Send", () => {
+    store.step.value = "settings";
     const { container } = render(<Stepper wide={false} />);
     const line = container.querySelector(".stepper-line")!;
-    expect(line.textContent).not.toMatch(/\/ 6/);
-    expect(line.textContent).toContain("Advanced (optional)");
+    expect(line.textContent).toContain("5 / 6");
+    expect(line.textContent).toContain("Settings");
     expect(line.textContent).toContain("Next: Send");
   });
 
@@ -72,51 +71,47 @@ describe("Stepper", () => {
   it("clicking a segment jumps to that step", () => {
     const { container } = render(<Stepper wide={false} />);
     fireEvent.click(container.querySelectorAll(".seg")[3]);
-    expect(store.step.value).toBe("site");
+    expect(store.step.value).toBe("regions");
   });
 });
 
 describe("panel footer", () => {
-  it("from regions, Next: Send goes to send and Advanced settings goes to advanced", () => {
+  it("from regions, Next: Settings goes to settings, and there is no separate settings link", () => {
     store.step.value = "regions";
     render(<Panel />);
-    fireEvent.click(screen.getByRole("button", { name: "Next: Send →" }));
-    expect(store.step.value).toBe("send");
-    store.step.value = "regions";
-    cleanup();
-    render(<Panel />);
-    fireEvent.click(screen.getByRole("button", { name: "Advanced settings" }));
-    expect(store.step.value).toBe("advanced");
+    expect(screen.queryByRole("button", { name: "Advanced settings" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Next: Settings →" }));
+    expect(store.step.value).toBe("settings");
   });
 
-  it("place, name and site go Back and Next along the numbered steps", () => {
+  it("name goes Next to regions and Back to place", () => {
     store.step.value = "name";
     render(<Panel />);
-    fireEvent.click(screen.getByRole("button", { name: "Next: Site →" }));
-    expect(store.step.value).toBe("site");
+    fireEvent.click(screen.getByRole("button", { name: "Next: Regions →" }));
+    expect(store.step.value).toBe("regions");
+    store.step.value = "name";
     cleanup();
     render(<Panel />);
     fireEvent.click(screen.getByRole("button", { name: "← Back" }));
-    expect(store.step.value).toBe("name");
-    expect(screen.queryByRole("button", { name: "Advanced settings" })).toBeNull();
+    expect(store.step.value).toBe("place");
   });
 
-  it("Advanced goes Back to regions and Next to send", () => {
-    store.step.value = "advanced";
+  it("Settings goes Back to regions and Next to send", () => {
+    store.step.value = "settings";
     render(<Panel />);
     fireEvent.click(screen.getByRole("button", { name: "Next: Send →" }));
     expect(store.step.value).toBe("send");
-    store.step.value = "advanced";
+    store.step.value = "settings";
     cleanup();
     render(<Panel />);
     fireEvent.click(screen.getByRole("button", { name: "← Back" }));
     expect(store.step.value).toBe("regions");
   });
 
-  it("Send goes Back to regions", () => {
+  it("Send goes Back to settings", () => {
     store.step.value = "send";
     render(<Panel />);
     fireEvent.click(screen.getByRole("button", { name: "← Back" }));
-    expect(store.step.value).toBe("regions");
+    expect(store.step.value).toBe("settings");
   });
 });

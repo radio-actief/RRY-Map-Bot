@@ -2,10 +2,10 @@
 import { t } from "../i18n/t";
 import { allowanceOf, BLOCKS, blockKeys, rawOf, recommendedForAll, same, sameRadio } from "./blocks";
 import { formatRadio, planName, planPrefix, prefixFormatsFor, type Plan } from "./plan";
-import { defaultRegionCode, homeRegionCode, policyFor, regionsByState, type RegionPolicy } from "./regions";
+import { defaultRegionCode, homeRegionCode, keepRows, policyFor, regionsByState, type RegionPolicy } from "./regions";
 import type { Place } from "./search";
 import { SETTINGS, type SettingKey } from "./settings";
-import { FIRMWARE_TIMING, SITE_PROFILES, siteOf, timingOf } from "./site";
+import { SITE_PROFILES, siteOf, timingOf } from "./site";
 
 export type CheckupGroup = "name" | "radio" | "advertising" | "repeating" | "regions" | "advanced";
 
@@ -18,7 +18,9 @@ export type CheckupLine = {
   ticked: boolean;
   disabled?: boolean;
   noteKey?: string;
-  detail?: { adds: string[]; denies: string[]; removes: string[] };
+  detail?: { adds: string[]; denies: string[] };
+  /** Regions line: the repeater's own regions the recommendation leaves out, each to keep or discard. */
+  removable?: string[];
 };
 
 const HOPS: SettingKey[] = ["floodMaxUnscoped", "floodMaxAdvert"];
@@ -38,10 +40,10 @@ function withRecommendedName(plan: Plan): Plan {
   return { ...plan, prefixFormat: prefixFormatsFor(plan.anchor)[0], nameSuffix };
 }
 
-/** The recommendation the check-up compares with: every block, the default policy and the name. */
-function recommended(plan: Plan, places: Place[]): Plan {
+/** The recommendation the check-up compares with: every block, the name, and the default policy plus the own regions not discarded. */
+function recommended(plan: Plan, places: Place[], discard: Set<string> = new Set()): Plan {
   const rec = recommendedForAll(plan);
-  return plan.anchor ? withRecommendedName({ ...rec, regions: policyFor(plan.anchor, places) }) : rec;
+  return plan.anchor ? withRecommendedName({ ...rec, regions: recommendedRegions(plan, places, discard) }) : rec;
 }
 
 function valueText(key: SettingKey, raw: string): string {
@@ -56,8 +58,8 @@ function hopsText(plan: Plan): string {
 
 function timingText(plan: Plan): string {
   const timing = timingOf(plan);
-  const choice = siteOf(timing, FIRMWARE_TIMING);
-  const site = choice in SITE_PROFILES ? t(`site.${choice}`) : t("checkup.timing.own");
+  const choice = siteOf(timing);
+  const site = choice in SITE_PROFILES ? t(`site.${choice}`) : t("site.custom");
   return t("checkup.timing.value", { site, tx: timing.txdelay, direct: timing.directTxdelay, rx: timing.rxdelay });
 }
 
@@ -82,23 +84,46 @@ function regionsDiffer(cur: RegionPolicy | null, rec: RegionPolicy): boolean {
   );
 }
 
-function regionsLine(plan: Plan, rec: Plan): CheckupLine | null {
+/** The plan's regions the default policy leaves out. */
+function removable(plan: Plan, policy: RegionPolicy): string[] {
+  const inPolicy = defined(policy);
+  return [...defined(plan.regions)].filter((c) => !inPolicy.has(c));
+}
+
+/** The default policy with the plan's own regions on top, except the discarded ones. */
+function recommendedRegions(plan: Plan, places: Place[], discard: Set<string>): RegionPolicy {
+  const policy = policyFor(plan.anchor!, places);
+  if (!plan.regions) return policy;
+  const keep = removable(plan, policy).filter((c) => !discard.has(c));
+  return keep.length ? keepRows(policy, plan.regions, keep, plan.anchor!) : policy;
+}
+
+/** Kept regions that still go, because the region they depend on is discarded. */
+export function regionsGoingToo(plan: Plan, places: Place[], discard: Set<string>): string[] {
+  if (!plan.anchor || !plan.regions) return [];
+  const after = defined(recommendedRegions(plan, places, discard));
+  return removable(plan, policyFor(plan.anchor, places)).filter((c) => !discard.has(c) && !after.has(c));
+}
+
+/** Shown when the regions differ with every own region kept, or when there are own regions to discard. */
+function regionsLine(plan: Plan, places: Place[]): CheckupLine | null {
   const base = { id: "regions", group: "regions" as const, labelKey: "summary.regionHome", from: homeText(plan.regions) };
   if (!plan.anchor) return { ...base, to: "", ticked: false, disabled: true, noteKey: "checkup.needLocation" };
-  const policy = rec.regions!;
-  if (!regionsDiffer(plan.regions, policy)) return null;
+  const policy = recommendedRegions(plan, places, new Set());
+  const own = removable(plan, policyFor(plan.anchor, places));
+  const differs = regionsDiffer(plan.regions, policy);
+  if (!differs && !own.length) return null;
   const cur = plan.regions ? regionsByState(plan.regions) : { allowed: [], denied: [] };
   const next = regionsByState(policy);
-  const keep = defined(policy);
   return {
     ...base,
     to: homeText(policy),
-    ticked: true,
+    ticked: differs,
     detail: {
       adds: next.allowed.filter((c) => !cur.allowed.includes(c)),
       denies: next.denied.filter((c) => !cur.denied.includes(c)),
-      removes: [...defined(plan.regions)].filter((c) => !keep.has(c)),
     },
+    ...(own.length ? { removable: own } : {}),
   };
 }
 
@@ -120,7 +145,7 @@ export function checkupLines(plan: Plan, places: Place[]): CheckupLine[] {
   const differs = (keys: SettingKey[]) => keys.some((k) => !same(rawOf(plan, k), rawOf(rec, k)));
   for (const block of BLOCKS) {
     if (block === "advanced") {
-      const regions = regionsLine(plan, rec);
+      const regions = regionsLine(plan, places);
       if (regions) lines.push(regions);
     }
     if (block === "radio" && !sameRadio(plan.radio, rec.radio)) {
@@ -168,9 +193,9 @@ export function checkupLines(plan: Plan, places: Place[]): CheckupLine[] {
   return lines;
 }
 
-/** The plan with the lines whose ids are given set to the recommendation; nothing else changes. */
-export function applyCheckup(plan: Plan, places: Place[], ids: Set<string>): Plan {
-  const rec = recommended(plan, places);
+/** The plan with the lines whose ids are given set to the recommendation; nothing else changes. `discard`: own regions not to keep. */
+export function applyCheckup(plan: Plan, places: Place[], ids: Set<string>, discard: Set<string> = new Set()): Plan {
+  const rec = recommended(plan, places, discard);
   let next: Plan = { ...plan, settings: { ...plan.settings } };
   const take = (keys: SettingKey[]) => {
     for (const k of keys) next.settings[k] = rec.settings[k];

@@ -1,4 +1,4 @@
-/** Advanced step (optional): the four setting blocks with their recommendation and undo, the radio preset, and the live "what will change" column. */
+/** Settings step: the four setting blocks with their recommendation and undo, the radio preset, and the live "what will change" column. */
 import { Fragment, type ComponentChildren } from "preact";
 import { stepName } from "../app/Stepper";
 import {
@@ -22,7 +22,7 @@ import { AccessList } from "./settings/AccessList";
 import { MiniMap } from "./settings/MiniMap";
 import { RadioFields } from "./settings/RadioFields";
 import { RepeaterValue } from "./settings/RepeaterValue";
-import { SiteChoices } from "./Site";
+import { TimingPreset } from "./settings/TimingPreset";
 
 // Owner info is on the Name step and the passwords on Send; only the four blocks are here.
 const keysOf = (block: Block) => SETTINGS.filter((d) => d.card === block);
@@ -184,15 +184,6 @@ function Pills() {
   );
 }
 
-function TimingPills() {
-  return (
-    <div class="field">
-      <span class="field-label">{t("settings.timing")}</span>
-      <SiteChoices compact />
-    </div>
-  );
-}
-
 function BlockCard({ block }: { block: Block }) {
   const plan = store.plan.value;
   const start = store.startPlan.value;
@@ -220,7 +211,7 @@ function BlockCard({ block }: { block: Block }) {
       {keysOf(block).map((d) => (
         <Fragment key={d.key}>
           {d.key === "floodMaxUnscoped" ? <Pills /> : null}
-          {d.key === "txdelay" ? <TimingPills /> : null}
+          {d.key === "txdelay" ? <TimingPreset /> : null}
           <SettingField def={d} />
         </Fragment>
       ))}
@@ -260,7 +251,7 @@ function Summary() {
 
 const goto = (s: Step) => (store.step.value = s);
 
-export function Advanced() {
+export function SettingsStep() {
   const locked = busy.value;
   return (
     <div class="panel-body step-settings">

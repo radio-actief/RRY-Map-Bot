@@ -38,12 +38,14 @@ describe("blocks", () => {
     expect(Object.keys(FLOOD_ALLOWANCE)).toEqual(["tight", "minimal", "average", "extended", "full"]);
   });
 
-  it("advertising recommends 47 and average, keeping a matching level", () => {
+  it("advertising recommends 47 and always the average hop allowance", () => {
     const r = recommendedFor(withSettings(defaultPlan(), { floodAdvertHours: 12 }), "advertising");
     expect(r.settings.floodAdvertHours).toBe(47);
     expect([r.settings.floodMaxUnscoped, r.settings.floodMaxAdvert]).toEqual([8, 12]);
-    const tight = recommendedFor(withSettings(defaultPlan(), { floodMaxUnscoped: 2, floodMaxAdvert: 3 }), "advertising");
-    expect(allowanceOf(tight)).toBe("tight");
+    for (const [u, a] of [[2, 3], [64, 64], [16, 24]]) {
+      const other = recommendedFor(withSettings(defaultPlan(), { floodMaxUnscoped: u, floodMaxAdvert: a }), "advertising");
+      expect(allowanceOf(other)).toBe("average");
+    }
   });
 
   it("radio leaves txPower and other blocks alone", () => {

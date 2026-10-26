@@ -109,6 +109,15 @@ describe("importBackup v1", () => {
   });
 });
 
+describe("the 1 % duty cycle of older backups", () => {
+  it("is read as 10 %, the lowest the firmware keeps after a restart", () => {
+    expect(importBackup(v1("ronse-solar", { "setting-dutycycle": "1" }), PLACES).settings.dutycycle).toBe("10");
+    const v2 = exportBackup(defaultPlan());
+    v2.plan.settings.dutycycle = "1";
+    expect(importBackup(JSON.parse(JSON.stringify(v2)), PLACES).settings.dutycycle).toBe("10");
+  });
+});
+
 describe("v2 export and import", () => {
   it("round-trips a plan", () => {
     const start = importBackup(backup("neighbour-deny"), PLACES);

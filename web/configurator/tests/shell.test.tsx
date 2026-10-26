@@ -36,19 +36,19 @@ afterEach(() => {
 });
 
 describe("app shell", () => {
-  it("clicking the Advanced segment goes to Advanced and hides the map", () => {
+  it("clicking the Settings segment goes to Settings and hides the map", () => {
     const { container } = render(<App />);
     const map = container.querySelector(".map-container") as HTMLElement;
     expect(map.hidden).toBe(false);
-    fireEvent.click(screen.getAllByRole("button", { name: /Advanced \(optional\)/ })[0]);
-    expect(store.step.value).toBe("advanced");
+    fireEvent.click(screen.getAllByRole("button", { name: /^5 Settings|^Settings/ })[0]);
+    expect(store.step.value).toBe("settings");
     expect(map.hidden).toBe(true);
     expect(container.querySelector(".panel")?.classList.contains("wide")).toBe(true);
   });
 
-  it("shows the place chip on Advanced and Send, and clicking it returns to Place", () => {
+  it("shows the place chip on Settings and Send, and clicking it returns to Place", () => {
     store.plan.value = { ...defaultPlan(), anchor: ronse, nameSuffix: "Kluisberg" };
-    store.step.value = "advanced";
+    store.step.value = "settings";
     render(<App />);
     const chip = screen.getByRole("button", { name: /BE-RON-Kluisberg · Ronse/ });
     fireEvent.click(chip);
@@ -85,7 +85,7 @@ describe("app shell", () => {
     store.step.value = "regions";
     render(<App />);
     expect(screen.queryByText(/BE-RON-Kluisberg/)).toBeNull();
-    act(() => void (store.step.value = "site"));
+    act(() => void (store.step.value = "name"));
     expect(screen.queryByText(/BE-RON-Kluisberg/)).toBeNull();
   });
 
@@ -93,7 +93,7 @@ describe("app shell", () => {
     store.step.value = "regions";
     store.step.value = "connect";
     const { container } = render(<App />);
-    expect(container.querySelectorAll(".stepper .seg")[4].classList.contains("attention")).toBe(true);
+    expect(container.querySelectorAll(".stepper .seg")[3].classList.contains("attention")).toBe(true);
   });
 
   it("renders a bottom sheet with a grab handle under 768 px", () => {
@@ -111,14 +111,14 @@ describe("app shell", () => {
     expect(store.sheet.value).toBe("full");
   });
 
-  it("forces the sheet to full height on Advanced and Send and restores the user's height after", () => {
+  it("forces the sheet to full height on Settings and Send and restores the user's height after", () => {
     stubWidth(500);
     store.sheet.value = "peek";
     const { container } = render(<App />);
     const panel = () => container.querySelector(".panel")!;
     expect(panel().classList.contains("peek")).toBe(true);
     act(() => {
-      store.step.value = "advanced";
+      store.step.value = "settings";
     });
     expect(panel().classList.contains("full")).toBe(true);
     act(() => {
@@ -139,7 +139,7 @@ describe("app shell", () => {
   it("lets the top bar chips shrink at 360 px", () => {
     stubWidth(360);
     store.plan.value = { ...defaultPlan(), anchor: ronse, nameSuffix: "Kluisberg" };
-    store.step.value = "advanced";
+    store.step.value = "settings";
     const { container } = render(<App />);
     const chips = container.querySelectorAll(".topbar .chip");
     expect(chips.length).toBe(2);
@@ -150,7 +150,7 @@ describe("app shell", () => {
     store.step.value = "regions";
     store.step.value = "connect";
     const { container } = render(<App />);
-    expect(container.querySelectorAll(".stepper .seg")[4].textContent).toContain("Regions — needs attention");
+    expect(container.querySelectorAll(".stepper .seg")[3].textContent).toContain("Regions — needs attention");
   });
 
   it("shows connection state and toggles the drawer and theme", () => {

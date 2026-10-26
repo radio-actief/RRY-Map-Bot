@@ -64,8 +64,8 @@ describe("Connect notice", () => {
   it("after a Read the notice counts the differences per block", () => {
     afterRead(P);
     render(<Connect />);
-    expect(screen.getByText("5 settings differ from #BEmesh")).toBeTruthy();
-    expect(screen.getByText(/Radio 1 · Advertising & hops 1 · Repeating 1 · Regions · Advanced 1\. The name differs too\./)).toBeTruthy();
+    expect(screen.getByText("4 settings differ from #BEmesh")).toBeTruthy();
+    expect(screen.getByText(/Radio 1 · Advertising & hops 1 · Repeating 1 · Advanced 1\. The name differs too\./)).toBeTruthy();
     expect(screen.getByRole("button", { name: "Quick check-up…" })).toBeTruthy();
   });
 
@@ -102,17 +102,35 @@ describe("Quick check-up dialog", () => {
     expect(d.getByText("50 % → 10 %")).toBeTruthy();
     expect(d.getByText("Not ticked: people and the map know your node by its name.")).toBeTruthy();
     const boxes = d.getAllByRole("checkbox", { hidden: true }) as HTMLInputElement[];
-    expect(boxes.map((b) => b.checked)).toEqual([false, true, true, true, true, true]);
-    expect(d.getByText("5 of 6 ticked")).toBeTruthy();
+    expect(boxes.map((b) => b.checked)).toEqual([false, true, true, true, false, true]);
+    expect(d.getByText("4 of 6 ticked")).toBeTruthy();
   });
 
   it("Send N changes… applies the ticked lines and opens Send", () => {
     afterRead(P);
     const d = within(openDialog());
     const ids = new Set(checkupLines(P, PLACES).filter((l) => l.ticked).map((l) => l.id));
-    fireEvent.click(d.getByRole("button", { name: "Send 5 changes…", hidden: true }));
+    fireEvent.click(d.getByRole("button", { name: "Send 4 changes…", hidden: true }));
     expect(store.step.value).toBe("send");
     expect(store.plan.value).toEqual(applyCheckup(P, PLACES, ids));
+  });
+
+  it("lists the repeater's own regions with Keep pressed; Discard ticks the regions line and takes a dependent region along", () => {
+    afterRead(P);
+    const d = within(openDialog());
+    expect(d.getByText("Regions on this repeater that #BEmesh does not add")).toBeTruthy();
+    const choice = (code: string) => within(d.getByRole("group", { name: new RegExp(code), hidden: true }));
+    for (const code of ["beron", "bemak"]) {
+      expect(choice(code).getByRole("button", { name: "Keep", hidden: true }).getAttribute("aria-pressed")).toBe("true");
+    }
+    expect(d.queryByText(/Goes too/)).toBeNull();
+    fireEvent.click(choice("beron").getByRole("button", { name: "Discard", hidden: true }));
+    expect(choice("beron").getByRole("button", { name: "Discard", hidden: true }).getAttribute("aria-pressed")).toBe("true");
+    expect(d.getByText("Goes too: it needs a region you discard.")).toBeTruthy();
+    expect(d.getByText("5 of 6 ticked")).toBeTruthy();
+    fireEvent.click(d.getByRole("button", { name: "Send 5 changes…", hidden: true }));
+    const ids = new Set([...checkupLines(P, PLACES).filter((l) => l.ticked).map((l) => l.id), "regions"]);
+    expect(store.plan.value).toEqual(applyCheckup(P, PLACES, ids, new Set(["beron"])));
   });
 
   it("Open in the steps applies and opens Place", () => {
@@ -154,5 +172,6 @@ describe("Quick check-up dialog", () => {
     expect(disabled[0].checked).toBe(false);
     fireEvent.click(disabled[0]);
     expect(d.getByText("4 of 5 ticked")).toBeTruthy();
+    expect(d.queryByText(/that #BEmesh does not add/)).toBeNull();
   });
 });

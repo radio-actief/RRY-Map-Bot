@@ -2,9 +2,9 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { recommendedForAll } from "../src/core/blocks";
-import { applyCheckup, checkupCounts, checkupLines } from "../src/core/checkup";
+import { applyCheckup, checkupCounts, checkupLines, regionsGoingToo } from "../src/core/checkup";
 import { planFromSnapshot, planName, snapshotFromReplies, type Plan } from "../src/core/plan";
-import { policyFor } from "../src/core/regions";
+import { policyFor, setRowState } from "../src/core/regions";
 import type { Place } from "../src/core/search";
 
 const PLACES: Place[] = JSON.parse(readFileSync(resolve(process.cwd(), "data/be-locode.json"), "utf8"));
@@ -38,7 +38,7 @@ describe("checkupLines", () => {
     expect(lines.map((l) => l.group)).toEqual(["name", "radio", "advertising", "repeating", "regions", "advanced"]);
     const byId = Object.fromEntries(lines.map((l) => [l.id, l]));
     expect([byId.hops.from, byId.hops.to]).toEqual(["Custom (12 / 8)", "Average (8 / 12)"]);
-    expect([byId.timing.from, byId.timing.to]).toEqual(["own (0.5 / 0.2 / 0)", "Suburban (0.8 / 0.4 / 3)"]);
+    expect([byId.timing.from, byId.timing.to]).toEqual(["Custom (0.5 / 0.2 / 0)", "Suburban (0.8 / 0.4 / 3)"]);
     expect(byId.timing.noteKey).toBe("checkup.timingNote");
     expect([byId.dutycycle.from, byId.dutycycle.to]).toEqual(["50 %", "10 %"]);
     expect([byId.loopDetect.from, byId.loopDetect.to]).toEqual(["Off", "Minimal"]);
@@ -63,12 +63,25 @@ describe("checkupLines", () => {
     expect([name.from, name.to]).toEqual(["Kluisberg🌞", "BE-RON-Kluisberg🌞"]);
   });
 
-  it("the regions line names the home codes and spells out what it adds, denies and removes", () => {
-    const regions = checkupLines(P, PLACES).find((l) => l.id === "regions")!;
-    expect(regions).toMatchObject({ ticked: true, labelKey: "summary.regionHome", from: "beron", to: "be-vov" });
-    expect(regions.detail!.removes).toEqual(["beron", "bemak"]);
-    expect(regions.detail!.adds).not.toContain("bemak");
-    expect(regions.detail!.denies).not.toContain("bemak");
+  it("a hop allowance on another level is moved to Average", () => {
+    const full = { ...P, settings: { ...P.settings, floodMaxUnscoped: 64, floodMaxAdvert: 64 } };
+    const hops = checkupLines(full, PLACES).find((l) => l.id === "hops")!;
+    expect([hops.from, hops.to, hops.ticked]).toEqual(["Full (64 / 64)", "Average (8 / 12)", true]);
+  });
+
+  it("the regions line offers the repeater's own regions to keep and spells out what it adds and denies", () => {
+    const off = { ...P, regions: setRowState(P.regions!, "be-vov", "deny") };
+    const regions = checkupLines(off, PLACES).find((l) => l.id === "regions")!;
+    expect(regions).toMatchObject({ ticked: true, labelKey: "summary.regionHome", from: "beron", to: "beron" });
+    expect(regions.removable).toEqual(["beron", "bemak"]);
+    expect(regions.detail).toEqual({ adds: ["be-vov"], denies: [] });
+  });
+
+  it("with only the repeater's own regions on top of the recommendation, the regions line is shown but not ticked", () => {
+    const kept = applyCheckup(P, PLACES, new Set(["regions"]));
+    const regions = checkupLines(kept, PLACES).find((l) => l.id === "regions")!;
+    expect(regions).toMatchObject({ ticked: false, removable: ["beron", "bemak"] });
+    expect(checkupCounts(checkupLines(kept, PLACES)).perGroup.regions).toBeUndefined();
   });
 
   it("without an anchor", () => {
@@ -95,8 +108,8 @@ describe("checkupLines", () => {
 });
 
 describe("applyCheckup", () => {
-  it("applyCheckup with every ticked id equals the recommendation for those blocks, and leaves the name alone", () => {
-    const next = applyCheckup(P, PLACES, ticked(P));
+  it("applyCheckup with every ticked id and every region discarded equals the recommendation, and leaves the name alone", () => {
+    const next = applyCheckup(P, PLACES, new Set([...ticked(P), "regions"]), new Set(["beron", "bemak"]));
     expect(next).toEqual({ ...recommendedForAll(P), regions: policyFor(P.anchor!, PLACES) });
     expect([next.prefixFormat, next.nameSuffix]).toEqual(["none", "Kluisberg"]);
     expect(next.acl).toEqual(P.acl);
@@ -132,11 +145,37 @@ describe("applyCheckup", () => {
   });
 });
 
+describe("keeping or discarding the repeater's own regions", () => {
+  const defined = (p: Plan) => p.regions!.rows.filter((r) => r.allow || r.deny).map((r) => r.code);
+
+  it("keeps them by default", () => {
+    const next = applyCheckup(P, PLACES, new Set(["regions"]));
+    expect(defined(next)).toEqual(expect.arrayContaining(["beron", "bemak"]));
+    expect(regionsGoingToo(P, PLACES, new Set())).toEqual([]);
+  });
+
+  it("discards the one asked for", () => {
+    const next = applyCheckup(P, PLACES, new Set(["regions"]), new Set(["bemak"]));
+    expect(defined(next)).toContain("beron");
+    expect(defined(next)).not.toContain("bemak");
+  });
+
+  it("a kept neighbour goes too when its town is discarded", () => {
+    const next = applyCheckup(P, PLACES, new Set(["regions"]), new Set(["beron"]));
+    expect(defined(next)).not.toContain("bemak");
+    expect(regionsGoingToo(P, PLACES, new Set(["beron"]))).toEqual(["bemak"]);
+  });
+
+  it("the discard list does nothing without the regions line", () => {
+    expect(applyCheckup(P, PLACES, new Set(["dutycycle"]), new Set(["beron"])).regions).toBe(P.regions);
+  });
+});
+
 describe("checkupCounts", () => {
   it("checkupCounts", () => {
     expect(checkupCounts(checkupLines(P, PLACES))).toEqual({
-      total: 5,
-      perGroup: { radio: 1, advertising: 1, repeating: 1, advanced: 1, regions: 1 },
+      total: 4,
+      perGroup: { radio: 1, advertising: 1, repeating: 1, advanced: 1 },
       nameDiffers: true,
     });
     expect(checkupCounts([])).toEqual({ total: 0, perGroup: {}, nameDiffers: false });

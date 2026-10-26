@@ -10,7 +10,7 @@ import { ACL_MAX, type AclEntry } from "../src/core/acl";
 import { defaultPlan, newPlan, planErrors } from "../src/core/plan";
 import type { Place } from "../src/core/search";
 import { Regions } from "../src/steps/Regions";
-import { Advanced } from "../src/steps/Advanced";
+import { SettingsStep } from "../src/steps/SettingsStep";
 import { canApply, chooseLocation, resetPlan, stepStatus, store, visited } from "../src/state/store";
 import { ofKind, resetFake } from "./fakes/leaflet";
 
@@ -24,8 +24,8 @@ beforeEach(() => {
   store.snapshot.value = null;
   store.deviceRegions.value = undefined;
   store.data.value = { failed: new Set(), places: PLACES, municipalities: MUNIS };
-  store.step.value = "advanced";
-  visited.value = new Set(["advanced"]);
+  store.step.value = "settings";
+  visited.value = new Set(["settings"]);
 });
 afterEach(cleanup);
 
@@ -37,15 +37,15 @@ const fieldOf = (label: RegExp | string) => screen.getByLabelText(label).closest
 const segment = (label: string, option: string) =>
   within(screen.getByRole("group", { name: label })).getByRole("button", { name: option });
 
-describe("Advanced step", () => {
+describe("Settings step", () => {
   it("no longer shows owner info (it is on Name)", () => {
-    render(<Advanced />);
+    render(<SettingsStep />);
     expect(screen.queryByRole("heading", { name: "Owner info" })).toBeNull();
     expect(screen.queryByLabelText("Contact or notes")).toBeNull();
   });
 
   it("lists the admin password line in the summary and no longer shows the password fields", async () => {
-    render(<Advanced />);
+    render(<SettingsStep />);
     expect(screen.getByText("Admin password stays as it is")).toBeTruthy();
     expect(screen.queryByLabelText("Admin password")).toBeNull();
     expect(screen.queryByLabelText("Guest password")).toBeNull();
@@ -54,21 +54,21 @@ describe("Advanced step", () => {
   });
 
   it("shows the range error for zero-hop advert 30, which blocks Apply but never turns the Advanced segment orange", () => {
-    render(<Advanced />);
+    render(<SettingsStep />);
     type(/Zero-hop advert/, "30");
     expect(screen.getByText("Value is out of range.")).toBeTruthy();
     expect(canApply.value.reasons).toContainEqual({ key: "error.range" });
     store.step.value = "send";
-    expect(stepStatus("advanced")).toBe("done");
-    store.step.value = "advanced";
+    expect(stepStatus("settings")).toBe("done");
+    store.step.value = "settings";
     type(/Zero-hop advert/, "60");
     expect(canApply.value.reasons).not.toContainEqual({ key: "error.range" });
     store.step.value = "send";
-    expect(stepStatus("advanced")).toBe("done");
+    expect(stepStatus("settings")).toBe("done");
   });
 
   it("the Average pill sets flood.max.unscoped 8 and flood.max.advert 12", () => {
-    render(<Advanced />);
+    render(<SettingsStep />);
     fireEvent.click(screen.getByRole("button", { name: /Average/ }));
     expect(store.plan.value.settings.floodMaxUnscoped).toBe(8);
     expect(store.plan.value.settings.floodMaxAdvert).toBe(12);
@@ -76,7 +76,7 @@ describe("Advanced step", () => {
   });
 
   it("badges: unchanged, then a change count, and the changed field is outlined", () => {
-    render(<Advanced />);
+    render(<SettingsStep />);
     expect(within(card("Advertising & hops")).getByText("unchanged")).toBeTruthy();
     type(/Flood advert/, "12");
     expect(within(card("Advertising & hops")).getByText("1 change")).toBeTruthy();
@@ -84,7 +84,7 @@ describe("Advanced step", () => {
   });
 
   it("choosing a preset fills the radio and editing a field flips the select to Custom", () => {
-    render(<Advanced />);
+    render(<SettingsStep />);
     const select = screen.getByLabelText("Preset") as HTMLSelectElement;
     expect(select.value).toBe("EU/UK (Narrow)");
     fireEvent.change(select, { target: { value: "Australia" } });
@@ -96,7 +96,7 @@ describe("Advanced step", () => {
 
   it("tags 'On repeater: X' only when the snapshot has the setting and the plan differs, and ↺ restores it", () => {
     store.snapshot.value = { settings: { floodAdvertHours: 3, dutycycle: "10" }, missing: [] };
-    render(<Advanced />);
+    render(<SettingsStep />);
     type(/Flood advert/, "12");
     const line = fieldOf(/Flood advert/).querySelector(".label-line") as HTMLElement;
     const tag = within(line).getByText("On repeater:").closest(".repeater-value") as HTMLElement;
@@ -109,7 +109,7 @@ describe("Advanced step", () => {
   });
 
   it("Advertising's button sets 47 and 8/12 and leaves Repeating's loop detect alone", () => {
-    render(<Advanced />);
+    render(<SettingsStep />);
     type(/Flood advert/, "12");
     fireEvent.click(segment("Loop detection", "Strict"));
     fireEvent.click(within(card("Advertising & hops")).getByRole("button", { name: "Use #BEmesh recommended settings" }));
@@ -122,7 +122,7 @@ describe("Advanced step", () => {
   });
 
   it("the all button sets every block and leaves the guest password alone", () => {
-    render(<Advanced />);
+    render(<SettingsStep />);
     store.plan.value = { ...store.plan.value, settings: { ...store.plan.value.settings, guestPassword: "hello" } };
     fireEvent.change(screen.getByLabelText("Preset"), { target: { value: "Australia" } });
     fireEvent.click(segment("Loop detection", "Strict"));
@@ -137,7 +137,7 @@ describe("Advanced step", () => {
   });
 
   it("the Repeating ↺ shows once loop detect changed, and undoes only Repeating", () => {
-    render(<Advanced />);
+    render(<SettingsStep />);
     expect(within(card("Repeating")).queryByRole("button", { name: "Undo the changes in Repeating" })).toBeNull();
     type(/Flood advert/, "12");
     fireEvent.click(segment("Loop detection", "Strict"));
@@ -156,7 +156,7 @@ describe("Advanced step", () => {
     const imported = { ...defaultPlan(), settings: { ...defaultPlan().settings, floodMax: 32, loopDetect: "strict" } };
     store.plan.value = imported;
     store.startPlan.value = imported;
-    render(<Advanced />);
+    render(<SettingsStep />);
     expect(within(card("Repeating")).getByText("unchanged")).toBeTruthy();
     expect(fieldOf("Max flood hops").classList.contains("changed")).toBe(false);
     type("Max flood hops", "64");
@@ -171,7 +171,7 @@ describe("Advanced step", () => {
     const imported = { ...defaultPlan(), settings: { ...defaultPlan().settings, floodMax: 32 } };
     store.plan.value = imported;
     store.startPlan.value = imported;
-    render(<Advanced />);
+    render(<SettingsStep />);
     type("Max flood hops", "64");
     expect(within(card("Repeating")).getByText("recommended ✓")).toBeTruthy();
     expect(within(card("Repeating")).getByRole("button", { name: "Undo the changes in Repeating" })).toBeTruthy();
@@ -179,7 +179,7 @@ describe("Advanced step", () => {
 
   it("a fresh app shows every block unchanged and no field outlined", () => {
     resetPlan(newPlan());
-    render(<Advanced />);
+    render(<SettingsStep />);
     for (const name of ["Radio", "Advertising & hops", "Repeating", "Advanced"]) {
       expect(within(card(name)).getByText("unchanged")).toBeTruthy();
       expect(within(card(name)).queryByText(/\d+ changes?$/)).toBeNull();
@@ -188,18 +188,19 @@ describe("Advanced step", () => {
   });
 
   it("the Advanced card's timing pills: Hilltop sets 2 / 2 / 3, and typed timing shows Custom", () => {
-    render(<Advanced />);
+    render(<SettingsStep />);
     const adv = card("Advanced");
     expect(within(adv).getByText("Timing preset")).toBeTruthy();
+    expect(within(card("Advertising & hops")).getByText("Hop allowance preset (unscoped / advert)")).toBeTruthy();
     fireEvent.click(within(adv).getByRole("button", { name: "Hilltop" }));
     expect(store.plan.value.settings).toMatchObject({ txdelay: 2, directTxdelay: 2, rxdelay: 3 });
-    expect(within(adv).queryByText("Custom")).toBeNull();
+    expect(within(adv).getByRole("button", { name: "Custom" }).getAttribute("aria-pressed")).toBe("false");
     type("Flood delay factor", "0.6");
-    expect(within(adv).getByText("Custom").getAttribute("aria-current")).toBe("true");
+    expect(within(adv).getByRole("button", { name: "Custom" }).getAttribute("aria-pressed")).toBe("true");
   });
 
   it("the Tight pill sets 2/3 and explains itself", () => {
-    render(<Advanced />);
+    render(<SettingsStep />);
     fireEvent.click(screen.getByRole("button", { name: "Tight 2/3" }));
     expect(store.plan.value.settings.floodMaxUnscoped).toBe(2);
     expect(store.plan.value.settings.floodMaxAdvert).toBe(3);
@@ -207,7 +208,7 @@ describe("Advanced step", () => {
   });
 
   it("the Radio ↺ restores the start radio after choosing Australia", () => {
-    render(<Advanced />);
+    render(<SettingsStep />);
     fireEvent.change(screen.getByLabelText("Preset"), { target: { value: "Australia" } });
     expect(within(card("Radio")).getByText("1 change")).toBeTruthy();
     fireEvent.click(within(card("Radio")).getByRole("button", { name: "Undo the changes in Radio" }));
@@ -216,7 +217,7 @@ describe("Advanced step", () => {
   });
 
   it("lists the changes live and goes back / next", () => {
-    render(<Advanced />);
+    render(<SettingsStep />);
     const count = () => Number(/· (\d+)$/.exec(screen.getByText(/^What will change · /).textContent!)![1]);
     const before = count();
     type(/Flood advert/, "12");
@@ -224,14 +225,14 @@ describe("Advanced step", () => {
     expect(within(document.querySelector(".summary") as HTMLElement).getAllByText("→ 12").length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole("button", { name: "← Back" }));
     expect(store.step.value).toBe("regions");
-    store.step.value = "advanced";
+    store.step.value = "settings";
     fireEvent.click(screen.getByRole("button", { name: /Next: Send/ }));
     expect(store.step.value).toBe("send");
   });
 
   it("draws a static mini map with the pin", () => {
     chooseLocation({ type: "city", label: "Ronse", place: RONSE } as never);
-    render(<Advanced />);
+    render(<SettingsStep />);
     const map = ofKind("map")[0];
     expect(map.options.dragging).toBe(false);
     expect(map.options.scrollWheelZoom).toBe(false);
@@ -239,11 +240,11 @@ describe("Advanced step", () => {
   });
 
   it("shows the four blocks as cards in order, with the all button by the title", () => {
-    render(<Advanced />);
+    render(<SettingsStep />);
     const titles = [...document.querySelectorAll(".card-grid .card-head h3")].map((h) => h.textContent);
     expect(titles).toEqual(["Radio", "Advertising & hops", "Repeating", "Advanced"]);
     expect(document.querySelector("details")).toBeNull();
-    const head = screen.getByRole("heading", { name: "Advanced settings", level: 2 }).closest(".step-head")!;
+    const head = screen.getByRole("heading", { name: "Settings", level: 2 }).closest(".step-head")!;
     expect(within(head as HTMLElement).getByRole("button", { name: "Use #BEmesh recommended settings for all" })).toBeTruthy();
     for (const name of ["Radio", "Advertising & hops", "Repeating", "Advanced"]) {
       expect(within(card(name)).getByRole("button", { name: "Use #BEmesh recommended settings" })).toBeTruthy();
@@ -255,23 +256,23 @@ describe("Radio fields", () => {
   const field = (n: string) => screen.getByLabelText(n) as HTMLInputElement;
 
   it("rejects out-of-range values with an inline error and a plan error, keeping the last valid radio", () => {
-    render(<Advanced />);
+    render(<SettingsStep />);
     type("Spreading factor", "13");
     expect(screen.getByText("Spreading factor must be a whole number from 5 to 12.")).toBeTruthy();
     expect(store.plan.value.radio.sf).toBe(8);
     expect(planErrors(store.plan.value).some((e) => e.key === "radio")).toBe(true);
     expect(canApply.value.reasons).toContainEqual({ key: "error.radioInvalid" });
     store.step.value = "send";
-    expect(stepStatus("advanced")).toBe("done");
+    expect(stepStatus("settings")).toBe("done");
   });
 
   it("keeps the invalid text across blur and a remount until the value becomes valid", () => {
-    const { unmount } = render(<Advanced />);
+    const { unmount } = render(<SettingsStep />);
     type("Frequency (MHz)", "99");
     fireEvent.blur(field("Frequency (MHz)"));
     expect(field("Frequency (MHz)").value).toBe("99");
     unmount();
-    render(<Advanced />);
+    render(<SettingsStep />);
     expect(field("Frequency (MHz)").value).toBe("99");
     expect((screen.getByLabelText("Preset") as HTMLSelectElement).value).toBe("custom");
     type("Frequency (MHz)", "868.1");
@@ -280,7 +281,7 @@ describe("Radio fields", () => {
   });
 
   it("limits: freq 150-2500, bandwidth 7-500 rounded to 3 decimals, whole SF and CR", () => {
-    render(<Advanced />);
+    render(<SettingsStep />);
     type("Bandwidth (kHz)", "62.12345");
     expect(store.plan.value.radio.bw).toBe(62.123);
     type("Bandwidth (kHz)", "501");
@@ -292,10 +293,10 @@ describe("Radio fields", () => {
   });
 
   it("keeps Custom selected after choosing it, and picking a preset clears the custom state", () => {
-    const { unmount } = render(<Advanced />);
+    const { unmount } = render(<SettingsStep />);
     fireEvent.change(screen.getByLabelText("Preset"), { target: { value: "custom" } });
     unmount();
-    render(<Advanced />);
+    render(<SettingsStep />);
     expect((screen.getByLabelText("Preset") as HTMLSelectElement).value).toBe("custom");
     type("Frequency (MHz)", "99");
     fireEvent.change(screen.getByLabelText("Preset"), { target: { value: "Australia" } });
@@ -306,7 +307,7 @@ describe("Radio fields", () => {
 
   it("tags what the repeater's radio has, ↺ restores it, and outlines against the start plan", () => {
     store.snapshot.value = { radio: { freq: 869.618, sf: 8, bw: 62.5, cr: 5 }, settings: {}, missing: [] };
-    render(<Advanced />);
+    render(<SettingsStep />);
     const cr = field("Coding rate").closest(".field") as HTMLElement;
     expect(within(cr).getByText("On repeater:")).toBeTruthy();
     expect(within(cr).getByText("5").tagName).toBe("CODE");
@@ -352,7 +353,7 @@ describe("Access list card", () => {
   beforeEach(() => withAcl([{ key: K1, role: 3 }, { key: K2, role: 1 }]));
 
   it("shows each key with its map name, shortened key and role", () => {
-    render(<Advanced />);
+    render(<SettingsStep />);
     expect(within(list()).getAllByText("Unknown key")).toHaveLength(2);
     expect(within(list()).getByText("aaaaaa…bbbbbb")).toBeTruthy();
     const select = within(list()).getAllByRole("combobox")[0] as HTMLSelectElement;
@@ -362,13 +363,13 @@ describe("Access list card", () => {
 
   it("changing a role edits the plan and drops raw perms", () => {
     withAcl([{ key: K1, role: 3, perms: 7 }]);
-    render(<Advanced />);
+    render(<SettingsStep />);
     fireEvent.change(within(list()).getAllByRole("combobox")[0], { target: { value: "2" } });
     expect(store.plan.value.acl).toEqual([{ key: K1, role: 2 }]);
   });
 
   it("remove strikes the row with a removed badge; undo restores it", () => {
-    render(<Advanced />);
+    render(<SettingsStep />);
     fireEvent.click(within(list()).getAllByRole("button", { name: /^Remove/ })[1]);
     expect(store.plan.value.acl).toEqual([{ key: K1, role: 3 }]);
     expect(within(list()).getByText("removed")).toBeTruthy();
@@ -379,7 +380,7 @@ describe("Access list card", () => {
   });
 
   it("adds a pasted key as Admin with a new badge", () => {
-    render(<Advanced />);
+    render(<SettingsStep />);
     add(K4.replace(/(.{8})/g, "$1 "));
     fireEvent.click(within(list()).getByRole("button", { name: "Add" }));
     expect(store.plan.value.acl!.at(-1)).toEqual({ key: K4, role: 3 });
@@ -388,7 +389,7 @@ describe("Access list card", () => {
   });
 
   it("refuses a short or duplicate key", () => {
-    render(<Advanced />);
+    render(<SettingsStep />);
     add("abc");
     fireEvent.click(within(list()).getByRole("button", { name: "Add" }));
     expect(within(list()).getByText("Not a public key: 64 hexadecimal characters")).toBeTruthy();
@@ -399,14 +400,14 @@ describe("Access list card", () => {
   });
 
   it("offers companions from the map by name or key prefix", () => {
-    render(<Advanced />);
+    render(<SettingsStep />);
     add("Pieter");
     fireEvent.click(within(list()).getByRole("button", { name: "BE-GNT-Pieter" }));
     expect(store.plan.value.acl!.at(-1)).toEqual({ key: K4, role: 3 });
   });
 
   it("the badge counts the changes and ↺ resets to what was read", () => {
-    render(<Advanced />);
+    render(<SettingsStep />);
     expect(within(list()).getByText("unchanged")).toBeTruthy();
     fireEvent.click(within(list()).getAllByRole("button", { name: /^Remove/ })[0]);
     fireEvent.change(within(list()).getAllByRole("combobox")[1], { target: { value: "2" } });
@@ -418,7 +419,7 @@ describe("Access list card", () => {
 
   it("at 32 entries the card warns", () => {
     const warn = /keeps at most 32 entries/;
-    render(<Advanced />);
+    render(<SettingsStep />);
     expect(within(list()).queryByText(warn)).toBeNull();
     const full = Array.from({ length: ACL_MAX }, (_, i) => ({ key: i.toString(16).padStart(64, "0"), role: 1 as const }));
     store.plan.value = { ...store.plan.value, acl: full };
@@ -428,14 +429,14 @@ describe("Access list card", () => {
   it("without a Read the card asks for one", () => {
     store.snapshot.value = null;
     resetPlan(defaultPlan());
-    render(<Advanced />);
+    render(<SettingsStep />);
     expect(within(list()).getByText("Read the repeater to see its access list.")).toBeTruthy();
   });
 
   it("an access list in the plan without the repeater's Read (unplugged, another device) is not editable", () => {
     store.plan.value = { ...store.plan.value, acl: [{ key: K1, role: 3 }] };
     store.snapshot.value = null;
-    render(<Advanced />);
+    render(<SettingsStep />);
     expect(within(list()).getByText("Read the repeater to see its access list.")).toBeTruthy();
     expect(within(list()).queryByRole("combobox")).toBeNull();
     expect(within(list()).queryByPlaceholderText(/Paste a public key/)).toBeNull();
@@ -445,7 +446,7 @@ describe("Access list card", () => {
   it("removed and new rows and the badge compare with what the repeater holds", () => {
     store.startPlan.value = { ...store.startPlan.value, acl: [{ key: K1, role: 3 }] };
     store.plan.value = { ...store.plan.value, acl: [{ key: K1, role: 3 }, { key: K4, role: 3 }] };
-    render(<Advanced />);
+    render(<SettingsStep />);
     expect(within(list()).getByText("removed")).toBeTruthy();
     expect(within(list()).getByText("new")).toBeTruthy();
     expect(within(list()).getByText("2 changes")).toBeTruthy();
@@ -454,7 +455,7 @@ describe("Access list card", () => {
   });
 
   it("recommended buttons never change the list", () => {
-    render(<Advanced />);
+    render(<SettingsStep />);
     const acl = store.plan.value.acl;
     fireEvent.click(screen.getByRole("button", { name: "Use #BEmesh recommended settings for all" }));
     expect(store.plan.value.acl).toEqual(acl);

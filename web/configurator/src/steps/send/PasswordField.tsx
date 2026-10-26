@@ -4,7 +4,7 @@ import { SETTINGS } from "../../core/settings";
 import { rawOf } from "../../core/blocks";
 import { t } from "../../i18n/t";
 import { store } from "../../state/store";
-import { SettingField } from "../Advanced";
+import { SettingField } from "../SettingsStep";
 
 const DEF = SETTINGS.find((d) => d.key === "adminPassword")!;
 

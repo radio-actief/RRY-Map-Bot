@@ -5,13 +5,12 @@ export function stepName(s: Step): string {
   return t(`step.${s}`);
 }
 
-/** The numbered step after this one; Advanced, a side step, goes on to Send. */
+/** The numbered step after this one. */
 export function nextStep(s: Step): Step | null {
-  if (s === "advanced") return "send";
   return NUMBERED[NUMBERED.indexOf(s) + 1] ?? null;
 }
 
-/** Seven coloured segments, Advanced a narrower optional one. Docked: "N / 6", the name and what is next. Wide: every label, ✓ on done. */
+/** Six coloured segments. Docked: "N / 6", the name and what is next. Wide: every label, ✓ on done. */
 export function Stepper({ wide }: { wide: boolean }) {
   const current = store.step.value;
   const next = nextStep(current);
@@ -27,7 +26,7 @@ export function Stepper({ wide }: { wide: boolean }) {
             <button
               type="button"
               key={s}
-              class={`seg${n ? "" : " optional"} ${status}`}
+              class={`seg ${status}`}
               aria-current={s === current ? "step" : undefined}
               disabled={busy.value}
               onClick={() => (store.step.value = s)}

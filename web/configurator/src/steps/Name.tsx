@@ -5,7 +5,7 @@ import { effectivePrefixFormat, planName, planPrefix, prefixFormatsFor, type Pla
 import { SETTINGS } from "../core/settings";
 import { t } from "../i18n/t";
 import { editPlan, store } from "../state/store";
-import { SettingField } from "./Advanced";
+import { SettingField } from "./SettingsStep";
 
 const PREFIX_FORMATS: PrefixFormat[] = ["city", "province", "country", "none"];
 const POWER_KEYS: Record<PowerEmoji, string> = { "🌞": "solar", "⚡": "mains", "🔋": "battery", "👀": "observer", "": "none" };

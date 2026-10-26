@@ -4,34 +4,28 @@ import { describe, expect, it } from "vitest";
 import { importBackup } from "../src/core/backup";
 import { defaultPlan, newPlan } from "../src/core/plan";
 import type { Place } from "../src/core/search";
-import { FIRMWARE_TIMING, SITE_PROFILES, siteOf, siteReference, timingFor, timingOf, withTiming } from "../src/core/site";
+import { FIRMWARE_TIMING, SITE_PROFILES, siteOf, siteReference, timingOf, withTiming } from "../src/core/site";
 
 const PLACES: Place[] = JSON.parse(readFileSync(resolve(process.cwd(), "data/be-locode.json"), "utf8"));
 
 describe("site profiles", () => {
   it("matches each profile by its exact values", () => {
-    expect(siteOf({ txdelay: 2, directTxdelay: 2, rxdelay: 3 }, FIRMWARE_TIMING)).toBe("hilltop");
-    expect(siteOf({ txdelay: 1.5, directTxdelay: 1, rxdelay: 3 }, FIRMWARE_TIMING)).toBe("foothills");
-    expect(siteOf({ txdelay: 0.8, directTxdelay: 0.4, rxdelay: 3 }, FIRMWARE_TIMING)).toBe("suburban");
-    expect(siteOf({ txdelay: 0.3, directTxdelay: 0.1, rxdelay: 3 }, FIRMWARE_TIMING)).toBe("local");
+    expect(siteOf({ txdelay: 2, directTxdelay: 2, rxdelay: 3 })).toBe("hilltop");
+    expect(siteOf({ txdelay: 1.5, directTxdelay: 1, rxdelay: 3 })).toBe("foothills");
+    expect(siteOf({ txdelay: 0.8, directTxdelay: 0.4, rxdelay: 3 })).toBe("suburban");
+    expect(siteOf({ txdelay: 0.3, directTxdelay: 0.1, rxdelay: 3 })).toBe("local");
     expect(Object.keys(SITE_PROFILES)).toEqual(["hilltop", "foothills", "suburban", "local"]);
   });
 
   it("compares numerically", () => {
     const plan = withTiming(newPlan(), { txdelay: 0.8, directTxdelay: 0.4, rxdelay: 3 });
     plan.settings.txdelay = "0.80";
-    expect(siteOf(timingOf(plan), FIRMWARE_TIMING)).toBe("suburban");
+    expect(siteOf(timingOf(plan))).toBe("suburban");
   });
 
-  it("tells own from custom", () => {
-    expect(siteOf({ txdelay: 0.5, directTxdelay: 0.2, rxdelay: 0 }, FIRMWARE_TIMING)).toBe("own");
-    expect(siteOf({ txdelay: 0.6, directTxdelay: 0.2, rxdelay: 0 }, FIRMWARE_TIMING)).toBe("custom");
-  });
-
-  it("gives the timing for a choice", () => {
-    const ref = { txdelay: 1, directTxdelay: 0.2, rxdelay: 0 };
-    expect(timingFor("own", ref)).toBe(ref);
-    expect(timingFor("local", ref)).toEqual({ txdelay: 0.3, directTxdelay: 0.1, rxdelay: 3 });
+  it("any timing that is no profile is custom, the firmware's too", () => {
+    expect(siteOf(FIRMWARE_TIMING)).toBe("custom");
+    expect(siteOf({ txdelay: 0.6, directTxdelay: 0.2, rxdelay: 0 })).toBe("custom");
   });
 
   it("starts a new plan on Suburban and keeps the default plan on the firmware timing", () => {

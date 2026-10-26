@@ -2,8 +2,8 @@
 import { settingValue, type DeviceSnapshot, type Plan } from "./plan";
 
 export type SiteProfile = "hilltop" | "foothills" | "suburban" | "local";
-/** A profile, the timing the device had ("own"), or anything else ("custom"). */
-export type SiteChoice = SiteProfile | "own" | "custom";
+/** A profile, or any other timing ("custom"). */
+export type SiteChoice = SiteProfile | "custom";
 export type Timing = { txdelay: number; directTxdelay: number; rxdelay: number };
 
 export const SITE_PROFILES: Record<SiteProfile, Timing> = {
@@ -35,23 +35,19 @@ export function timingOf(plan: Plan): Timing {
 
 const same = (a: Timing, b: Timing) => KEYS.every((k) => a[k] === b[k]);
 
-/** The choice a timing amounts to: a profile, else the reference ("own"), else "custom". */
-export function siteOf(timing: Timing, reference: Timing): SiteChoice {
+/** The choice a timing amounts to: a profile, else "custom". */
+export function siteOf(timing: Timing): SiteChoice {
   for (const [name, t] of Object.entries(SITE_PROFILES) as [SiteProfile, Timing][]) {
     if (same(timing, t)) return name;
   }
-  return same(timing, reference) ? "own" : "custom";
-}
-
-export function timingFor(choice: SiteProfile | "own", reference: Timing): Timing {
-  return choice === "own" ? reference : SITE_PROFILES[choice];
+  return "custom";
 }
 
 export function withTiming(plan: Plan, timing: Timing): Plan {
   return { ...plan, settings: { ...plan.settings, ...timing } };
 }
 
-/** The timing "own" stands for: the device's, where the Read gave a value. */
+/** The timing "custom" goes back to: the device's, where the Read gave a value, else the firmware's. */
 export function siteReference(snapshot: DeviceSnapshot | null): Timing {
   const s = snapshot?.settings ?? {};
   return {

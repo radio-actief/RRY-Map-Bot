@@ -10,13 +10,13 @@ repeater's current value). It builds on `feat/configurator-rebuild` at `39bbef0`
 Someone with a repeater that is already running connects it over USB, reads it, and brings it
 in line with #BEmesh or changes a few things. Only what differs from the repeater is sent.
 
-- **The guided steps stay the default path.** After a Read, Place → Name → Site → Regions →
-  (Advanced) → Send work as in part 2, with the repeater's values shown next to each field.
+- **The guided steps stay the default path.** After a Read, Place → Name → Regions → Settings →
+  Send work as in part 2, with the repeater's values shown next to each field.
 - **A quick check-up is the shortcut.** One screen lists everything that differs from the
   #BEmesh recommendation, "now → recommended", with a tick-box per line.
 - **Send only the changes.** After a Read, Apply sends only the lines whose value differs
   from what the repeater holds. A switch sends everything, as today.
-- **Access list.** Advanced gets a card that shows which public keys may manage the repeater,
+- **Access list.** Settings gets a card that shows which public keys may manage the repeater,
   with their role, and lets people add, change and remove them.
 
 Part 3 is done when:
@@ -39,6 +39,22 @@ Part 3 is done when:
   "On repeater" tags (`summarize`, `blockChanges`), not by filtering the full script.
 - The mockups shown on 2026-10-26 (Connect card, check-up, access list card, Send) are the
   agreed layout.
+- After the first hardware test (user, 2026-10-26): the Site step is gone, its choice lives in
+  the Timing preset on Settings; Advanced is a numbered step named Settings; the hop allowance
+  advice is always Average 8/12; the repeater's own regions are kept or discarded one by one;
+  the 1 % duty cycle option is gone.
+
+## Steps
+
+Connect → Place → Name → Regions → Settings → Send, numbered 1 to 6. Settings and Send are the
+wide steps. Settings holds the four blocks and the access list:
+
+- **Hop allowance preset (unscoped / advert):** Tight, Minimal, Average, Extended, Full.
+- **Timing preset:** Hilltop, Foothills, Suburban, Local and Custom, with the chosen site's
+  description and how many repeaters the map shows nearby. Custom is pressed when the timing is
+  no site; clicking it puts back the repeater's timing (the firmware's without a Read).
+- **Duty cycle:** 10, 50 or 100 %. The firmware raises anything under 10 % to 10 % at every
+  start, so a backup holding 1 % imports as 10 %.
 
 ## Connect after a Read
 
@@ -66,11 +82,12 @@ grouped in this order: Name, Radio, Advertising & hops, Repeating, Regions, Adva
 
 ### The recommended plan
 
-- **Settings:** `recommendedForAll(plan)` from part 2, with the timing following the plan's
-  site (closest profile, Suburban when none matches), as the per-block buttons do.
-- **Regions:** `policyFor(anchor, places)`, the default policy for the repeater's location.
-  Without an anchor the Regions line is shown, not ticked and disabled, with "Choose a location
-  in Place first".
+- **Settings:** `recommendedForAll(plan)` from part 2: the hop allowance always Average 8/12,
+  the timing on the plan's site (Suburban when none matches), as the per-block buttons do.
+- **Regions:** `policyFor(anchor, places)`, the default policy for the repeater's location, with
+  the repeater's own regions on top (those the default policy leaves out), except the ones the
+  user discards. Without an anchor the Regions line is shown, not ticked and disabled, with
+  "Choose a location in Place first".
 - **Name:** the anchor's prefix (part 1 naming rules) with the current name's own part kept:
   an existing `BE-…-` prefix is replaced, otherwise the whole current name becomes the suffix.
   No line when the name already has the recommended prefix, or without an anchor.
@@ -81,10 +98,16 @@ grouped in this order: Name, Radio, Advertising & hops, Repeating, Regions, Adva
   use (hours, %, hop level names). The hop allowance is one line (the level), and the timing is
   one line (the site), even though each covers several settings.
 - Regions is one line: "Home region now → recommended", with a sub-line that spells out what
-  it adds, denies and removes. It is applied or not as a whole.
+  it adds and denies. It is applied or not as a whole, and ticked when the regions differ with
+  every own region kept.
+- Under it, "Regions on this repeater that #BEmesh does not add" lists those regions, each with
+  Keep (the default) or Discard. Discard ticks the Regions line. A kept region that needs a
+  discarded one (a neighbouring town needs its own town) says "Goes too: it needs a region you
+  discard."
 - The name line carries the reason it is not ticked: "Not ticked: people and the map know
   your node by its name."
-- The timing line carries "Pick another site in Site if the repeater is on a hill or in town."
+- The timing line carries "Pick another timing preset in Settings if the repeater is on a hill
+  or in town."
 
 ### Buttons
 
@@ -144,7 +167,7 @@ The Send step:
   Read has no access list (`acl: null`) and the card asks for a Read.
 - The read-back after Apply also reads the list.
 
-### The card (Advanced, below Access)
+### The card (Settings, below the blocks)
 
 - Title "Access list", a change badge like the other cards, and the line "Keys on this list log
   in from the MeshCore app without the password."

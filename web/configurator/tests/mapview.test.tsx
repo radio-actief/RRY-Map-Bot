@@ -243,18 +243,18 @@ describe("MapView", () => {
     expect((screen.getByRole("checkbox", { name: "Borders" }) as HTMLInputElement).disabled).toBe(false);
   });
 
-  it("hides the map on the wide steps (Advanced and Send)", () => {
+  it("hides the map on the wide steps (Settings and Send)", () => {
     const { container } = render(<MapView />);
     const box = () => (container.querySelector(".map-container") as HTMLElement).hidden;
     expect(box()).toBe(false);
-    for (const [step, hidden] of [["advanced", true], ["name", false], ["send", true], ["site", false]] as const) {
+    for (const [step, hidden] of [["settings", true], ["name", false], ["send", true], ["regions", false]] as const) {
       act(() => void (store.step.value = step));
       expect(box()).toBe(hidden);
     }
   });
 
   it("re-measures the map when it is shown again", () => {
-    store.step.value = "advanced";
+    store.step.value = "settings";
     render(<MapView />);
     const map = ofKind("map")[0];
     const before = map.invalidated;

@@ -323,7 +323,7 @@ describe("Send step: Apply", () => {
     store.plan.value = { ...store.plan.value, nameSuffix: "Other" };
     expect(store.apply.value).toEqual({ phase: "idle" });
     store.apply.value = { phase: "empty" };
-    store.step.value = "advanced";
+    store.step.value = "settings";
     expect(store.apply.value).toEqual({ phase: "empty" });
     store.step.value = "send";
     expect(store.apply.value).toEqual({ phase: "idle" });
@@ -758,16 +758,16 @@ describe("Send step: Before you send", () => {
     expect(screen.getByPlaceholderText("Leave empty to keep the current one")).toBeTruthy();
   });
 
-  it("lists the radio, duty cycle and TX power read-only, each linking to Advanced", () => {
+  it("lists the radio, duty cycle and TX power read-only, each linking to Settings", () => {
     store.plan.value = { ...store.plan.value, settings: { ...store.plan.value.settings, txPower: 14 } };
     render(<Send />);
     expect(screen.getByText(/^Radio: /)).toBeTruthy();
     expect(screen.getByText(/^Duty cycle: /)).toBeTruthy();
     expect(screen.getByText("TX power: 14")).toBeTruthy();
-    const links = screen.getAllByRole("button", { name: "Change in Advanced" });
+    const links = screen.getAllByRole("button", { name: "Change in Settings" });
     expect(links.length).toBe(3);
     fireEvent.click(links[0]);
-    expect(store.step.value).toBe("advanced");
+    expect(store.step.value).toBe("settings");
   });
 
   it("never tags the admin password with the repeater's value", () => {

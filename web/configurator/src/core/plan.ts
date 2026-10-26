@@ -319,7 +319,7 @@ function parseRadio(s: string): Radio | undefined {
 function snapDutycycle(s: string): string | undefined {
   const v = parseFloat(s.replace(/%$/, ""));
   if (!Number.isFinite(v)) return undefined;
-  const options = [1, 10, 50, 100];
+  const options = [10, 50, 100];
   return String(options.reduce((best, o) => (Math.abs(v - o) < Math.abs(v - best) ? o : best)));
 }
 

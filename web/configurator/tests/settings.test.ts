@@ -80,6 +80,7 @@ describe("validateSetting", () => {
   it("accepts only the listed options", () => {
     expect(validateSetting("dutycycle", "10")).toEqual({ ok: true, value: "10" });
     expect(err("dutycycle", "20")).toBe("option");
+    expect(err("dutycycle", "1")).toBe("option");
     expect(err("loopDetect", "loud")).toBe("option");
     expect(validateSetting("pathHashMode", "2")).toEqual({ ok: true, value: "2" });
   });

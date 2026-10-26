@@ -62,13 +62,11 @@ describe("stepStatus", () => {
     expect(stepStatus("place")).toBe("done");
     expect(stepStatus("name")).toBe("attention");
   });
-  it("connect and site never show attention", () => {
-    store.step.value = "site";
+  it("connect never shows attention", () => {
     store.step.value = "send";
     expect(stepStatus("connect")).toBe("done");
-    expect(stepStatus("site")).toBe("done");
   });
-  it("Advanced is never attention, even with a range error, which still blocks Apply", () => {
+  it("Settings is never attention, even with a range error, which still blocks Apply", () => {
     store.plan.value = {
       ...defaultPlan(),
       nameSuffix: "Gent",
@@ -77,11 +75,11 @@ describe("stepStatus", () => {
       settings: { advertIntervalMinutes: "30" },
     };
     store.device.value = { status: "connected", link: null, firmware: "v1.17.1 (Build: 14 Aug 2026)" };
-    expect(stepStatus("advanced")).toBe("todo");
-    store.step.value = "advanced";
-    expect(stepStatus("advanced")).toBe("current");
+    expect(stepStatus("settings")).toBe("todo");
+    store.step.value = "settings";
+    expect(stepStatus("settings")).toBe("current");
     store.step.value = "send";
-    expect(stepStatus("advanced")).toBe("done");
+    expect(stepStatus("settings")).toBe("done");
     expect(canApply.value.ok).toBe(false);
     expect(canApply.value.reasons).toContainEqual({ key: "error.range" });
   });
@@ -90,16 +88,16 @@ describe("stepStatus", () => {
     store.step.value = "send";
     store.step.value = "connect";
     expect(stepStatus("send")).toBe("attention");
-    expect(stepStatus("advanced")).toBe("todo");
+    expect(stepStatus("settings")).toBe("todo");
   });
-  it("flags regions, not advanced, for a region code with a control character", () => {
+  it("flags regions, not settings, for a region code with a control character", () => {
     const row = { code: "be\rerase", labelKey: "", label: "", group: "country" as const, allow: true, deny: false };
     const regions = { rows: [row], untaggedFlood: true, homeOverride: null, defaultScope: null };
     store.plan.value = { ...defaultPlan(), anchor: BELGIUM, regions };
     store.step.value = "send";
     store.step.value = "connect";
     expect(stepStatus("regions")).toBe("attention");
-    expect(stepStatus("advanced")).not.toBe("attention");
+    expect(stepStatus("settings")).not.toBe("attention");
     expect(canApply.value.reasons).toContainEqual({ key: "error.regionControlChars" });
   });
 });

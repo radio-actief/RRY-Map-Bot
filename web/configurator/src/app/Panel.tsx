@@ -2,13 +2,12 @@ import { useEffect, useState } from "preact/hooks";
 import { t } from "../i18n/t";
 import { busy, isWide, NUMBERED, store, type Step } from "../state/store";
 import { disconnectUsb } from "../state/device";
-import { Advanced } from "../steps/Advanced";
 import { Connect } from "../steps/Connect";
 import { Name } from "../steps/Name";
 import { Place } from "../steps/Place";
 import { Regions } from "../steps/Regions";
 import { Send } from "../steps/Send";
-import { Site } from "../steps/Site";
+import { SettingsStep } from "../steps/SettingsStep";
 import { Notice } from "./Notice";
 import { nextStep, Stepper, stepName } from "./Stepper";
 
@@ -35,9 +34,8 @@ function StepBody({ step }: { step: Step }) {
   if (step === "connect") return <Connect />;
   if (step === "place") return <Place />;
   if (step === "name") return <Name />;
-  if (step === "site") return <Site />;
   if (step === "regions") return <Regions />;
-  if (step === "advanced") return <Advanced />;
+  if (step === "settings") return <SettingsStep />;
   return <Send />;
 }
 
@@ -80,7 +78,7 @@ export function Panel() {
         </div>
       ) : null}
       <StepBody step={step} />
-      {/* Advanced and Send carry their own Back / Next. */}
+      {/* Settings and Send carry their own Back / Next. */}
       {isWide(step) ? null : (
         <footer class="panel-foot">
           {back ? (
@@ -95,11 +93,6 @@ export function Panel() {
             <span />
           )}
           <span class="foot-end">
-            {step === "regions" ? (
-              <button type="button" class="link" disabled={locked} onClick={() => (store.step.value = "advanced")}>
-                {t("step.advancedLink")}
-              </button>
-            ) : null}
             {next ? (
               <button type="button" class="btn primary" disabled={locked} onClick={() => (store.step.value = next)}>
                 {t("step.nextButton", { name: stepName(next) })}

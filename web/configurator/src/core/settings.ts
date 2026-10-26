@@ -61,7 +61,7 @@ export const SETTINGS: SettingDef[] = [
   def("ownerInfo", "owner.info", "owner", null, ""),
   def("guestPassword", "guest.password", "access", null, ""),
   def("adminPassword", "password", "access", null, "", {}, undefined),
-  def("dutycycle", "dutycycle", "radio", "50", "10", { options: ["1", "10", "50", "100"] }),
+  def("dutycycle", "dutycycle", "radio", "50", "10", { options: ["10", "50", "100"] }),
   def("floodAdvertHours", "flood.advert.interval", "advertising", 47, 47, { range: { min: 3, max: 168 } }),
   def("advertIntervalMinutes", "advert.interval", "advertising", 0, 0, { range: { min: 60, max: 240, step: 2 } }),
   def("floodMaxUnscoped", "flood.max.unscoped", "advertising", 64, 12, { range: { min: 0, max: 64 } }),

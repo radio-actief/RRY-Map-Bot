@@ -1134,11 +1134,31 @@ def internal_error(error):
 
 
 # OAuth2 Routes
+NEXT_PAGES = ('/', '/stats', '/region-map', '/configurator')
+
+
+def _safe_next(value):
+    """The page to return to after sign in or out: one of the four tool pages, else None."""
+    return value if value in NEXT_PAGES else None
+
+
+def _after_auth_target(next_page, home_query):
+    """Where to send the user after a successful sign in or out."""
+    if next_page and next_page != '/':
+        return next_page
+    return '/?' + home_query
+
+
 @app.route('/auth/login')
 def auth_login():
     """Initiate Discord OAuth2 login flow."""
     state = generate_state()
     session['oauth_state'] = state
+    next_page = _safe_next(request.args.get('next'))
+    if next_page:
+        session['oauth_next'] = next_page
+    else:
+        session.pop('oauth_next', None)
     auth_url = get_authorization_url(state=state)
     return redirect(auth_url)
 
@@ -1160,6 +1180,7 @@ def auth_callback():
     
     # Remove state from session
     session.pop('oauth_state', None)
+    next_page = _safe_next(session.pop('oauth_next', None))
     
     # Exchange code for token
     if not code:
@@ -1196,15 +1217,15 @@ def auth_callback():
         invite_url = f"{DISCORD_SERVER_INVITE_URL}?redirect_uri={DISCORD_OAUTH2_REDIRECT_URI}"
         return redirect(f'/?error=not_guild_member&invite_url={invite_url}')
     
-    # Redirect to home page
-    return redirect('/?login=success')
+    # Back to the page the sign in started on
+    return redirect(_after_auth_target(next_page, 'login=success'))
 
 
 @app.route('/auth/logout')
 def auth_logout():
     """Logout user and clear session."""
     session.clear()
-    return redirect('/?logout=success')
+    return redirect(_after_auth_target(_safe_next(request.args.get('next')), 'logout=success'))
 
 
 @app.route('/auth/me')

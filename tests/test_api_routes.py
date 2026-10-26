@@ -126,6 +126,46 @@ class TestStaticFiles(unittest.TestCase):
                 r.close()
 
 
+class TestAuthNext(unittest.TestCase):
+    def setUp(self):
+        self.client = api.app.test_client()
+
+    def test_logout_returns_to_a_tool_page(self):
+        r = self.client.get("/auth/logout?next=/stats")
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(r.headers["Location"], "/stats")
+
+    def test_logout_home_keeps_the_success_flag(self):
+        for query in ("?next=/", ""):
+            with self.subTest(query=query):
+                r = self.client.get("/auth/logout" + query)
+                self.assertEqual(r.headers["Location"], "/?logout=success")
+
+    def test_logout_ignores_other_targets(self):
+        for target in ("https://evil.example", "//evil.example", "/foo"):
+            with self.subTest(target=target):
+                r = self.client.get("/auth/logout", query_string={"next": target})
+                self.assertEqual(r.headers["Location"], "/?logout=success")
+
+    def test_login_stores_a_tool_page(self):
+        with self.client as c:
+            r = c.get("/auth/login?next=/region-map")
+            self.assertEqual(r.status_code, 302)
+            with c.session_transaction() as sess:
+                self.assertEqual(sess.get("oauth_next"), "/region-map")
+
+    def test_login_drops_other_targets(self):
+        with self.client as c:
+            c.get("/auth/login?next=//evil.example")
+            with c.session_transaction() as sess:
+                self.assertNotIn("oauth_next", sess)
+
+    def test_success_redirect_target(self):
+        self.assertEqual(api._after_auth_target("/configurator", "login=success"), "/configurator")
+        self.assertEqual(api._after_auth_target("/", "login=success"), "/?login=success")
+        self.assertEqual(api._after_auth_target(None, "login=success"), "/?login=success")
+
+
 class TestRadioCustomParams(unittest.TestCase):
     def _parse(self, query):
         with api.app.test_request_context("/api/v1/stats?" + query):

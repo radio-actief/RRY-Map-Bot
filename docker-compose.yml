@@ -61,9 +61,12 @@ services:
         SYNC_INTERVAL_MINUTES=$${SYNC_INTERVAL_MINUTES:-$$((SYNC_INTERVAL_HOURS * 60))} &&
         SYNC_INTERVAL_SECONDS=$$((SYNC_INTERVAL_MINUTES * 60)) &&
         while true; do
-          echo 'Running sync at '$$(date) &&
-          python3 backend/sync_belgian_nodes.py &&
-          echo \"Sync completed. Next run in $${SYNC_INTERVAL_MINUTES} minute(s)...\" &&
+          echo 'Running sync at '$$(date)
+          if python3 backend/sync_belgian_nodes.py; then
+            echo \"Sync completed. Next run in $${SYNC_INTERVAL_MINUTES} minute(s)...\"
+          else
+            echo \"Sync failed. Next try in $${SYNC_INTERVAL_MINUTES} minute(s)...\"
+          fi
           sleep $${SYNC_INTERVAL_SECONDS}
         done
       "

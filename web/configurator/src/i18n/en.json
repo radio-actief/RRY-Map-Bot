@@ -154,7 +154,7 @@
   "site.hilltop.desc": "Clear view over a larger area: a mast, a ridge, the roof of a high-rise.",
   "site.hilltop.range": "20+ neighbours",
   "site.foothills": "Foothills",
-  "site.foothills.desc": "Bridge between hilltop nodes and the ones in town: a hillside, or a high roof outside town.",
+  "site.foothills.desc": "Links hilltop nodes with those in town: a hillside, or a high roof outside town.",
   "site.foothills.range": "10–20 neighbours",
   "site.suburban": "Suburban",
   "site.suburban.desc": "A typical rooftop covering your own neighbourhood.",
@@ -203,7 +203,7 @@
   "place.lon": "Longitude",
   "place.clear": "Clear",
   "place.clearHint": "Remove the coordinates: no position is sent to the repeater. The chosen place stays.",
-  "place.noBorders": "The municipality borders didn't load, so the place can't be detected from the map. Use the search to choose it.",
+  "place.noBorders": "The municipality borders didn't load. Use the search to choose the place.",
   "region.name.nl": "Netherlands",
   "region.name.lu": "Luxembourg",
   "region.name.fr": "France",
@@ -253,7 +253,7 @@
   "regions.locked.country": "Allow or deny Belgium first.",
   "regions.options": "More options",
   "regions.untagged": "Flood untagged traffic (*)",
-  "regions.untagged.hint": "Allow flood for packets with no region code (region allowf *). Turn it off only if your neighbours agree.",
+  "regions.untagged.hint": "Floods packets without a region (region allowf *). Turn it off only if your neighbours agree.",
   "regions.home": "Home region",
   "regions.home.default": "Default (smallest allowed home region)",
   "regions.home.none": "No home",
@@ -263,7 +263,7 @@
   "regions.default.autoCode": "Automatic (prefer be → {code})",
   "regions.default.none": "None (<null>)",
   "regions.default.notAllow": "{label} (not Allow)",
-  "regions.default.hint": "Tags this repeater's own flood adverts with a region, so they get the advert hop budget instead of the unscoped one.",
+  "regions.default.hint": "Its own flood adverts get this region, so they use the advert hop limit.",
   "settings.title": "Settings",
   "settings.timing": "Timing preset",
   "settings.sub": "Starts from the #BEmesh recommendation, or from your repeater after a Read.",
@@ -586,5 +586,5 @@
   "acl.add": "Add",
   "acl.badKey": "Not a public key: 64 hexadecimal characters",
   "acl.duplicate": "This key is already on the list",
-  "acl.full": "The repeater keeps at most 32 entries; when it is full it drops the least active ones that are not admins."
+  "acl.full": "The repeater keeps at most 32 entries; when full, it drops the least active non-admins."
 }

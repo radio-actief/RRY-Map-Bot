@@ -367,10 +367,10 @@ describe("Place step", () => {
     expect(store.plan.value.location).toEqual({ lat: 50.745, lon: 3.6 });
   });
 
-  it("says the place can't be detected from the map when the borders failed", () => {
+  it("says the borders didn't load and points to the search", () => {
     store.data.value = { failed: new Set(["municipalities"]), places: PLACES };
     render(<Place />);
-    expect(screen.getByText(/can't be detected from the map/)).toBeTruthy();
+    expect(screen.getByText(/borders didn't load. Use the search/)).toBeTruthy();
   });
 
   it("a map pick outside Belgium keeps the location, leaves the anchor null and says so", () => {

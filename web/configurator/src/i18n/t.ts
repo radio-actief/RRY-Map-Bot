@@ -21,3 +21,6 @@ export function t(key: string, params?: Record<string, string | number>): string
   if (!params) return text;
   return text.replace(/\{(\w+)\}/g, (m, name: string) => (name in params ? String(params[name]) : m));
 }
+
+/** Whether en.json holds this key (for optional texts such as a field's longer help). */
+export const hasText = (key: string): boolean => key in messages;

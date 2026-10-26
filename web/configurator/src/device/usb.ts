@@ -24,11 +24,23 @@ const VENDORS: Record<string, string> = {
   "2e8a": "Raspberry Pi",
 };
 
-/** "RAK4631 (239a:8029)", "Espressif (303a:1001)", "USB 1234:0abc", or null without ids. */
-export function usbLabel(info: UsbInfo | undefined | null): string | null {
+function usbIds(info: UsbInfo | undefined | null): { id: string; name: string | undefined } | null {
   if (!info || info.usbVendorId === undefined || info.usbProductId === undefined) return null;
   const vid = hex(info.usbVendorId);
   const id = `${vid}:${hex(info.usbProductId)}`;
-  const name = BOARDS[id] ?? VENDORS[vid];
-  return name ? `${name} (${id})` : `USB ${id}`;
+  return { id, name: BOARDS[id] ?? VENDORS[vid] };
+}
+
+/** "RAK4631 (239a:8029)", "Espressif (303a:1001)", "USB 1234:0abc", or null without ids. */
+export function usbLabel(info: UsbInfo | undefined | null): string | null {
+  const ids = usbIds(info);
+  if (!ids) return null;
+  return ids.name ? `${ids.name} (${ids.id})` : `USB ${ids.id}`;
+}
+
+/** "RAK4631", "Espressif", "USB 1234:0abc", or null without ids. */
+export function usbBoard(info: UsbInfo | undefined | null): string | null {
+  const ids = usbIds(info);
+  if (!ids) return null;
+  return ids.name ?? `USB ${ids.id}`;
 }

@@ -57,7 +57,7 @@ function ReadResult() {
   );
 }
 
-const GROUP_ORDER: CheckupGroup[] = ["radio", "advertising", "repeating", "regions", "advanced"];
+const GROUP_ORDER: CheckupGroup[] = ["radio", "advertising", "repeating", "timing", "regions", "advanced"];
 
 /** After a Read: how many settings differ from the recommendation, per block, with the way into the check-up. */
 function CheckupNotice({ onOpen }: { onOpen: () => void }) {

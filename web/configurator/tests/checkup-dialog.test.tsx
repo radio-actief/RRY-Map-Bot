@@ -65,7 +65,7 @@ describe("Connect notice", () => {
     afterRead(P);
     render(<Connect />);
     expect(screen.getByText("4 settings differ from #BEmesh")).toBeTruthy();
-    expect(screen.getByText(/Radio 1 · Advertising & hops 1 · Repeating 1 · Advanced 1\. The name differs too\./)).toBeTruthy();
+    expect(screen.getByText(/Radio 1 · Adverts & hops 1 · Repeating 1 · Site & timing 1\. The name differs too\./)).toBeTruthy();
     expect(screen.getByRole("button", { name: "Quick check-up…" })).toBeTruthy();
   });
 
@@ -102,7 +102,7 @@ describe("Quick check-up dialog", () => {
     expect(d.getByText("50 % → 10 %")).toBeTruthy();
     expect(d.getByText("Not ticked: people and the map know your node by its name.")).toBeTruthy();
     const boxes = d.getAllByRole("checkbox", { hidden: true }) as HTMLInputElement[];
-    expect(boxes.map((b) => b.checked)).toEqual([false, true, true, true, false, true]);
+    expect(boxes.map((b) => b.checked)).toEqual([false, true, true, true, true, false]);
     expect(d.getByText("4 of 6 ticked")).toBeTruthy();
   });
 

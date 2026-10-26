@@ -8,7 +8,7 @@ import { t } from "../i18n/t";
 import { store } from "../state/store";
 import { Dialog } from "./Dialog";
 
-const GROUPS: CheckupGroup[] = ["name", "radio", "advertising", "repeating", "regions", "advanced"];
+const GROUPS: CheckupGroup[] = ["name", "radio", "advertising", "repeating", "timing", "regions", "advanced"];
 const headingKey = (g: CheckupGroup) =>
   g === "name" ? "script.group.name" : g === "regions" ? "script.group.regions" : `settings.card.${g}`;
 

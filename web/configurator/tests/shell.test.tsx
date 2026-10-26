@@ -75,9 +75,25 @@ describe("app shell", () => {
     store.snapshot.value = { name: "BE-RON-Kluisberg" } as never;
     const { container } = render(<App />);
     const chip = container.querySelector(".topbar .chip.conn") as HTMLElement;
-    expect(chip.textContent).toBe("BE-RON-Kluisberg · RAK4631 (239a:8029) · v1.17.1");
+    expect(chip.textContent).toBe("BE-RON-Kluisberg · RAK4631 · v1.17.1");
+    // The USB ids only in the tooltip.
     expect(chip.getAttribute("title")).toBe("BE-RON-Kluisberg · RAK4631 (239a:8029) · v1.17.1");
     expect(screen.queryByRole("button", { name: /connect over USB/ })).toBeNull();
+  });
+
+  it("leaves the name out of the connected chip while the place chip shows it", () => {
+    store.device.value = {
+      status: "connected",
+      link: null,
+      firmware: "v1.17.1 (Build: 01-Oct-2026)",
+      usb: { usbVendorId: 0x239a, usbProductId: 0x8029 },
+    };
+    store.snapshot.value = { name: "BE-RON-Kluisberg", settings: {} } as never;
+    store.plan.value = { ...defaultPlan(), anchor: ronse, nameSuffix: "Kluisberg" };
+    store.step.value = "settings";
+    const { container } = render(<App />);
+    expect((container.querySelector(".topbar .chip.conn") as HTMLElement).textContent).toBe("RAK4631 · v1.17.1");
+    expect(screen.getByRole("button", { name: /BE-RON-Kluisberg · Ronse/ })).toBeTruthy();
   });
 
   it("hides the place chip on the steps beside the map", () => {

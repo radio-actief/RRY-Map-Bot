@@ -26,12 +26,14 @@ describe("a new plan's hop allowance", () => {
 });
 
 describe("blocks", () => {
-  it("lists the four blocks in order", () => {
-    expect(BLOCKS).toEqual(["radio", "advertising", "repeating", "advanced"]);
-    expect(blockKeys("advertising")).toEqual(["floodAdvertHours", "advertIntervalMinutes", "floodMaxUnscoped", "floodMaxAdvert"]);
-    expect(blockKeys("advanced")).toEqual([
-      "pathHashMode", "txdelay", "directTxdelay", "rxdelay", "radioRxgain", "intThresh", "agcResetInterval", "multiAcks",
+  it("lists the five blocks in order", () => {
+    expect(BLOCKS).toEqual(["radio", "advertising", "repeating", "timing", "advanced"]);
+    expect(blockKeys("advertising")).toEqual([
+      "floodAdvertHours", "advertIntervalMinutes", "floodMaxUnscoped", "floodMaxAdvert", "floodMax",
     ]);
+    expect(blockKeys("repeating")).toEqual(["repeat", "loopDetect"]);
+    expect(blockKeys("timing")).toEqual(["txdelay", "directTxdelay", "rxdelay"]);
+    expect(blockKeys("advanced")).toEqual(["pathHashMode", "radioRxgain", "intThresh", "agcResetInterval", "multiAcks"]);
   });
 
   it("FLOOD_ALLOWANCE has tight first", () => {
@@ -59,18 +61,25 @@ describe("blocks", () => {
     expect(r.radioCustom).toBeUndefined();
   });
 
-  it("advanced keeps a known profile and falls back to Suburban", () => {
-    const hill = recommendedFor(withTiming(newPlan(), SITE_PROFILES.hilltop), "advanced");
+  it("timing keeps a known profile and falls back to Suburban", () => {
+    const hill = recommendedFor(withTiming(newPlan(), SITE_PROFILES.hilltop), "timing");
     expect([hill.settings.txdelay, hill.settings.directTxdelay, hill.settings.rxdelay]).toEqual([2, 2, 3]);
-    const odd = recommendedFor(withTiming(newPlan(), { txdelay: 0.6, directTxdelay: 0.2, rxdelay: 0 }), "advanced");
+    const odd = recommendedFor(withTiming(newPlan(), { txdelay: 0.6, directTxdelay: 0.2, rxdelay: 0 }), "timing");
     expect([odd.settings.txdelay, odd.settings.directTxdelay, odd.settings.rxdelay]).toEqual([0.8, 0.4, 3]);
-    expect(odd.settings.pathHashMode).toBe("1");
-    expect(odd.settings.multiAcks).toBe("0");
   });
 
-  it("repeating recommends on / 64 / minimal", () => {
-    const r = recommendedFor(withSettings(defaultPlan(), { repeat: "off", floodMax: 10, loopDetect: "strict" }), "repeating");
-    expect([r.settings.repeat, r.settings.floodMax, r.settings.loopDetect]).toEqual(["on", 64, "minimal"]);
+  it("advanced recommends its own settings and leaves the timing alone", () => {
+    const plan = withSettings(withTiming(newPlan(), { txdelay: 0.6, directTxdelay: 0.2, rxdelay: 0 }), { pathHashMode: "0", multiAcks: "1" });
+    const r = recommendedFor(plan, "advanced");
+    expect([r.settings.pathHashMode, r.settings.multiAcks]).toEqual(["1", "0"]);
+    expect([r.settings.txdelay, r.settings.directTxdelay, r.settings.rxdelay]).toEqual([0.6, 0.2, 0]);
+  });
+
+  it("repeating recommends on / minimal; max flood hops 64 is in advertising", () => {
+    const plan = withSettings(defaultPlan(), { repeat: "off", floodMax: 10, loopDetect: "strict" });
+    const r = recommendedFor(plan, "repeating");
+    expect([r.settings.repeat, r.settings.floodMax, r.settings.loopDetect]).toEqual(["on", 10, "minimal"]);
+    expect(recommendedFor(plan, "advertising").settings.floodMax).toBe(64);
   });
 
   it("recommendedForAll leaves passwords and owner info", () => {
@@ -99,11 +108,11 @@ describe("blocks", () => {
   });
 
   it("counts changes against start and undo restores it", () => {
-    const start = withSettings(defaultPlan(), { loopDetect: "minimal", floodMax: 32 });
-    const plan = withSettings(start, { loopDetect: "strict", floodMax: 64 });
+    const start = withSettings(defaultPlan(), { loopDetect: "minimal", repeat: "on" });
+    const plan = withSettings(start, { loopDetect: "strict", repeat: "off" });
     expect(blockChanges(plan, start, "repeating")).toBe(2);
     const undone = undoBlock(plan, start, "repeating");
-    expect(undone.settings.floodMax).toBe(32);
+    expect(undone.settings.repeat).toBe("on");
     expect(blockChanges(undone, start, "repeating")).toBe(0);
   });
 

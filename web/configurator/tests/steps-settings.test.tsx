@@ -55,13 +55,13 @@ describe("Settings step", () => {
 
   it("shows the range error for zero-hop advert 30, which blocks Apply but never turns the Advanced segment orange", () => {
     render(<SettingsStep />);
-    type(/Zero-hop advert/, "30");
+    type("Zero-hop advert (minutes)", "30");
     expect(screen.getByText("Value is out of range.")).toBeTruthy();
     expect(canApply.value.reasons).toContainEqual({ key: "error.range" });
     store.step.value = "send";
     expect(stepStatus("settings")).toBe("done");
     store.step.value = "settings";
-    type(/Zero-hop advert/, "60");
+    type("Zero-hop advert (minutes)", "60");
     expect(canApply.value.reasons).not.toContainEqual({ key: "error.range" });
     store.step.value = "send";
     expect(stepStatus("settings")).toBe("done");
@@ -77,18 +77,23 @@ describe("Settings step", () => {
 
   it("badges: unchanged, then a change count, and the changed field is outlined", () => {
     render(<SettingsStep />);
-    expect(within(card("Advertising & hops")).getByText("unchanged")).toBeTruthy();
-    type(/Flood advert/, "12");
-    expect(within(card("Advertising & hops")).getByText("1 change")).toBeTruthy();
-    expect(fieldOf(/Flood advert/).classList.contains("changed")).toBe(true);
+    expect(within(card("Adverts & hops")).getByText("unchanged")).toBeTruthy();
+    type("Flood advert (hours)", "12");
+    expect(within(card("Adverts & hops")).getByText("1 change")).toBeTruthy();
+    expect(fieldOf("Flood advert (hours)").classList.contains("changed")).toBe(true);
   });
 
-  it("choosing a preset fills the radio and editing a field flips the select to Custom", () => {
+  it("a preset shows its radio as one line; the four fields appear only for Custom", () => {
     render(<SettingsStep />);
     const select = screen.getByLabelText("Preset") as HTMLSelectElement;
     expect(select.value).toBe("EU/UK (Narrow)");
+    expect(screen.getByText("869.618 MHz · 62.5 kHz · SF8 · CR8")).toBeTruthy();
+    expect(screen.queryByLabelText("Frequency (MHz)")).toBeNull();
     fireEvent.change(select, { target: { value: "Australia" } });
     expect(store.plan.value.radio).toEqual({ freq: 915.8, sf: 10, bw: 250, cr: 5 });
+    expect(screen.getByText("915.8 MHz · 250 kHz · SF10 · CR5")).toBeTruthy();
+    fireEvent.change(select, { target: { value: "custom" } });
+    expect(screen.queryByText("915.8 MHz · 250 kHz · SF10 · CR5")).toBeNull();
     type("Frequency (MHz)", "868.1");
     expect(store.plan.value.radio.freq).toBe(868.1);
     expect((screen.getByLabelText("Preset") as HTMLSelectElement).value).toBe("custom");
@@ -97,28 +102,28 @@ describe("Settings step", () => {
   it("tags 'On repeater: X' only when the snapshot has the setting and the plan differs, and ↺ restores it", () => {
     store.snapshot.value = { settings: { floodAdvertHours: 3, dutycycle: "10" }, missing: [] };
     render(<SettingsStep />);
-    type(/Flood advert/, "12");
-    const line = fieldOf(/Flood advert/).querySelector(".label-line") as HTMLElement;
+    type("Flood advert (hours)", "12");
+    const line = fieldOf("Flood advert (hours)").querySelector(".label-line") as HTMLElement;
     const tag = within(line).getByText("On repeater:").closest(".repeater-value") as HTMLElement;
     expect(within(tag).getByText("3").tagName).toBe("CODE");
     expect(screen.queryByText(/Was .* on the repeater/)).toBeNull();
     expect(within(fieldOf("Duty cycle")).queryByText("On repeater:")).toBeNull();
     fireEvent.click(within(tag).getByRole("button", { name: "Use the repeater's value (3)" }));
     expect(store.plan.value.settings.floodAdvertHours).toBe(3);
-    expect(within(fieldOf(/Flood advert/)).queryByText("On repeater:")).toBeNull();
+    expect(within(fieldOf("Flood advert (hours)")).queryByText("On repeater:")).toBeNull();
   });
 
   it("Advertising's button sets 47 and 8/12 and leaves Repeating's loop detect alone", () => {
     render(<SettingsStep />);
-    type(/Flood advert/, "12");
+    type("Flood advert (hours)", "12");
     fireEvent.click(segment("Loop detection", "Strict"));
-    fireEvent.click(within(card("Advertising & hops")).getByRole("button", { name: "Use #BEmesh recommended settings" }));
+    fireEvent.click(within(card("Adverts & hops")).getByRole("button", { name: "#BEmesh Recommended" }));
     expect(store.plan.value.settings.floodAdvertHours).toBe(47);
     expect(store.plan.value.settings.advertIntervalMinutes).toBe(0);
     expect(store.plan.value.settings.floodMaxUnscoped).toBe(8);
     expect(store.plan.value.settings.floodMaxAdvert).toBe(12);
     expect(store.plan.value.settings.loopDetect).toBe("strict");
-    expect(within(card("Advertising & hops")).getByText("recommended ✓")).toBeTruthy();
+    expect(within(card("Adverts & hops")).getByText("recommended ✓")).toBeTruthy();
   });
 
   it("the all button sets every block and leaves the guest password alone", () => {
@@ -127,7 +132,7 @@ describe("Settings step", () => {
     fireEvent.change(screen.getByLabelText("Preset"), { target: { value: "Australia" } });
     fireEvent.click(segment("Loop detection", "Strict"));
     fireEvent.click(segment("Path hash size", "3 bytes"));
-    fireEvent.click(screen.getByRole("button", { name: "Use #BEmesh recommended settings for all" }));
+    fireEvent.click(screen.getByRole("button", { name: "#BEmesh Recommended for all" }));
     const plan = store.plan.value;
     for (const b of BLOCKS) expect(isBlockRecommended(plan, b)).toBe(true);
     expect(plan.settings.guestPassword).toBe("hello");
@@ -139,7 +144,7 @@ describe("Settings step", () => {
   it("the Repeating ↺ shows once loop detect changed, and undoes only Repeating", () => {
     render(<SettingsStep />);
     expect(within(card("Repeating")).queryByRole("button", { name: "Undo the changes in Repeating" })).toBeNull();
-    type(/Flood advert/, "12");
+    type("Flood advert (hours)", "12");
     fireEvent.click(segment("Loop detection", "Strict"));
     const undo = within(card("Repeating")).getByRole("button", { name: "Undo the changes in Repeating" });
     expect(undo.getAttribute("title")).toBe("Undo the changes in Repeating");
@@ -151,52 +156,88 @@ describe("Settings step", () => {
   });
 
   it("after an import with flood.max 32 the badge reads unchanged; 64 is one change and ↺ restores 32", () => {
-    // As the drawer's import does: the imported plan is also the start plan. Loop detect "strict"
+    // As the drawer's import does: the imported plan is also the start plan. Flood advert 12
     // keeps the block off its recommendation, so 64 reads as a change rather than "recommended".
-    const imported = { ...defaultPlan(), settings: { ...defaultPlan().settings, floodMax: 32, loopDetect: "strict" } };
+    const imported = { ...newPlan(), settings: { ...newPlan().settings, floodMax: 32, floodAdvertHours: 12 } };
     store.plan.value = imported;
     store.startPlan.value = imported;
     render(<SettingsStep />);
-    expect(within(card("Repeating")).getByText("unchanged")).toBeTruthy();
+    const adverts = card("Adverts & hops");
+    expect(within(adverts).getByText("unchanged")).toBeTruthy();
     expect(fieldOf("Max flood hops").classList.contains("changed")).toBe(false);
     type("Max flood hops", "64");
-    expect(within(card("Repeating")).getByText("1 change")).toBeTruthy();
+    expect(within(adverts).getByText("1 change")).toBeTruthy();
     expect(fieldOf("Max flood hops").classList.contains("changed")).toBe(true);
-    fireEvent.click(within(card("Repeating")).getByRole("button", { name: "Undo the changes in Repeating" }));
+    fireEvent.click(within(adverts).getByRole("button", { name: "Undo the changes in Adverts & hops" }));
     expect(store.plan.value.settings.floodMax).toBe(32);
-    expect(within(card("Repeating")).getByText("unchanged")).toBeTruthy();
+    expect(within(adverts).getByText("unchanged")).toBeTruthy();
   });
 
-  it("a block with changes that match its recommendation reads recommended", () => {
-    const imported = { ...defaultPlan(), settings: { ...defaultPlan().settings, floodMax: 32 } };
+  it("a block with changes that match its recommendation reads recommended, and its button is off", () => {
+    const imported = { ...newPlan(), settings: { ...newPlan().settings, floodMax: 32 } };
     store.plan.value = imported;
     store.startPlan.value = imported;
     render(<SettingsStep />);
+    const adverts = card("Adverts & hops");
+    const recommend = within(adverts).getByRole("button", { name: "#BEmesh Recommended" });
+    expect(recommend.hasAttribute("disabled")).toBe(false);
     type("Max flood hops", "64");
-    expect(within(card("Repeating")).getByText("recommended ✓")).toBeTruthy();
-    expect(within(card("Repeating")).getByRole("button", { name: "Undo the changes in Repeating" })).toBeTruthy();
+    expect(within(adverts).getByText("recommended ✓")).toBeTruthy();
+    expect(within(adverts).getByRole("button", { name: "Undo the changes in Adverts & hops" })).toBeTruthy();
+    expect(recommend.hasAttribute("disabled")).toBe(true);
   });
 
   it("a fresh app shows every block unchanged and no field outlined", () => {
     resetPlan(newPlan());
     render(<SettingsStep />);
-    for (const name of ["Radio", "Advertising & hops", "Repeating", "Advanced"]) {
+    for (const name of ["Radio", "Adverts & hops", "Repeating", "Site & timing", "Advanced"]) {
       expect(within(card(name)).getByText("unchanged")).toBeTruthy();
       expect(within(card(name)).queryByText(/\d+ changes?$/)).toBeNull();
     }
     expect(document.querySelectorAll(".field.changed").length).toBe(0);
   });
 
-  it("the Advanced card's timing pills: Hilltop sets 2 / 2 / 3, and typed timing shows Custom", () => {
+  it("the Site & timing card: Hilltop sets 2 / 2 / 3, typed timing shows Custom and opens Fine-tune", () => {
     render(<SettingsStep />);
-    const adv = card("Advanced");
-    expect(within(adv).getByText("Timing preset")).toBeTruthy();
-    expect(within(card("Advertising & hops")).getByText("Hop allowance preset (unscoped / advert)")).toBeTruthy();
-    fireEvent.click(within(adv).getByRole("button", { name: "Hilltop" }));
+    const site = card("Site & timing");
+    expect(within(site).getByText("Timing preset")).toBeTruthy();
+    expect(within(card("Adverts & hops")).getByText("Hop allowance preset (unscoped / advert)")).toBeTruthy();
+    const fold = within(site).getByText("Fine-tune").closest("details") as HTMLDetailsElement;
+    fireEvent.click(within(site).getByRole("button", { name: "Hilltop" }));
     expect(store.plan.value.settings).toMatchObject({ txdelay: 2, directTxdelay: 2, rxdelay: 3 });
-    expect(within(adv).getByRole("button", { name: "Custom" }).getAttribute("aria-pressed")).toBe("false");
+    expect(within(fold).getByText("2 / 2 / 3")).toBeTruthy();
+    expect(fold.open).toBe(false);
+    expect(within(site).getByRole("button", { name: "Custom" }).getAttribute("aria-pressed")).toBe("false");
     type("Flood delay factor", "0.6");
-    expect(within(adv).getByRole("button", { name: "Custom" }).getAttribute("aria-pressed")).toBe("true");
+    expect(within(site).getByRole("button", { name: "Custom" }).getAttribute("aria-pressed")).toBe("true");
+    expect(fold.open).toBe(true);
+  });
+
+  it("folds the two hop numbers under the hop preset; max flood hops stays in view", () => {
+    resetPlan(newPlan());
+    render(<SettingsStep />);
+    const adverts = card("Adverts & hops");
+    const fold = within(adverts).getByText("Fine-tune").closest("details") as HTMLDetailsElement;
+    expect(fold.open).toBe(false);
+    expect(within(fold).getByText("8 / 12")).toBeTruthy();
+    expect(within(fold).getByLabelText("Max hops without region")).toBeTruthy();
+    expect(fieldOf("Max flood hops").closest("details")).toBeNull();
+    type("Max hops without region", "9");
+    expect(fold.open).toBe(true);
+  });
+
+  it("keeps the long help behind ⓘ", () => {
+    render(<SettingsStep />);
+    const duty = fieldOf("Duty cycle");
+    expect(within(duty).getByText("Share of airtime it may transmit. EU 868 MHz: 10 %.")).toBeTruthy();
+    expect(within(duty).queryByText(/stays silent/)).toBeNull();
+    const info = within(duty).getByRole("button", { name: "More about Duty cycle" });
+    expect(info.getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(info);
+    expect(info.getAttribute("aria-expanded")).toBe("true");
+    expect(document.getElementById(info.getAttribute("aria-controls")!)!.textContent).toMatch(/stays silent/);
+    // A field whose help says it all has no ⓘ.
+    expect(within(fieldOf("Extra acknowledgements")).queryByRole("button", { name: /More about/ })).toBeNull();
   });
 
   it("the Tight pill sets 2/3 and explains itself", () => {
@@ -220,7 +261,7 @@ describe("Settings step", () => {
     render(<SettingsStep />);
     const count = () => Number(/· (\d+)$/.exec(screen.getByText(/^What will change · /).textContent!)![1]);
     const before = count();
-    type(/Flood advert/, "12");
+    type("Flood advert (hours)", "12");
     expect(count()).toBe(before + 1);
     expect(within(document.querySelector(".summary") as HTMLElement).getAllByText("→ 12").length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole("button", { name: "← Back" }));
@@ -239,21 +280,24 @@ describe("Settings step", () => {
     expect(ofKind("marker").length).toBe(1);
   });
 
-  it("shows the four blocks as cards in order, with the all button by the title", () => {
+  it("shows the five blocks as cards in order, with the all button by the title and each card's in its header", () => {
     render(<SettingsStep />);
     const titles = [...document.querySelectorAll(".card-grid .card-head h3")].map((h) => h.textContent);
-    expect(titles).toEqual(["Radio", "Advertising & hops", "Repeating", "Advanced"]);
-    expect(document.querySelector("details")).toBeNull();
+    expect(titles).toEqual(["Radio", "Adverts & hops", "Repeating", "Site & timing", "Advanced"]);
     const head = screen.getByRole("heading", { name: "Settings", level: 2 }).closest(".step-head")!;
-    expect(within(head as HTMLElement).getByRole("button", { name: "Use #BEmesh recommended settings for all" })).toBeTruthy();
-    for (const name of ["Radio", "Advertising & hops", "Repeating", "Advanced"]) {
-      expect(within(card(name)).getByRole("button", { name: "Use #BEmesh recommended settings" })).toBeTruthy();
+    expect(within(head as HTMLElement).getByRole("button", { name: "#BEmesh Recommended for all" })).toBeTruthy();
+    for (const name of ["Radio", "Adverts & hops", "Repeating", "Site & timing", "Advanced"]) {
+      const head = card(name).querySelector(".card-head") as HTMLElement;
+      expect(within(head).getByRole("button", { name: "#BEmesh Recommended" })).toBeTruthy();
     }
   });
 });
 
 describe("Radio fields", () => {
   const field = (n: string) => screen.getByLabelText(n) as HTMLInputElement;
+  beforeEach(() => {
+    store.plan.value = { ...store.plan.value, radioCustom: true };
+  });
 
   it("rejects out-of-range values with an inline error and a plan error, keeping the last valid radio", () => {
     render(<SettingsStep />);
@@ -293,6 +337,7 @@ describe("Radio fields", () => {
   });
 
   it("keeps Custom selected after choosing it, and picking a preset clears the custom state", () => {
+    store.plan.value = { ...store.plan.value, radioCustom: undefined };
     const { unmount } = render(<SettingsStep />);
     fireEvent.change(screen.getByLabelText("Preset"), { target: { value: "custom" } });
     unmount();
@@ -303,6 +348,19 @@ describe("Radio fields", () => {
     expect(store.plan.value.radioText).toBeUndefined();
     expect(store.plan.value.radioCustom).toBeUndefined();
     expect((screen.getByLabelText("Preset") as HTMLSelectElement).value).toBe("Australia");
+  });
+
+  it("on a preset, tags the repeater's whole radio by the preset; ↺ puts it back as Custom", () => {
+    store.plan.value = { ...store.plan.value, radioCustom: undefined };
+    store.snapshot.value = { radio: { freq: 869.618, sf: 8, bw: 62.5, cr: 5 }, settings: {}, missing: [] };
+    render(<SettingsStep />);
+    const preset = screen.getByLabelText("Preset").closest(".field") as HTMLElement;
+    expect(within(preset).getByText("869.618 MHz · 62.5 kHz · SF8 · CR5").tagName).toBe("CODE");
+    fireEvent.click(within(preset).getByRole("button", { name: "Use the repeater's value (869.618 MHz · 62.5 kHz · SF8 · CR5)" }));
+    expect(store.plan.value.radio).toEqual({ freq: 869.618, sf: 8, bw: 62.5, cr: 5 });
+    expect((screen.getByLabelText("Preset") as HTMLSelectElement).value).toBe("custom");
+    expect(within(preset).queryByText("On repeater:")).toBeNull();
+    expect(field("Coding rate").value).toBe("5");
   });
 
   it("tags what the repeater's radio has, ↺ restores it, and outlines against the start plan", () => {
@@ -457,7 +515,7 @@ describe("Access list card", () => {
   it("recommended buttons never change the list", () => {
     render(<SettingsStep />);
     const acl = store.plan.value.acl;
-    fireEvent.click(screen.getByRole("button", { name: "Use #BEmesh recommended settings for all" }));
+    fireEvent.click(screen.getByRole("button", { name: "#BEmesh Recommended for all" }));
     expect(store.plan.value.acl).toEqual(acl);
   });
 });

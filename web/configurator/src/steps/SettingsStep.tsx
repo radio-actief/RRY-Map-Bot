@@ -1,5 +1,6 @@
-/** Settings step: the four setting blocks with their recommendation and undo, the radio preset, and the live "what will change" column. */
-import { Fragment, type ComponentChildren } from "preact";
+/** Settings step: the setting blocks with their recommendation and undo, the radio preset, and the live "what will change" column. */
+import type { ComponentChildren } from "preact";
+import { useState } from "preact/hooks";
 import { stepName } from "../app/Stepper";
 import {
   allowanceOf,
@@ -16,7 +17,8 @@ import {
 import { checkOwnerInfo, OWNER_INFO_MAX } from "../core/naming";
 import { summarize, type Plan } from "../core/plan";
 import { FLOOD_ALLOWANCE, SETTINGS, validateSetting, type SettingDef, type SettingKey } from "../core/settings";
-import { t } from "../i18n/t";
+import { siteOf, timingOf } from "../core/site";
+import { hasText, t } from "../i18n/t";
 import { busy, store, type Step } from "../state/store";
 import { AccessList } from "./settings/AccessList";
 import { MiniMap } from "./settings/MiniMap";
@@ -24,7 +26,7 @@ import { RadioFields } from "./settings/RadioFields";
 import { RepeaterValue } from "./settings/RepeaterValue";
 import { TimingPreset } from "./settings/TimingPreset";
 
-// Owner info is on the Name step and the passwords on Send; only the four blocks are here.
+// Owner info is on the Name step and the passwords on Send; only the blocks are here.
 const keysOf = (block: Block) => SETTINGS.filter((d) => d.card === block);
 
 const setSetting = (key: SettingKey, value: string | number) => {
@@ -123,12 +125,27 @@ export function SettingField({ def, control }: { def: SettingDef; control?: (inv
   const was = snapshot?.settings[def.key];
   const showWas = def.key !== "adminPassword" && was !== undefined && !same(raw, was);
   const changed = isChanged(plan, store.startPlan.value, def.key);
+  const more = `${def.helpKey}.more`;
+  const [open, setOpen] = useState(false);
+  const label = t(`setting.${def.key}`);
   return (
     <div class={`field${changed ? " changed" : ""}${error ? " invalid" : ""}`} data-key={def.key}>
       <div class="label-line">
         <label class="field-label" for={`set-${def.key}`} id={`lbl-${def.key}`}>
-          {t(`setting.${def.key}`)}
+          {label}
         </label>
+        {hasText(more) ? (
+          <button
+            type="button"
+            class="icon info"
+            aria-expanded={open}
+            aria-controls={`more-${def.key}`}
+            aria-label={t("settings.more", { label })}
+            onClick={() => setOpen(!open)}
+          >
+            ⓘ
+          </button>
+        ) : null}
         {showWas ? <RepeaterValue value={String(was)} onRestore={() => setSetting(def.key, was!)} /> : null}
       </div>
       {control ? control(!!error) : <Control def={def} raw={raw} invalid={!!error} />}
@@ -142,7 +159,66 @@ export function SettingField({ def, control }: { def: SettingDef; control?: (inv
       ) : null}
       {error ? <span class="field-error">{error}</span> : null}
       <span class="sub help">{t(def.helpKey)}</span>
+      {open ? (
+        <span class="sub help more" id={`more-${def.key}`}>
+          {t(more)}
+        </span>
+      ) : null}
     </div>
+  );
+}
+
+/** Fine-tune fold: the fields behind a preset, with their values in the summary; open when no preset matches. */
+function FineTune({ open, keys, children }: { open: boolean; keys: SettingKey[]; children: ComponentChildren }) {
+  const plan = store.plan.value;
+  const changed = keys.some((k) => isChanged(plan, store.startPlan.value, k));
+  return (
+    <details class={`fine-tune${changed ? " changed" : ""}`} open={open}>
+      <summary>
+        {t("settings.fineTune")} <span class="sub">{keys.map((k) => rawOf(plan, k)).join(" / ")}</span>
+      </summary>
+      {children}
+    </details>
+  );
+}
+
+const HOPS: SettingKey[] = ["floodMaxUnscoped", "floodMaxAdvert"];
+const TIMING: SettingKey[] = ["txdelay", "directTxdelay", "rxdelay"];
+
+function BlockFields({ block }: { block: Block }) {
+  const plan = store.plan.value;
+  const defs = keysOf(block);
+  const fields = (keys: SettingKey[]) =>
+    defs.filter((d) => keys.includes(d.key)).map((d) => <SettingField key={d.key} def={d} />);
+  if (block === "advertising") {
+    return (
+      <>
+        {fields(["floodAdvertHours", "advertIntervalMinutes"])}
+        <Pills />
+        <FineTune open={allowanceOf(plan) === null} keys={HOPS}>
+          {fields(HOPS)}
+        </FineTune>
+        {fields(["floodMax"])}
+      </>
+    );
+  }
+  if (block === "timing") {
+    return (
+      <>
+        <TimingPreset />
+        <FineTune open={siteOf(timingOf(plan)) === "custom"} keys={TIMING}>
+          {fields(TIMING)}
+        </FineTune>
+      </>
+    );
+  }
+  return (
+    <>
+      {block === "radio" ? <RadioFields /> : null}
+      {defs.map((d) => (
+        <SettingField key={d.key} def={d} />
+      ))}
+    </>
   );
 }
 
@@ -195,6 +271,14 @@ function BlockCard({ block }: { block: Block }) {
       <header class="card-head">
         <h3>{name}</h3>
         <Badge state={blockState(plan, start, block)} />
+        <button
+          type="button"
+          class="btn tiny"
+          disabled={isBlockRecommended(plan, block)}
+          onClick={() => (store.plan.value = recommendedFor(store.plan.peek(), block))}
+        >
+          {t("settings.recommend")}
+        </button>
         {changes > 0 ? (
           <button
             type="button"
@@ -207,21 +291,7 @@ function BlockCard({ block }: { block: Block }) {
           </button>
         ) : null}
       </header>
-      {block === "radio" ? <RadioFields /> : null}
-      {keysOf(block).map((d) => (
-        <Fragment key={d.key}>
-          {d.key === "floodMaxUnscoped" ? <Pills /> : null}
-          {d.key === "txdelay" ? <TimingPreset /> : null}
-          <SettingField def={d} />
-        </Fragment>
-      ))}
-      <button
-        type="button"
-        class="btn small"
-        onClick={() => (store.plan.value = recommendedFor(store.plan.peek(), block))}
-      >
-        {t("settings.recommend")}
-      </button>
+      <BlockFields block={block} />
     </section>
   );
 }

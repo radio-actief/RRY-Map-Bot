@@ -142,7 +142,7 @@ button {
 .panel.docked {
   position: absolute;
   inset: 0 auto 0 0;
-  width: 300px;
+  width: 360px;
   border-right: 1px solid var(--line);
   box-shadow: 4px 0 16px var(--shadow);
 }
@@ -697,10 +697,8 @@ path.map-region-denied {
 
 .field-label {
   margin: 14px 0 6px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-size: 12px;
+  font-weight: 600;
   color: var(--mut);
 }
 
@@ -928,9 +926,10 @@ path.map-region-denied {
 
 .card-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 6px 8px;
 }
 
 .card-head h3 {
@@ -1060,8 +1059,59 @@ path.map-region-denied {
   color: var(--panel);
 }
 
-.card > .btn.small {
-  margin-top: 8px;
+.btn.tiny {
+  flex: none;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+}
+
+.icon.info {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--mut);
+  font-size: 13px;
+  line-height: 1;
+}
+
+.icon.info[aria-expanded="true"] {
+  color: var(--ink);
+}
+
+.field .help.more {
+  color: var(--ink);
+}
+
+.radio-summary {
+  font-variant-numeric: tabular-nums;
+}
+
+.fine-tune {
+  margin: 4px 0;
+  padding: 2px 6px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+}
+
+.fine-tune.changed:not([open]) {
+  border-color: var(--gold);
+  background: var(--gold-bg);
+}
+
+.fine-tune summary {
+  cursor: pointer;
+  padding: 4px 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--mut);
+}
+
+.fine-tune summary .sub {
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
 }
 
 .settings-side {

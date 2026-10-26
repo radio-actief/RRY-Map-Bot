@@ -34,8 +34,8 @@ const ticked = (plan: Plan) => new Set(checkupLines(plan, PLACES).filter((l) => 
 describe("checkupLines", () => {
   it("lists each difference once, in group order", () => {
     const lines = checkupLines(P, PLACES);
-    expect(lines.map((l) => l.id)).toEqual(["name", "dutycycle", "hops", "loopDetect", "regions", "timing"]);
-    expect(lines.map((l) => l.group)).toEqual(["name", "radio", "advertising", "repeating", "regions", "advanced"]);
+    expect(lines.map((l) => l.id)).toEqual(["name", "dutycycle", "hops", "loopDetect", "timing", "regions"]);
+    expect(lines.map((l) => l.group)).toEqual(["name", "radio", "advertising", "repeating", "timing", "regions"]);
     const byId = Object.fromEntries(lines.map((l) => [l.id, l]));
     expect([byId.hops.from, byId.hops.to]).toEqual(["Custom (12 / 8)", "Average (8 / 12)"]);
     expect([byId.timing.from, byId.timing.to]).toEqual(["Custom (0.5 / 0.2 / 0)", "Suburban (0.8 / 0.4 / 3)"]);
@@ -92,7 +92,7 @@ describe("checkupLines", () => {
       ticked: false,
       noteKey: "checkup.needLocation",
     });
-    expect(lines.map((l) => l.id)).toEqual(["dutycycle", "hops", "loopDetect", "regions", "timing"]);
+    expect(lines.map((l) => l.id)).toEqual(["dutycycle", "hops", "loopDetect", "timing", "regions"]);
     expect(checkupCounts(lines).total).toBe(4);
   });
 
@@ -175,7 +175,7 @@ describe("checkupCounts", () => {
   it("checkupCounts", () => {
     expect(checkupCounts(checkupLines(P, PLACES))).toEqual({
       total: 4,
-      perGroup: { radio: 1, advertising: 1, repeating: 1, advanced: 1 },
+      perGroup: { radio: 1, advertising: 1, repeating: 1, timing: 1 },
       nameDiffers: true,
     });
     expect(checkupCounts([])).toEqual({ total: 0, perGroup: {}, nameDiffers: false });

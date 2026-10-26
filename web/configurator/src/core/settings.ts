@@ -27,7 +27,7 @@ export type SettingDef = {
   key: SettingKey;
   readCmd?: string;
   cliKey: string;
-  card: "access" | "radio" | "advertising" | "owner" | "repeating" | "advanced";
+  card: "access" | "radio" | "advertising" | "owner" | "repeating" | "timing" | "advanced";
   /** MeshCore firmware default: decides which lines the script omits. */
   firmwareDefault: string | number | null;
   /** Value the form offers when the field is left empty. */
@@ -66,14 +66,14 @@ export const SETTINGS: SettingDef[] = [
   def("advertIntervalMinutes", "advert.interval", "advertising", 0, 0, { range: { min: 60, max: 240, step: 2 } }),
   def("floodMaxUnscoped", "flood.max.unscoped", "advertising", 64, 12, { range: { min: 0, max: 64 } }),
   def("floodMaxAdvert", "flood.max.advert", "advertising", 8, 8, { range: { min: 0, max: 64 } }),
-  def("floodMax", "flood.max", "repeating", 64, 64, { range: { min: 0, max: 64 } }),
+  def("floodMax", "flood.max", "advertising", 64, 64, { range: { min: 0, max: 64 } }),
   def("pathHashMode", "path.hash.mode", "advanced", "0", "1", { options: ["0", "1", "2"] }),
   def("loopDetect", "loop.detect", "repeating", "off", "minimal", {
     options: ["off", "minimal", "moderate", "strict"],
   }),
-  def("txdelay", "txdelay", "advanced", 0.5, 0.5, { range: { min: 0, max: 2 } }),
-  def("directTxdelay", "direct.txdelay", "advanced", 0.2, 0.2, { range: { min: 0, max: 2 } }),
-  def("rxdelay", "rxdelay", "advanced", 0, 0, { range: { min: 0, max: 20 } }),
+  def("txdelay", "txdelay", "timing", 0.5, 0.5, { range: { min: 0, max: 2 } }),
+  def("directTxdelay", "direct.txdelay", "timing", 0.2, 0.2, { range: { min: 0, max: 2 } }),
+  def("rxdelay", "rxdelay", "timing", 0, 0, { range: { min: 0, max: 20 } }),
   def("radioRxgain", "radio.rxgain", "advanced", "on", "on", { options: ["on", "off"] }),
   def("intThresh", "int.thresh", "advanced", 0, 0, { range: { min: 0, max: 255 } }),
   def("agcResetInterval", "agc.reset.interval", "advanced", 0, 0, { range: { min: 0, max: 255, step: 4 } }),

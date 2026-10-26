@@ -3,7 +3,7 @@ import { PROVINCE_NAMES } from "../core/be-regions";
 import { parseVersion } from "../core/firmware";
 import { planName } from "../core/plan";
 import { hasWebSerial } from "../device/serial";
-import { usbLabel } from "../device/usb";
+import { usbBoard, usbLabel } from "../device/usb";
 import { connectUsb } from "../state/device";
 import { busy, isWide, store, type Theme } from "../state/store";
 
@@ -17,19 +17,27 @@ function anchorPlace(): string {
   return t("anchor.country");
 }
 
-/** Connected: the repeater's name once read, the USB device and the firmware version. */
-function connectionLabel(): { text: string; on: boolean } {
+/**
+ * Connected: the repeater's name once read (left out while the place chip shows that name), the
+ * board and the firmware version. The title adds the USB ids.
+ */
+function connectionLabel(placeName: string | null): { text: string; title: string; on: boolean } {
   const { status, firmware, usb } = store.device.value;
-  if (status === "connecting") return { text: t("top.connecting"), on: false };
-  if (status !== "connected") return { text: t("top.notConnected"), on: false };
+  if (status === "connecting") return { text: t("top.connecting"), title: t("top.connecting"), on: false };
+  if (status !== "connected") return { text: t("top.notConnected"), title: t("top.notConnected"), on: false };
   const v = parseVersion(firmware);
   const version = v ? t("top.version", { version: v.text.replace(/^v/i, "") }) : null;
-  const parts = [store.snapshot.value?.name, usbLabel(usb) ?? t("top.usbNoVersion"), version];
-  return { text: parts.filter(Boolean).join(" · "), on: true };
+  const name = store.snapshot.value?.name;
+  const join = (parts: (string | null | undefined)[]) => parts.filter(Boolean).join(" · ");
+  return {
+    text: join([name === placeName ? null : name, usbBoard(usb) ?? t("top.usbNoVersion"), version]),
+    title: join([name, usbLabel(usb) ?? t("top.usbNoVersion"), version]),
+    on: true,
+  };
 }
 
-function ConnectionChip() {
-  const conn = connectionLabel();
+function ConnectionChip({ placeName }: { placeName: string | null }) {
+  const conn = connectionLabel(placeName);
   const content = (
     <>
       <span class={`dot${conn.on ? "" : " off"}`} />
@@ -51,7 +59,7 @@ function ConnectionChip() {
     );
   }
   return (
-    <span class="chip conn trunc" title={conn.text}>
+    <span class="chip conn trunc" title={conn.title}>
       {content}
     </span>
   );
@@ -63,14 +71,15 @@ export function TopBar() {
   const place = anchorPlace();
   const name = planName(store.plan.value);
   const chip = [name, place].filter(Boolean).join(" · ");
+  const showPlace = isWide(step) && !!chip;
   return (
     <header class="topbar">
       <span class="wordmark">
         <b>{t("app.nameGold")}</b>
         {t("app.nameRest")}
       </span>
-      <ConnectionChip />
-      {isWide(step) && chip ? (
+      <ConnectionChip placeName={showPlace ? name : null} />
+      {showPlace ? (
         <button
           type="button"
           class="chip place trunc"

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { usbLabel } from "../src/device/usb";
+import { usbBoard, usbLabel } from "../src/device/usb";
 
 describe("usbLabel", () => {
   it("names a known board by its vendor and product id", () => {
@@ -15,5 +15,14 @@ describe("usbLabel", () => {
     expect(usbLabel({ usbVendorId: 0x1234, usbProductId: 0xabc })).toBe("USB 1234:0abc");
     expect(usbLabel({})).toBeNull();
     expect(usbLabel(undefined)).toBeNull();
+  });
+});
+
+describe("usbBoard", () => {
+  it("names the board without its ids, or the bare ids for an unknown vendor", () => {
+    expect(usbBoard({ usbVendorId: 0x239a, usbProductId: 0x8029 })).toBe("RAK4631");
+    expect(usbBoard({ usbVendorId: 0x303a, usbProductId: 0x1001 })).toBe("Espressif");
+    expect(usbBoard({ usbVendorId: 0x1234, usbProductId: 0xabc })).toBe("USB 1234:0abc");
+    expect(usbBoard(undefined)).toBeNull();
   });
 });

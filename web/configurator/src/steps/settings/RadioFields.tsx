@@ -1,6 +1,7 @@
-/** The radio card's preset select and the four custom radio fields. */
+/** The radio card's preset select with a one-line summary, and the four radio fields for Custom. */
 import { useState } from "preact/hooks";
-import { withPreset } from "../../core/blocks";
+import { sameRadio, withPreset } from "../../core/blocks";
+import type { Radio } from "../../core/plan";
 import { parseRadioField, presetForRadio, RADIO_PRESETS, type RadioFieldId } from "../../core/presets";
 import { t } from "../../i18n/t";
 import { store } from "../../state/store";
@@ -13,6 +14,14 @@ const FIELDS: { id: RadioFieldId; label: string }[] = [
   { id: "sf", label: "settings.radio.sf" },
   { id: "cr", label: "settings.radio.cr" },
 ];
+
+const summary = (r: Radio) => t("settings.radio.summary", { freq: r.freq, bw: r.bw, sf: r.sf, cr: r.cr });
+
+/** The repeater's whole radio back; Custom when it is no preset. */
+function restoreRadio(r: Radio): void {
+  const { radioText: _text, radioCustom: _custom, ...rest } = store.plan.peek();
+  store.plan.value = { ...rest, radio: { ...r }, ...(presetForRadio(r) ? {} : { radioCustom: true }) };
+}
 
 /** The field back to a valid value, dropping its invalid text. */
 function restoreField(id: RadioFieldId, value: number): void {
@@ -47,6 +56,8 @@ export function RadioFields() {
   const [draft, setDraft] = useState<Partial<Record<RadioFieldId, string>>>({});
   const preset = presetForRadio(radio);
   const selected = radioCustom || radioText || !preset ? CUSTOM : preset.title;
+  const custom = selected === CUSTOM;
+  const repeaterRadio = !custom && snapshotRadio && !sameRadio(radio, snapshotRadio) ? snapshotRadio : null;
   const pick = (value: string) => {
     setDraft({});
     if (value === CUSTOM) store.plan.value = { ...store.plan.peek(), radioCustom: true };
@@ -55,9 +66,20 @@ export function RadioFields() {
   return (
     <>
       <div class="field">
-        <label class="field-label" for="set-preset">
-          {t("settings.preset")}
-        </label>
+        <div class="label-line">
+          <label class="field-label" for="set-preset">
+            {t("settings.preset")}
+          </label>
+          {repeaterRadio ? (
+            <RepeaterValue
+              value={summary(repeaterRadio)}
+              onRestore={() => {
+                setDraft({});
+                restoreRadio(repeaterRadio);
+              }}
+            />
+          ) : null}
+        </div>
         <select id="set-preset" value={selected} onChange={(e) => pick(e.currentTarget.value)}>
           {RADIO_PRESETS.map((p) => (
             <option key={p.title} value={p.title}>
@@ -66,46 +88,49 @@ export function RadioFields() {
           ))}
           <option value={CUSTOM}>{t("settings.preset.custom")}</option>
         </select>
+        {custom ? null : <span class="sub radio-summary">{summary(radio)}</span>}
         <span class="sub help">{t("settings.radio.help")}</span>
       </div>
-      <div class="field-grid">
-        {FIELDS.map(({ id, label }) => {
-          const invalid = radioText?.[id] !== undefined;
-          const changed = invalid || radio[id] !== startRadio[id];
-          const was = snapshotRadio && (invalid || radio[id] !== snapshotRadio[id]) ? snapshotRadio[id] : null;
-          return (
-            <div key={id} class={`field${changed ? " changed" : ""}${invalid ? " invalid" : ""}`}>
-              <div class="label-line">
-                <label class="field-label" for={`set-radio-${id}`}>
-                  {t(label)}
-                </label>
-                {was !== null ? (
-                  <RepeaterValue
-                    value={String(was)}
-                    onRestore={() => {
-                      setDraft({});
-                      restoreField(id, was);
-                    }}
-                  />
-                ) : null}
+      {custom ? (
+        <div class="field-grid">
+          {FIELDS.map(({ id, label }) => {
+            const invalid = radioText?.[id] !== undefined;
+            const changed = invalid || radio[id] !== startRadio[id];
+            const was = snapshotRadio && (invalid || radio[id] !== snapshotRadio[id]) ? snapshotRadio[id] : null;
+            return (
+              <div key={id} class={`field${changed ? " changed" : ""}${invalid ? " invalid" : ""}`}>
+                <div class="label-line">
+                  <label class="field-label" for={`set-radio-${id}`}>
+                    {t(label)}
+                  </label>
+                  {was !== null ? (
+                    <RepeaterValue
+                      value={String(was)}
+                      onRestore={() => {
+                        setDraft({});
+                        restoreField(id, was);
+                      }}
+                    />
+                  ) : null}
+                </div>
+                <input
+                  id={`set-radio-${id}`}
+                  type="text"
+                  inputMode="decimal"
+                  aria-invalid={invalid || undefined}
+                  value={draft[id] ?? radioText?.[id] ?? String(radio[id])}
+                  onInput={(e) => {
+                    setDraft({ ...draft, [id]: e.currentTarget.value });
+                    editField(id, e.currentTarget.value);
+                  }}
+                  onBlur={() => setDraft({})}
+                />
+                {invalid ? <span class="field-error">{t(`settings.radio.invalid.${id}`)}</span> : null}
               </div>
-              <input
-                id={`set-radio-${id}`}
-                type="text"
-                inputMode="decimal"
-                aria-invalid={invalid || undefined}
-                value={draft[id] ?? radioText?.[id] ?? String(radio[id])}
-                onInput={(e) => {
-                  setDraft({ ...draft, [id]: e.currentTarget.value });
-                  editField(id, e.currentTarget.value);
-                }}
-                onBlur={() => setDraft({})}
-              />
-              {invalid ? <span class="field-error">{t(`settings.radio.invalid.${id}`)}</span> : null}
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      ) : null}
     </>
   );
 }

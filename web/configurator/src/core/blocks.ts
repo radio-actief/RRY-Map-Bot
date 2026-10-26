@@ -1,11 +1,11 @@
-/** Setting blocks: the four groups the guided flow recommends, counts and undoes as one. */
+/** Setting blocks: the five groups the guided flow recommends, counts and undoes as one. */
 import type { Plan } from "./plan";
 import { BEMESH_PRESET_TITLE, RADIO_PRESETS, type RadioPreset } from "./presets";
 import { FLOOD_ALLOWANCE, SETTINGS, type SettingDef, type SettingKey } from "./settings";
 import { SITE_PROFILES, siteOf, timingOf, withTiming, type SiteProfile } from "./site";
 
-export type Block = "radio" | "advertising" | "repeating" | "advanced";
-export const BLOCKS: Block[] = ["radio", "advertising", "repeating", "advanced"];
+export type Block = "radio" | "advertising" | "repeating" | "timing" | "advanced";
+export const BLOCKS: Block[] = ["radio", "advertising", "repeating", "timing", "advanced"];
 
 const BY_KEY = new Map(SETTINGS.map((d) => [d.key, d]));
 export const BEMESH_RADIO = RADIO_PRESETS.find((p) => p.title === BEMESH_PRESET_TITLE)!;
@@ -60,15 +60,16 @@ export function recommendedFor(plan: Plan, block: Block): Plan {
       advertIntervalMinutes: 0,
       floodMaxUnscoped: unscoped,
       floodMaxAdvert: advert,
+      floodMax: 64,
     });
   }
-  if (block === "repeating") return withSettings(plan, { repeat: "on", floodMax: 64, loopDetect: "minimal" });
-  const choice = siteOf(timingOf(plan));
-  const profile: SiteProfile = choice in SITE_PROFILES ? (choice as SiteProfile) : "suburban";
-  return withTiming(
-    withSettings(plan, { pathHashMode: "1", radioRxgain: "on", intThresh: 0, agcResetInterval: 0, multiAcks: "0" }),
-    { ...SITE_PROFILES[profile] },
-  );
+  if (block === "repeating") return withSettings(plan, { repeat: "on", loopDetect: "minimal" });
+  if (block === "timing") {
+    const choice = siteOf(timingOf(plan));
+    const profile: SiteProfile = choice in SITE_PROFILES ? (choice as SiteProfile) : "suburban";
+    return withTiming(plan, { ...SITE_PROFILES[profile] });
+  }
+  return withSettings(plan, { pathHashMode: "1", radioRxgain: "on", intThresh: 0, agcResetInterval: 0, multiAcks: "0" });
 }
 
 export function recommendedForAll(plan: Plan): Plan {

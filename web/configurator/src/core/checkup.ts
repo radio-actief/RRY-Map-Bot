@@ -7,7 +7,7 @@ import type { Place } from "./search";
 import { SETTINGS, type SettingKey } from "./settings";
 import { SITE_PROFILES, siteOf, timingOf } from "./site";
 
-export type CheckupGroup = "name" | "radio" | "advertising" | "repeating" | "regions" | "advanced";
+export type CheckupGroup = "name" | "radio" | "advertising" | "repeating" | "timing" | "regions" | "advanced";
 
 export type CheckupLine = {
   id: string;
@@ -26,7 +26,7 @@ export type CheckupLine = {
 const HOPS: SettingKey[] = ["floodMaxUnscoped", "floodMaxAdvert"];
 const TIMING: SettingKey[] = ["txdelay", "directTxdelay", "rxdelay"];
 const BY_KEY = new Map(SETTINGS.map((d) => [d.key, d]));
-/** The settings the check-up covers: those of the four blocks (no passwords, no owner info). */
+/** The settings the check-up covers: those of the blocks (no passwords, no owner info). */
 const BLOCK_KEYS = new Set<string>(BLOCKS.flatMap(blockKeys));
 /** A BE-…- prefix kept in the name's own part (old naming, or a place that is not the anchor). */
 const OLD_PREFIX = /^BE-([A-Z0-9]{2,5}-)?/;

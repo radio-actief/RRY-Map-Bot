@@ -15,6 +15,16 @@ import { SITE_PROFILES, withTiming } from "../src/core/site";
 
 const withSettings = (plan: Plan, s: Plan["settings"]): Plan => ({ ...plan, settings: { ...plan.settings, ...s } });
 
+describe("a new plan's hop allowance", () => {
+  it("starts on Average, so a level is selected; the default plan keeps the old page's 12/8", () => {
+    expect(allowanceOf(newPlan())).toBe("average");
+    expect(isBlockRecommended(newPlan(), "advertising")).toBe(true);
+    const d = defaultPlan().settings;
+    expect([d.floodMaxUnscoped, d.floodMaxAdvert]).toEqual([12, 8]);
+    expect(allowanceOf(defaultPlan())).toBeNull();
+  });
+});
+
 describe("blocks", () => {
   it("lists the four blocks in order", () => {
     expect(BLOCKS).toEqual(["radio", "advertising", "repeating", "advanced"]);

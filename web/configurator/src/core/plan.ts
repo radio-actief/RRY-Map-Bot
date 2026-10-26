@@ -34,7 +34,7 @@ import {
   type RegionPolicy,
 } from "./regions";
 import type { Place } from "./search";
-import { SETTINGS, validateSetting, type SettingKey, type ValidateResult } from "./settings";
+import { FLOOD_ALLOWANCE, SETTINGS, validateSetting, type SettingKey, type ValidateResult } from "./settings";
 
 export type Radio = { freq: number; sf: number; bw: number; cr: number };
 export type AdvertLoc = "none" | "prefs" | "share";
@@ -101,10 +101,11 @@ export function defaultPlan(): Plan {
   };
 }
 
-/** What the app starts with: the old defaults, on the Suburban timing. */
+/** What the app starts with: the old defaults, on the Suburban timing and the Average hop allowance. */
 export function newPlan(): Plan {
   const plan = defaultPlan();
-  Object.assign(plan.settings, { txdelay: 0.8, directTxdelay: 0.4, rxdelay: 3 });
+  const [floodMaxUnscoped, floodMaxAdvert] = FLOOD_ALLOWANCE.average;
+  Object.assign(plan.settings, { txdelay: 0.8, directTxdelay: 0.4, rxdelay: 3, floodMaxUnscoped, floodMaxAdvert });
   return plan;
 }
 

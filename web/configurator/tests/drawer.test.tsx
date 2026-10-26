@@ -16,6 +16,7 @@ vi.mock("../src/core/vanity", async (importOriginal) => {
 });
 
 import { DeviceDrawer, clockOffset } from "../src/app/DeviceDrawer";
+import { AccessList } from "../src/steps/settings/AccessList";
 import { Connect } from "../src/steps/Connect";
 import { importBackup } from "../src/core/backup";
 import { defaultPlan } from "../src/core/plan";
@@ -176,7 +177,27 @@ describe("Device tools drawer: backup", () => {
     fireEvent.change(input);
     await waitFor(() => expect(store.drawerOpen.value).toBe(false));
     expect(store.plan.value.acl).toEqual(acl);
-    expect(store.startPlan.value.acl).toEqual(acl);
+    expect(store.startPlan.value.acl).toBeUndefined();
+  });
+
+  it("importing keeps pending access list edits visible against what was read", async () => {
+    const k1 = "a".repeat(64);
+    const k2 = "b".repeat(64);
+    store.startPlan.value = { ...store.startPlan.value, acl: [{ key: k1, role: 3 }, { key: k2, role: 1 }] };
+    store.plan.value = { ...store.plan.value, acl: [{ key: k1, role: 3 }] };
+    const text = readFileSync(resolve(__dirname, "fixtures/parity/ronse-solar.backup.json"), "utf8");
+    const { container } = render(<DeviceDrawer />);
+    const input = container.querySelector("input[type=file]") as HTMLInputElement;
+    Object.defineProperty(input, "files", { value: [new File([text], "backup.json")], configurable: true });
+    fireEvent.change(input);
+    await waitFor(() => expect(store.drawerOpen.value).toBe(false));
+    expect(store.plan.value.acl).toEqual([{ key: k1, role: 3 }]);
+    expect(store.startPlan.value.acl).toEqual([{ key: k1, role: 3 }, { key: k2, role: 1 }]);
+    cleanup();
+    render(<AccessList />);
+    expect(screen.getByText("removed")).toBeTruthy();
+    expect(screen.getByText("1 change")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Undo the removal/ })).toBeTruthy();
   });
 
   it("an import resets the Place latches like a Read does", async () => {

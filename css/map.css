@@ -439,6 +439,12 @@ body.map-page {
   filter: invert(1);
 }
 
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .leaflet-control-layers-toggle {
+    filter: invert(1);
+  }
+}
+
 .leaflet-control-attribution {
   font-size: 10px;
 }

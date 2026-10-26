@@ -143,4 +143,17 @@ export default async function (ctx) {
   await none.locator('button[aria-controls="node-filter"]').click();
   ctx.check("map: zero-match filters show Clear filters", await none.locator("#node-filter").getByRole("button", { name: "Clear filters" }).isVisible());
   await none.close();
+
+  // The layers icon is inverted the same way for system dark and chosen dark.
+  const invert = async (scheme, attr) => {
+    const p = await ctx.open("/", { scheme, setup: withNodes(async (pg) => { if (attr) await pg.addInitScript((a) => localStorage.setItem("configurator.theme", a), attr); }) });
+    await p.waitForSelector(".leaflet-control-layers-toggle", { timeout: 10000 });
+    const f = await p.locator(".leaflet-control-layers-toggle").evaluate((el) => getComputedStyle(el).filter);
+    await p.close();
+    return f;
+  };
+  const sysDark = await invert("dark", null);
+  const chosenDark = await invert("light", "dark");
+  const sysLight = await invert("light", null);
+  ctx.check("map: layers icon inverted in system dark and chosen dark, not in light", sysDark === chosenDark && sysDark.includes("invert") && !sysLight.includes("invert"), `${sysDark} | ${chosenDark} | ${sysLight}`);
 }

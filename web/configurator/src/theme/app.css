@@ -1493,6 +1493,11 @@ path.map-region-denied {
     display: none;
   }
 
+  /* Sign in is in the ☰ menu here. */
+  .topbar .signin-chip {
+    display: none;
+  }
+
   .drawer .drawer-pages {
     display: flex;
   }

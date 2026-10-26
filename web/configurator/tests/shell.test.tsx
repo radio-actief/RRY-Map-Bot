@@ -180,7 +180,7 @@ describe("app shell", () => {
     store.plan.value = { ...defaultPlan(), anchor: ronse, nameSuffix: "Kluisberg" };
     store.step.value = "settings";
     const { container } = render(<App />);
-    const chips = container.querySelectorAll(".topbar .chip");
+    const chips = container.querySelectorAll(".topbar .chip:not(.signin-chip)");
     expect(chips.length).toBe(2);
     chips.forEach((c) => expect(c.classList.contains("trunc")).toBe(true));
   });

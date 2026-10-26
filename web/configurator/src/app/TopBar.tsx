@@ -1,4 +1,5 @@
 import { t } from "../i18n/t";
+import { AccountMenu } from "./AccountMenu";
 import { PROVINCE_NAMES } from "../core/be-regions";
 import { parseVersion } from "../core/firmware";
 import { planName } from "../core/plan";
@@ -121,6 +122,7 @@ export function TopBar() {
       >
         🛠
       </button>
+      <AccountMenu />
       <button
         type="button"
         class="icon"

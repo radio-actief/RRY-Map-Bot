@@ -227,7 +227,7 @@ function Drawer() {
     try {
       const plan = importBackup(JSON.parse(await file.text()), store.data.peek().places ?? []);
       // An import is an edit: the plan now differs from what the last Read gave. It is the new start plan.
-      importPlan(plan);
+      importPlan({ ...plan, acl: store.plan.peek().acl });
       store.notice.value = { kind: "ok", text: t("tools.imported") };
       close();
     } catch (err) {

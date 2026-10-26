@@ -166,6 +166,19 @@ describe("Device tools drawer: backup", () => {
     expect(store.planBase.value).toBe(base);
   });
 
+  it("importing a backup keeps the access list", async () => {
+    const acl = [{ key: "e".repeat(64), role: 2 as const }];
+    store.plan.value = { ...store.plan.value, acl };
+    const text = readFileSync(resolve(__dirname, "fixtures/parity/ronse-solar.backup.json"), "utf8");
+    const { container } = render(<DeviceDrawer />);
+    const input = container.querySelector("input[type=file]") as HTMLInputElement;
+    Object.defineProperty(input, "files", { value: [new File([text], "backup.json")], configurable: true });
+    fireEvent.change(input);
+    await waitFor(() => expect(store.drawerOpen.value).toBe(false));
+    expect(store.plan.value.acl).toEqual(acl);
+    expect(store.startPlan.value.acl).toEqual(acl);
+  });
+
   it("an import resets the Place latches like a Read does", async () => {
     const importFile = async (name: string) => {
       placeLeft.value = true;

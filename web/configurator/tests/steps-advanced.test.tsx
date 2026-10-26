@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("leaflet", async () => await import("./fakes/leaflet"));
 
 import { BLOCKS, isBlockRecommended } from "../src/core/blocks";
+import { ACL_MAX, type AclEntry } from "../src/core/acl";
 import { defaultPlan, newPlan, planErrors } from "../src/core/plan";
 import type { Place } from "../src/core/search";
 import { Regions } from "../src/steps/Regions";
@@ -239,7 +240,7 @@ describe("Advanced step", () => {
 
   it("shows the four blocks as cards in order, with the all button by the title", () => {
     render(<Advanced />);
-    const titles = [...document.querySelectorAll(".card-head h3")].map((h) => h.textContent);
+    const titles = [...document.querySelectorAll(".card-grid .card-head h3")].map((h) => h.textContent);
     expect(titles).toEqual(["Radio", "Advertising & hops", "Repeating", "Advanced"]);
     expect(document.querySelector("details")).toBeNull();
     const head = screen.getByRole("heading", { name: "Advanced settings", level: 2 }).closest(".step-head")!;
@@ -327,5 +328,111 @@ describe("Regions polish", () => {
     fireEvent.click(within(row).getByRole("button", { name: /^Allow:/ }));
     expect(within(row).getByText("home")).toBeTruthy();
     expect(screen.getByRole("option", { name: "Default: beron (smallest allowed home region)" })).toBeTruthy();
+  });
+});
+
+describe("Access list card", () => {
+  const K1 = "a".repeat(6) + "1".repeat(52) + "b".repeat(6);
+  const K2 = "c".repeat(64);
+  const K4 = "d4".repeat(32);
+  const withAcl = (acl: AclEntry[]) => {
+    resetPlan({ ...defaultPlan(), acl });
+    store.data.value = {
+      ...store.data.value,
+      nodes: [{ public_key: K4.toUpperCase(), type: 1, adv_name: "BE-GNT-Pieter", adv_lat: 0, adv_lon: 0 }],
+    };
+  };
+  const list = () => card("Access list");
+  const add = (value: string) => {
+    fireEvent.input(screen.getByPlaceholderText(/Paste a public key/), { target: { value } });
+  };
+
+  beforeEach(() => withAcl([{ key: K1, role: 3 }, { key: K2, role: 1 }]));
+
+  it("shows each key with its map name, shortened key and role", () => {
+    render(<Advanced />);
+    expect(within(list()).getAllByText("Unknown key")).toHaveLength(2);
+    expect(within(list()).getByText("aaaaaa…bbbbbb")).toBeTruthy();
+    const select = within(list()).getAllByRole("combobox")[0] as HTMLSelectElement;
+    expect([...select.options].map((o) => o.text)).toEqual(["Admin", "Read-write", "Read-only"]);
+    expect(select.value).toBe("3");
+  });
+
+  it("changing a role edits the plan and drops raw perms", () => {
+    withAcl([{ key: K1, role: 3, perms: 7 }]);
+    render(<Advanced />);
+    fireEvent.change(within(list()).getAllByRole("combobox")[0], { target: { value: "2" } });
+    expect(store.plan.value.acl).toEqual([{ key: K1, role: 2 }]);
+  });
+
+  it("remove strikes the row with a removed badge; undo restores it", () => {
+    render(<Advanced />);
+    fireEvent.click(within(list()).getAllByRole("button", { name: /^Remove/ })[1]);
+    expect(store.plan.value.acl).toEqual([{ key: K1, role: 3 }]);
+    expect(within(list()).getByText("removed")).toBeTruthy();
+    expect(within(list()).getByText("1 change")).toBeTruthy();
+    fireEvent.click(within(list()).getByRole("button", { name: /^Undo the removal/ }));
+    expect(store.plan.value.acl).toEqual([{ key: K1, role: 3 }, { key: K2, role: 1 }]);
+    expect(within(list()).queryByText("removed")).toBeNull();
+  });
+
+  it("adds a pasted key as Admin with a new badge", () => {
+    render(<Advanced />);
+    add(K4.replace(/(.{8})/g, "$1 "));
+    fireEvent.click(within(list()).getByRole("button", { name: "Add" }));
+    expect(store.plan.value.acl!.at(-1)).toEqual({ key: K4, role: 3 });
+    expect(within(list()).getByText("new")).toBeTruthy();
+    expect(within(list()).getByText("BE-GNT-Pieter")).toBeTruthy();
+  });
+
+  it("refuses a short or duplicate key", () => {
+    render(<Advanced />);
+    add("abc");
+    fireEvent.click(within(list()).getByRole("button", { name: "Add" }));
+    expect(within(list()).getByText("Not a public key: 64 hexadecimal characters")).toBeTruthy();
+    add(K1);
+    fireEvent.click(within(list()).getByRole("button", { name: "Add" }));
+    expect(within(list()).getByText("This key is already on the list")).toBeTruthy();
+    expect(store.plan.value.acl).toHaveLength(2);
+  });
+
+  it("offers companions from the map by name or key prefix", () => {
+    render(<Advanced />);
+    add("Pieter");
+    fireEvent.click(within(list()).getByRole("button", { name: "BE-GNT-Pieter" }));
+    expect(store.plan.value.acl!.at(-1)).toEqual({ key: K4, role: 3 });
+  });
+
+  it("the badge counts the changes and ↺ resets to what was read", () => {
+    render(<Advanced />);
+    expect(within(list()).getByText("unchanged")).toBeTruthy();
+    fireEvent.click(within(list()).getAllByRole("button", { name: /^Remove/ })[0]);
+    fireEvent.change(within(list()).getAllByRole("combobox")[1], { target: { value: "2" } });
+    expect(within(list()).getByText("2 changes")).toBeTruthy();
+    fireEvent.click(within(list()).getByRole("button", { name: "Reset the access list to what was read" }));
+    expect(store.plan.value.acl).toEqual(store.startPlan.value.acl);
+    expect(within(list()).getByText("unchanged")).toBeTruthy();
+  });
+
+  it("at 32 entries the card warns", () => {
+    const warn = /keeps at most 32 entries/;
+    render(<Advanced />);
+    expect(within(list()).queryByText(warn)).toBeNull();
+    const full = Array.from({ length: ACL_MAX }, (_, i) => ({ key: i.toString(16).padStart(64, "0"), role: 1 as const }));
+    store.plan.value = { ...store.plan.value, acl: full };
+    return screen.findByText(warn);
+  });
+
+  it("without a Read the card asks for one", () => {
+    resetPlan(defaultPlan());
+    render(<Advanced />);
+    expect(within(list()).getByText("Read the repeater to see its access list.")).toBeTruthy();
+  });
+
+  it("recommended buttons never change the list", () => {
+    render(<Advanced />);
+    const acl = store.plan.value.acl;
+    fireEvent.click(screen.getByRole("button", { name: "Use #BEmesh recommended settings for all" }));
+    expect(store.plan.value.acl).toEqual(acl);
   });
 });

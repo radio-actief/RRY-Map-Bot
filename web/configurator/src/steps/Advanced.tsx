@@ -18,6 +18,7 @@ import { summarize, type Plan } from "../core/plan";
 import { FLOOD_ALLOWANCE, SETTINGS, validateSetting, type SettingDef, type SettingKey } from "../core/settings";
 import { t } from "../i18n/t";
 import { busy, store, type Step } from "../state/store";
+import { AccessList } from "./settings/AccessList";
 import { MiniMap } from "./settings/MiniMap";
 import { RadioFields } from "./settings/RadioFields";
 import { RepeaterValue } from "./settings/RepeaterValue";
@@ -281,6 +282,7 @@ export function Advanced() {
               <BlockCard key={b} block={b} />
             ))}
           </div>
+          <AccessList />
         </div>
         <aside class="settings-side">
           <MiniMap />

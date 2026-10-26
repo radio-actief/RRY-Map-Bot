@@ -1654,3 +1654,31 @@ button.site-card {
   margin: 4px 0 0;
   padding: 0;
 }
+
+.checkup-group h3 {
+  margin: 0.8rem 0 0.2rem;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  color: var(--muted, inherit);
+}
+.checkup-line {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  padding: 0.3rem 0;
+}
+.checkup-text {
+  display: flex;
+  flex-direction: column;
+}
+.checkup-label {
+  font-weight: 600;
+}
+.checkup-note {
+  font-size: 0.85rem;
+  opacity: 0.75;
+}
+.checkup-count {
+  margin-right: auto;
+  align-self: center;
+}

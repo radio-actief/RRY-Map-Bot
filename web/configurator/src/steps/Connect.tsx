@@ -1,7 +1,9 @@
 /** Connect step: connect over USB, the device card, Read (asks before overwriting edits), or go on without a device. */
 import { useState } from "preact/hooks";
+import { CheckupDialog } from "../app/CheckupDialog";
 import { Dialog } from "../app/Dialog";
 import { Notice } from "../app/Notice";
+import { checkupCounts, checkupLines, type CheckupGroup } from "../core/checkup";
 import { parseVersion, REGION_DEF_MIN_TEXT, supportsRegionDef } from "../core/firmware";
 import { hasValidCoords } from "../core/plan";
 import { hasWebSerial } from "../device/serial";
@@ -55,8 +57,37 @@ function ReadResult() {
   );
 }
 
+const GROUP_ORDER: CheckupGroup[] = ["radio", "advertising", "repeating", "regions", "advanced"];
+
+/** After a Read: how many settings differ from the recommendation, per block, with the way into the check-up. */
+function CheckupNotice({ onOpen }: { onOpen: () => void }) {
+  const r = store.lastRead.value;
+  if (!r?.ok || !store.snapshot.value) return null;
+  const { total, perGroup, nameDiffers } = checkupCounts(checkupLines(store.plan.value, store.data.value.places ?? []));
+  if (!total && !nameDiffers) return <Notice kind="ok">{t("checkup.allGood")}</Notice>;
+  const parts = GROUP_ORDER.filter((g) => perGroup[g]).map((g) =>
+    g === "regions" ? t("script.group.regions") : `${t(`settings.card.${g}`)} ${perGroup[g]}`,
+  );
+  return (
+    <Notice kind="warn">
+      {total ? <b>{t("checkup.differ", { count: total })}</b> : null}
+      <p>
+        {parts.join(" · ")}
+        {parts.length && nameDiffers ? ". " : ""}
+        {nameDiffers ? t("checkup.nameToo") : ""}
+      </p>
+      {total ? (
+        <button type="button" class="btn" onClick={onOpen}>
+          {t("checkup.open")}
+        </button>
+      ) : null}
+    </Notice>
+  );
+}
+
 export function Connect() {
   const [asking, setAsking] = useState(false);
+  const [checkup, setCheckup] = useState(false);
   const { status } = store.device.value;
   const reading = store.reading.value;
   const locked = busy.value;
@@ -91,6 +122,8 @@ export function Connect() {
         </>
       ) : null}
       <ReadResult />
+      <CheckupNotice onOpen={() => setCheckup(true)} />
+      {checkup ? <CheckupDialog open onClose={() => setCheckup(false)} /> : null}
       <p class="continue">
         {serial ? `${t("connect.noRepeater")} ` : null}
         <button type="button" class="link" disabled={locked} onClick={() => (store.step.value = "place")}>

@@ -235,7 +235,14 @@ function Drawer() {
     }
   }
 
-  function restart(cmd: RestartCommand) {
+  async function restart(cmd: RestartCommand) {
+    // A reboot that waits for the access list save keeps its dialog open, saying so, meanwhile.
+    if (cmd === "reboot" && store.aclSaveUntil.peek() > Date.now()) {
+      await restartDevice(cmd);
+      setModal(null);
+      close();
+      return;
+    }
     setModal(null);
     close();
     void restartDevice(cmd);
@@ -370,17 +377,17 @@ function Drawer() {
         <Dialog
           open
           title={modal === "reboot" ? t("tools.reboot") : t("tools.ota")}
-          onClose={() => setModal(null)}
+          onClose={() => !store.savingAcl.peek() && setModal(null)}
           actions={
             <>
-              <button type="button" class="btn" onClick={() => setModal(null)}>
+              <button type="button" class="btn" disabled={store.savingAcl.value} onClick={() => setModal(null)}>
                 {t("tools.cancel")}
               </button>
               <button
                 type="button"
                 class="btn primary"
                 disabled={off}
-                onClick={() => restart(modal === "reboot" ? "reboot" : "start ota")}
+                onClick={() => void restart(modal === "reboot" ? "reboot" : "start ota")}
               >
                 {modal === "reboot" ? t("tools.rebootNow") : t("tools.otaNow")}
               </button>
@@ -388,9 +395,10 @@ function Drawer() {
           }
         >
           <p>{modal === "reboot" ? t("tools.rebootConfirm") : t("tools.otaConfirm")}</p>
+          {store.savingAcl.value ? <p class="sub">{t("reboot.savingAcl")}</p> : null}
         </Dialog>
       ) : null}
-      {modal === "reset" ? <ResetDialog disabled={off} onClose={() => setModal(null)} onReset={() => restart("erase")} /> : null}
+      {modal === "reset" ? <ResetDialog disabled={off} onClose={() => setModal(null)} onReset={() => void restart("erase")} /> : null}
       {modal === "vanity" || modal === "random" ? (
         <KeyDialog
           key={modal}

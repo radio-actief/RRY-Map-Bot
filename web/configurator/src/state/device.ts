@@ -3,7 +3,7 @@
  * console, and the drawer's commands (clock, adverts, identity, reboot / OTA / factory reset).
  */
 import { effect } from "@preact/signals";
-import { buildScript, commandLines } from "../core/cli";
+import { commandLines, type ScriptGroup } from "../core/cli";
 import { deviceRegionsFromSnapshot, planFromSnapshot, type DeviceSnapshot } from "../core/plan";
 import { policyFor, regionsAfterApply } from "../core/regions";
 import { REGION_DEF_MIN_TEXT } from "../core/firmware";
@@ -227,22 +227,28 @@ async function readBack(link: SerialLink): Promise<void> {
 /** Lines whose change only takes effect after a reboot (old offerRepeaterReboot hint). */
 const NEEDS_REBOOT = /^set (radio|freq|radio\.rxgain) /;
 
+const SETPERM = /^setperm /;
+
+/** The firmware saves the access list 5 s after its last change; a reboot waits a second longer. */
+export const ACL_SAVE_WAIT_MS = 6000;
+
 /**
- * Apply (old applyToRepeater). Nothing is sent when there are no commands or a line is over the
- * console's length limit. Then `ver` is re-read: old firmware stops here, unreadable firmware waits
- * for "Continue anyway" (which calls this again with skipFirmwareCheck). The full script is sent,
- * unchanged defaults included as the old page did, stopping at the first failure. On success the
- * plan that was sent becomes the starting point, the repeater is read back (see readBack) and a
- * reboot is offered, never sent.
+ * Apply (old applyToRepeater) sends `script`, the one the Send step shows. Nothing is sent when
+ * there are no commands or a line is over the console's length limit. Then `ver` is re-read: old
+ * firmware stops here, unreadable firmware waits for "Continue anyway" (which calls this again with
+ * skipFirmwareCheck). The lines go out in order, stopping at the first failure; once a `setperm`
+ * line went out, a reboot waits for the access list save (see waitForAclSave). On success the plan
+ * that was sent becomes the starting point, the repeater is read back (see readBack) and a reboot
+ * is offered, never sent.
  */
-export async function applyPlan({ skipFirmwareCheck = false } = {}): Promise<void> {
+export async function applyPlan(script: ScriptGroup[], { skipFirmwareCheck = false } = {}): Promise<void> {
   const link = store.device.peek().link;
   if (!link || busy.peek() || !canApply.peek().ok) return;
   store.applying.value = true;
   try {
     const plan = store.plan.peek();
     const places = store.data.peek().places ?? [];
-    const lines = commandLines(buildScript(plan, places, { includeDefaults: true, device: store.deviceRegions.peek() }));
+    const lines = commandLines(script);
     if (!lines.length) {
       store.apply.value = { phase: "empty" };
       return;
@@ -275,6 +281,10 @@ export async function applyPlan({ skipFirmwareCheck = false } = {}): Promise<voi
     appendLog({ text: t("log.separator"), kind: "sep" }, { text: t("log.applying", { count: total }), kind: "muted" });
     store.apply.value = { phase: "sending", sent: 0, total };
     const result = await apply(link, lines, (sent) => (store.apply.value = { phase: "sending", sent, total }));
+    // The access list lines come last: their save counts from now.
+    if (lines.slice(0, result.ok ? total : result.failedAt).some((l) => SETPERM.test(l))) {
+      store.aclSaveUntil.value = Date.now() + ACL_SAVE_WAIT_MS;
+    }
     if (!result.ok) {
       const { failedAt, command, error, remaining } = result;
       store.apply.value = { phase: "failed", failedAt, total, command, error, remaining };
@@ -310,11 +320,28 @@ export function cancelApply(): void {
   if (!store.applying.peek()) store.apply.value = { phase: "idle" };
 }
 
-/** Answer the reboot offer: Later closes it, Reboot now sends `reboot` and the link drops as expected. */
+/** Whether the repeater may still be saving an access list change. */
+const aclSavePending = () => store.aclSaveUntil.peek() > Date.now();
+
+/** Resolves once the repeater has saved the last access list change Apply sent (at once when none is pending). */
+export async function waitForAclSave(): Promise<void> {
+  while (aclSavePending()) await new Promise((r) => setTimeout(r, store.aclSaveUntil.peek() - Date.now()));
+}
+
+/**
+ * Answer the reboot offer: Later closes it, Reboot now sends `reboot` and the link drops as
+ * expected. While the reboot waits for the access list save, the offer stays open and says so.
+ */
 export async function answerReboot(reboot: boolean): Promise<void> {
-  const state = store.apply.peek();
-  if (state.phase === "done") store.apply.value = { ...state, offerReboot: false };
-  if (reboot) await rebootDevice();
+  if (store.savingAcl.peek()) return;
+  const close = () => {
+    const state = store.apply.peek();
+    if (state.phase === "done") store.apply.value = { ...state, offerReboot: false };
+  };
+  if (!reboot) return close();
+  if (!aclSavePending()) close();
+  await rebootDevice();
+  close();
 }
 
 /**
@@ -348,7 +375,8 @@ export type RestartCommand = keyof typeof RESTART_TEXTS;
 
 /**
  * Send `reboot`, `start ota` or `erase` (factory reset) as the old page did; the disconnect that
- * follows is not an error, and the notice says to reconnect once the device is back.
+ * follows is not an error, and the notice says to reconnect once the device is back. A reboot
+ * first waits, holding the lock, until the repeater has saved the access list Apply changed.
  */
 export async function restartDevice(cmd: RestartCommand): Promise<void> {
   const texts = RESTART_TEXTS[cmd];
@@ -356,6 +384,18 @@ export async function restartDevice(cmd: RestartCommand): Promise<void> {
   if (!link?.connected || busy.peek()) {
     if (!link?.connected) store.notice.value = { kind: "error", text: t(texts.noDevice) };
     return;
+  }
+  if (cmd === "reboot" && aclSavePending()) {
+    store.commandBusy.value = true;
+    store.savingAcl.value = true;
+    try {
+      await waitForAclSave();
+    } finally {
+      store.savingAcl.value = false;
+      store.commandBusy.value = false;
+    }
+    // Unplugged while waiting: the unplug notice says it.
+    if (!link.connected || store.device.peek().link !== link) return;
   }
   const error = await sendHeld(link, cmd);
   store.notice.value = error

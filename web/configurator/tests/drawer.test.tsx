@@ -212,6 +212,24 @@ describe("Device tools drawer: maintenance and danger zone", () => {
     expect(store.drawerOpen.value).toBe(false);
   });
 
+  it("a reboot right after an access list change waits for its save, saying so", async () => {
+    const port = await connectApp({});
+    store.aclSaveUntil.value = Date.now() + 300;
+    try {
+      render(<DeviceDrawer />);
+      fireEvent.click(button("Reboot"));
+      fireEvent.click(button("Reboot now"));
+      expect(await screen.findByText(t("reboot.savingAcl"))).toBeTruthy();
+      expect(button("Cancel").disabled).toBe(true);
+      expect(port.received).not.toContain("reboot");
+      await waitFor(() => expect(store.device.value.status).toBe("none"));
+      expect(port.received.at(-1)).toBe("reboot");
+      expect(store.drawerOpen.value).toBe(false);
+    } finally {
+      store.aclSaveUntil.value = 0;
+    }
+  });
+
   it("Start OTA asks first, then sends start ota and says to reconnect", async () => {
     const port = await connectApp({});
     render(<DeviceDrawer />);

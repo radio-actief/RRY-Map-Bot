@@ -148,6 +148,10 @@ export const store = {
   apply: signal<ApplyState>({ phase: "idle" }),
   /** A console command or the reboot is in flight (until the link has settled). */
   commandBusy: signal(false),
+  /** Until when (Date.now()) the repeater is still saving an access list change; 0 = nothing pending. */
+  aclSaveUntil: signal(0),
+  /** A reboot waits for that save. */
+  savingAcl: signal(false),
   /** The session's command log (Apply, the console, and Read when "Show command log" is on). */
   log: signal<LogLine[]>([]),
   device: signal<DeviceState>({ status: "none", link: null, firmware: null }),

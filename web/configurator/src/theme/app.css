@@ -1215,6 +1215,22 @@ path.map-region-denied {
   min-width: 0;
 }
 
+.send-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.send-head h3 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.send-head .badge {
+  margin-left: 0;
+}
+
 .toggle {
   display: inline-flex;
   align-items: center;

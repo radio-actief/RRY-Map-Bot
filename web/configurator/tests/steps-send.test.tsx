@@ -25,8 +25,8 @@ vi.mock("../src/device/repeater", async (importOriginal) => {
   };
 });
 
-import { buildScript, commandLines } from "../src/core/cli";
-import { defaultPlan, deviceRegionsFromSnapshot, snapshotFromReplies } from "../src/core/plan";
+import { buildScript, commandLines, unchangedCount } from "../src/core/cli";
+import { defaultPlan, deviceRegionsFromSnapshot, planFromSnapshot, snapshotFromReplies, type Plan } from "../src/core/plan";
 import { addFreeRegion, regionCountAfterApply, regionsAfterApply } from "../src/core/regions";
 import type { Place } from "../src/core/search";
 import { READ_BACK_COMMANDS, READ_COMMANDS } from "../src/device/repeater";
@@ -42,13 +42,17 @@ import read from "./fixtures/read-ronse.json";
 const PLACES: Place[] = JSON.parse(readFileSync(resolve(__dirname, "../../../data/be-locode.json"), "utf8"));
 const MUNIS = JSON.parse(readFileSync(resolve(__dirname, "fixtures/municipalities-3.json"), "utf8"));
 const RONSE = PLACES.find((p) => p.city_code === "beron")!;
-const FAST = { interCommandDelayMs: 0, bootDrainMs: 0, disconnectSettleMs: 0, replyTimeoutMs: 40 };
+const FAST = { interCommandDelayMs: 0, bootDrainMs: 0, disconnectSettleMs: 0, replyTimeoutMs: 40, rawQuietMs: 30 };
 const VER = "v1.17.1 (Build: 12-Oct-2026)";
 
-/** What Apply sends: the full script, unchanged defaults included (as the old page). */
+/** What Apply sends: the script shown, only the changes after a Read (the full script without one). */
 const applyLines = () =>
   commandLines(
-    buildScript(store.plan.value, PLACES, { includeDefaults: true, device: store.deviceRegions.value }),
+    buildScript(store.plan.value, PLACES, {
+      includeDefaults: true,
+      device: store.deviceRegions.value,
+      snapshot: store.snapshot.value ?? undefined,
+    }),
   );
 
 /** A console that answers every line Apply sends with OK. */
@@ -65,7 +69,9 @@ async function connect(replies: Record<string, string>, opts: { disconnectAfter?
   return { port, link };
 }
 
-const applyButton = () => screen.getByRole("button", { name: /Apply to repeater/ }) as HTMLButtonElement;
+const applyButton = () =>
+  screen.getByRole("button", { name: /^(Apply( \d+ changes?)? to repeater|Nothing to send)$/ }) as HTMLButtonElement;
+const SEND_ALL = "Send every setting, also the unchanged ones";
 const scriptText = () => document.querySelector(".script")!.textContent!;
 
 /** Connect through connectUsb, so the unplug handling is wired as in the app (its `ver` is the port's first line). */
@@ -86,6 +92,7 @@ beforeEach(() => {
   store.reading.value = false;
   store.applying.value = false;
   store.commandBusy.value = false;
+  store.aclSaveUntil.value = 0;
   force.emptyScript = false;
   force.applyThrows = false;
   force.extraLine = "";
@@ -114,20 +121,8 @@ describe("Send step: script", () => {
       .split("\n")
       .map((l) => l.trim())
       .filter((l) => l && !l.startsWith("#"));
-    expect(lines).toEqual(commandLines(buildScript(store.plan.value, PLACES, { includeDefaults: false })));
-    expect(text).toContain("# Name\nset name BE-RON-Kluisberg");
-  });
-
-  it("Include unchanged defaults adds the default values and is remembered", () => {
-    render(<Send />);
-    const without = scriptText();
-    fireEvent.click(screen.getByLabelText("Include unchanged defaults"));
-    const lines = scriptText()
-      .split("\n")
-      .filter((l) => l.trim() && !l.startsWith("#"));
     expect(lines).toEqual(commandLines(buildScript(store.plan.value, PLACES, { includeDefaults: true })));
-    expect(lines.length).toBeGreaterThan(without.split("\n").filter((l) => l && !l.startsWith("#")).length);
-    expect(prefs.get("configurator.includeDefaults")).toBe("1");
+    expect(text).toContain("# Name\nset name BE-RON-Kluisberg");
   });
 
   it("uses the device regions from the last Read for the removals", () => {
@@ -457,6 +452,111 @@ describe("Send step: Apply", () => {
   });
 });
 
+describe("Send step: only the changes", () => {
+  const KEY_B = "b2".repeat(32);
+  const CHANGE = "set flood.advert.interval 47";
+
+  /** A Read of the Ronse repeater (as readDevice leaves it), then `edit` on the plan it gave. */
+  function afterRead(edit: (p: Plan) => Plan = (p) => p) {
+    const snap = snapshotFromReplies(read);
+    store.snapshot.value = snap;
+    store.deviceRegions.value = deviceRegionsFromSnapshot(snap);
+    resetPlan(planFromSnapshot(snap, PLACES));
+    store.plan.value = edit(store.plan.value);
+  }
+  const with47 = (p: Plan): Plan => ({ ...p, settings: { ...p.settings, floodAdvertHours: 47 } });
+
+  it("after a Read, Apply sends only the changes", async () => {
+    afterRead(with47);
+    const { port } = await connect({ ...read, ...okReplies([CHANGE]) });
+    render(<Send />);
+    expect(screen.getByRole("heading", { name: "1 change to send" })).toBeTruthy();
+    const unchanged = unchangedCount(store.plan.value, PLACES, store.snapshot.value!);
+    expect(unchanged).toBeGreaterThan(1);
+    expect(screen.getByText(`${unchanged} settings unchanged`)).toBeTruthy();
+    expect(scriptText()).toBe(`# Settings\n${CHANGE}`);
+    fireEvent.click(screen.getByRole("button", { name: "Apply 1 change to repeater" }));
+    await screen.findByRole("button", { name: "Reboot now" });
+    expect(port.received).toEqual(["ver", CHANGE, ...READ_BACK_COMMANDS]);
+  });
+
+  it("the switch sends every setting", async () => {
+    afterRead(with47);
+    const full = commandLines(
+      buildScript(store.plan.value, PLACES, { includeDefaults: true, device: store.deviceRegions.value }),
+    );
+    const { port } = await connect({ ...read, ...okReplies(full) });
+    render(<Send />);
+    fireEvent.click(screen.getByLabelText(SEND_ALL));
+    expect(prefs.get("configurator.includeDefaults")).toBe("1");
+    expect(screen.queryByText(/settings? unchanged/)).toBeNull();
+    expect(screen.getByRole("heading", { name: `${full.length} changes to send` })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Apply to repeater" }));
+    await screen.findByRole("button", { name: "Reboot now" });
+    expect(port.received).toEqual(["ver", ...full, ...READ_BACK_COMMANDS]);
+  });
+
+  it("after the read-back there is nothing to send", async () => {
+    afterRead(with47);
+    await connect({ ...read, "get flood.advert.interval": "> 47", ...okReplies([CHANGE]) });
+    render(<Send />);
+    fireEvent.click(applyButton());
+    fireEvent.click(await screen.findByRole("button", { name: "Later" }));
+    const nothing = screen.getByRole("button", { name: "Nothing to send" }) as HTMLButtonElement;
+    expect(nothing.disabled).toBe(true);
+    expect(screen.getByRole("heading", { name: "0 changes to send" })).toBeTruthy();
+    fireEvent.click(screen.getByLabelText(SEND_ALL));
+    expect((screen.getByRole("button", { name: "Apply to repeater" }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("without a Read the full script is sent", async () => {
+    const full = commandLines(buildScript(store.plan.value, PLACES, { includeDefaults: true }));
+    const { port } = await connect(okReplies(full));
+    render(<Send />);
+    expect(screen.queryByText(/settings? unchanged/)).toBeNull();
+    expect(screen.queryByLabelText(SEND_ALL)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Apply to repeater" }));
+    await screen.findByRole("button", { name: "Reboot now" });
+    expect(port.received).toEqual(["ver", ...full, ...READ_BACK_COMMANDS]);
+  });
+
+  it("a reboot right after setperm waits for the save", async () => {
+    afterRead((p) => ({ ...p, acl: [...(p.acl ?? []), { key: KEY_B, role: 2 }] }));
+    const setperm = `setperm ${KEY_B} 2`;
+    const { port } = await connect({ ...read, ...okReplies([setperm]) });
+    // When each command came in (fake time); the fake console answers at once.
+    const at = new Map<string, number>();
+    const push = port.received.push.bind(port.received);
+    port.received.push = (...cmds: string[]) => {
+      for (const c of cmds) at.set(c, Date.now());
+      return push(...cmds);
+    };
+    render(<Send />);
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date"] });
+    try {
+      fireEvent.click(screen.getByRole("button", { name: "Apply 1 change to repeater" }));
+      for (let i = 0; store.apply.value.phase !== "done" && i < 500; i++) await vi.advanceTimersByTimeAsync(10);
+      // The dialog opens in an effect, after the next frame.
+      await vi.advanceTimersByTimeAsync(200);
+      expect([...port.received]).toEqual(["ver", setperm, ...READ_BACK_COMMANDS]);
+      fireEvent.click(screen.getByRole("button", { name: "Reboot now" }));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(screen.getByText("Saving the access list…")).toBeTruthy();
+      const saved = at.get(setperm)! + 6000;
+      await vi.advanceTimersByTimeAsync(saved - Date.now() - 1);
+      expect(port.received).not.toContain("reboot");
+      expect(screen.getByText("Saving the access list…")).toBeTruthy();
+      await vi.advanceTimersByTimeAsync(10);
+      expect(port.received.at(-1)).toBe("reboot");
+      for (let i = 0; store.commandBusy.value && i < 100; i++) await vi.advanceTimersByTimeAsync(10);
+    } finally {
+      vi.useRealTimers();
+    }
+    await waitFor(() => expect(store.device.value.status).toBe("none"));
+    expect(screen.queryByText("Saving the access list…")).toBeNull();
+  });
+});
+
 describe("Console", () => {
   it("logs Apply traffic and console commands, with history", async () => {
     const lines = applyLines();
@@ -546,7 +646,7 @@ describe("Console", () => {
     await connect(okReplies(lines));
     render(<Send />);
     fireEvent.click(applyButton());
-    await screen.findByRole("button", { name: "Reboot now" });
+    await screen.findByRole("button", { name: "Reboot now" }, { timeout: 3000 });
     const log = store.log.value;
     expect(log.length).toBe(500);
     expect(log.some((l) => l.kind === "sep")).toBe(true);

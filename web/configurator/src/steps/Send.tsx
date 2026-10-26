@@ -4,7 +4,7 @@ import { Console } from "../app/Console";
 import { Dialog } from "../app/Dialog";
 import { Notice, type NoticeKind } from "../app/Notice";
 import { rawOf } from "../core/blocks";
-import { buildScript, commandLines, scriptText, type ScriptGroup } from "../core/cli";
+import { buildScript, commandLines, scriptText, unchangedCount, type ScriptGroup } from "../core/cli";
 import { REGION_DEF_MIN_TEXT } from "../core/firmware";
 import { planName, summarize, type Change } from "../core/plan";
 import { presetForRadio } from "../core/presets";
@@ -16,7 +16,8 @@ import { SettingField } from "./Advanced";
 import { PasswordField } from "./send/PasswordField";
 import { busy, canApply, prefs, store, type ApplyState } from "../state/store";
 
-export const INCLUDE_DEFAULTS_PREF = "configurator.includeDefaults";
+/** Pref: send every setting, also the ones the repeater already holds (the old "Include unchanged defaults"). */
+export const SEND_ALL_PREF = "configurator.includeDefaults";
 export const SCRIPT_FILE = "bemesh-repeater-commands.txt";
 
 /** The left column's groups, in the spec's order. */
@@ -162,31 +163,33 @@ function download(text: string) {
   setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
-function readIncludeDefaults(): boolean {
-  return prefs.get(INCLUDE_DEFAULTS_PREF) === "1";
+function readSendAll(): boolean {
+  return prefs.get(SEND_ALL_PREF) === "1";
 }
 
 export function Send() {
-  const [includeDefaults, setIncludeDefaults] = useState(readIncludeDefaults);
+  const [sendAll, setSendAll] = useState(readSendAll);
   const [consoleOpen, setConsoleOpen] = useState(false);
   const [flash, setFlash] = useState<{ kind: NoticeKind; text: string } | null>(null);
   const plan = store.plan.value;
   const places = store.data.value.places ?? [];
   const device = store.deviceRegions.value;
-  const shown = buildScript(plan, places, { includeDefaults, device });
+  const snapshot = store.snapshot.value ?? undefined;
+  // After a Read only the changes go out, unless the switch sends everything; Apply sends what is shown.
+  const against = sendAll ? undefined : snapshot;
+  const script = buildScript(plan, places, { includeDefaults: true, device, snapshot: against });
   const text = scriptText(
-    shown.map((g) => ({ ...g, lines: g.lines.map(visible) })),
+    script.map((g) => ({ ...g, lines: g.lines.map(visible) })),
     groupTitle,
   );
-  // Apply sends the full script, unchanged defaults included, as the old page did.
-  const applyCount = commandLines(includeDefaults ? shown : buildScript(plan, places, { includeDefaults: true, device })).length;
-  const shownCount = commandLines(shown).length;
+  const count = commandLines(script).length;
   const state = store.apply.value;
   const gate = canApply.value;
   const locked = busy.value;
   const name = planName(plan);
   const say = (kind: NoticeKind, msg: string) => setFlash({ kind, text: msg });
   const status = store.device.value.status;
+  const saving = store.savingAcl.value;
 
   return (
     <div class="panel-body step-review">
@@ -195,20 +198,26 @@ export function Send() {
       <div class="review-layout">
         <Changes />
         <div class="review-send">
-          <label class="toggle">
-            <input
-              type="checkbox"
-              checked={includeDefaults}
-              onChange={(e) => {
-                const on = (e.currentTarget as HTMLInputElement).checked;
-                setIncludeDefaults(on);
-                prefs.set(INCLUDE_DEFAULTS_PREF, on ? "1" : "0");
-              }}
-            />
-            {t("review.includeDefaults")}
-          </label>
+          <header class="send-head">
+            <h3>{t("review.toSend", { count })}</h3>
+            {against ? <span class="badge">{t("review.unchanged", { count: unchangedCount(plan, places, against) })}</span> : null}
+          </header>
+          {snapshot ? (
+            <label class="toggle">
+              <input
+                type="checkbox"
+                role="switch"
+                checked={sendAll}
+                onChange={(e) => {
+                  const on = (e.currentTarget as HTMLInputElement).checked;
+                  setSendAll(on);
+                  prefs.set(SEND_ALL_PREF, on ? "1" : "0");
+                }}
+              />
+              {t("review.sendAll")}
+            </label>
+          ) : null}
           <Script text={text} />
-          {applyCount > shownCount ? <p class="sub">{t("review.applyFull", { count: applyCount })}</p> : null}
           <Progress state={state} />
           {state.phase === "old" ? (
             <Notice kind="error">{t("apply.firmwareOld", { version: state.version, min: REGION_DEF_MIN_TEXT })}</Notice>
@@ -280,13 +289,19 @@ export function Send() {
             <button
               type="button"
               class="btn primary"
-              disabled={!gate.ok || locked}
+              disabled={!gate.ok || locked || (!!against && !count)}
               onClick={() => {
                 setFlash(null);
-                void applyPlan();
+                void applyPlan(script);
               }}
             >
-              {store.applying.value ? t("apply.sending") : t("apply.button")}
+              {store.applying.value
+                ? t("apply.sending")
+                : !against
+                  ? t("apply.button")
+                  : count
+                    ? t("apply.buttonChanges", { count })
+                    : t("apply.nothing")}
             </button>
           </div>
           {flash ? <Notice kind={flash.kind}>{flash.text}</Notice> : null}
@@ -302,7 +317,7 @@ export function Send() {
             <button type="button" class="btn" onClick={cancelApply}>
               {t("apply.cancel")}
             </button>
-            <button type="button" class="btn primary" onClick={() => void applyPlan({ skipFirmwareCheck: true })}>
+            <button type="button" class="btn primary" onClick={() => void applyPlan(script, { skipFirmwareCheck: true })}>
               {t("apply.continueAnyway")}
             </button>
           </>
@@ -316,13 +331,13 @@ export function Send() {
         onClose={() => void answerReboot(false)}
         actions={
           <>
-            <button type="button" class="btn" onClick={() => void answerReboot(false)}>
+            <button type="button" class="btn" disabled={saving} onClick={() => void answerReboot(false)}>
               {t("reboot.later")}
             </button>
             <button
               type="button"
               class="btn primary"
-              disabled={store.device.value.status !== "connected"}
+              disabled={saving || store.device.value.status !== "connected"}
               onClick={() => void answerReboot(true)}
             >
               {t("reboot.now")}
@@ -332,6 +347,7 @@ export function Send() {
       >
         <p>{t("reboot.ask")}</p>
         {state.phase === "done" && state.radioChanged ? <p class="sub">{t("reboot.radioHint")}</p> : null}
+        {saving ? <p class="sub">{t("reboot.savingAcl")}</p> : null}
       </Dialog>
     </div>
   );

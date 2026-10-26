@@ -194,7 +194,7 @@ describe("Device tools drawer: backup", () => {
     cleanup();
     render(<AccessList />);
     expect(screen.getByText("removed")).toBeTruthy();
-    expect(screen.getByText("1 change")).toBeTruthy();
+    expect(screen.getByText("1 Change")).toBeTruthy();
     expect(screen.getByRole("button", { name: /^Undo the removal/ })).toBeTruthy();
   });
 

@@ -34,11 +34,12 @@ const ticked = (plan: Plan) => new Set(checkupLines(plan, PLACES).filter((l) => 
 describe("checkupLines", () => {
   it("lists each difference once, in group order", () => {
     const lines = checkupLines(P, PLACES);
-    expect(lines.map((l) => l.id)).toEqual(["name", "dutycycle", "hops", "loopDetect", "timing", "regions"]);
-    expect(lines.map((l) => l.group)).toEqual(["name", "radio", "advertising", "repeating", "timing", "regions"]);
+    expect(lines.map((l) => l.id)).toEqual(["name", "dutycycle", "hops", "floodMax", "loopDetect", "timing", "regions"]);
+    expect(lines.map((l) => l.group)).toEqual(["name", "radio", "advertising", "advertising", "repeating", "timing", "regions"]);
     const byId = Object.fromEntries(lines.map((l) => [l.id, l]));
     expect([byId.hops.from, byId.hops.to]).toEqual(["Custom (12 / 8)", "Average (8 / 12)"]);
-    expect([byId.timing.from, byId.timing.to]).toEqual(["Custom (0.5 / 0.2 / 0)", "Suburban (0.8 / 0.4 / 3)"]);
+    expect([byId.timing.from, byId.timing.to]).toEqual(["Custom (0.5 / 0.2)", "Suburban (0.8 / 0.4)"]);
+    expect([byId.floodMax.from, byId.floodMax.to]).toEqual(["64", "18"]);
     expect(byId.timing.noteKey).toBe("checkup.timingNote");
     expect([byId.dutycycle.from, byId.dutycycle.to]).toEqual(["50 %", "10 %"]);
     expect([byId.loopDetect.from, byId.loopDetect.to]).toEqual(["Off", "Minimal"]);
@@ -54,7 +55,10 @@ describe("checkupLines", () => {
     });
     const plan = planFromSnapshot(s, PLACES);
     expect([plan.settings.txdelay, plan.settings.directTxdelay, plan.settings.rxdelay]).toEqual([0.8, 0.4, 3]);
-    expect(checkupLines(plan, PLACES).map((l) => l.id)).not.toContain("timing");
+    const lines = checkupLines(plan, PLACES);
+    expect(lines.map((l) => l.id)).not.toContain("timing");
+    // RX delay is a line of its own: #BEmesh leaves it off.
+    expect(lines.find((l) => l.id === "rxdelay")).toMatchObject({ group: "timing", from: "3", to: "0", ticked: true });
   });
 
   it("the name is listed, not ticked, with its note", () => {
@@ -92,8 +96,8 @@ describe("checkupLines", () => {
       ticked: false,
       noteKey: "checkup.needLocation",
     });
-    expect(lines.map((l) => l.id)).toEqual(["dutycycle", "hops", "loopDetect", "timing", "regions"]);
-    expect(checkupCounts(lines).total).toBe(4);
+    expect(lines.map((l) => l.id)).toEqual(["dutycycle", "hops", "floodMax", "loopDetect", "timing", "regions"]);
+    expect(checkupCounts(lines).total).toBe(5);
   });
 
   it("nothing differs: no lines", () => {
@@ -121,7 +125,7 @@ describe("applyCheckup", () => {
     const next = applyCheckup(P, PLACES, new Set(["dutycycle", "timing"]));
     expect(next).toEqual({
       ...P,
-      settings: { ...P.settings, dutycycle: "10", txdelay: 0.8, directTxdelay: 0.4, rxdelay: 3 },
+      settings: { ...P.settings, dutycycle: "10", txdelay: 0.8, directTxdelay: 0.4 },
     });
     expect(next.regions).toBe(P.regions);
   });
@@ -174,8 +178,8 @@ describe("keeping or discarding the repeater's own regions", () => {
 describe("checkupCounts", () => {
   it("checkupCounts", () => {
     expect(checkupCounts(checkupLines(P, PLACES))).toEqual({
-      total: 4,
-      perGroup: { radio: 1, advertising: 1, repeating: 1, timing: 1 },
+      total: 5,
+      perGroup: { radio: 1, advertising: 2, repeating: 1, timing: 1 },
       nameDiffers: true,
     });
     expect(checkupCounts([])).toEqual({ total: 0, perGroup: {}, nameDiffers: false });

@@ -7,11 +7,14 @@ import {
   BLOCKS,
   blockChanges,
   isBlockRecommended,
+  followHops,
   rawOf,
   recommendedFor,
   recommendedForAll,
   same,
+  setFloodMaxFollow,
   undoBlock,
+  withAllowance,
   type Block,
 } from "../core/blocks";
 import { checkOwnerInfo, OWNER_INFO_MAX } from "../core/naming";
@@ -21,6 +24,7 @@ import { siteOf, timingOf } from "../core/site";
 import { hasText, t } from "../i18n/t";
 import { busy, store, type Step } from "../state/store";
 import { AccessList } from "./settings/AccessList";
+import { ChangesBadge } from "./settings/ChangesBadge";
 import { MiniMap } from "./settings/MiniMap";
 import { RadioFields } from "./settings/RadioFields";
 import { RepeaterValue } from "./settings/RepeaterValue";
@@ -29,9 +33,11 @@ import { TimingPreset } from "./settings/TimingPreset";
 // Owner info is on the Name step and the passwords on Send; only the blocks are here.
 const keysOf = (block: Block) => SETTINGS.filter((d) => d.card === block);
 
+/** Hop limits typed onto a preset carry max flood hops along when it follows; a max flood hops of its own stops following. */
 const setSetting = (key: SettingKey, value: string | number) => {
   const plan = store.plan.peek();
-  store.plan.value = { ...plan, settings: { ...plan.settings, [key]: value } };
+  const next = { ...plan, settings: { ...plan.settings, [key]: value } };
+  store.plan.value = key === "floodMax" ? { ...next, floodMaxFollow: false } : followHops(next);
 };
 
 /** Differs from the start plan; the admin password counts as soon as it holds text (it is never read). */
@@ -40,19 +46,13 @@ function isChanged(plan: Plan, start: Plan, key: SettingKey): boolean {
   return !same(rawOf(plan, key), rawOf(start, key));
 }
 
-type CardState = { kind: "unchanged" } | { kind: "recommended" } | { kind: "changes"; count: number };
-
-/** A block's badge: changes counted against the start plan, "recommended" when its button would change nothing. */
-function blockState(plan: Plan, start: Plan, block: Block): CardState {
-  const count = blockChanges(plan, start, block);
-  if (count === 0) return { kind: "unchanged" };
-  return isBlockRecommended(plan, block) ? { kind: "recommended" } : { kind: "changes", count };
-}
-
-function Badge({ state }: { state: CardState }) {
-  if (state.kind === "unchanged") return <span class="badge">{t("settings.badge.unchanged")}</span>;
-  if (state.kind === "recommended") return <span class="badge ok">{t("settings.badge.recommended")}</span>;
-  return <span class="badge warn">{t("changes", { count: state.count })}</span>;
+/** "#BEmesh Recommended": green and off when it would change nothing, orange when it would. */
+function RecommendButton({ done, label, onApply }: { done: boolean; label: string; onApply: () => void }) {
+  return (
+    <button type="button" class={`btn tiny rec ${done ? "done" : "todo"}`} disabled={done} onClick={onApply}>
+      {label}
+    </button>
+  );
 }
 
 function Segmented({ def, value }: { def: SettingDef; value: string }) {
@@ -198,7 +198,7 @@ function BlockFields({ block }: { block: Block }) {
         <FineTune open={allowanceOf(plan) === null} keys={HOPS}>
           {fields(HOPS)}
         </FineTune>
-        {fields(["floodMax"])}
+        <FloodMaxField def={defs.find((d) => d.key === "floodMax")!} />
       </>
     );
   }
@@ -222,6 +222,39 @@ function BlockFields({ block }: { block: Block }) {
   );
 }
 
+/** Max flood hops with its "Follow hop preset" switch; while it follows, the field shows the preset's value. */
+function FloodMaxField({ def }: { def: SettingDef }) {
+  const plan = store.plan.value;
+  const follow = !!plan.floodMaxFollow;
+  return (
+    <SettingField
+      def={def}
+      control={(invalid) => (
+        <>
+          <input
+            id="set-floodMax"
+            type="text"
+            inputMode="decimal"
+            aria-invalid={invalid || undefined}
+            readOnly={follow}
+            value={rawOf(plan, "floodMax")}
+            onInput={(e) => setSetting("floodMax", e.currentTarget.value)}
+          />
+          <label class="toggle">
+            <input
+              type="checkbox"
+              role="switch"
+              checked={follow}
+              onChange={(e) => (store.plan.value = setFloodMaxFollow(store.plan.peek(), e.currentTarget.checked))}
+            />
+            {t("settings.floodMaxFollow")}
+          </label>
+        </>
+      )}
+    />
+  );
+}
+
 function Pills() {
   const current = allowanceOf(store.plan.value);
   return (
@@ -236,18 +269,7 @@ function Pills() {
             class="pill"
             key={k}
             aria-pressed={current === k}
-            onClick={() => {
-              const [unscoped, advert] = FLOOD_ALLOWANCE[k];
-              const plan = store.plan.peek();
-              store.plan.value = {
-                ...plan,
-                settings: {
-                  ...plan.settings,
-                  floodMaxUnscoped: unscoped,
-                  floodMaxAdvert: advert,
-                },
-              };
-            }}
+            onClick={() => (store.plan.value = withAllowance(store.plan.peek(), k))}
           >
             {t(`settings.allowance.${k}`, {
               pair: `${FLOOD_ALLOWANCE[k][0]}/${FLOOD_ALLOWANCE[k][1]}`,
@@ -270,15 +292,12 @@ function BlockCard({ block }: { block: Block }) {
     <section class={`card card-${block}`}>
       <header class="card-head">
         <h3>{name}</h3>
-        <Badge state={blockState(plan, start, block)} />
-        <button
-          type="button"
-          class="btn tiny"
-          disabled={isBlockRecommended(plan, block)}
-          onClick={() => (store.plan.value = recommendedFor(store.plan.peek(), block))}
-        >
-          {t("settings.recommend")}
-        </button>
+        <RecommendButton
+          done={isBlockRecommended(plan, block)}
+          label={t("settings.recommend")}
+          onApply={() => (store.plan.value = recommendedFor(store.plan.peek(), block))}
+        />
+        <ChangesBadge count={changes} />
         {changes > 0 ? (
           <button
             type="button"
@@ -327,13 +346,11 @@ export function SettingsStep() {
     <div class="panel-body step-settings">
       <div class="step-head">
         <h2>{t("settings.title")}</h2>
-        <button
-          type="button"
-          class="btn small"
-          onClick={() => (store.plan.value = recommendedForAll(store.plan.peek()))}
-        >
-          {t("settings.recommendAll")}
-        </button>
+        <RecommendButton
+          done={BLOCKS.every((b) => isBlockRecommended(store.plan.value, b))}
+          label={t("settings.recommendAll")}
+          onApply={() => (store.plan.value = recommendedForAll(store.plan.peek()))}
+        />
       </div>
       <p class="sub">{t("settings.sub")}</p>
       <div class="settings-layout">

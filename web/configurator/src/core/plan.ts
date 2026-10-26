@@ -36,7 +36,7 @@ import {
   type RegionPolicy,
 } from "./regions";
 import type { Place } from "./search";
-import { FLOOD_ALLOWANCE, SETTINGS, validateSetting, type SettingKey, type ValidateResult } from "./settings";
+import { FLOOD_ALLOWANCE, FLOOD_MAX, hopLevel, SETTINGS, validateSetting, type SettingKey, type ValidateResult } from "./settings";
 
 export type Radio = { freq: number; sf: number; bw: number; cr: number };
 export type AdvertLoc = "none" | "prefs" | "share";
@@ -57,6 +57,8 @@ export type Plan = {
   regions: RegionPolicy | null;
   /** The repeater's access list as read; absent when it was not read. */
   acl?: AclEntry[];
+  /** Max flood hops follows the hop preset (FLOOD_MAX); not a repeater setting. */
+  floodMaxFollow?: boolean;
 };
 
 export type DeviceSnapshot = {
@@ -113,7 +115,15 @@ export function defaultPlan(): Plan {
 export function newPlan(): Plan {
   const plan = defaultPlan();
   const [floodMaxUnscoped, floodMaxAdvert] = FLOOD_ALLOWANCE.average;
-  Object.assign(plan.settings, { txdelay: 0.8, directTxdelay: 0.4, rxdelay: 3, floodMaxUnscoped, floodMaxAdvert });
+  Object.assign(plan.settings, {
+    txdelay: 0.8,
+    directTxdelay: 0.4,
+    rxdelay: 0,
+    floodMaxUnscoped,
+    floodMaxAdvert,
+    floodMax: FLOOD_MAX.average,
+  });
+  plan.floodMaxFollow = true;
   return plan;
 }
 
@@ -514,6 +524,8 @@ export function planFromSnapshot(s: DeviceSnapshot, places: Place[]): Plan {
 
   if (s.radio) plan.radio = { ...s.radio };
   plan.settings = { ...plan.settings, ...s.settings };
+  const level = hopLevel(plan.settings.floodMaxUnscoped, plan.settings.floodMaxAdvert);
+  plan.floodMaxFollow = !!level && Number(plan.settings.floodMax) === FLOOD_MAX[level];
   if (hasValidCoords(s.lat, s.lon)) plan.location = { lat: s.lat!, lon: s.lon! };
   if (s.advertLoc) plan.advertLoc = s.advertLoc;
   if (s.acl) plan.acl = s.acl.map((e) => ({ ...e }));

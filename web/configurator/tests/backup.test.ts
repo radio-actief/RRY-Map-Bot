@@ -146,6 +146,14 @@ describe("v2 export and import", () => {
     ]);
   });
 
+  it("round-trips the max flood hops follow switch and rejects a non-boolean", () => {
+    const plan = { ...defaultPlan(), floodMaxFollow: true };
+    expect(importBackup(JSON.parse(JSON.stringify(exportBackup(plan))), PLACES).floodMaxFollow).toBe(true);
+    const bad = JSON.parse(JSON.stringify(exportBackup(plan)));
+    bad.plan.floodMaxFollow = "yes";
+    expect(() => importBackup(bad, PLACES)).toThrow("backup.error.invalid");
+  });
+
   it("puts a free region whose parent is on neither at top level", () => {
     const start = importBackup(backup("neighbour-deny"), PLACES);
     const regions = addFreeRegion(setRowState(start.regions!, "be-wht", "allow"), "zone", "be-wht");

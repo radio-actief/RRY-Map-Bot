@@ -1,8 +1,8 @@
 /** Setting blocks: the five groups the guided flow recommends, counts and undoes as one. */
 import type { Plan } from "./plan";
 import { BEMESH_PRESET_TITLE, RADIO_PRESETS, type RadioPreset } from "./presets";
-import { FLOOD_ALLOWANCE, SETTINGS, type SettingDef, type SettingKey } from "./settings";
-import { SITE_PROFILES, siteOf, timingOf, withTiming, type SiteProfile } from "./site";
+import { FLOOD_ALLOWANCE, FLOOD_MAX, hopLevel, SETTINGS, type HopLevel, type SettingDef, type SettingKey } from "./settings";
+import { SITE_PROFILES, withTiming } from "./site";
 
 export type Block = "radio" | "advertising" | "repeating" | "timing" | "advanced";
 export const BLOCKS: Block[] = ["radio", "advertising", "repeating", "timing", "advanced"];
@@ -28,13 +28,25 @@ export const sameRadio = (a: Plan["radio"], b: Plan["radio"]) =>
 export const rawOf = (plan: Plan, key: SettingKey): string => String(plan.settings[key] ?? BY_KEY.get(key)!.formDefault ?? "");
 
 /** The hop allowance level whose pair the plan holds, if any. */
-export function allowanceOf(plan: Plan): keyof typeof FLOOD_ALLOWANCE | null {
-  const found = (Object.keys(FLOOD_ALLOWANCE) as (keyof typeof FLOOD_ALLOWANCE)[]).find(
-    (k) =>
-      same(rawOf(plan, "floodMaxUnscoped"), FLOOD_ALLOWANCE[k][0]) &&
-      same(rawOf(plan, "floodMaxAdvert"), FLOOD_ALLOWANCE[k][1]),
-  );
-  return found ?? null;
+export function allowanceOf(plan: Plan): HopLevel | null {
+  return hopLevel(rawOf(plan, "floodMaxUnscoped"), rawOf(plan, "floodMaxAdvert"));
+}
+
+/** Max flood hops set to the hop preset's while the plan follows it and the hop limits match one. */
+export function followHops(plan: Plan): Plan {
+  const level = plan.floodMaxFollow ? allowanceOf(plan) : null;
+  return level ? { ...plan, settings: { ...plan.settings, floodMax: FLOOD_MAX[level] } } : plan;
+}
+
+/** The plan on a hop preset (and its max flood hops, when following). */
+export function withAllowance(plan: Plan, level: HopLevel): Plan {
+  const [floodMaxUnscoped, floodMaxAdvert] = FLOOD_ALLOWANCE[level];
+  return followHops({ ...plan, settings: { ...plan.settings, floodMaxUnscoped, floodMaxAdvert } });
+}
+
+/** Follow the hop preset for max flood hops, or not; turning it off keeps the value. */
+export function setFloodMaxFollow(plan: Plan, on: boolean): Plan {
+  return followHops({ ...plan, floodMaxFollow: on });
 }
 
 /** The plan with a preset's values and no custom state. */
@@ -54,21 +66,10 @@ export function recommendedFor(plan: Plan, block: Block): Plan {
     return withSettings(withPreset(plan, BEMESH_RADIO), { dutycycle: "10" });
   }
   if (block === "advertising") {
-    const [unscoped, advert] = FLOOD_ALLOWANCE.average;
-    return withSettings(plan, {
-      floodAdvertHours: 47,
-      advertIntervalMinutes: 0,
-      floodMaxUnscoped: unscoped,
-      floodMaxAdvert: advert,
-      floodMax: 64,
-    });
+    return withAllowance({ ...withSettings(plan, { floodAdvertHours: 47, advertIntervalMinutes: 0 }), floodMaxFollow: true }, "average");
   }
   if (block === "repeating") return withSettings(plan, { repeat: "on", loopDetect: "minimal" });
-  if (block === "timing") {
-    const choice = siteOf(timingOf(plan));
-    const profile: SiteProfile = choice in SITE_PROFILES ? (choice as SiteProfile) : "suburban";
-    return withTiming(plan, { ...SITE_PROFILES[profile] });
-  }
+  if (block === "timing") return withTiming(plan, { ...SITE_PROFILES.suburban, rxdelay: 0 });
   return withSettings(plan, { pathHashMode: "1", radioRxgain: "on", intThresh: 0, agcResetInterval: 0, multiAcks: "0" });
 }
 
@@ -98,6 +99,10 @@ export function undoBlock(plan: Plan, start: Plan, block: Block): Plan {
     else delete settings[k];
   }
   const next: Plan = { ...plan, settings };
+  if (block === "advertising") {
+    const { floodMaxFollow: _follow, ...rest } = next;
+    return start.floodMaxFollow === undefined ? rest : { ...rest, floodMaxFollow: start.floodMaxFollow };
+  }
   if (block !== "radio") return next;
   const { radioText: _text, radioCustom: _custom, ...rest } = next;
   return {

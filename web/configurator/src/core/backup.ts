@@ -98,6 +98,7 @@ function planFromV2(raw: unknown): Plan {
     oneOf(raw.advertLoc, ["none", "prefs", "share"]) &&
     (raw.location === null || (isObject(raw.location) && isNum(raw.location.lat) && isNum(raw.location.lon))) &&
     validAnchor(raw.anchor) &&
+    (raw.floodMaxFollow === undefined || typeof raw.floodMaxFollow === "boolean") &&
     (raw.regions === null ||
       (isObject(raw.regions) &&
         Array.isArray(raw.regions.rows) &&

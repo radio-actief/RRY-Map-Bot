@@ -77,9 +77,9 @@ describe("Settings step", () => {
 
   it("badges: unchanged, then a change count, and the changed field is outlined", () => {
     render(<SettingsStep />);
-    expect(within(card("Adverts & hops")).getByText("unchanged")).toBeTruthy();
+    expect(within(card("Adverts & hops")).getByText("Unchanged")).toBeTruthy();
     type("Flood advert (hours)", "12");
-    expect(within(card("Adverts & hops")).getByText("1 change")).toBeTruthy();
+    expect(within(card("Adverts & hops")).getByText("1 Change")).toBeTruthy();
     expect(fieldOf("Flood advert (hours)").classList.contains("changed")).toBe(true);
   });
 
@@ -123,7 +123,8 @@ describe("Settings step", () => {
     expect(store.plan.value.settings.floodMaxUnscoped).toBe(8);
     expect(store.plan.value.settings.floodMaxAdvert).toBe(12);
     expect(store.plan.value.settings.loopDetect).toBe("strict");
-    expect(within(card("Adverts & hops")).getByText("recommended ✓")).toBeTruthy();
+    const button = within(card("Adverts & hops")).getByRole("button", { name: "#BEmesh Recommended" });
+    expect(button.classList.contains("done")).toBe(true);
   });
 
   it("the all button sets every block and leaves the guest password alone", () => {
@@ -151,7 +152,7 @@ describe("Settings step", () => {
     fireEvent.click(undo);
     expect(store.plan.value.settings.loopDetect).toBe("minimal");
     expect(store.plan.value.settings.floodAdvertHours).toBe("12");
-    expect(within(card("Repeating")).getByText("unchanged")).toBeTruthy();
+    expect(within(card("Repeating")).getByText("Unchanged")).toBeTruthy();
     expect(within(card("Repeating")).queryByRole("button", { name: /Undo/ })).toBeNull();
   });
 
@@ -163,49 +164,80 @@ describe("Settings step", () => {
     store.startPlan.value = imported;
     render(<SettingsStep />);
     const adverts = card("Adverts & hops");
-    expect(within(adverts).getByText("unchanged")).toBeTruthy();
+    expect(within(adverts).getByText("Unchanged")).toBeTruthy();
     expect(fieldOf("Max flood hops").classList.contains("changed")).toBe(false);
     type("Max flood hops", "64");
-    expect(within(adverts).getByText("1 change")).toBeTruthy();
+    expect(within(adverts).getByText("1 Change")).toBeTruthy();
     expect(fieldOf("Max flood hops").classList.contains("changed")).toBe(true);
     fireEvent.click(within(adverts).getByRole("button", { name: "Undo the changes in Adverts & hops" }));
     expect(store.plan.value.settings.floodMax).toBe(32);
-    expect(within(adverts).getByText("unchanged")).toBeTruthy();
+    expect(within(adverts).getByText("Unchanged")).toBeTruthy();
   });
 
-  it("a block with changes that match its recommendation reads recommended, and its button is off", () => {
-    const imported = { ...newPlan(), settings: { ...newPlan().settings, floodMax: 32 } };
+  it("the header reads #BEmesh Recommended (orange, then green), the badge, then ↺ only with changes", () => {
+    const imported = { ...newPlan(), floodMaxFollow: false, settings: { ...newPlan().settings, floodMax: 32 } };
     store.plan.value = imported;
     store.startPlan.value = imported;
     render(<SettingsStep />);
-    const adverts = card("Adverts & hops");
-    const recommend = within(adverts).getByRole("button", { name: "#BEmesh Recommended" });
+    const head = card("Adverts & hops").querySelector(".card-head") as HTMLElement;
+    const recommend = within(head).getByRole("button", { name: "#BEmesh Recommended" });
+    expect(recommend.classList.contains("todo")).toBe(true);
     expect(recommend.hasAttribute("disabled")).toBe(false);
-    type("Max flood hops", "64");
-    expect(within(adverts).getByText("recommended ✓")).toBeTruthy();
-    expect(within(adverts).getByRole("button", { name: "Undo the changes in Adverts & hops" })).toBeTruthy();
+    expect([...head.children].map((c) => c.textContent)).toEqual(["Adverts & hops", "#BEmesh Recommended", "Unchanged"]);
+    // Following the preset puts max flood hops on Average's 18: the card now matches the recommendation.
+    fireEvent.click(within(card("Adverts & hops")).getByRole("switch", { name: "Follow hop preset" }));
+    expect([...head.children].map((c) => c.textContent)).toEqual(["Adverts & hops", "#BEmesh Recommended", "1 Change", "↺"]);
+    expect(recommend.classList.contains("done")).toBe(true);
     expect(recommend.hasAttribute("disabled")).toBe(true);
+    // The badge is a label only.
+    expect(within(head).getByText("1 Change").tagName).toBe("SPAN");
+  });
+
+  it("max flood hops follows the hop preset while its switch is on", () => {
+    resetPlan(newPlan());
+    render(<SettingsStep />);
+    const follow = screen.getByRole("switch", { name: "Follow hop preset" }) as HTMLInputElement;
+    const field = screen.getByLabelText("Max flood hops") as HTMLInputElement;
+    expect(follow.checked).toBe(true);
+    expect(field.readOnly).toBe(true);
+    expect(field.value).toBe("18");
+    fireEvent.click(screen.getByRole("button", { name: "Extended 16/24" }));
+    expect(store.plan.value.settings.floodMax).toBe(32);
+    fireEvent.click(follow);
+    expect(field.readOnly).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "Tight 2/3" }));
+    expect(store.plan.value.settings.floodMax).toBe(32);
+    type("Max flood hops", "40");
+    expect(store.plan.value.settings.floodMax).toBe("40");
+  });
+
+  it("the all button is green once every card follows the recommendation", () => {
+    render(<SettingsStep />);
+    const all = screen.getByRole("button", { name: "#BEmesh Recommended for all" });
+    expect(all.classList.contains("todo")).toBe(true);
+    fireEvent.click(all);
+    expect(all.classList.contains("done")).toBe(true);
   });
 
   it("a fresh app shows every block unchanged and no field outlined", () => {
     resetPlan(newPlan());
     render(<SettingsStep />);
     for (const name of ["Radio", "Adverts & hops", "Repeating", "Site & timing", "Advanced"]) {
-      expect(within(card(name)).getByText("unchanged")).toBeTruthy();
+      expect(within(card(name)).getByText("Unchanged")).toBeTruthy();
       expect(within(card(name)).queryByText(/\d+ changes?$/)).toBeNull();
     }
     expect(document.querySelectorAll(".field.changed").length).toBe(0);
   });
 
-  it("the Site & timing card: Hilltop sets 2 / 2 / 3, typed timing shows Custom and opens Fine-tune", () => {
+  it("the Site & timing card: Hilltop sets 2 / 2 and leaves RX delay, typed timing shows Custom and opens Fine-tune", () => {
     render(<SettingsStep />);
     const site = card("Site & timing");
     expect(within(site).getByText("Timing preset")).toBeTruthy();
     expect(within(card("Adverts & hops")).getByText("Hop allowance preset (unscoped / advert)")).toBeTruthy();
     const fold = within(site).getByText("Fine-tune").closest("details") as HTMLDetailsElement;
     fireEvent.click(within(site).getByRole("button", { name: "Hilltop" }));
-    expect(store.plan.value.settings).toMatchObject({ txdelay: 2, directTxdelay: 2, rxdelay: 3 });
-    expect(within(fold).getByText("2 / 2 / 3")).toBeTruthy();
+    expect(store.plan.value.settings).toMatchObject({ txdelay: 2, directTxdelay: 2, rxdelay: 0 });
+    expect(within(fold).getByText("2 / 2 / 0")).toBeTruthy();
     expect(fold.open).toBe(false);
     expect(within(site).getByRole("button", { name: "Custom" }).getAttribute("aria-pressed")).toBe("false");
     type("Flood delay factor", "0.6");
@@ -251,7 +283,7 @@ describe("Settings step", () => {
   it("the Radio ↺ restores the start radio after choosing Australia", () => {
     render(<SettingsStep />);
     fireEvent.change(screen.getByLabelText("Preset"), { target: { value: "Australia" } });
-    expect(within(card("Radio")).getByText("1 change")).toBeTruthy();
+    expect(within(card("Radio")).getByText("1 Change")).toBeTruthy();
     fireEvent.click(within(card("Radio")).getByRole("button", { name: "Undo the changes in Radio" }));
     expect(store.plan.value.radio).toEqual(defaultPlan().radio);
     expect((screen.getByLabelText("Preset") as HTMLSelectElement).value).toBe("EU/UK (Narrow)");
@@ -431,7 +463,7 @@ describe("Access list card", () => {
     fireEvent.click(within(list()).getAllByRole("button", { name: /^Remove/ })[1]);
     expect(store.plan.value.acl).toEqual([{ key: K1, role: 3 }]);
     expect(within(list()).getByText("removed")).toBeTruthy();
-    expect(within(list()).getByText("1 change")).toBeTruthy();
+    expect(within(list()).getByText("1 Change")).toBeTruthy();
     fireEvent.click(within(list()).getByRole("button", { name: /^Undo the removal/ }));
     expect(store.plan.value.acl).toEqual([{ key: K1, role: 3 }, { key: K2, role: 1 }]);
     expect(within(list()).queryByText("removed")).toBeNull();
@@ -466,13 +498,13 @@ describe("Access list card", () => {
 
   it("the badge counts the changes and ↺ resets to what was read", () => {
     render(<SettingsStep />);
-    expect(within(list()).getByText("unchanged")).toBeTruthy();
+    expect(within(list()).getByText("Unchanged")).toBeTruthy();
     fireEvent.click(within(list()).getAllByRole("button", { name: /^Remove/ })[0]);
     fireEvent.change(within(list()).getAllByRole("combobox")[1], { target: { value: "2" } });
-    expect(within(list()).getByText("2 changes")).toBeTruthy();
+    expect(within(list()).getByText("2 Changes")).toBeTruthy();
     fireEvent.click(within(list()).getByRole("button", { name: "Reset the access list to what was read" }));
     expect(store.plan.value.acl).toEqual(store.snapshot.value!.acl);
-    expect(within(list()).getByText("unchanged")).toBeTruthy();
+    expect(within(list()).getByText("Unchanged")).toBeTruthy();
   });
 
   it("at 32 entries the card warns", () => {
@@ -507,7 +539,7 @@ describe("Access list card", () => {
     render(<SettingsStep />);
     expect(within(list()).getByText("removed")).toBeTruthy();
     expect(within(list()).getByText("new")).toBeTruthy();
-    expect(within(list()).getByText("2 changes")).toBeTruthy();
+    expect(within(list()).getByText("2 Changes")).toBeTruthy();
     fireEvent.click(within(list()).getByRole("button", { name: "Reset the access list to what was read" }));
     expect(store.plan.value.acl).toEqual(store.snapshot.value!.acl);
   });

@@ -4,12 +4,26 @@ import { recommendedForAll } from "../src/core/blocks";
 import { defaultPlan } from "../src/core/plan";
 import { presetForRadio } from "../src/core/presets";
 import * as settings from "../src/core/settings";
-import { FLOOD_ALLOWANCE, SETTINGS, adminPasswordCliLine, validateSetting } from "../src/core/settings";
+import { FLOOD_ALLOWANCE, FLOOD_MAX, SETTINGS, adminPasswordCliLine, hopLevel, validateSetting } from "../src/core/settings";
 
 const err = (key: Parameters<typeof validateSetting>[0], raw: string) => {
   const r = validateSetting(key, raw);
   return r.ok ? null : r.errorKey;
 };
+
+describe("hop presets", () => {
+  it("gives each level its max flood hops", () => {
+    expect(FLOOD_MAX).toEqual({ tight: 5, minimal: 10, average: 18, extended: 32, full: 64 });
+    expect(Object.keys(FLOOD_MAX)).toEqual(Object.keys(FLOOD_ALLOWANCE));
+  });
+
+  it("names the level of a hop pair, numerically, or null", () => {
+    expect(hopLevel(8, 12)).toBe("average");
+    expect(hopLevel("16", "24.0")).toBe("extended");
+    expect(hopLevel(8, 8)).toBeNull();
+    expect(hopLevel("", 12)).toBeNull();
+  });
+});
 
 describe("validateSetting", () => {
   it("rounds the zero-hop advert interval to an even number", () => {
@@ -141,7 +155,7 @@ describe("SETTINGS registry", () => {
       dutycycle: "10",
       floodAdvertHours: 47,
       advertIntervalMinutes: 0,
-      floodMax: 64,
+      floodMax: 18,
       pathHashMode: "1",
       loopDetect: "minimal",
     });

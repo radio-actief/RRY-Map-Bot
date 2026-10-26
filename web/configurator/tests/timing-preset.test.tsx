@@ -34,10 +34,11 @@ describe("Timing preset", () => {
     expect(screen.getByText(/A typical rooftop covering your own neighbourhood\. 5–10 neighbours/)).toBeTruthy();
   });
 
-  it("Hilltop sets 2 / 2 / 3", () => {
+  it("Hilltop sets 2 / 2 and leaves RX delay alone", () => {
+    resetPlan({ ...newPlan(), settings: { ...newPlan().settings, rxdelay: 4 } });
     render(<TimingPreset />);
     fireEvent.click(pill("Hilltop"));
-    expect(timingOf(store.plan.value)).toEqual({ txdelay: 2, directTxdelay: 2, rxdelay: 3 });
+    expect(timingOf(store.plan.value)).toEqual({ txdelay: 2, directTxdelay: 2, rxdelay: 4 });
     expect(pill("Hilltop").getAttribute("aria-pressed")).toBe("true");
   });
 

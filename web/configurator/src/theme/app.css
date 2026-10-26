@@ -583,6 +583,8 @@ path.map-region-denied {
 
 .badge {
   display: inline-block;
+  cursor: default;
+  user-select: none;
   margin-left: 6px;
   padding: 1px 6px;
   border-radius: 6px;
@@ -598,6 +600,12 @@ path.map-region-denied {
 
 .badge.warn {
   color: var(--warn);
+  border-color: var(--warn);
+}
+
+.badge.changed {
+  color: var(--panel);
+  background: var(--warn);
   border-color: var(--warn);
 }
 
@@ -1068,6 +1076,21 @@ path.map-region-denied {
   padding: 2px 8px;
   border-radius: 999px;
   font-size: 11px;
+}
+
+.btn.rec.done,
+.btn.rec.done:disabled {
+  opacity: 1;
+  background: var(--ok);
+  border-color: var(--ok);
+  color: var(--panel);
+}
+
+.btn.rec.todo {
+  background: var(--warn);
+  border-color: var(--warn);
+  color: var(--panel);
+  font-weight: 600;
 }
 
 .icon.info {

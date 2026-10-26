@@ -24,7 +24,8 @@ export type CheckupLine = {
 };
 
 const HOPS: SettingKey[] = ["floodMaxUnscoped", "floodMaxAdvert"];
-const TIMING: SettingKey[] = ["txdelay", "directTxdelay", "rxdelay"];
+/** The timing line covers the two transmit delays (the site); RX delay gets a line of its own. */
+const TIMING: SettingKey[] = ["txdelay", "directTxdelay"];
 const BY_KEY = new Map(SETTINGS.map((d) => [d.key, d]));
 /** The settings the check-up covers: those of the blocks (no passwords, no owner info). */
 const BLOCK_KEYS = new Set<string>(BLOCKS.flatMap(blockKeys));
@@ -60,7 +61,7 @@ function timingText(plan: Plan): string {
   const timing = timingOf(plan);
   const choice = siteOf(timing);
   const site = choice in SITE_PROFILES ? t(`site.${choice}`) : t("site.custom");
-  return t("checkup.timing.value", { site, tx: timing.txdelay, direct: timing.directTxdelay, rx: timing.rxdelay });
+  return t("checkup.timing.value", { site, tx: timing.txdelay, direct: timing.directTxdelay });
 }
 
 const homeText = (p: RegionPolicy | null) => (p ? (homeRegionCode(p) ?? "*") : t("settings.none"));
@@ -208,7 +209,10 @@ export function applyCheckup(plan: Plan, places: Place[], ids: Set<string>, disc
     } else if (id === "regions" && plan.anchor) next = { ...next, regions: rec.regions };
     else if (id === "hops") take(HOPS);
     else if (id === "timing") take(TIMING);
-    else if (BLOCK_KEYS.has(id)) take([id as SettingKey]);
+    else if (id === "floodMax") {
+      take(["floodMax"]);
+      next = { ...next, floodMaxFollow: rec.floodMaxFollow };
+    } else if (BLOCK_KEYS.has(id)) take([id as SettingKey]);
   }
   return next;
 }

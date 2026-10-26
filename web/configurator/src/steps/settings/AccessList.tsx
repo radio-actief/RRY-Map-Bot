@@ -7,6 +7,7 @@ import { useState } from "preact/hooks";
 import { ACL_MAX, aclChanges, normaliseKey, type AclEntry, type AclRole } from "../../core/acl";
 import { t } from "../../i18n/t";
 import { editPlan, store } from "../../state/store";
+import { ChangesBadge } from "./ChangesBadge";
 
 const ROLES: AclRole[] = [3, 2, 1];
 const RESULTS_MAX = 8;
@@ -69,12 +70,7 @@ export function AccessList() {
           .slice(0, RESULTS_MAX)
       : [];
 
-  const badge =
-    changes === 0 ? (
-      <span class="badge">{t("settings.badge.unchanged")}</span>
-    ) : (
-      <span class="badge warn">{t("changes", { count: changes })}</span>
-    );
+  const badge = <ChangesBadge count={changes} />;
   const undo = (
     <>
       {badge}

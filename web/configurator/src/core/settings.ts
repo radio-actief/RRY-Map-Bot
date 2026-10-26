@@ -159,3 +159,15 @@ export const FLOOD_ALLOWANCE = {
   extended: [16, 24],
   full: [64, 64],
 };
+
+export type HopLevel = keyof typeof FLOOD_ALLOWANCE;
+
+/** Max flood hops per hop preset, for a plan that follows the preset. */
+export const FLOOD_MAX: Record<HopLevel, number> = { tight: 5, minimal: 10, average: 18, extended: 32, full: 64 };
+
+/** The hop preset a pair of hop limits matches (compared as numbers), or null. */
+export function hopLevel(unscoped: unknown, advert: unknown): HopLevel | null {
+  const num = (v: unknown) => (String(v ?? "").trim() === "" ? NaN : Number(v));
+  const [u, a] = [num(unscoped), num(advert)];
+  return (Object.keys(FLOOD_ALLOWANCE) as HopLevel[]).find((k) => FLOOD_ALLOWANCE[k][0] === u && FLOOD_ALLOWANCE[k][1] === a) ?? null;
+}

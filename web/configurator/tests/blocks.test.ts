@@ -6,6 +6,8 @@ import {
   BLOCKS,
   isBlockRecommended,
   recommendedFor,
+  setFloodMaxFollow,
+  withAllowance,
   recommendedForAll,
   undoBlock,
 } from "../src/core/blocks";
@@ -22,6 +24,11 @@ describe("a new plan's hop allowance", () => {
     const d = defaultPlan().settings;
     expect([d.floodMaxUnscoped, d.floodMaxAdvert]).toEqual([12, 8]);
     expect(allowanceOf(defaultPlan())).toBeNull();
+  });
+
+  it("a new plan follows the preset with max flood hops 18; the default plan keeps 64 without following", () => {
+    expect([newPlan().floodMaxFollow, newPlan().settings.floodMax]).toEqual([true, 18]);
+    expect([defaultPlan().floodMaxFollow, defaultPlan().settings.floodMax]).toEqual([undefined, 64]);
   });
 });
 
@@ -61,11 +68,12 @@ describe("blocks", () => {
     expect(r.radioCustom).toBeUndefined();
   });
 
-  it("timing keeps a known profile and falls back to Suburban", () => {
-    const hill = recommendedFor(withTiming(newPlan(), SITE_PROFILES.hilltop), "timing");
-    expect([hill.settings.txdelay, hill.settings.directTxdelay, hill.settings.rxdelay]).toEqual([2, 2, 3]);
+  it("timing recommends Suburban with RX delay 0, from any site", () => {
+    const hill = recommendedFor(withTiming(newPlan(), { ...SITE_PROFILES.hilltop, rxdelay: 3 }), "timing");
+    expect([hill.settings.txdelay, hill.settings.directTxdelay, hill.settings.rxdelay]).toEqual([0.8, 0.4, 0]);
+    expect(isBlockRecommended(withTiming(newPlan(), SITE_PROFILES.hilltop), "timing")).toBe(false);
     const odd = recommendedFor(withTiming(newPlan(), { txdelay: 0.6, directTxdelay: 0.2, rxdelay: 0 }), "timing");
-    expect([odd.settings.txdelay, odd.settings.directTxdelay, odd.settings.rxdelay]).toEqual([0.8, 0.4, 3]);
+    expect([odd.settings.txdelay, odd.settings.directTxdelay, odd.settings.rxdelay]).toEqual([0.8, 0.4, 0]);
   });
 
   it("advanced recommends its own settings and leaves the timing alone", () => {
@@ -75,11 +83,37 @@ describe("blocks", () => {
     expect([r.settings.txdelay, r.settings.directTxdelay, r.settings.rxdelay]).toEqual([0.6, 0.2, 0]);
   });
 
-  it("repeating recommends on / minimal; max flood hops 64 is in advertising", () => {
+  it("repeating recommends on / minimal; max flood hops follows the Average preset in advertising", () => {
     const plan = withSettings(defaultPlan(), { repeat: "off", floodMax: 10, loopDetect: "strict" });
     const r = recommendedFor(plan, "repeating");
     expect([r.settings.repeat, r.settings.floodMax, r.settings.loopDetect]).toEqual(["on", 10, "minimal"]);
-    expect(recommendedFor(plan, "advertising").settings.floodMax).toBe(64);
+    const a = recommendedFor(plan, "advertising");
+    expect(a.settings.floodMax).toBe(18);
+    expect(a.floodMaxFollow).toBe(true);
+  });
+
+  it("a hop preset sets max flood hops only while it follows the preset", () => {
+    const off = withAllowance({ ...defaultPlan(), floodMaxFollow: false }, "tight");
+    expect([off.settings.floodMaxUnscoped, off.settings.floodMaxAdvert, off.settings.floodMax]).toEqual([2, 3, 64]);
+    const on = withAllowance({ ...defaultPlan(), floodMaxFollow: true }, "extended");
+    expect([on.settings.floodMaxUnscoped, on.settings.floodMaxAdvert, on.settings.floodMax]).toEqual([16, 24, 32]);
+  });
+
+  it("turning follow on takes the preset's max flood hops; off keeps the value; no preset keeps it too", () => {
+    const plan = withSettings(defaultPlan(), { floodMaxUnscoped: 4, floodMaxAdvert: 6, floodMax: 40 });
+    const on = setFloodMaxFollow(plan, true);
+    expect([on.floodMaxFollow, on.settings.floodMax]).toEqual([true, 10]);
+    const off = setFloodMaxFollow(on, false);
+    expect([off.floodMaxFollow, off.settings.floodMax]).toEqual([false, 10]);
+    const odd = setFloodMaxFollow(withSettings(plan, { floodMaxUnscoped: 5 }), true);
+    expect([odd.floodMaxFollow, odd.settings.floodMax]).toEqual([true, 40]);
+  });
+
+  it("advertising undo puts back the follow switch too", () => {
+    const start = { ...defaultPlan(), floodMaxFollow: false };
+    const undone = undoBlock(recommendedFor(start, "advertising"), start, "advertising");
+    expect(undone.floodMaxFollow).toBe(false);
+    expect(undone.settings.floodMax).toBe(64);
   });
 
   it("recommendedForAll leaves passwords and owner info", () => {

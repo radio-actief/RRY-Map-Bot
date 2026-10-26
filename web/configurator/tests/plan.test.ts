@@ -143,6 +143,19 @@ describe("deviceRegionsFromSnapshot", () => {
 describe("planFromSnapshot", () => {
   const plan = planFromSnapshot(snapshotFromReplies(RONSE), PLACES);
 
+  it("follows the hop preset only when the read max flood hops is that preset's", () => {
+    // Ronse reads 12 / 8 (no preset) with 64.
+    expect(plan.floodMaxFollow).toBe(false);
+    const hops = (u: string, a: string, m: string) =>
+      planFromSnapshot(
+        snapshotFromReplies({ ...RONSE, "get flood.max.unscoped": u, "get flood.max.advert": a, "get flood.max": m }),
+        PLACES,
+      ).floodMaxFollow;
+    expect(hops("> 8", "> 12", "> 18")).toBe(true);
+    expect(hops("> 8", "> 12", "> 64")).toBe(false);
+    expect(hops("> 64", "> 64", "> 64")).toBe(true);
+  });
+
   it("finds the location, name suffix and power from the name (fake-port transcript)", () => {
     expect(plan.nameSuffix).toBe("Kluisberg");
     expect(plan.power).toBe("🌞");

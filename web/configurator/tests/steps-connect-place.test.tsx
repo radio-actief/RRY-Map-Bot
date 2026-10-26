@@ -24,7 +24,7 @@ import read from "./fixtures/read-ronse.json";
 const PLACES: PlaceRow[] = JSON.parse(readFileSync(resolve(__dirname, "../../../data/be-locode.json"), "utf8"));
 const MUNIS = JSON.parse(readFileSync(resolve(__dirname, "fixtures/municipalities-3.json"), "utf8"));
 const RONSE = PLACES.find((p) => p.city_code === "beron")!;
-const FAST = { interCommandDelayMs: 0, bootDrainMs: 0, disconnectSettleMs: 0, replyTimeoutMs: 40 };
+const FAST = { interCommandDelayMs: 0, bootDrainMs: 0, disconnectSettleMs: 0, replyTimeoutMs: 40, rawQuietMs: 30 };
 
 const type = (label: RegExp | string, value: string) =>
   fireEvent.input(screen.getByLabelText(label), { target: { value } });
@@ -112,6 +112,17 @@ describe("Connect step", () => {
     expect(store.deviceRegions.value?.named).toContain("bemak");
     expect(await screen.findByText(/Read 34 settings/)).toBeTruthy();
     expect(screen.getByText("BE-RON-Kluisberg🌞")).toBeTruthy();
+  });
+
+  it("Read keeps the repeater's access list in the snapshot and the plan", async () => {
+    const { link } = await connectedLink();
+    store.device.value = { status: "connected", link, firmware: "v1.17.1" };
+    render(<Connect />);
+    fireEvent.click(screen.getByRole("button", { name: "Read settings from repeater" }));
+    await waitFor(() => expect(store.snapshot.value).not.toBeNull());
+    const entry = [{ key: "a1".repeat(32), role: 3 }];
+    expect(store.snapshot.value?.acl).toEqual(entry);
+    expect(store.plan.value.acl).toEqual(entry);
   });
 
   it("Read over an edited plan asks first, and Skip leaves the plan alone", async () => {

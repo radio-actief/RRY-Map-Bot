@@ -7,6 +7,9 @@ function unknownReply(line: string): string {
   return "Unknown command";
 }
 
+/** Commands the firmware answers with bare lines: the echo, then the reply text verbatim, no "->" line. */
+const RAW_OUTPUT_COMMANDS = new Set(["get acl"]);
+
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 export type FakePortOptions = {
@@ -109,7 +112,8 @@ export class FakePort implements PortLike {
       const known = Object.prototype.hasOwnProperty.call(this.replies, line);
       const reply = known ? this.replies[line] : unknownReply(line);
       // the firmware prints nothing at all for an empty reply
-      this.emit(`${line}\r\n` + (reply === "" ? "" : `  -> ${reply}\r\n`), delay);
+      const framed = RAW_OUTPUT_COMMANDS.has(line) && known ? reply : reply === "" ? "" : `  -> ${reply}\r\n`;
+      this.emit(`${line}\r\n` + framed, delay);
     }
   }
 

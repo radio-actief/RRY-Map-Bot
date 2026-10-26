@@ -168,6 +168,22 @@ export function hasValidCoords(lat: unknown, lon: unknown): boolean {
   );
 }
 
+/**
+ * The firmware prints lat and lon as a float with 7 truncated decimals (51.412069 as 51.4120674):
+ * coordinates this close count as the same.
+ */
+const COORD_TOLERANCE = 1e-5;
+
+/** The plan's coordinates are the ones the repeater printed, within the firmware's float precision. */
+export function sameCoords(plan: { lat: number; lon: number }, lat: number | undefined, lon: number | undefined): boolean {
+  return (
+    lat !== undefined &&
+    lon !== undefined &&
+    Math.abs(plan.lat - lat) < COORD_TOLERANCE &&
+    Math.abs(plan.lon - lon) < COORD_TOLERANCE
+  );
+}
+
 /** The coordinates `set lat` / `set lon` send, or null when there are none or they are invalid. */
 export function sendableLocation(plan: Plan): { lat: number; lon: number } | null {
   const l = plan.location;
@@ -279,11 +295,12 @@ const floatOf = (s: string) => {
   return Number.isFinite(n) ? n : undefined;
 };
 
+/** `get radio`; the firmware prints the frequency as a float (869.618 as 869.6179809), so it is rounded to 3 decimals. */
 function parseRadio(s: string): Radio | undefined {
   const parts = s.split(",");
   if (parts.length < 4) return undefined;
   const r = {
-    freq: parseFloat(parts[0]),
+    freq: round3(parseFloat(parts[0])),
     bw: parseFloat(parts[1]),
     sf: parseInt(parts[2], 10),
     cr: parseInt(parts[3], 10),
@@ -549,7 +566,7 @@ export function summarize(
   }
 
   const location = sendableLocation(plan);
-  if (location) {
+  if (location && !(snapshot && sameCoords(location, snapshot.lat, snapshot.lon))) {
     const from =
       snapshot && hasValidCoords(snapshot.lat, snapshot.lon) ? coords(snapshot.lat!, snapshot.lon!) : undefined;
     add("location", "location", coords(location.lat, location.lon), from, true);

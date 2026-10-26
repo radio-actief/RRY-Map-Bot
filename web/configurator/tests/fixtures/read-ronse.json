@@ -1,6 +1,6 @@
 {
   "get name": "> BE-RON-Kluisberg🌞",
-  "get radio": "> 869.618,62.5,8,8",
+  "get radio": "> 869.6179809,62.5,8,8",
   "get repeat": "> on",
   "get owner.info": "> Kluisberg site|ops@example.org",
   "get guest.password": "> ",
@@ -20,8 +20,8 @@
   "get int.thresh": "> 0",
   "get agc.reset.interval": "> 0",
   "get multi.acks": "> 0",
-  "get lat": "> 50.74755",
-  "get lon": "> 3.60209",
+  "get lat": "> 50.7475509",
+  "get lon": "> 3.6020898",
   "gps advert": "> prefs",
   "region home": " home is beron",
   "region default": " default scope is be",

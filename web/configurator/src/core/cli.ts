@@ -10,6 +10,7 @@ import {
   formatRadio,
   isFirmwareDefault,
   radioIsFirmwareDefault,
+  sameCoords,
   sendableLocation,
   sendableName,
   settingValue,
@@ -112,7 +113,7 @@ export function buildScript(
 
   const location: string[] = [];
   const coords = sendableLocation(plan);
-  const coordsHeld = !!snap && !!coords && same(coords.lat, snap.lat) && same(coords.lon, snap.lon);
+  const coordsHeld = !!snap && !!coords && sameCoords(coords, snap.lat, snap.lon);
   if (coords && !coordsHeld) location.push(`set lat ${coords.lat}`, `set lon ${coords.lon}`);
   if ((includeDefaults || plan.advertLoc !== "prefs") && plan.advertLoc !== snap?.advertLoc) {
     location.push(`gps advert ${plan.advertLoc}`);

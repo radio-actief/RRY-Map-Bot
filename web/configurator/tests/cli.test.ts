@@ -213,6 +213,15 @@ describe("buildScript with a snapshot", () => {
     expect(sent({ ...p, advertLoc: "share" }, s)).toEqual(["gps advert share"]);
   });
 
+  it("the radio and location as the firmware prints them count as held", () => {
+    const s = snap();
+    expect(s.radio?.freq).toBe(869.618);
+    const p = { ...planOf(s), location: { lat: 51.412069, lon: 4.395 } };
+    const after = snapshotFromReplies({ ...replies, "get lat": "> 51.4120674", "get lon": "> 4.3949999" });
+    expect(sent(p, after)).toEqual([]);
+    expect(sent({ ...p, location: { lat: 51.41209, lon: 4.395 } }, after)).toEqual(["set lat 51.41209", "set lon 4.395"]);
+  });
+
   it("the access list group", () => {
     const s = snap();
     const p = planOf(s);

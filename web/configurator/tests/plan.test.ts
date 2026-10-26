@@ -75,7 +75,7 @@ describe("snapshotFromReplies", () => {
       txPower: 22,
       loopDetect: "minimal",
     });
-    expect([s.lat, s.lon, s.advertLoc]).toEqual([50.74755, 3.60209, "prefs"]);
+    expect([s.lat, s.lon, s.advertLoc]).toEqual([50.7475509, 3.6020898, "prefs"]);
     expect(s.regions).toEqual({
       home: "beron",
       default: "be",
@@ -104,6 +104,11 @@ describe("snapshotFromReplies", () => {
     expect(s.regions).toEqual({ allowed: [], denied: [] });
     expect(s.missing).toEqual(["get radio"]);
     expect(snapshotFromReplies({}).regions).toBeUndefined();
+  });
+
+  it("rounds the frequency the firmware prints as a float to 3 decimals", () => {
+    expect(snapshotFromReplies({ "get radio": "> 869.6179809,62.5,8,8" }).radio).toEqual({ freq: 869.618, sf: 8, bw: 62.5, cr: 8 });
+    expect(snapshotFromReplies({ "get radio": "> 869.5250244,250,11,5" }).radio?.freq).toBe(869.525);
   });
 
   it("ignores replies it cannot parse", () => {
@@ -136,7 +141,7 @@ describe("planFromSnapshot", () => {
     expect(plan.anchor?.place?.plaats).toBe("Ronse");
     expect(plan.prefixFormat).toBe("city");
     expect(planName(plan)).toBe("BE-RON-Kluisberg🌞");
-    expect(plan.location).toEqual({ lat: 50.74755, lon: 3.60209 });
+    expect(plan.location).toEqual({ lat: 50.7475509, lon: 3.6020898 });
   });
 
   it("takes radio and settings from the device", () => {
@@ -258,6 +263,19 @@ describe("summarize", () => {
     const p = { ...defaultPlan(), location: { lat: 95, lon: 3 } };
     expect(summarize(p).changes.map((c) => c.labelKey)).not.toContain("location");
     expect(summarize({ ...p, location: { lat: 50.5, lon: 3 } }).changes.map((c) => c.labelKey)).toContain("location");
+  });
+
+  it("compares the location within the firmware's float precision", () => {
+    const p = { ...defaultPlan(), location: { lat: 51.412069, lon: 4.395 } };
+    const read = snapshotFromReplies({ "get lat": "> 51.4120674", "get lon": "> 4.3949999" });
+    expect(summarize(p, read).changes.map((c) => c.labelKey)).not.toContain("location");
+    const moved = { ...p, location: { lat: 51.41209, lon: 4.395 } };
+    expect(summarize(moved, read).changes).toContainEqual({
+      group: "location",
+      labelKey: "location",
+      from: "51.4120674, 4.3949999",
+      to: "51.41209, 4.395",
+    });
   });
 
   it("an unchanged read lists no changes", () => {

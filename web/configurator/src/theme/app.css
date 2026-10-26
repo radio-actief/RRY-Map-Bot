@@ -1034,6 +1034,11 @@ path.map-region-denied {
   resize: vertical;
 }
 
+.field input[readonly] {
+  background: var(--bar);
+  color: var(--mut);
+}
+
 .field-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1308,6 +1313,15 @@ path.map-region-denied {
   align-items: center;
   gap: 6px;
   font-size: 12px;
+}
+
+.field .toggle {
+  margin-top: 4px;
+}
+
+.field .toggle input {
+  width: auto;
+  margin: 0;
 }
 
 .script,

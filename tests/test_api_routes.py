@@ -24,7 +24,7 @@ class TestStaticFiles(unittest.TestCase):
             "/index.html",
             "/favicon.ico",
             "/favicon-32.png",
-            "/css/style.css",
+            "/css/map.css",
             "/lib/leaflet.js",
             "/img/node_types/1.svg",
             "/src/map.js",

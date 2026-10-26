@@ -33,6 +33,7 @@ import { READ_BACK_COMMANDS, READ_COMMANDS } from "../src/device/repeater";
 import { SerialLink } from "../src/device/serial";
 import { Panel } from "../src/app/Panel";
 import { Send } from "../src/steps/Send";
+import { AccessList } from "../src/steps/settings/AccessList";
 import { connectUsb, disconnectUsb, readDevice } from "../src/state/device";
 import { chooseLocation, dirty, prefs, resetPlan, store } from "../src/state/store";
 import { FakePort } from "./fakes/fake-port";
@@ -523,6 +524,22 @@ describe("Send step: only the changes", () => {
     fireEvent.click(screen.getByRole("button", { name: "Apply to repeater" }));
     await screen.findByRole("button", { name: "Reboot now" });
     expect(port.received).toEqual(["ver", ...full, setperm, ...READ_BACK_COMMANDS]);
+  });
+
+  it("after an Apply whose read-back got no access list, the card asks for a Read", async () => {
+    afterRead((p) => ({ ...p, acl: [...(p.acl ?? []), { key: KEY_B, role: 3 }] }));
+    const setperm = `setperm ${KEY_B} 3`;
+    const { "get acl": _acl, ...noAcl } = read;
+    await connect({ ...noAcl, ...okReplies([setperm]) });
+    render(<Send />);
+    fireEvent.click(screen.getByRole("button", { name: "Apply 1 change to repeater" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Later" }));
+    expect(store.snapshot.value?.acl).toBeUndefined();
+    expect(store.plan.value.acl).toContainEqual({ key: KEY_B, role: 3 });
+    cleanup();
+    render(<AccessList />);
+    expect(screen.getByText("Read the repeater to see its access list.")).toBeTruthy();
+    expect(screen.queryByRole("combobox")).toBeNull();
   });
 
   it("without a Read the full script is sent", async () => {

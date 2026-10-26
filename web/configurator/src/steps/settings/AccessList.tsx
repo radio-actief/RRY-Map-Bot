@@ -1,4 +1,8 @@
-/** Access list card (Advanced): the keys that may manage the repeater, with add, role change, remove and undo. */
+/**
+ * Access list card (Advanced): the keys that may manage the repeater, with add, role change, remove
+ * and undo. The reference is the list the connected repeater holds (its Read or read-back); without
+ * it the card asks for a Read, since no change could be sent.
+ */
 import { useState } from "preact/hooks";
 import { ACL_MAX, aclChanges, normaliseKey, type AclEntry, type AclRole } from "../../core/acl";
 import { t } from "../../i18n/t";
@@ -11,7 +15,7 @@ const shorten = (key: string) => `${key.slice(0, 6)}…${key.slice(-6)}`;
 
 export function AccessList() {
   const plan = store.plan.value;
-  const start = store.startPlan.value.acl;
+  const read = store.snapshot.value?.acl;
   const nodes = store.data.value.nodes ?? [];
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -26,23 +30,23 @@ export function AccessList() {
     </section>
   );
 
-  if (!plan.acl) return card(<p class="sub">{t("acl.needRead")}</p>);
+  if (!read) return card(<p class="sub">{t("acl.needRead")}</p>);
 
-  const acl = plan.acl;
+  const acl = plan.acl ?? read;
   const names = new Map(nodes.map((n) => [n.public_key.toLowerCase(), n.adv_name]));
   const nameOf = (key: string) => names.get(key) || t("acl.unknown");
-  const changes = aclChanges(start, acl);
+  const changes = aclChanges(read, acl);
   const present = new Map(acl.map((e) => [e.key, e]));
-  const was = new Set((start ?? []).map((e) => e.key));
+  const was = new Set(read.map((e) => e.key));
   const rows = [
-    ...(start ?? []).map((s) => ({ entry: present.get(s.key) ?? s, removed: !present.has(s.key), isNew: false })),
+    ...read.map((s) => ({ entry: present.get(s.key) ?? s, removed: !present.has(s.key), isNew: false })),
     ...acl.filter((e) => !was.has(e.key)).map((entry) => ({ entry, removed: false, isNew: true })),
   ];
 
   const set = (list: AclEntry[]) => editPlan({ acl: list });
   const add = (key: string) => {
     if (present.has(key)) return setError(t("acl.duplicate"));
-    const old = (start ?? []).find((e) => e.key === key);
+    const old = read.find((e) => e.key === key);
     set([...acl, old ?? { key, role: 3 }]);
     setText("");
     setError(null);
@@ -80,7 +84,7 @@ export function AccessList() {
           class="icon undo"
           aria-label={t("acl.undo")}
           title={t("acl.undo")}
-          onClick={() => set((start ?? []).map((e) => ({ ...e })))}
+          onClick={() => set(read.map((e) => ({ ...e })))}
         >
           ↺
         </button>

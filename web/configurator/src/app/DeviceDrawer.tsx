@@ -227,10 +227,8 @@ function Drawer() {
     try {
       const plan = importBackup(JSON.parse(await file.text()), store.data.peek().places ?? []);
       // An import is an edit: the plan now differs from what the last Read gave. It is the new start plan.
-      const read = store.startPlan.peek().acl;
+      // The access list belongs to the repeater: the plan's (with its pending edits) stays.
       importPlan({ ...plan, acl: store.plan.peek().acl });
-      // The access list belongs to the repeater: its reference stays what was read.
-      if (read !== store.plan.peek().acl) store.startPlan.value = { ...store.startPlan.peek(), acl: read };
       store.notice.value = { kind: "ok", text: t("tools.imported") };
       close();
     } catch (err) {

@@ -335,8 +335,10 @@ describe("Access list card", () => {
   const K1 = "a".repeat(6) + "1".repeat(52) + "b".repeat(6);
   const K2 = "c".repeat(64);
   const K4 = "d4".repeat(32);
+  /** A Read of a repeater with this access list: the snapshot and the plan hold it. */
   const withAcl = (acl: AclEntry[]) => {
-    resetPlan({ ...defaultPlan(), acl });
+    store.snapshot.value = { settings: {}, missing: [], acl };
+    resetPlan({ ...defaultPlan(), acl: acl.map((e) => ({ ...e })) });
     store.data.value = {
       ...store.data.value,
       nodes: [{ public_key: K4.toUpperCase(), type: 1, adv_name: "BE-GNT-Pieter", adv_lat: 0, adv_lon: 0 }],
@@ -410,7 +412,7 @@ describe("Access list card", () => {
     fireEvent.change(within(list()).getAllByRole("combobox")[1], { target: { value: "2" } });
     expect(within(list()).getByText("2 changes")).toBeTruthy();
     fireEvent.click(within(list()).getByRole("button", { name: "Reset the access list to what was read" }));
-    expect(store.plan.value.acl).toEqual(store.startPlan.value.acl);
+    expect(store.plan.value.acl).toEqual(store.snapshot.value!.acl);
     expect(within(list()).getByText("unchanged")).toBeTruthy();
   });
 
@@ -424,9 +426,31 @@ describe("Access list card", () => {
   });
 
   it("without a Read the card asks for one", () => {
+    store.snapshot.value = null;
     resetPlan(defaultPlan());
     render(<Advanced />);
     expect(within(list()).getByText("Read the repeater to see its access list.")).toBeTruthy();
+  });
+
+  it("an access list in the plan without the repeater's Read (unplugged, another device) is not editable", () => {
+    store.plan.value = { ...store.plan.value, acl: [{ key: K1, role: 3 }] };
+    store.snapshot.value = null;
+    render(<Advanced />);
+    expect(within(list()).getByText("Read the repeater to see its access list.")).toBeTruthy();
+    expect(within(list()).queryByRole("combobox")).toBeNull();
+    expect(within(list()).queryByPlaceholderText(/Paste a public key/)).toBeNull();
+    expect(within(list()).queryByText(/change/)).toBeNull();
+  });
+
+  it("removed and new rows and the badge compare with what the repeater holds", () => {
+    store.startPlan.value = { ...store.startPlan.value, acl: [{ key: K1, role: 3 }] };
+    store.plan.value = { ...store.plan.value, acl: [{ key: K1, role: 3 }, { key: K4, role: 3 }] };
+    render(<Advanced />);
+    expect(within(list()).getByText("removed")).toBeTruthy();
+    expect(within(list()).getByText("new")).toBeTruthy();
+    expect(within(list()).getByText("2 changes")).toBeTruthy();
+    fireEvent.click(within(list()).getByRole("button", { name: "Reset the access list to what was read" }));
+    expect(store.plan.value.acl).toEqual(store.snapshot.value!.acl);
   });
 
   it("recommended buttons never change the list", () => {

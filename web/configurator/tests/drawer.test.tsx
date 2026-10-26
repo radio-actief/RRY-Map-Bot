@@ -177,13 +177,12 @@ describe("Device tools drawer: backup", () => {
     fireEvent.change(input);
     await waitFor(() => expect(store.drawerOpen.value).toBe(false));
     expect(store.plan.value.acl).toEqual(acl);
-    expect(store.startPlan.value.acl).toBeUndefined();
   });
 
   it("importing keeps pending access list edits visible against what was read", async () => {
     const k1 = "a".repeat(64);
     const k2 = "b".repeat(64);
-    store.startPlan.value = { ...store.startPlan.value, acl: [{ key: k1, role: 3 }, { key: k2, role: 1 }] };
+    store.snapshot.value = { settings: {}, missing: [], acl: [{ key: k1, role: 3 }, { key: k2, role: 1 }] };
     store.plan.value = { ...store.plan.value, acl: [{ key: k1, role: 3 }] };
     const text = readFileSync(resolve(__dirname, "fixtures/parity/ronse-solar.backup.json"), "utf8");
     const { container } = render(<DeviceDrawer />);
@@ -192,7 +191,6 @@ describe("Device tools drawer: backup", () => {
     fireEvent.change(input);
     await waitFor(() => expect(store.drawerOpen.value).toBe(false));
     expect(store.plan.value.acl).toEqual([{ key: k1, role: 3 }]);
-    expect(store.startPlan.value.acl).toEqual([{ key: k1, role: 3 }, { key: k2, role: 1 }]);
     cleanup();
     render(<AccessList />);
     expect(screen.getByText("removed")).toBeTruthy();

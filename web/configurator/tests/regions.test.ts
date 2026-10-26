@@ -739,6 +739,11 @@ describe("parseRegionTree", () => {
     });
   });
 
+  it("reads the tree when the home is * (the first line is *^)", () => {
+    expect(parseRegionTree("*^ F\n be F\n  x\n")).toEqual({ be: null, x: "be" });
+    expect(parseRegionTree("*^\n zone\n")).toEqual({ zone: null });
+  });
+
   it("drops a last line the 160-byte reply cut off", () => {
     expect(parseRegionTree("* F\n be F\n  be-vov F\n  be-w")).toEqual({ be: null, "be-vov": "be" });
   });
@@ -779,6 +784,22 @@ describe("removing free regions from the device", () => {
       parents: { be: null, "be-vov": "be", abcdef: null, ab: "abcdef", x: "ab" },
     }).filter((l) => l.startsWith("region remove "));
     expect(lines).toEqual(["region remove x", "region remove ab", "region remove abcdef"]);
+  });
+
+  it("removes a parent after the def lines when a kept region sits under it on the device", () => {
+    // be-vov stays but sits under oldzone on the device: region def moves it first. junk goes before.
+    const lines = regionCommandLines(ronse, base, PLACES, {
+      named: ["be", "be-vov", "oldzone", "junk"],
+      home: "be-vov",
+      default: "be",
+      parents: { be: null, oldzone: null, "be-vov": "oldzone", junk: "oldzone" },
+    });
+    const at = (l: string) => lines.indexOf(l);
+    const firstDef = lines.findIndex((l) => l.startsWith("region def "));
+    expect(at("region remove junk")).toBeGreaterThan(-1);
+    expect(at("region remove junk")).toBeLessThan(firstDef);
+    expect(at("region remove oldzone")).toBeGreaterThan(firstDef);
+    expect(at("region remove oldzone")).toBeLessThan(lines.findIndex((l) => l.startsWith("region home ")));
   });
 
   it("removes a free child before the structured parent it sits under", () => {

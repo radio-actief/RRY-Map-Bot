@@ -29,7 +29,7 @@ import { buildScript, commandLines } from "../src/core/cli";
 import { defaultPlan, deviceRegionsFromSnapshot, snapshotFromReplies } from "../src/core/plan";
 import { addFreeRegion, regionCountAfterApply, regionsAfterApply } from "../src/core/regions";
 import type { Place } from "../src/core/search";
-import { READ_BACK_COMMANDS } from "../src/device/repeater";
+import { READ_BACK_COMMANDS, READ_COMMANDS } from "../src/device/repeater";
 import { SerialLink } from "../src/device/serial";
 import { Panel } from "../src/app/Panel";
 import { Send } from "../src/steps/Send";
@@ -408,6 +408,40 @@ describe("Send step: Apply", () => {
     expect(snap.name).toBe(snapshotFromReplies(read).name);
     expect(snap.publicKey).toBeUndefined();
     expect(snap.missing).toEqual(["ver", "get role", "get public.key", "clock"]);
+  });
+
+  it("the read-back stays out of the log, like a Read", async () => {
+    const lines = applyLines();
+    await connect({ ...read, ...okReplies(lines) });
+    render(<Send />);
+    fireEvent.click(applyButton());
+    await screen.findByRole("button", { name: "Reboot now" });
+    const text = store.log.value.map((l) => l.text).join("\n");
+    expect(text).not.toContain("get guest.password");
+    expect(text).not.toContain("region list allowed");
+    expect(store.log.value.at(-1)?.text).toBe("Apply complete.");
+  });
+
+  it("the read-back refreshes the last Read's outcome", async () => {
+    store.snapshot.value = { settings: {}, missing: [] };
+    store.lastRead.value = { ok: true, count: 1, missing: ["get rxdelay"] };
+    const lines = applyLines();
+    await connect({ ...read, ...okReplies(lines) });
+    render(<Send />);
+    fireEvent.click(applyButton());
+    await screen.findByRole("button", { name: "Reboot now" });
+    expect(store.lastRead.value).toEqual({ ok: true, count: READ_COMMANDS.length, missing: [] });
+  });
+
+  it("an unplug during the read-back offers no reboot", async () => {
+    const lines = applyLines();
+    // connectUsb's ver, Apply's ver, the script, then three read-back commands.
+    await connectApp({ ...read, ...okReplies(lines) }, { disconnectAfter: 2 + lines.length + 3 });
+    render(<Send />);
+    fireEvent.click(applyButton());
+    await waitFor(() => expect(store.apply.value.phase).toBe("done"));
+    expect(store.apply.value).toMatchObject({ offerReboot: false });
+    expect(screen.queryByRole("button", { name: "Reboot now" })).toBeNull();
   });
 
   it("locks step navigation while sending", async () => {

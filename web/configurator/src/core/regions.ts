@@ -892,15 +892,15 @@ export type DeviceRegions = {
 };
 
 /**
- * The bare `region` reply: one line per region, indented one space per level under `*`, the name
- * then `^` for home and ` F` when flood is allowed. The firmware cuts the reply at 159 bytes, so a
+ * The bare `region` reply: one line per region, indented one space per level under `*` (itself
+ * `*^` when it is the home), the name then `^` for home and ` F` when flood is allowed. The firmware cuts the reply at 159 bytes, so a
  * last line without its LF is dropped; parents come before children, so every whole line is right.
  */
 export function parseRegionTree(reply: string): Record<string, string | null> {
   const parents: Record<string, string | null> = {};
   const lines = String(reply || "").split("\n");
   lines.pop(); // the text after the last LF: empty, or a line the cap cut off
-  if (!/^\*( F)?$/.test(lines[0] ?? "")) return parents;
+  if (!/^\*\^?( F)?$/.test(lines[0] ?? "")) return parents;
   const path: string[] = [];
   for (const line of lines.slice(1)) {
     const depth = line.length - line.trimStart().length;
@@ -977,6 +977,20 @@ function orderRegionRemovesDeepestFirst(
   return out;
 }
 
+/** The removed codes that, in the device tree, have a kept code somewhere below them. */
+function keptAncestors(parents: Record<string, string | null>, kept: Set<string>, removing: Set<string>): Set<string> {
+  const out = new Set<string>();
+  for (const code of Object.keys(parents)) {
+    if (!kept.has(code)) continue;
+    const seen = new Set([code]);
+    for (let p = parents[code]; p && !seen.has(p); p = parents[p] ?? null) {
+      seen.add(p);
+      if (removing.has(p)) out.add(p);
+    }
+  }
+  return out;
+}
+
 /** Allow/Deny codes plus the ancestors they need (no default scope). */
 function policyNeeded(anchor: Anchor, policy: RegionPolicy, cities: Map<string, Place>): Set<string> {
   const { allowed, denied } = regionsByState(policy);
@@ -1036,18 +1050,22 @@ export function regionCommandLines(
   const lines: string[] = [];
   // Drop named regions that were on the device but are no longer selected nor needed as ancestors.
   // Clear default and home first when they point at a removed region; children go before parents.
+  // A region a kept one still sits under on the device goes after the def lines, which move it away.
+  const removeAfterDef: string[] = [];
   if (device) {
     const toRemove = device.named.filter((c) => c && c !== "*" && c.toLowerCase() !== "<null>" && !needed.has(c));
+    const holdsKept = keptAncestors(device.parents ?? {}, needed, new Set(toRemove));
     if (device.default && toRemove.includes(device.default)) lines.push("region default <null>");
     if (device.home && device.home !== "*" && toRemove.includes(device.home)) lines.push("region home *");
     for (const c of orderRegionRemovesDeepestFirst(toRemove, cities, freeParentsOf(policy), device.parents)) {
-      lines.push(`region remove ${c}`);
+      (holdsKept.has(c) ? removeAfterDef : lines).push(`region remove ${c}`);
     }
   }
 
   const homeCity = anchor.mode === "city" && anchor.place ? anchor.place : null;
   const entries = buildOrderedRegionEntries(needed, homeCity, cities, freeParentsOf(policy));
   lines.push(...packRegionDefLines(buildRegionDefTokens(entries), entries));
+  lines.push(...removeAfterDef);
 
   // region def leaves named regions flood-allowed; * still needs allowf, and deny rows need denyf.
   if (policy.untaggedFlood) lines.push("region allowf *");

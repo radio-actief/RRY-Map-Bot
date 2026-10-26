@@ -64,9 +64,12 @@ export function secretMask(cmd: string): (text: string) => string {
 /** A `get prv.key` line: its reply is the private key. */
 const READS_SECRET = /^get\s+prv\.key$/i;
 
+/** The read-back after Apply is running: its commands stay out of the log, like a Read's. */
+let readingBack = false;
+
 /** One command and its reply in the log (old logSerialCommandReply); private keys are masked. */
 function logCommand(cmd: string, rawReply: string | null, error?: string): void {
-  if (store.reading.peek() && prefs.get(SHOW_COMMAND_LOG_PREF) !== "1") return;
+  if ((store.reading.peek() || readingBack) && prefs.get(SHOW_COMMAND_LOG_PREF) !== "1") return;
   const mask = secretMask(cmd);
   const reply = rawReply && READS_SECRET.test(cmd) && !isErrorReply(rawReply) ? t("log.hidden") : rawReply && mask(rawReply);
   const sent: LogLine = { text: t("log.command", { command: mask(cmd) }), kind: "cmd" };
@@ -200,6 +203,7 @@ const KEPT_ON_READ_BACK = ["version", "role", "publicKey", "publicKeyPending", "
  * the last Read. When the link goes, the regions that were sent stand in.
  */
 async function readBack(link: SerialLink): Promise<void> {
+  readingBack = true;
   try {
     const fresh = await readAll(link, READ_BACK_COMMANDS);
     if (!link.connected || store.device.peek().link !== link) return;
@@ -210,8 +214,13 @@ async function readBack(link: SerialLink): Promise<void> {
     store.snapshot.value = snapshot;
     const regions = deviceRegionsFromSnapshot(snapshot);
     if (regions) store.deviceRegions.value = regions;
+    if (store.lastRead.peek()?.ok) {
+      store.lastRead.value = { ok: true, count: READ_COMMANDS.length - snapshot.missing.length, missing: snapshot.missing };
+    }
   } catch {
     /* link lost: the unplug notice says it */
+  } finally {
+    readingBack = false;
   }
 }
 
@@ -281,7 +290,13 @@ export async function applyPlan({ skipFirmwareCheck = false } = {}): Promise<voi
     store.apply.value = { phase: "readBack", total };
     await readBack(link);
     appendLog({ text: t("log.applied"), kind: "ok" });
-    store.apply.value = { phase: "done", total, offerReboot: true, radioChanged: lines.some((l) => NEEDS_REBOOT.test(l)) };
+    const stillConnected = link.connected && store.device.peek().link === link;
+    store.apply.value = {
+      phase: "done",
+      total,
+      offerReboot: stillConnected,
+      radioChanged: lines.some((l) => NEEDS_REBOOT.test(l)),
+    };
   } catch (err) {
     store.apply.value = { phase: "error", reason: reasonOf(err) };
     appendLog({ text: t("apply.error", { reason: reasonOf(err) }), kind: "error" });

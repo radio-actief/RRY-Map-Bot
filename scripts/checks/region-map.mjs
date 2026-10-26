@@ -37,4 +37,18 @@ export default async function (ctx) {
     ctx.check(`region map: no horizontal scroll at 390 (${scheme})`, w <= 390, String(w));
     await p.close();
   }
+
+  // Dark mode: the Leaflet popup wrapper and tip follow the theme, not Leaflet's white.
+  const dark = await ctx.open("/region-map", { scheme: "dark" });
+  await dark.waitForSelector(".leaflet-overlay-pane path", { timeout: 8000 }).catch(() => {});
+  await dark.locator(".leaflet-overlay-pane path").first().click({ force: true });
+  await dark.waitForSelector(".leaflet-popup-content-wrapper", { timeout: 5000 }).catch(() => {});
+  const bg = await dark.evaluate(() => {
+    const w = document.querySelector(".leaflet-popup-content-wrapper");
+    const t = document.querySelector(".leaflet-popup-tip");
+    return { wrapper: w && getComputedStyle(w).backgroundColor, tip: t && getComputedStyle(t).backgroundColor };
+  });
+  const notWhite = (c) => !!c && c !== "rgb(255, 255, 255)";
+  ctx.check("region map: dark popup wrapper and tip are not white", notWhite(bg.wrapper) && notWhite(bg.tip), JSON.stringify(bg));
+  await dark.close();
 }

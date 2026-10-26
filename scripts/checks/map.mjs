@@ -109,4 +109,16 @@ export default async function (ctx) {
     ctx.check(`map: no horizontal scroll at 390 (${scheme})`, w <= 390, String(w));
     await p.close();
   }
+
+  // Dark mode: a node popup's wrapper and tip follow the theme, not Leaflet's white.
+  const dark = await ctx.open(`/?node=${nodes[0].public_key}`, { scheme: "dark", setup: withNodes() });
+  await dark.waitForSelector(".leaflet-popup-tip", { timeout: 10000 }).catch(() => {});
+  const bg = await dark.evaluate(() => {
+    const w = document.querySelector(".leaflet-popup-content-wrapper");
+    const t = document.querySelector(".leaflet-popup-tip");
+    return { wrapper: w && getComputedStyle(w).backgroundColor, tip: t && getComputedStyle(t).backgroundColor };
+  });
+  const notWhite = (c) => !!c && c !== "rgb(255, 255, 255)";
+  ctx.check("map: dark popup wrapper and tip are not white", notWhite(bg.wrapper) && notWhite(bg.tip), JSON.stringify(bg));
+  await dark.close();
 }

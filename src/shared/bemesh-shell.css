@@ -242,3 +242,45 @@ button {
   border-radius: 8px;
   box-shadow: 0 2px 8px var(--shadow);
 }
+
+/* Leaflet chrome follows the theme (load leaflet.css before this file). */
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip,
+.leaflet-tooltip {
+  background: var(--panel);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  box-shadow: 0 2px 8px var(--shadow);
+}
+
+.leaflet-tooltip-top::before,
+.leaflet-tooltip-bottom::before,
+.leaflet-tooltip-left::before,
+.leaflet-tooltip-right::before {
+  border-color: transparent;
+}
+
+.leaflet-container a.leaflet-popup-close-button {
+  color: var(--mut);
+}
+
+.leaflet-bar {
+  border: 1px solid var(--line);
+  box-shadow: 0 2px 8px var(--shadow);
+}
+
+.leaflet-bar a,
+.leaflet-bar a.leaflet-disabled {
+  background: var(--panel);
+  color: var(--ink);
+  border-bottom-color: var(--line);
+}
+
+.leaflet-bar a:hover,
+.leaflet-bar a:focus {
+  background: var(--bar);
+}
+
+.leaflet-bar a.leaflet-disabled {
+  opacity: 0.5;
+}

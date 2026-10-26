@@ -633,6 +633,8 @@
           function setFrame(i) {
             i = Math.max(0, Math.min(i, frames.length - 1));
             slider.value = i;
+            // The track's gold part runs up to the current date (WebKit has no progress pseudo-element).
+            slider.style.setProperty("--fill", (frames.length > 1 ? (i / (frames.length - 1)) * 100 : 100) + "%");
             var f = frames[i];
             dateEl.textContent = formatDateOnly(f.date);
             var countsByType = { 1: 0, 2: 0, 3: 0, 4: 0 };

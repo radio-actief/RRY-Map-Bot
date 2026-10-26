@@ -438,7 +438,7 @@ button.chip {
 .playback-bar input[type="range"]::-webkit-slider-runnable-track {
   height: 4px;
   border-radius: 2px;
-  background: var(--line);
+  background: linear-gradient(to right, var(--gold) var(--fill, 0%), var(--line) var(--fill, 0%));
 }
 
 .playback-bar input[type="range"]::-moz-range-track {

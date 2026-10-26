@@ -90,6 +90,8 @@ export default async function (ctx) {
   const max = Number(await slider.getAttribute("max"));
   const dateText = async () => norm(await page.locator("#playback-date").textContent());
   ctx.check("playback: slider starts at last date", (await val()) === max && max > 0, `${await val()}/${max}`);
+  const fill = await slider.evaluate((el) => el.style.getPropertyValue("--fill"));
+  ctx.check("playback: slider track is filled to the current date", fill === "100%", fill);
   await slider.focus();
   await page.keyboard.press("ArrowRight");
   ctx.check("playback: ArrowRight at last date does nothing", (await val()) === max, String(await val()));

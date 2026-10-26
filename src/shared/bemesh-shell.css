@@ -365,3 +365,16 @@ button {
 .leaflet-bar a.leaflet-disabled {
   opacity: 0.5;
 }
+
+/* Dark map tiles: the OpenStreetMap layer only. Markers, polygons, popups and controls follow the tokens. */
+.map-dark .osm-tiles {
+  filter: invert(1) hue-rotate(180deg) brightness(0.95) contrast(0.9) saturate(0.7);
+}
+
+.leaflet-bar a.map-shade-button {
+  width: 36px;
+  height: 36px;
+  line-height: 36px;
+  font-size: 18px;
+  text-decoration: none;
+}

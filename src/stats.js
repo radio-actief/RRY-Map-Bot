@@ -635,10 +635,17 @@
           });
           L.control.zoom({ position: "topright" }).addTo(map);
           window.__statsPlaybackMap = map;
-          L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-            attribution:
-              '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-          }).addTo(map);
+          var statsTiles = L.tileLayer(
+            "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+            {
+              className: "osm-tiles",
+              attribution:
+                '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+            },
+          ).addTo(map);
+          window.BEmeshMapShade.attach(L, map, statsTiles, {
+            position: "topright",
+          });
           var markersLayer = L.layerGroup().addTo(map);
 
           slider.max = Math.max(0, frames.length - 1);

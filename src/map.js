@@ -1561,6 +1561,7 @@ const baseMapSelected =
 const baseMaps = {
   OpenStreetMap: L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 19,
+    className: "osm-tiles",
     attribution: `Tiles: &copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> | ${appAttribution}`,
   }),
   "Esri Satellite": L.tileLayer(
@@ -1621,6 +1622,9 @@ map.on("baselayerchange", function (ev) {
 // Map type (layers) above zoom in/out (bottom-left)
 L.control.layers(baseMaps, null, { position: "bottomleft" }).addTo(map);
 L.control.zoom({ position: "bottomleft" }).addTo(map);
+window.BEmeshMapShade.attach(L, map, baseMaps.OpenStreetMap, {
+  position: "bottomleft",
+});
 // Icon structure: nested by update status, then by node type (upstream implementation)
 const icons = Object.fromEntries(
   ["none", "recent", "stale", "old", "extinct"].map((color) => [

@@ -929,10 +929,17 @@
             belgiumCenter,
             belgiumZoom,
           );
-          L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-            attribution:
-              '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-          }).addTo(map);
+          var osmTiles = L.tileLayer(
+            "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+            {
+              className: "osm-tiles",
+              attribution:
+                '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+            },
+          ).addTo(map);
+          window.BEmeshMapShade.attach(L, map, osmTiles, {
+            position: "topleft",
+          });
 
           document
             .getElementById("toggle-controls")

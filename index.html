@@ -46,96 +46,11 @@
         <span class="chip muted recent-chip" v-if="stats.length">
           <span v-for="stat in stats.slice(1)" v-html="stat"></span>
         </span>
-        <span
-          v-if="auth.authenticated && personalStats.length"
-          class="chip personal-chip"
-        >
-          <span
-            v-for="(stat, i) in personalStats"
-            :key="i"
-            v-html="stat"
-          ></span>
-        </span>
         <span class="spacer"></span>
-        <a
-          v-if="!auth.authenticated"
-          href="/auth/login"
-          class="chip signin-chip"
-          title="Sign in to claim your node. Having trouble? Reach Radio-Actief on Discord or open an issue on GitHub."
-          >Sign in with Discord</a
-        >
-        <span class="menu-wrap">
-          <button
-            type="button"
-            class="icon"
-            id="menu-toggle"
-            aria-label="Menu"
-            aria-haspopup="true"
-            aria-controls="page-menu"
-            :aria-expanded="app.menuOpen"
-            @click.stop="app.filterMenuOpen = false; app.menuOpen = !app.menuOpen"
-          >
-            ☰
-          </button>
-          <nav
-            class="menu"
-            id="page-menu"
-            aria-label="Menu"
-            v-show="app.menuOpen"
-          >
-            <a class="menu-page" href="/" aria-current="page">Map</a>
-            <a class="menu-page" href="/stats">Stats</a>
-            <a class="menu-page" href="/region-map">Region map</a>
-            <a class="menu-page" href="/configurator">Configurator</a>
-            <hr class="menu-page" />
-            <a
-              href="https://radio-actief.be"
-              title="Radio-Actief website"
-              target="_blank"
-              rel="noopener noreferrer"
-              >Website</a
-            >
-            <a
-              href="https://meshcore.radio-actief.be"
-              title="MeshCore-website: instellingen & nieuws"
-              target="_blank"
-              rel="noopener noreferrer"
-              >Settings &amp; news</a
-            >
-            <a
-              href="https://meshwiki.radio-actief.be"
-              title="Documentation"
-              target="_blank"
-              rel="noopener noreferrer"
-              >Docs</a
-            >
-            <a
-              href="https://discord.gg/kvybAgqnhD"
-              title="Join our Discord server"
-              target="_blank"
-              rel="noopener noreferrer"
-              >Discord</a
-            >
-            <a
-              href="https://github.com/radio-actief/RRY-Map-Bot"
-              title="Go to Radio-Actief GitHub repo"
-              target="_blank"
-              rel="noopener noreferrer"
-              >GitHub</a
-            >
-            <template v-if="auth.authenticated && auth.user">
-              <hr />
-              <span class="menu-user">@{{ auth.user.username }}</span>
-              <span class="menu-user menu-mynodes menu-page"
-                >My nodes <b>{{ myNodesCount }}</b></span
-              >
-              <a href="/auth/logout" title="Logout">Log out</a>
-            </template>
-            <template v-else>
-              <hr class="menu-page" />
-              <a class="menu-page" href="/auth/login">Sign in with Discord</a>
-            </template>
-          </nav>
+        <span data-account-chip></span>
+        <span class="menu-wrap" data-page-menu>
+          <button type="button" class="icon" aria-label="Menu">☰</button>
+          <nav class="menu" aria-label="Menu" hidden></nav>
         </span>
         <button type="button" class="icon" data-theme-toggle aria-label="Theme">
           ◐
@@ -163,7 +78,7 @@
               :aria-expanded="app.filterMenuOpen"
               aria-haspopup="true"
               aria-controls="node-filter"
-              @click.stop="app.menuOpen = false; app.filterMenuOpen = !app.filterMenuOpen"
+              @click.stop="app.filterMenuOpen = !app.filterMenuOpen"
             >
               {{ filtersActive ? "Filters active" : "Filters" }}
             </button>
@@ -328,6 +243,7 @@
         >
       </div>
     </div>
+    <script src="./src/shared/topbar.js"></script>
   </body>
   <script type="module" src="./src/map.js"></script>
 </html>

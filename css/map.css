@@ -75,8 +75,7 @@ body.map-page {
 
 /* Top bar */
 .counts-chip,
-.recent-chip,
-.personal-chip {
+.recent-chip {
   gap: 10px;
 }
 
@@ -115,61 +114,9 @@ body.map-page {
   gap: 0;
 }
 
-.recent-chip > span + span::before,
-.personal-chip > span + span::before {
+.recent-chip > span + span::before {
   content: "·";
   margin: 0 6px;
-}
-
-.personal-chip > .count-item::before {
-  content: none;
-}
-
-.personal-chip > span + .count-item::before {
-  content: none;
-}
-
-.signin-chip {
-  color: inherit;
-  text-decoration: none;
-}
-
-.signin-chip:hover {
-  background: var(--gold-bg);
-  border-color: var(--gold);
-}
-
-.menu-wrap {
-  position: relative;
-}
-
-.menu-wrap .menu {
-  top: 34px;
-  right: 0;
-}
-
-.menu[hidden] {
-  display: none;
-}
-
-.menu a[aria-current="page"] {
-  background: var(--gold-bg);
-}
-
-.menu-user {
-  display: block;
-  padding: 6px 8px;
-  font-weight: 600;
-}
-
-.menu .menu-page {
-  display: none;
-}
-
-.menu-mynodes {
-  padding-top: 0;
-  font-weight: 400;
-  color: var(--mut);
 }
 
 /* Search and filters */
@@ -484,17 +431,8 @@ body.map-page {
 /* Phone */
 @media (max-width: 600px) {
   .counts-chip,
-  .recent-chip,
-  .signin-chip {
+  .recent-chip {
     display: none;
-  }
-
-  .menu .menu-page {
-    display: flex;
-  }
-
-  .menu hr.menu-page {
-    display: block;
   }
 
   .totals-chip {
@@ -537,10 +475,6 @@ body.map-page {
 
   .leaflet-bottom.leaflet-right {
     max-width: calc(100% - 60px);
-  }
-
-  .personal-chip {
-    display: none;
   }
 }
 table.node-info {

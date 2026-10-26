@@ -88,22 +88,10 @@
           <a href="/api/v1/sensors/contacts" download="BEMesh-sensors.json"><img src="./img/node_types/4.svg" alt="" width="16" height="16" /> Sensors</a>
         </div>
       </span>
-      <span class="menu-wrap page-menu-wrap">
-        <button
-          type="button"
-          class="icon menu-toggle"
-          id="menu-toggle"
-          aria-label="Pages"
-          aria-expanded="false"
-        >
-          ☰
-        </button>
-        <nav class="menu" id="page-menu" aria-label="Pages" hidden>
-          <a href="/">Map</a>
-          <a href="/stats" aria-current="page">Stats</a>
-          <a href="/region-map">Region map</a>
-          <a href="/configurator">Configurator</a>
-        </nav>
+      <span data-account-chip></span>
+      <span class="menu-wrap" data-page-menu>
+        <button type="button" class="icon" aria-label="Menu">☰</button>
+        <nav class="menu" aria-label="Menu" hidden></nav>
       </span>
       <button type="button" class="icon" data-theme-toggle aria-label="Theme">
         ◐
@@ -313,6 +301,7 @@
         </p>
       </div>
     </main>
+    <script src="./src/shared/topbar.js"></script>
     <script src="./src/stats.js"></script>
   </body>
 </html>

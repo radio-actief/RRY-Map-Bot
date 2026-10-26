@@ -972,27 +972,6 @@
               });
             });
 
-          var menuBtn = document.getElementById("menu-toggle");
-          var menu = document.getElementById("page-menu");
-          if (menuBtn && menu) {
-            menuBtn.addEventListener("click", function (e) {
-              e.stopPropagation();
-              var open = menu.hidden;
-              menu.hidden = !open;
-              menuBtn.setAttribute("aria-expanded", open ? "true" : "false");
-            });
-            document.addEventListener("click", function () {
-              menu.hidden = true;
-              menuBtn.setAttribute("aria-expanded", "false");
-            });
-            document.addEventListener("keydown", function (e) {
-              if (e.key !== "Escape" || menu.hidden) return;
-              menu.hidden = true;
-              menuBtn.setAttribute("aria-expanded", "false");
-              menuBtn.focus();
-            });
-          }
-
           document
             .getElementById("show-places")
             .addEventListener("change", function () {

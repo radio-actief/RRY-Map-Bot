@@ -14,30 +14,6 @@ html.region-map-embed .topbar {
   display: none;
 }
 
-.menu-wrap {
-  position: relative;
-  display: none;
-}
-
-.menu-wrap .menu {
-  top: 34px;
-  right: 0;
-}
-
-.menu[hidden] {
-  display: none;
-}
-
-.menu a[aria-current="page"] {
-  background: var(--gold-bg);
-}
-
-@media (max-width: 600px) {
-  .menu-wrap {
-    display: block;
-  }
-}
-
 .region-map-layout {
   position: relative;
   flex: 1;

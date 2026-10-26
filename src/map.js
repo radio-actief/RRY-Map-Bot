@@ -1660,7 +1660,6 @@ createApp({
       freqFilter: [],
       availableFreqs: [],
       filterMenuOpen: false,
-      menuOpen: false,
     }));
 
     Object.defineProperty(app, "nodes", {
@@ -2674,89 +2673,6 @@ createApp({
           ).length,
     );
 
-    const personalStats = computed(() => {
-      if (!auth.authenticated || !auth.user) {
-        return [];
-      }
-
-      // Filter nodes owned by current user
-      const userNodes = app.nodes.filter(
-        (node) =>
-          node.discord_owner_id &&
-          String(node.discord_owner_id) === String(auth.user.id),
-      );
-
-      if (userNodes.length === 0) {
-        return [
-          `<span class="pointer-help" title="Your owned nodes">my nodes <b>0</b></span>`,
-        ];
-      }
-
-      const result = [];
-
-      // Count nodes by type
-      const companionsCount = userNodes.filter((n) => n.type === 1).length;
-      const repeatersCount = userNodes.filter((n) => n.type === 2).length;
-      const roomServersCount = userNodes.filter((n) => n.type === 3).length;
-      const sensorsCount = userNodes.filter((n) => n.type === 4).length;
-
-      // Build personal stats string (black color, not green)
-      const dot = (type, title, count) =>
-        `<span class="count-item pointer-help" title="${title}"><i class="dot dot-${type}" aria-hidden="true"></i><b>${count}</b></span>`;
-      let statsString = `<span class="pointer-help" title="Your owned nodes">my nodes <b>${userNodes.length}</b></span>`;
-      if (companionsCount > 0) {
-        statsString += dot(1, "Your client nodes", companionsCount);
-      }
-      if (repeatersCount > 0) {
-        statsString += dot(2, "Your repeater nodes", repeatersCount);
-      }
-      if (roomServersCount > 0) {
-        statsString += dot(3, "Your room server nodes", roomServersCount);
-      }
-      if (sensorsCount > 0) {
-        statsString += dot(4, "Your sensor nodes", sensorsCount);
-      }
-
-      result.push(statsString);
-
-      // Count user's nodes active in last 24 hours, 7 days, and 30 days
-      const active24h = userNodes.filter((n) => {
-        const mostRecent = getMostRecentDate(n);
-        return mostRecent && isNewerThan(mostRecent, 1);
-      }).length;
-
-      const active7d = userNodes.filter((n) => {
-        const mostRecent = getMostRecentDate(n);
-        return mostRecent && isNewerThan(mostRecent, 7);
-      }).length;
-
-      const active30d = userNodes.filter((n) => {
-        const mostRecent = getMostRecentDate(n);
-        return mostRecent && isNewerThan(mostRecent, 30);
-      }).length;
-
-      // Show stats only if > 0 (hide if 0)
-      if (active24h > 0) {
-        result.push(
-          `<span class="pointer-help" title="Your nodes active in last 24 hours">24h <b>${active24h}</b></span>`,
-        );
-      }
-
-      if (active7d > 0) {
-        result.push(
-          `<span class="pointer-help" title="Your nodes active in last 7 days">7d <b>${active7d}</b></span>`,
-        );
-      }
-
-      if (active30d > 0) {
-        result.push(
-          `<span class="pointer-help" title="Your nodes active in last 30 days">30d <b>${active30d}</b></span>`,
-        );
-      }
-
-      return result;
-    });
-
     const searchResults = computed(() => {
       if (!app.search) {
         return [];
@@ -2812,7 +2728,14 @@ createApp({
     let removeFilterMenuInteractionGuards = null;
     let removeViewportListeners = null;
 
+    watch(
+      myNodesCount,
+      (n) => window.BEmeshTopbar?.setMyNodes(n),
+      { immediate: true },
+    );
+
     onMounted(() => {
+      window.BEmeshTopbar?.init();
       function onMapLayoutRefresh() {
         try {
           map.invalidateSize({ animate: false });
@@ -2990,10 +2913,6 @@ createApp({
       // @click.stop, so its own clicks never reach these document listeners;
       // clicks inside the menu (checkboxes, sliders) keep it open.
       function filterMenuOutsideClose(e) {
-        const pageMenu = document.getElementById("page-menu");
-        if (app.menuOpen && !(pageMenu && pageMenu.contains(e.target))) {
-          app.menuOpen = false;
-        }
         if (!app.filterMenuOpen) return;
         const menu = document.getElementById("node-filter");
         if (menu && menu.contains(e.target)) return;
@@ -3002,10 +2921,12 @@ createApp({
       function filterMenuEscClose(e) {
         if (e.key === "Escape") {
           app.filterMenuOpen = false;
-          app.menuOpen = false;
         }
       }
       document.addEventListener("click", filterMenuOutsideClose);
+      document.addEventListener("bemesh:menu-opened", () => {
+        app.filterMenuOpen = false;
+      });
       document.addEventListener("keydown", filterMenuEscClose);
 
       removeFilterMenuInteractionGuards = () => {
@@ -3028,7 +2949,6 @@ createApp({
       refreshMap,
       stats,
       totals,
-      personalStats,
       myNodesCount,
       searchResults,
       filtersActive,

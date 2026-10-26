@@ -1,0 +1,7 @@
+[
+  { "label": "Radio-Actief Website", "href": "https://radio-actief.be", "title": "Radio-Actief website" },
+  { "label": "#BEmesh Website", "href": "https://meshcore.radio-actief.be", "title": "MeshCore-website: instellingen & nieuws" },
+  { "label": "Documentation", "href": "https://meshwiki.radio-actief.be", "title": "Documentation" },
+  { "label": "Discord", "href": "https://discord.gg/kvybAgqnhD", "title": "Join our Discord server" },
+  { "label": "GitHub", "href": "https://github.com/radio-actief/RRY-Map-Bot", "title": "Go to Radio-Actief GitHub repo" }
+]

@@ -45,12 +45,12 @@ export default async function (ctx) {
   const recent = text(await page.locator(".topbar .recent-chip").first().textContent().catch(() => ""));
   ctx.check("map: 24h/7d/30d chip", /24h\D*\d+/.test(recent) && /7d\D*\d+/.test(recent) && /30d\D*\d+/.test(recent), recent);
 
-  const signin = page.locator('.topbar > a[href="/auth/login"]');
+  const signin = page.locator('.topbar a.signin-chip[href="/auth/login?next=/"]');
   ctx.check("map: signed out shows Sign in with Discord", (await signin.count()) === 1 && text(await signin.textContent()).includes("Sign in with Discord"));
 
   await page.locator("#menu-toggle").click();
   const menu = text(await page.locator("#page-menu").textContent());
-  for (const w of ["Website", "Settings & news", "Docs", "Discord", "GitHub"]) {
+  for (const w of ["Radio-Actief Website", "#BEmesh Website", "Documentation", "Discord", "GitHub"]) {
     ctx.check(`map: menu has ${w}`, menu.includes(w), menu);
   }
   ctx.check("map: signed out menu has no Log out", !menu.includes("Log out"));
@@ -100,7 +100,7 @@ export default async function (ctx) {
   const smenu = text(await signed.locator("#page-menu").textContent());
   ctx.check("map: signed in menu shows @tester", smenu.includes("@tester"), smenu);
   ctx.check("map: signed in menu shows Log out", smenu.includes("Log out"), smenu);
-  ctx.check("map: signed in has no sign-in link", (await signed.locator('a[href="/auth/login"]').count()) === 0);
+  ctx.check("map: signed in has no sign-in link", (await signed.locator('a[href^="/auth/login"]').count()) === 0);
   await signed.close();
 
   for (const scheme of ["light", "dark"]) {
@@ -169,7 +169,7 @@ export default async function (ctx) {
   await mine.close();
   const wide = await ctx.open("/", { setup: me() });
   await wide.locator("#menu-toggle").click();
-  ctx.check("map: desktop ☰ leaves My nodes to the top-bar chip", !(await wide.locator("#page-menu .menu-mynodes").isVisible()));
+  ctx.check("map: desktop ☰ shows My nodes too", await wide.locator("#page-menu .menu-mynodes").isVisible());
   await wide.close();
 
   // A ?node= deep link filters nothing, so Filters does not read as active.

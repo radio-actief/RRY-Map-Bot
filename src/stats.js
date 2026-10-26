@@ -112,8 +112,6 @@
         const filterDropdown = document.getElementById(
           "stats-filter-menu-dropdown",
         );
-        const pageMenuBtn = document.getElementById("menu-toggle");
-        const pageMenu = document.getElementById("page-menu");
         const downloadBtn = document.getElementById("stats-download-btn");
         var statsHeaderPopoverResizeTimer;
         function scheduleStatsHeaderChartResize() {
@@ -130,7 +128,7 @@
           tile.classList.toggle("is-chart-filtered", on);
           tile.setAttribute("aria-pressed", on ? "true" : "false");
         }
-        // Closes every header menu except the one named (preset, download or pages).
+        // Closes every header menu except the one named (preset or download).
         function closeStatsMenus(except) {
           var wasOpen = false;
           if (except !== "download" && downloadChip) {
@@ -144,10 +142,6 @@
             if (filterTrigger)
               filterTrigger.setAttribute("aria-expanded", "false");
           }
-          if (except !== "pages" && pageMenu && pageMenuBtn) {
-            pageMenu.hidden = true;
-            pageMenuBtn.setAttribute("aria-expanded", "false");
-          }
           if (wasOpen) scheduleStatsHeaderChartResize();
         }
         document.addEventListener("click", function () {
@@ -158,7 +152,6 @@
           var toggles = [
             ["preset", filterTrigger, filterMenu && filterMenu.classList.contains("is-open")],
             ["download", downloadBtn, downloadChip && downloadChip.classList.contains("is-open")],
-            ["pages", pageMenuBtn, pageMenu && !pageMenu.hidden],
           ];
           var focusTarget = null;
           toggles.forEach(function (t) {
@@ -167,20 +160,16 @@
           closeStatsMenus();
           if (focusTarget) focusTarget.focus();
         });
-        if (pageMenuBtn && pageMenu) {
-          pageMenuBtn.addEventListener("click", function (e) {
-            e.stopPropagation();
-            var open = pageMenu.hidden;
-            closeStatsMenus("pages");
-            pageMenu.hidden = !open;
-            pageMenuBtn.setAttribute("aria-expanded", open ? "true" : "false");
-          });
-        }
+        // Opening the shared ☰ menu closes these, and opening these closes ☰.
+        document.addEventListener("bemesh:menu-opened", function () {
+          closeStatsMenus();
+        });
         if (downloadChip) {
           downloadChip.addEventListener("click", function (e) {
             e.stopPropagation();
             var open = !downloadChip.classList.contains("is-open");
             closeStatsMenus("download");
+            if (window.BEmeshTopbar) window.BEmeshTopbar.closeMenus();
             downloadChip.classList.toggle("is-open", open);
             if (downloadBtn)
               downloadBtn.setAttribute("aria-expanded", open ? "true" : "false");
@@ -197,6 +186,7 @@
             e.stopPropagation();
             var open = !filterMenu.classList.contains("is-open");
             closeStatsMenus("preset");
+            if (window.BEmeshTopbar) window.BEmeshTopbar.closeMenus();
             filterMenu.classList.toggle("is-open", open);
             filterTrigger.setAttribute("aria-expanded", open ? "true" : "false");
             scheduleStatsHeaderChartResize();

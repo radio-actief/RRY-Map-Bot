@@ -13,34 +13,6 @@ a {
   color: var(--node);
 }
 
-/* Top bar menus */
-.menu-wrap {
-  position: relative;
-}
-
-.menu-wrap .menu {
-  top: 34px;
-  right: 0;
-}
-
-.menu[hidden] {
-  display: none;
-}
-
-.menu a[aria-current="page"] {
-  background: var(--gold-bg);
-}
-
-.page-menu-wrap {
-  display: none;
-}
-
-@media (max-width: 600px) {
-  .page-menu-wrap {
-    display: block;
-  }
-}
-
 /* The preset and download dropdowns open with the is-open class that stats.js toggles. */
 .stats-pop > .menu {
   display: none;

@@ -54,22 +54,10 @@
         ><a href="/configurator">Configurator</a>
       </nav>
       <span class="spacer"></span>
-      <span class="menu-wrap">
-        <button
-          type="button"
-          class="icon menu-toggle"
-          id="menu-toggle"
-          aria-label="Pages"
-          aria-expanded="false"
-        >
-          ☰
-        </button>
-        <nav class="menu" id="page-menu" aria-label="Pages" hidden>
-          <a href="/">Map</a>
-          <a href="/stats">Stats</a>
-          <a href="/region-map" aria-current="page">Region map</a>
-          <a href="/configurator">Configurator</a>
-        </nav>
+      <span data-account-chip></span>
+      <span class="menu-wrap" data-page-menu>
+        <button type="button" class="icon" aria-label="Menu">☰</button>
+        <nav class="menu" aria-label="Menu" hidden></nav>
       </span>
       <button type="button" class="icon" data-theme-toggle aria-label="Theme">
         ◐
@@ -137,6 +125,7 @@
     <script src="./lib/leaflet.markercluster.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
     <script src="./src/shared/be-regions.js"></script>
+    <script src="./src/shared/topbar.js"></script>
     <script src="./src/region-map.js"></script>
   </body>
 </html>

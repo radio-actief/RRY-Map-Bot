@@ -867,7 +867,7 @@
         function buildHierarchy() {
           var withCoords = getLocationsWithCoords();
           var hasEu = !!countryFeature("eu");
-          var node = function (indent, code, type, name, count) {
+          var node = function (indent, code, type, name, count, label) {
             return (
               '<div class="hierarchy-node region-row indent-' +
               indent +
@@ -878,7 +878,7 @@
               '"><span class="region-name"><span class="region-title">' +
               escapeHtml(name) +
               '</span><span class="region-meta muted">' +
-              escapeHtml(code + " · " + type) +
+              escapeHtml(code + " · " + (label || type)) +
               "</span></span>" +
               (count != null
                 ? '<span class="region-count">' + count + "</span>"
@@ -886,7 +886,7 @@
               "</div>"
             );
           };
-          var html = hasEu ? node(0, "eu", "country", countryName("eu")) : "";
+          var html = hasEu ? node(0, "eu", "country", countryName("eu"), null, "wider region") : "";
           var top = hasEu ? 1 : 0;
           html += node(top, "be", "country", "Belgium", withCoords.length);
           PROVINCE_CODES.forEach(function (p) {

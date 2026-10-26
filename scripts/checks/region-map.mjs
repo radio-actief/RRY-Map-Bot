@@ -20,6 +20,8 @@ export default async function (ctx) {
 
   const be = (await page.locator(`.hierarchy-node[data-code="be"]`).first().innerText().catch(() => "")) || "";
   ctx.check("region map: Belgium row shows be and a number", /\bbe\b/.test(be) && /\d/.test(be), be.trim());
+  const eu = (await page.locator(`.hierarchy-node[data-code="eu"] .region-meta`).first().innerText().catch(() => "")) || "";
+  ctx.check("region map: the EU row reads wider region", eu.trim() === "eu · wider region", eu.trim());
   const paths = await page.locator(".leaflet-overlay-pane path").count();
   ctx.check("region map: at least 10 province paths", paths >= 10, String(paths));
   ctx.check("region map: search stays empty after load", (await input.inputValue().catch(() => "x")) === "");

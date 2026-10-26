@@ -20,252 +20,326 @@
       href="https://fonts.googleapis.com/css2?family=Figtree:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="./lib/css/bootstrap.min.css" />
-    <link rel="stylesheet" href="./lib/css/bootstrap-icons.css" />
-    <link rel="stylesheet" href="./css/bootstrap-rry-theme.css" />
-    <link rel="stylesheet" href="./css/style.css" />
-    <link rel="stylesheet" href="./css/rry-tool-pages.css" />
-    <link rel="stylesheet" href="./css/stats-page.css" />
+    <link rel="stylesheet" href="./src/shared/bemesh-tokens.css" />
+    <link rel="stylesheet" href="./src/shared/bemesh-shell.css" />
+    <link rel="stylesheet" href="./css/stats.css" />
     <link rel="stylesheet" href="./lib/css/leaflet.css" />
+    <script src="./src/shared/theme.js"></script>
     <title>Stats - #BEmesh Map</title>
   </head>
-  <body class="light map-page stats-body rty-doc-page">
-    <div class="rty-page-wrap">
-      <div class="stats-header rty-glass-surface rty-chrome-accent-bar">
-        <div class="stats-header-top">
-          <div class="stats-header-brand">
-            <img
-              src="./favicon-32.png"
-              alt=""
-              class="stats-header-logo"
-              width="32"
-              height="32"
-              decoding="async"
-              aria-hidden="true"
-            />
-            <h1>#BEmesh MeshCore statistics</h1>
-          </div>
-          <div class="stats-header-links">
-            <a href="/" class="rty-back-link">← Back to map</a>
-            <a href="/configurator" class="rty-back-link">Configurator</a>
+  <body class="stats-body">
+    <header class="topbar">
+      <span class="wordmark"><b>#BE</b>mesh stats</span>
+      <nav class="switcher" aria-label="Pages">
+        <a href="/">Map</a><a href="/stats" aria-current="page">Stats</a
+        ><a href="/region-map">Region map</a
+        ><a href="/configurator">Configurator</a>
+      </nav>
+      <span class="spacer"></span>
+      <span class="menu-wrap stats-pop" id="stats-filter-menu">
+        <button
+          type="button"
+          class="chip"
+          id="stats-filter-menu-trigger"
+          aria-expanded="false"
+          aria-haspopup="dialog"
+          aria-controls="stats-filter-menu-dropdown"
+          title="Filter chart and stats by frequency or custom radio fields"
+        >
+          <span id="stats-preset-label">Preset: All</span> ▾
+        </button>
+        <div
+          class="menu stats-filter-menu-dropdown"
+          id="stats-filter-menu-dropdown"
+          role="dialog"
+          aria-label="Stats filters"
+        >
+          <div class="muted stats-menu-title">Frequency preset</div>
+          <div
+            class="stats-preset-dropdown stats-preset-list"
+            id="stats-preset-dropdown"
+          ></div>
+          <hr />
+          <details class="stats-filter-custom-details">
+            <summary>Custom radio</summary>
             <div
-              class="stats-download-btn"
-              id="stats-download-chip"
-              title="Download JSON"
-            >
-              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
-              </svg>
-              <div
-                class="stats-header-download-dropdown"
-                id="stats-download-dropdown"
+              class="stats-preset-custom-body"
+              id="stats-preset-custom-root"
+            ></div>
+          </details>
+        </div>
+      </span>
+      <span class="menu-wrap stats-pop" id="stats-download-chip">
+        <button
+          type="button"
+          class="icon"
+          id="stats-download-btn"
+          aria-label="Download JSON"
+          aria-haspopup="menu"
+          title="Download JSON"
+        >
+          ⬇
+        </button>
+        <div class="menu" id="stats-download-menu">
+          <a href="/api/v1/companions/contacts" download="BEMesh-companions.json"><img src="./img/node_types/1.svg" alt="" width="16" height="16" /> Companions</a>
+          <a href="/api/v1/repeaters/contacts" download="BEMesh-repeaters.json"><img src="./img/node_types/2.svg" alt="" width="16" height="16" /> Repeaters</a>
+          <a href="/api/v1/room-servers/contacts" download="BEMesh-room-servers.json"><img src="./img/node_types/3.svg" alt="" width="16" height="16" /> Room servers</a>
+          <a href="/api/v1/sensors/contacts" download="BEMesh-sensors.json"><img src="./img/node_types/4.svg" alt="" width="16" height="16" /> Sensors</a>
+        </div>
+      </span>
+      <span class="menu-wrap page-menu-wrap">
+        <button
+          type="button"
+          class="icon menu-toggle"
+          id="menu-toggle"
+          aria-label="Pages"
+          aria-expanded="false"
+        >
+          ☰
+        </button>
+        <nav class="menu" id="page-menu" aria-label="Pages" hidden>
+          <a href="/">Map</a>
+          <a href="/stats" aria-current="page">Stats</a>
+          <a href="/region-map">Region map</a>
+          <a href="/configurator">Configurator</a>
+        </nav>
+      </span>
+      <button type="button" class="icon" data-theme-toggle aria-label="Theme">
+        ◐
+      </button>
+    </header>
+    <main class="stats-main">
+      <div class="stats-header-main is-loading">
+        <div class="stats-tiles" id="stats-header-chips">
+        <div class="tile stats-header-chip is-hero" id="stats-chip-network-wrap" title="Total nodes for the selected preset">
+          <span class="tile-label">Network</span>
+          <span class="tile-value" id="stats-chip-total">—</span>
+        </div>
+        <div
+          class="tile stats-header-chip chip-filterable"
+          id="stats-chip-companions-wrap"
+          title="Companions — click to filter chart"
+          data-type="1"
+        >
+          <span class="tile-label">Companions</span>
+          <span class="tile-value" id="stats-chip-companions">—</span>
+        </div>
+        <div
+          class="tile stats-header-chip chip-filterable"
+          id="stats-chip-repeaters-wrap"
+          title="Repeaters — click to filter chart"
+          data-type="2"
+        >
+          <span class="tile-label">Repeaters</span>
+          <span class="tile-value" id="stats-chip-repeaters">—</span>
+        </div>
+        <div
+          class="tile stats-header-chip chip-filterable"
+          id="stats-chip-roomservers-wrap"
+          title="Room servers — click to filter chart"
+          data-type="3"
+        >
+          <span class="tile-label">Rooms</span>
+          <span class="tile-value" id="stats-chip-roomservers">—</span>
+        </div>
+        <div
+          class="tile stats-header-chip chip-filterable"
+          id="stats-chip-sensors-wrap"
+          title="Sensors — click to filter chart"
+          data-type="4"
+        >
+          <span class="tile-label">Sensors</span>
+          <span class="tile-value" id="stats-chip-sensors">—</span>
+        </div>
+          <div class="tile stats-header-chip" title="New nodes in the last day, week and month">
+            <span class="tile-label">New · 1d / 7d / 30d</span>
+            <span class="tile-value" id="stats-chip-new">— · — · —</span>
+          </div>
+        <div class="tile stats-header-chip" title="Nodes claimed">
+          <span class="tile-label">Claimed</span>
+          <span class="tile-value" id="stats-chip-claimed">—</span>
+        </div>
+        <div class="tile stats-header-chip" title="Discord users">
+          <span class="tile-label">Discord users</span>
+          <span class="tile-value" id="stats-chip-users">—</span>
+        </div>
+        </div>
+      </div>
+      <div id="stats-loading" class="stats-loading muted">Loading sync history…</div>
+      <div id="stats-error" class="stats-error" style="display: none"></div>
+      <div id="stats-content" style="display: none">
+        <div class="stats-chart-and-map">
+          <section class="card stats-chart">
+            <div class="stats-card-head">
+              <h2>Changes</h2>
+              <div class="segmented" id="stats-range" role="group" aria-label="Time range">
+                <button type="button" data-range="week" aria-pressed="false">7d</button>
+                <button type="button" data-range="month" aria-pressed="true">Month</button>
+                <button type="button" data-range="3m" aria-pressed="false">3m</button>
+                <button type="button" data-range="6m" aria-pressed="false">6m</button>
+                <button type="button" data-range="ytd" aria-pressed="false">YTD</button>
+                <button type="button" data-range="1y" aria-pressed="false">1y</button>
+                <button type="button" data-range="all" aria-pressed="false">All</button>
+              </div>
+            </div>
+            <div id="stats-chart"></div>
+          </section>
+        <div class="card stats-playback" id="stats-playback">
+          <h2 class="stats-block-title">Timeline playback</h2>
+          <div class="stats-playback-body">
+            <div class="stats-map-container" id="stats-map-container">
+              <div id="stats-map"></div>
+              <button
+                type="button"
+                class="stats-map-fullscreen-btn"
+                id="stats-map-fullscreen"
+                aria-pressed="false"
+                aria-label="Fullscreen map"
+                title="Fullscreen map"
               >
-                <a
-                  href="/api/v1/companions/contacts"
-                  download="BEMesh-companions.json"
-                  ><img src="./img/node_types/1.svg" alt="" /> Companions</a
+                <svg
+                  class="stats-map-fs-icon stats-map-fs-icon--enter"
+                  viewBox="0 0 24 24"
+                  width="16"
+                  height="16"
+                  aria-hidden="true"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
                 >
-                <a
-                  href="/api/v1/repeaters/contacts"
-                  download="BEMesh-repeaters.json"
-                  ><img src="./img/node_types/2.svg" alt="" /> Repeaters</a
+                  <path
+                    d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"
+                  />
+                </svg>
+                <svg
+                  class="stats-map-fs-icon stats-map-fs-icon--exit"
+                  viewBox="0 0 24 24"
+                  width="16"
+                  height="16"
+                  aria-hidden="true"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
                 >
-                <a
-                  href="/api/v1/room-servers/contacts"
-                  download="BEMesh-room-servers.json"
-                  ><img src="./img/node_types/3.svg" alt="" /> Room servers</a
+                  <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7" />
+                </svg>
+              </button>
+            </div>
+            <div class="stats-playback-dock">
+              <div class="stats-playback-controls">
+                <div class="playback-row">
+                  <div class="playback-transport">
+                    <button
+                      type="button"
+                      id="playback-prev"
+                      title="Previous frame"
+                    >
+                      &#9664;
+                    </button>
+                    <button
+                      type="button"
+                      id="playback-play"
+                      title="Play / Pause"
+                    >
+                      &#9658;
+                    </button>
+                    <button
+                      type="button"
+                      id="playback-next"
+                      title="Next frame"
+                    >
+                      &#9654;
+                    </button>
+                  </div>
+                  <div class="playback-meta">
+                    <span class="playback-date" id="playback-date"></span>
+                    <div class="playback-speed-wrap">
+                      <label for="playback-speed">Speed</label>
+                      <select id="playback-speed" title="Playback speed">
+                        <option value="0.5">0.5×</option>
+                        <option value="1" selected>1×</option>
+                        <option value="2">2×</option>
+                        <option value="4">4×</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+                <div class="playback-slider-wrap">
+                  <input
+                    type="range"
+                    id="playback-slider"
+                    min="0"
+                    max="0"
+                    value="0"
+                    title="Scrub timeline"
+                  />
+                </div>
+              </div>
+              <div class="stats-playback-legend" id="playback-legend">
+                <span class="playback-legend-total"
+                  ><span class="legend-label">Total</span
+                  ><span class="legend-count" id="playback-legend-count-total"
+                    >0</span
+                  ></span
                 >
-                <a
-                  href="/api/v1/sensors/contacts"
-                  download="BEMesh-sensors.json"
-                  ><img src="./img/node_types/4.svg" alt="" /> Sensors</a
+                <span data-type="1"
+                  ><i
+                    class="dot"
+                    style="background: #2196f3; border: 1px solid #1565c0"
+                  ></i
+                  ><span class="legend-label">Client</span
+                  ><span class="legend-count" id="playback-legend-count-1"
+                    >0</span
+                  ></span
+                >
+                <span data-type="2"
+                  ><i
+                    class="dot"
+                    style="background: #4caf50; border: 1px solid #2e7d32"
+                  ></i
+                  ><span class="legend-label">Repeater</span
+                  ><span class="legend-count" id="playback-legend-count-2"
+                    >0</span
+                  ></span
+                >
+                <span data-type="3"
+                  ><i
+                    class="dot"
+                    style="background: #9c27b0; border: 1px solid #6a1b9a"
+                  ></i
+                  ><span class="legend-label">Room Server</span
+                  ><span class="legend-count" id="playback-legend-count-3"
+                    >0</span
+                  ></span
+                >
+                <span data-type="4"
+                  ><i
+                    class="dot"
+                    style="background: #0891b2; border: 1px solid #0e7490"
+                  ></i
+                  ><span class="legend-label">Sensor</span
+                  ><span class="legend-count" id="playback-legend-count-4"
+                    >0</span
+                  ></span
                 >
               </div>
             </div>
           </div>
         </div>
-        <div class="stats-header-main is-loading">
-          <div class="stats-header-chips" id="stats-header-chips">
-            <div
-              class="stats-header-chip-cell span-2-rows col1 stats-header-network-filter-cell"
-            >
-              <div class="stats-filter-menu" id="stats-filter-menu">
-                <button
-                  type="button"
-                  class="stats-filter-menu-trigger"
-                  id="stats-filter-menu-trigger"
-                  aria-expanded="false"
-                  aria-haspopup="dialog"
-                  aria-controls="stats-filter-menu-dropdown"
-                  title="Filter chart and stats by frequency or custom radio fields"
-                >
-                  <svg
-                    class="stats-filter-menu-icon"
-                    viewBox="0 0 24 24"
-                    fill="currentColor"
-                    aria-hidden="true"
-                  >
-                    <path d="M10 18h4v-2h-4v2zM3 6v2h18V6H3zm3 7h12v-2H6v2z" />
-                  </svg>
-                  <span>Filter</span>
-                </button>
-                <div
-                  class="stats-filter-menu-dropdown"
-                  id="stats-filter-menu-dropdown"
-                  role="dialog"
-                  aria-label="Stats filters"
-                >
-                  <div class="stats-filter-menu-inner">
-                    <section class="stats-filter-menu-section">
-                      <div class="stats-filter-menu-section-title">
-                        Frequency preset
-                      </div>
-                      <div
-                        class="stats-preset-dropdown stats-preset-list"
-                        id="stats-preset-dropdown"
-                      ></div>
-                    </section>
-                    <section
-                      class="stats-filter-menu-section stats-filter-menu-section--custom"
-                    >
-                      <details class="stats-filter-custom-details">
-                        <summary>Custom radio</summary>
-                        <div
-                          class="stats-preset-custom-body"
-                          id="stats-preset-custom-root"
-                        ></div>
-                      </details>
-                    </section>
-                  </div>
-                </div>
-              </div>
-              <div
-                class="stats-header-chip is-hero"
-                id="stats-chip-network-wrap"
-                title="Total nodes for the selected preset"
-              >
-                <span class="chip-icon"
-                  ><svg viewBox="0 0 24 24" fill="currentColor">
-                    <path
-                      d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"
-                    /></svg
-                ></span>
-                <span class="chip-label">Network</span>
-                <span class="chip-value" id="stats-chip-total">—</span>
-              </div>
-            </div>
-            <div class="stats-header-chip-cell col2 stats-header-chips-middle">
-              <div class="stats-header-chips-middle-row1">
-                <div
-                  class="stats-header-chip chip-filterable"
-                  id="stats-chip-companions-wrap"
-                  title="Companions — click to filter chart"
-                  data-type="1"
-                >
-                  <img
-                    src="./img/node_types/1.svg"
-                    alt=""
-                    class="chip-icon"
-                  /><span class="chip-label">Companions</span
-                  ><span class="chip-value" id="stats-chip-companions">—</span>
-                </div>
-                <div
-                  class="stats-header-chip chip-filterable"
-                  id="stats-chip-repeaters-wrap"
-                  title="Repeaters — click to filter chart"
-                  data-type="2"
-                >
-                  <img
-                    src="./img/node_types/2.svg"
-                    alt=""
-                    class="chip-icon"
-                  /><span class="chip-label">Repeaters</span
-                  ><span class="chip-value" id="stats-chip-repeaters">—</span>
-                </div>
-                <div
-                  class="stats-header-chip chip-filterable"
-                  id="stats-chip-roomservers-wrap"
-                  title="Room servers — click to filter chart"
-                  data-type="3"
-                >
-                  <img
-                    src="./img/node_types/3.svg"
-                    alt=""
-                    class="chip-icon"
-                  /><span class="chip-label">Rooms</span
-                  ><span class="chip-value" id="stats-chip-roomservers">—</span>
-                </div>
-                <div
-                  class="stats-header-chip chip-filterable"
-                  id="stats-chip-sensors-wrap"
-                  title="Sensors — click to filter chart"
-                  data-type="4"
-                >
-                  <img
-                    src="./img/node_types/4.svg"
-                    alt=""
-                    class="chip-icon"
-                  /><span class="chip-label">Sensors</span
-                  ><span class="chip-value" id="stats-chip-sensors">—</span>
-                </div>
-              </div>
-              <div class="stats-header-chips-middle-row2">
-                <div
-                  class="stats-header-chip chip-activity"
-                  title="Active in last day"
-                >
-                  <span class="chip-badge">1d</span>
-                  <span class="chip-value" id="stats-chip-active24h">—</span>
-                </div>
-                <div
-                  class="stats-header-chip chip-activity"
-                  title="Active in last week"
-                >
-                  <span class="chip-badge">7d</span>
-                  <span class="chip-value" id="stats-chip-active7d">—</span>
-                </div>
-                <div
-                  class="stats-header-chip chip-activity"
-                  title="Active in last month"
-                >
-                  <span class="chip-badge">30d</span>
-                  <span class="chip-value" id="stats-chip-active30d">—</span>
-                </div>
-              </div>
-            </div>
-            <div
-              class="stats-header-chip-cell col3 stats-header-chips-claimed-discord"
-            >
-              <div class="stats-header-chip" title="Nodes claimed">
-                <span class="chip-icon"
-                  ><svg viewBox="0 0 24 24" fill="currentColor">
-                    <path
-                      d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"
-                    /></svg></span
-                ><span class="chip-label">Claimed</span
-                ><span class="chip-value" id="stats-chip-claimed">—</span>
-              </div>
-              <div class="stats-header-chip" title="Discord users">
-                <img
-                  src="./img/discord-logo.svg"
-                  alt=""
-                  class="chip-icon"
-                /><span class="chip-label">Discord users</span
-                ><span class="chip-value" id="stats-chip-users">—</span>
-              </div>
-            </div>
-          </div>
-          <div class="stats-top-cities-inline">
-            <div class="stats-top-cities-header">
-              <span
-                class="stats-top-cities-title"
-                id="stats-summary-cities-title"
-                >Top cities</span
-              >
+        </div>
+        <div class="stats-cards">
+          <section class="card stats-top-cities-inline">
+            <div class="stats-card-head">
+              <h2 id="stats-summary-cities-title">Top cities</h2>
               <select
                 id="stats-cities-type"
-                class="stats-top-cities-select"
+                class="chip stats-top-cities-select"
                 title="Filter by node type"
+                aria-label="Node type"
               >
                 <option value="all">All node types</option>
                 <option value="1">Companions</option>
@@ -274,326 +348,43 @@
                 <option value="4">Sensors</option>
               </select>
             </div>
-            <div class="stats-top-cities-table">
-              <table>
-                <tbody id="stats-summary-cities"></tbody>
-              </table>
-            </div>
+            <ul class="stats-rows" id="stats-summary-cities"></ul>
+          </section>
+          <section class="card stats-topday-card" data-metric="growth">
+            <h2>Most repeaters added</h2>
+            <div class="stats-rows" id="stats-topday-growth"></div>
+          </section>
+          <section class="card stats-links">
+            <h2>Links</h2>
+          <div class="stats-links-group">
+            <span class="muted stats-links-label">Radio-Actief community</span>
+            <p><a href="https://radio-actief.be" target="_blank" rel="noopener noreferrer">Website</a> · <a href="https://meshcore.radio-actief.be" target="_blank" rel="noopener noreferrer">MeshCore settings &amp; news</a> · <a href="https://meshwiki.radio-actief.be" target="_blank" rel="noopener noreferrer">Documentation</a> · <a href="https://discord.gg/kvybAgqnhD" target="_blank" rel="noopener noreferrer">Discord</a> · <a href="https://github.com/radio-actief" target="_blank" rel="noopener noreferrer">GitHub</a></p>
           </div>
+          <div class="stats-links-group">
+            <span class="muted stats-links-label">by Radio-Actief members</span>
+            <p><a href="https://meshmap.on8ar.eu/" target="_blank" rel="noopener noreferrer">ON8AR MeshMap</a> <span class="stats-link-desc">(by ON8AR Erwin)</span> · <a href="https://analyzer.on8ar.eu/" target="_blank" rel="noopener noreferrer">ON8AR Analyzer</a> <span class="stats-link-desc">(by ON8AR Erwin)</span> · <a href="https://play.google.com/store/apps/details?id=be.hbx.mapmesher" target="_blank" rel="noopener noreferrer">MapMe.SH Android App</a> <span class="stats-link-desc">(by Nikotine [RRY67])</span> · <a href="https://github.com/PoincareMesh/MeshCoreIRC" target="_blank" rel="noopener noreferrer">MeshCoreIRC Gateway</a> <span class="stats-link-desc">(by ON1AFF Jeff)</span></p>
+          </div>
+          <div class="stats-links-group">
+            <span class="muted stats-links-label">by the MeshCore community</span>
+            <p><a href="https://analyzer.letsmesh.net/" target="_blank" rel="noopener noreferrer">Let's Mesh Analyzer</a> <span class="stats-link-desc">(by Tree🌲)</span></p>
+          </div>
+          </section>
         </div>
+        <p class="muted stats-footer-note">
+          <sup>*</sup> Node counts and map data are synced from the official
+          MeshCore official internet
+          <a
+            href="https://map.meshcore.io/"
+            target="_blank"
+            rel="noopener noreferrer"
+            >map</a
+          >
+          — either manually uploaded by users or reported by companions with
+          uploader software. No data is read from MQTT servers or other
+          analyzers.
+        </p>
       </div>
-      <div id="stats-loading" class="stats-loading">Loading sync history…</div>
-      <div id="stats-error" class="stats-error" style="display: none"></div>
-
-      <div id="stats-content" style="display: none">
-        <div class="stats-chart-and-map">
-          <div class="stats-chart">
-            <h2 class="stats-block-title">Changes graph</h2>
-            <div class="stats-chart-range-wrap">
-              <label for="stats-chart-range" class="stats-chart-range-label"
-                >Range</label
-              >
-              <select
-                id="stats-chart-range"
-                class="stats-chart-range"
-                title="Time range"
-              >
-                <option value="week">Last 7 days</option>
-                <option value="month" selected>Month</option>
-                <option value="3m">3 months</option>
-                <option value="6m">6 months</option>
-                <option value="ytd">YTD</option>
-                <option value="1y">1 year</option>
-                <option value="all">All</option>
-              </select>
-            </div>
-            <div id="stats-chart"></div>
-          </div>
-          <div class="stats-playback" id="stats-playback">
-            <h2 class="stats-block-title">Timeline playback</h2>
-            <div class="stats-playback-body">
-              <div class="stats-map-container" id="stats-map-container">
-                <div id="stats-map"></div>
-                <button
-                  type="button"
-                  class="stats-map-fullscreen-btn"
-                  id="stats-map-fullscreen"
-                  aria-pressed="false"
-                  aria-label="Fullscreen map"
-                  title="Fullscreen map"
-                >
-                  <svg
-                    class="stats-map-fs-icon stats-map-fs-icon--enter"
-                    viewBox="0 0 24 24"
-                    width="16"
-                    height="16"
-                    aria-hidden="true"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  >
-                    <path
-                      d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"
-                    />
-                  </svg>
-                  <svg
-                    class="stats-map-fs-icon stats-map-fs-icon--exit"
-                    viewBox="0 0 24 24"
-                    width="16"
-                    height="16"
-                    aria-hidden="true"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  >
-                    <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7" />
-                  </svg>
-                </button>
-              </div>
-              <div class="stats-playback-dock">
-                <div class="stats-playback-controls">
-                  <div class="playback-row">
-                    <div class="playback-transport">
-                      <button
-                        type="button"
-                        id="playback-prev"
-                        title="Previous frame"
-                      >
-                        &#9664;
-                      </button>
-                      <button
-                        type="button"
-                        id="playback-play"
-                        title="Play / Pause"
-                      >
-                        &#9658;
-                      </button>
-                      <button
-                        type="button"
-                        id="playback-next"
-                        title="Next frame"
-                      >
-                        &#9654;
-                      </button>
-                    </div>
-                    <div class="playback-meta">
-                      <span class="playback-date" id="playback-date"></span>
-                      <div class="playback-speed-wrap">
-                        <label for="playback-speed">Speed</label>
-                        <select id="playback-speed" title="Playback speed">
-                          <option value="0.5">0.5×</option>
-                          <option value="1" selected>1×</option>
-                          <option value="2">2×</option>
-                          <option value="4">4×</option>
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="playback-slider-wrap">
-                    <input
-                      type="range"
-                      id="playback-slider"
-                      min="0"
-                      max="0"
-                      value="0"
-                      title="Scrub timeline"
-                    />
-                  </div>
-                </div>
-                <div class="stats-playback-legend" id="playback-legend">
-                  <span class="playback-legend-total"
-                    ><span class="legend-label">Total</span
-                    ><span class="legend-count" id="playback-legend-count-total"
-                      >0</span
-                    ></span
-                  >
-                  <span data-type="1"
-                    ><i
-                      class="dot"
-                      style="background: #2196f3; border: 1px solid #1565c0"
-                    ></i
-                    ><span class="legend-label">Client</span
-                    ><span class="legend-count" id="playback-legend-count-1"
-                      >0</span
-                    ></span
-                  >
-                  <span data-type="2"
-                    ><i
-                      class="dot"
-                      style="background: #4caf50; border: 1px solid #2e7d32"
-                    ></i
-                    ><span class="legend-label">Repeater</span
-                    ><span class="legend-count" id="playback-legend-count-2"
-                      >0</span
-                    ></span
-                  >
-                  <span data-type="3"
-                    ><i
-                      class="dot"
-                      style="background: #9c27b0; border: 1px solid #6a1b9a"
-                    ></i
-                    ><span class="legend-label">Room Server</span
-                    ><span class="legend-count" id="playback-legend-count-3"
-                      >0</span
-                    ></span
-                  >
-                  <span data-type="4"
-                    ><i
-                      class="dot"
-                      style="background: #0891b2; border: 1px solid #0e7490"
-                    ></i
-                    ><span class="legend-label">Sensor</span
-                    ><span class="legend-count" id="playback-legend-count-4"
-                      >0</span
-                    ></span
-                  >
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="stats-topdays">
-          <div class="stats-topdays-grid">
-            <div
-              class="stats-topday-card stats-topday-upside"
-              data-metric="growth"
-            >
-              <div class="stats-topday-card-header">
-                <span class="stats-topday-icon" aria-hidden="true">↑</span>
-                <h3>Most repeaters added</h3>
-              </div>
-              <div class="stats-topday-list" id="stats-topday-growth"></div>
-            </div>
-          </div>
-        </div>
-        <footer class="stats-footer">
-          <p class="stats-footer-note">
-            <sup>*</sup> Node counts and map data are synced from the official
-            MeshCore official internet
-            <a
-              href="https://map.meshcore.io/"
-              target="_blank"
-              rel="noopener noreferrer"
-              >map</a
-            >
-            — either manually uploaded by users or reported by companions with
-            uploader software. No data is read from MQTT servers or other
-            analyzers.
-          </p>
-          <div class="stats-footer-links">
-            <h4>External links</h4>
-            <div class="stats-footer-links-grid">
-              <div>
-                <strong>Radio-Actief community</strong>
-                <ul>
-                  <li>
-                    <a
-                      href="https://radio-actief.be"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      >Website</a
-                    >
-                  </li>
-                  <li>
-                    <a
-                      href="https://meshcore.radio-actief.be"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      >MeshCore settings & news</a
-                    >
-                  </li>
-                  <li>
-                    <a
-                      href="https://meshwiki.radio-actief.be"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      >Documentation</a
-                    >
-                  </li>
-                  <li>
-                    <a
-                      href="https://discord.gg/kvybAgqnhD"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      >Discord</a
-                    >
-                  </li>
-                  <li>
-                    <a
-                      href="https://github.com/radio-actief"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      >GitHub</a
-                    >
-                  </li>
-                </ul>
-              </div>
-              <div>
-                <strong>by Radio-Actief members</strong>
-                <ul>
-                  <li>
-                    <a
-                      href="https://meshmap.on8ar.eu/"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      >ON8AR MeshMap</a
-                    >
-                    <span class="stats-link-desc">(by ON8AR Erwin)</span>
-                  </li>
-                  <li>
-                    <a
-                      href="https://analyzer.on8ar.eu/"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      >ON8AR Analyzer</a
-                    >
-                    <span class="stats-link-desc">(by ON8AR Erwin)</span>
-                  </li>
-                  <li>
-                    <a
-                      href="https://play.google.com/store/apps/details?id=be.hbx.mapmesher"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      >MapMe.SH Android App</a
-                    >
-                    <span class="stats-link-desc">(by Nikotine [RRY67])</span>
-                  </li>
-                  <li>
-                    <a
-                      href="https://github.com/PoincareMesh/MeshCoreIRC"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      >MeshCoreIRC Gateway</a
-                    >
-                    <span class="stats-link-desc">(by ON1AFF Jeff)</span>
-                  </li>
-                </ul>
-              </div>
-              <div>
-                <strong>by the MeshCore community</strong>
-                <ul>
-                  <li>
-                    <a
-                      href="https://analyzer.letsmesh.net/"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      >Let's Mesh Analyzer</a
-                    >
-                    <span class="stats-link-desc">(by Tree🌲)</span>
-                  </li>
-                </ul>
-              </div>
-            </div>
-          </div>
-        </footer>
-      </div>
-    </div>
-
-    <script src="./lib/js/bootstrap.bundle.min.js"></script>
+    </main>
     <script src="./src/stats.js"></script>
   </body>
 </html>

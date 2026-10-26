@@ -3,6 +3,15 @@
         const errorEl = document.getElementById("stats-error");
         const contentEl = document.getElementById("stats-content");
 
+        /** Chart text and grid colours come from the page tokens, so they follow the theme. */
+        function statsInk() {
+          var st = getComputedStyle(document.documentElement);
+          return {
+            mut: st.getPropertyValue("--mut").trim() || "#6b7280",
+            line: st.getPropertyValue("--line").trim() || "#e3e5e8",
+          };
+        }
+
         // Populate header chips immediately
         function fillHeaderChips(s) {
           var byType =
@@ -51,9 +60,13 @@
             true,
           );
           setChip("stats-chip-sensors", sensors > 0 ? sensors : null, true);
-          set("stats-chip-active24h", active24h);
-          set("stats-chip-active7d", active7d);
-          set("stats-chip-active30d", active30d);
+          var newEl = document.getElementById("stats-chip-new");
+          if (newEl)
+            newEl.textContent = [active24h, active7d, active30d]
+              .map(function (n) {
+                return n.toLocaleString();
+              })
+              .join(" · ");
           set("stats-chip-claimed", claimed);
           set("stats-chip-users", users);
         }
@@ -61,7 +74,7 @@
         // Download + filter flyouts: close on outside click; mutual close when opening the other
         const downloadChip = document.getElementById("stats-download-chip");
         const downloadDropdown = document.getElementById(
-          "stats-download-dropdown",
+          "stats-download-menu",
         );
         const filterMenu = document.getElementById("stats-filter-menu");
         const filterTrigger = document.getElementById(
@@ -70,6 +83,20 @@
         const filterDropdown = document.getElementById(
           "stats-filter-menu-dropdown",
         );
+        const pageMenuBtn = document.getElementById("menu-toggle");
+        const pageMenu = document.getElementById("page-menu");
+        if (pageMenuBtn && pageMenu) {
+          pageMenuBtn.addEventListener("click", function (e) {
+            e.stopPropagation();
+            var open = pageMenu.hidden;
+            pageMenu.hidden = !open;
+            pageMenuBtn.setAttribute("aria-expanded", open ? "true" : "false");
+          });
+          document.addEventListener("click", function () {
+            pageMenu.hidden = true;
+            pageMenuBtn.setAttribute("aria-expanded", "false");
+          });
+        }
         var statsHeaderPopoverResizeTimer;
         function scheduleStatsHeaderChartResize() {
           clearTimeout(statsHeaderPopoverResizeTimer);
@@ -226,6 +253,15 @@
         }
 
         function syncStatsPresetPanelActive() {
+          var labelEl = document.getElementById("stats-preset-label");
+          if (labelEl)
+            labelEl.textContent =
+              "Preset: " +
+              (currentPresetValue === "all"
+                ? "All"
+                : currentPresetValue === "__custom__"
+                  ? "Custom"
+                  : currentPresetValue);
           var listEl = document.getElementById("stats-preset-dropdown");
           if (listEl) {
             listEl.querySelectorAll("button[data-value]").forEach(function (b) {
@@ -470,21 +506,20 @@
             inlineWrap.classList.toggle("is-filtered", typeKey !== "all");
           }
           var list = getTopCitiesForType(typeKey);
-          function row(tbody, label, value) {
-            var tr = document.createElement("tr");
-            tr.innerHTML =
-              "<td>" + label + '</td><td class="num">' + value + "</td>";
-            tbody.appendChild(tr);
+          function row(ul, label, value) {
+            var li = document.createElement("li");
+            var name = document.createElement("span");
+            name.textContent = label;
+            var count = document.createElement("span");
+            count.className = "muted";
+            count.textContent = value;
+            li.appendChild(name);
+            li.appendChild(count);
+            ul.appendChild(li);
           }
           if (list.length > 0)
             list.forEach(function (c) {
-              row(
-                tCities,
-                c.city,
-                '<span class="value">' +
-                  Number(c.count).toLocaleString() +
-                  "</span>",
-              );
+              row(tCities, c.city, Number(c.count).toLocaleString());
             });
           else row(tCities, "—", "—");
         }
@@ -1084,7 +1119,7 @@
             container.innerHTML = "";
             if (!rows || rows.length === 0) {
               var empty = document.createElement("div");
-              empty.className = "stats-topday-empty";
+              empty.className = "stats-topday-empty muted";
               empty.textContent = "No data";
               container.appendChild(empty);
               return;
@@ -1095,11 +1130,7 @@
               var item = document.createElement("div");
               item.className = "stats-topday-item" + (isLead ? " is-lead" : "");
               item.innerHTML =
-                '<span class="stats-topday-rank">' +
-                (isLead ? "#" : "") +
-                (i + 1) +
-                "</span>" +
-                '<span class="stats-topday-date">' +
+                "<span>" +
                 formatDateOnly(row.date) +
                 "</span>" +
                 '<span class="stats-topday-value">' +
@@ -1543,10 +1574,10 @@
                   seriesName: "Growth",
                   title: {
                     text: "Change",
-                    style: { color: "#57534e", fontSize: "12px" },
+                    style: { color: statsInk().mut, fontSize: "12px" },
                   },
-                  labels: { style: { colors: "#57534e" } },
-                  axisBorder: { show: true, color: "#e7e5e4" },
+                  labels: { style: { colors: statsInk().mut } },
+                  axisBorder: { show: true, color: statsInk().line },
                   min: 0,
                   max: barMaxVal,
                   tickAmount: 6,
@@ -1568,9 +1599,9 @@
                   opposite: true,
                   title: {
                     text: "Cumulative",
-                    style: { color: "#57534e", fontSize: "12px" },
+                    style: { color: statsInk().mut, fontSize: "12px" },
                   },
-                  labels: { style: { colors: "#57534e" } },
+                  labels: { style: { colors: statsInk().mut } },
                   min: 0,
                   max: lineMaxVal,
                   tickAmount: 6,
@@ -1583,10 +1614,10 @@
                   seriesName: "Growth",
                   title: {
                     text: "Change",
-                    style: { color: "#57534e", fontSize: "12px" },
+                    style: { color: statsInk().mut, fontSize: "12px" },
                   },
-                  labels: { style: { colors: "#57534e" } },
-                  axisBorder: { show: true, color: "#e7e5e4" },
+                  labels: { style: { colors: statsInk().mut } },
+                  axisBorder: { show: true, color: statsInk().line },
                   min: 0,
                   max: barMaxVal,
                   tickAmount: 6,
@@ -1656,9 +1687,9 @@
                   opposite: true,
                   title: {
                     text: "Cumulative",
-                    style: { color: "#57534e", fontSize: "12px" },
+                    style: { color: statsInk().mut, fontSize: "12px" },
                   },
-                  labels: { style: { colors: "#57534e" } },
+                  labels: { style: { colors: statsInk().mut } },
                   min: 0,
                   max: lineMaxVal,
                   tickAmount: 6,
@@ -1701,7 +1732,7 @@
             statsChartInstance = new ApexCharts(chartEl, {
               chart: {
                 type: "line",
-                fontFamily: "DM Sans, system-ui, sans-serif",
+                fontFamily: "Figtree, system-ui, sans-serif",
                 toolbar: { show: false },
                 zoom: { enabled: false },
                 animations: {
@@ -1822,22 +1853,22 @@
                 categories: labels,
                 tickAmount: 8,
                 labels: {
-                  style: { colors: "#57534e", fontSize: "11px" },
+                  style: { colors: statsInk().mut, fontSize: "11px" },
                   hideOverlappingLabels: true,
                   maxHeight: 80,
                 },
-                axisBorder: { show: true, color: "#e7e5e4" },
-                axisTicks: { show: true, color: "#e7e5e4" },
+                axisBorder: { show: true, color: statsInk().line },
+                axisTicks: { show: true, color: statsInk().line },
               },
               yaxis: [
                 {
                   seriesName: "Growth",
                   title: {
                     text: "Change",
-                    style: { color: "#57534e", fontSize: "12px" },
+                    style: { color: statsInk().mut, fontSize: "12px" },
                   },
-                  labels: { style: { colors: "#57534e" } },
-                  axisBorder: { show: true, color: "#e7e5e4" },
+                  labels: { style: { colors: statsInk().mut } },
+                  axisBorder: { show: true, color: statsInk().line },
                   min: 0,
                   max: barMax,
                   tickAmount: 6,
@@ -1870,9 +1901,9 @@
                   opposite: true,
                   title: {
                     text: "Total",
-                    style: { color: "#57534e", fontSize: "12px" },
+                    style: { color: statsInk().mut, fontSize: "12px" },
                   },
-                  labels: { style: { colors: "#57534e" } },
+                  labels: { style: { colors: statsInk().mut } },
                   min: 0,
                   max: Math.max.apply(null, cumulativeDisplay) || 1,
                   tickAmount: 6,
@@ -1908,7 +1939,7 @@
                 },
               ],
               grid: {
-                borderColor: "#e7e5e4",
+                borderColor: statsInk().line,
                 strokeDashArray: 3,
                 xaxis: { lines: { show: false } },
                 yaxis: { lines: { show: true } },
@@ -1918,14 +1949,14 @@
                 horizontalAlign: "center",
                 fontSize: "12px",
                 fontWeight: 500,
-                labels: { colors: "#57534e", style: { opacity: 0.85 } },
+                labels: { colors: statsInk().mut, style: { opacity: 0.85 } },
                 itemMargin: { horizontal: 16, vertical: 6 },
                 markers: { radius: 5, shape: "circle" },
               },
               tooltip: {
                 shared: true,
                 intersect: false,
-                theme: "light",
+                theme: window.BEmeshTheme && window.BEmeshTheme.isDark() ? "dark" : "light",
                 style: { fontSize: "12px" },
                 hideEmptySeries: false,
                 x: {
@@ -1957,7 +1988,7 @@
                   var parts = [];
                   if (growth > 0 || decline > 0) {
                     parts.push(
-                      "<div style='font-size:11px;color:#78716c;margin-bottom:4px'>Added+restored: +" +
+                      "<div style='font-size:11px;opacity:0.7;margin-bottom:4px'>Added+restored: +" +
                         growth +
                         " · Removed: -" +
                         decline +
@@ -2063,7 +2094,7 @@
                     xaxis: {
                       tickAmount: 5,
                       labels: {
-                        style: { colors: "#57534e", fontSize: "9px" },
+                        style: { colors: statsInk().mut, fontSize: "9px" },
                         maxHeight: 56,
                       },
                     },
@@ -2101,13 +2132,36 @@
               });
             }
             applyChartRange("month");
-            var rangeSelect = document.getElementById("stats-chart-range");
-            if (rangeSelect) {
-              rangeSelect.addEventListener("change", function () {
-                currentChartRange = this.value;
-                applyChartRange(this.value);
-              });
-            }
+            setRangeButtons("month");
+            window.__statsSetRange = function (value) {
+              currentChartRange = value;
+              setRangeButtons(value);
+              applyChartRange(value);
+            };
+            window.__statsApplyTheme = function () {
+              if (!statsChartInstance) return;
+              var ink = statsInk();
+              statsChartInstance.updateOptions(
+                {
+                  xaxis: {
+                    labels: { style: { colors: ink.mut } },
+                    axisBorder: { color: ink.line },
+                    axisTicks: { color: ink.line },
+                  },
+                  grid: { borderColor: ink.line },
+                  legend: { labels: { colors: ink.mut } },
+                  tooltip: {
+                    theme:
+                      window.BEmeshTheme && window.BEmeshTheme.isDark()
+                        ? "dark"
+                        : "light",
+                  },
+                },
+                false,
+                false,
+              );
+              applyChartRange(currentChartRange);
+            };
           }
 
           // Playback map: defer heavy node_changes + Leaflet until idle (or run immediately when refetch passes data).
@@ -2145,6 +2199,41 @@
             });
           }
         }
+        function setRangeButtons(value) {
+          document
+            .querySelectorAll("#stats-range button")
+            .forEach(function (b) {
+              b.setAttribute(
+                "aria-pressed",
+                b.getAttribute("data-range") === value ? "true" : "false",
+              );
+            });
+        }
+        document.querySelectorAll("#stats-range button").forEach(function (b) {
+          b.addEventListener("click", function () {
+            if (typeof window.__statsSetRange === "function")
+              window.__statsSetRange(b.getAttribute("data-range"));
+          });
+        });
+        (function watchTheme() {
+          var timer;
+          function changed() {
+            clearTimeout(timer);
+            timer = setTimeout(function () {
+              if (typeof window.__statsApplyTheme === "function")
+                window.__statsApplyTheme();
+            }, 50);
+          }
+          new MutationObserver(changed).observe(document.documentElement, {
+            attributes: true,
+            attributeFilter: ["data-theme"],
+          });
+          if (window.matchMedia) {
+            window
+              .matchMedia("(prefers-color-scheme: dark)")
+              .addEventListener("change", changed);
+          }
+        })();
         window.__statsRefetchChart = function (preset) {
           if (preset != null && preset !== "" && !window.__statsRadioCustom) {
             chartPresetValue = preset;

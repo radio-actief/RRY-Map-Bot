@@ -788,7 +788,7 @@ def get_source_statistics() -> Dict[str, Any]:
 
 def update_ownership(public_key: str, user_id: str, username: str) -> bool:
     """
-    Claim a node for a Discord user.
+    Claim an unclaimed node for a Discord user.
 
     Sets ``discord_owner_id`` and ``discord_owner_name`` on ``belgian_nodes``
     and appends a ``'claim'`` row to ``node_claims``. Both writes happen in
@@ -800,7 +800,8 @@ def update_ownership(public_key: str, user_id: str, username: str) -> bool:
         username: Discord username.
 
     Returns:
-        True if the node was found and the claim was recorded, False otherwise.
+        True if the node was found and the claim was recorded, False if it
+        is missing, inactive or already claimed.
     """
     conn = get_connection()
     cursor = conn.cursor()
@@ -813,6 +814,7 @@ def update_ownership(public_key: str, user_id: str, username: str) -> bool:
             SET discord_owner_id = ?,
                 discord_owner_name = ?
             WHERE public_key = ? AND is_active = 1
+              AND (discord_owner_id IS NULL OR discord_owner_id = '')
         """, (str(user_id), username, public_key_normalized))
 
         if cursor.rowcount == 0:

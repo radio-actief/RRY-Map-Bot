@@ -51,11 +51,17 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
 # Built configurator app (Vite output, produced by `npm run build`)
 CONFIGURATOR_DIST = os.path.join(PROJECT_ROOT, 'dist', 'configurator')
 
-# Create Flask application with static file serving
-app = Flask(__name__, 
-            static_folder=PROJECT_ROOT,
-            static_url_path='',
-            template_folder=PROJECT_ROOT)
+# Static files are served by serve_static() below, from an allowlist only
+app = Flask(__name__, static_folder=None)
+
+# Public files: the pages, their favicons, these asset folders, and the
+# .json/.geojson datasets directly inside data/ (never the database or logs)
+STATIC_ROOT_FILES = {
+    'index.html', 'stats.html', 'region-map.html',
+    'favicon.ico', 'favicon.png', 'favicon-16.png', 'favicon-32.png', 'favicon-48.png',
+}
+STATIC_DIRS = ('css/', 'img/', 'lib/', 'src/')
+DATA_SUFFIXES = ('.json', '.geojson')
 
 # Configure session
 app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', secrets.token_hex(32))
@@ -416,7 +422,7 @@ def _parse_radio_custom_from_request():
         if not (4 <= cr_i <= 9):
             return None
         out["cr"] = cr_i
-        return out if out else None
+    return out if out else None
 
 
 def _chart_day_expr(table_alias: str = "b") -> str:
@@ -1104,11 +1110,11 @@ def not_found(error):
             'message': 'The requested API endpoint does not exist'
         }), 404
     
-    # For missing static files (like fonts, favicon), return proper 404
-    # Browsers will handle missing resources gracefully
-    if (request.path.startswith('/lib/')
-            or request.path.startswith('/configurator/')
-            or request.path == '/favicon.ico'):
+    # Anything that looks like a file, or is one that isn't public, gets a
+    # real 404 instead of the map page
+    if (request.path.startswith('/configurator/')
+            or '.' in request.path.rsplit('/', 1)[-1]
+            or os.path.lexists(os.path.join(PROJECT_ROOT, request.path.lstrip('/')))):
         return NotFound()
     
     # For non-API routes (SPA routing), serve index.html
@@ -1434,11 +1440,21 @@ def region_map_page():
     return send_from_directory(PROJECT_ROOT, 'region-map.html')
 
 
+def _is_public_path(path: str) -> bool:
+    """True when ``path`` (relative, already normalised) may be served."""
+    if path in STATIC_ROOT_FILES or path.startswith(STATIC_DIRS):
+        return True
+    if path.startswith('data/'):
+        name = path[len('data/'):]
+        return '/' not in name and name.endswith(DATA_SUFFIXES)
+    return False
+
+
 @app.route('/<path:path>')
 def serve_static(path):
-    """Serve static files (lib/, css/, src/, etc.) with correct MIME types."""
+    """Serve allowlisted static files (pages, css/, img/, lib/, src/, data/*.json) with correct MIME types."""
     from werkzeug.exceptions import NotFound
-    if path.startswith('api/') or path.startswith('auth/'):
+    if '..' in path.split('/') or '\\' in path or not _is_public_path(path):
         raise NotFound()
     full_path = os.path.join(PROJECT_ROOT, path)
     if not os.path.isfile(full_path):

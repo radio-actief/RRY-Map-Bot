@@ -61,6 +61,9 @@ export class FakeLayer {
     this.removed = true;
     return this;
   }
+  getContainer() {
+    return this.args[0] as HTMLElement;
+  }
   eachLayer(fn: (l: FakeLayer) => void) {
     this.children.forEach(fn);
   }
@@ -80,3 +83,34 @@ export const circle = (ll: unknown, o: Record<string, any> = {}) => new FakeLaye
 export const marker = (ll: unknown, o: Record<string, any> = {}) => new FakeLayer("marker", [ll], o);
 export const geoJSON = (data: unknown, o: Record<string, any> = {}) => new FakeLayer("geojson", [data], o);
 export const divIcon = (o: Record<string, any>) => ({ divIcon: true, ...o });
+
+/** Just enough of Leaflet's control and DOM helpers for map-shade.js. */
+export const DomUtil = {
+  create(tag: string, className: string, parent?: HTMLElement) {
+    const el = document.createElement(tag);
+    el.className = className;
+    parent?.appendChild(el);
+    return el;
+  },
+};
+export const DomEvent = {
+  disableClickPropagation: () => {},
+  preventDefault: (e: Event) => e.preventDefault(),
+  on: (el: HTMLElement, type: string, fn: (e: Event) => void) => el.addEventListener(type, fn),
+};
+export const control = (o: { position?: string } = {}) => {
+  const c: any = {
+    options: o,
+    el: null as HTMLElement | null,
+    addTo(map: FakeLayer) {
+      c.el = c.onAdd(map);
+      map.getContainer().appendChild(c.el);
+      return c;
+    },
+    remove() {
+      c.el?.remove();
+      return c;
+    },
+  };
+  return c;
+};

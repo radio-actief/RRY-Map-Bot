@@ -339,14 +339,9 @@
   position: absolute;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .leaflet-tile-pane {
-    filter: brightness(0.7) contrast(0.95) saturate(0.8);
-  }
-}
-
-:root[data-theme="dark"] .leaflet-tile-pane {
-  filter: brightness(0.7) contrast(0.95) saturate(0.8);
+/* The shade switch sits under the layer switches; the docked panel covers the left edge. */
+.map-container .leaflet-top.leaflet-right {
+  margin-top: 84px;
 }
 
 .map-layers {

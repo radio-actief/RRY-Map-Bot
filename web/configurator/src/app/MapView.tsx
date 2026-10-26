@@ -3,6 +3,7 @@ import * as L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { GeoJsonObject } from "geojson";
 import { useEffect, useMemo, useRef } from "preact/hooks";
+import "../../../../src/shared/map-shade.js";
 import { GEWEST_NAMES } from "../core/be-regions";
 import { municipalityAt, nodesWithin, NEIGHBOR_RADIUS_KM, roundCoord, type LatLon } from "../core/geo";
 import { regionsByState } from "../core/regions";
@@ -13,6 +14,12 @@ export const TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
 export const ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 const BELGIUM: L.LatLngTuple = [50.6, 4.6];
 const PIN_ZOOM = 11;
+
+declare global {
+  interface Window {
+    BEmeshMapShade: { attach(l: typeof L, map: L.Map, tiles: L.TileLayer, opts?: { position?: L.ControlPosition }): () => void };
+  }
+}
 
 type Feature = { type: "Feature"; properties?: Record<string, unknown>; geometry: unknown };
 const featuresOf = (data: unknown): Feature[] =>
@@ -69,7 +76,8 @@ export function MapView() {
     const map = L.map(host.current!, { zoomControl: true });
     const start = store.plan.peek().location;
     map.setView(start ? asLatLng(start) : BELGIUM, start ? PIN_ZOOM : 8);
-    L.tileLayer(TILE_URL, { attribution: ATTRIBUTION, maxZoom: 19 }).addTo(map);
+    const tiles = L.tileLayer(TILE_URL, { attribution: ATTRIBUTION, maxZoom: 19, className: "osm-tiles" }).addTo(map);
+    const detachShade = window.BEmeshMapShade.attach(L, map, tiles, { position: "topright" });
     groups.current = {
       borders: L.layerGroup().addTo(map),
       highlight: L.layerGroup().addTo(map),
@@ -79,6 +87,7 @@ export function MapView() {
     map.on("click", (e: L.LeafletMouseEvent) => pick(e.latlng.lat, e.latlng.lng));
     mapRef.current = map;
     return () => {
+      detachShade();
       map.remove();
       mapRef.current = null;
       groups.current = null;

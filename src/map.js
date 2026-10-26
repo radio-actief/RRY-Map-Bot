@@ -1753,7 +1753,7 @@ createApp({
       const nodePopup = markRaw(
         L.popup({
           ...getLeafletNodePopupSize(),
-          autoPanPaddingTopLeft: [10, 60],
+          autoPanPaddingTopLeft: [10, 100],
           autoPanPaddingBottomRight: [10, 10],
           content: () => getTable(node, auth, app.nodes),
         }),
@@ -1776,9 +1776,19 @@ createApp({
           const content = root.querySelector(".leaflet-popup-content");
           fillNodeQrSlotFromPopup(content);
         }, 100);
+        // The card grows once its QR code is drawn; pan again so it stays clear of the search box.
+        const root = marker.getPopup()?.getElement();
+        if (root && "ResizeObserver" in window) {
+          marker._popupResize = new ResizeObserver(() => {
+            if (nodePopup.isOpen()) nodePopup._adjustPan();
+          });
+          marker._popupResize.observe(root);
+        }
       });
       marker.on("popupclose", function () {
         delete app.urlParams.node;
+        marker._popupResize?.disconnect();
+        marker._popupResize = null;
       });
     }
 
@@ -2128,7 +2138,7 @@ createApp({
       const tempMarker = L.marker([lat, lon], { icon, title: node.adv_name });
       const deepLinkPopup = L.popup({
         ...getLeafletNodePopupSize(),
-        autoPanPaddingTopLeft: [10, 60],
+        autoPanPaddingTopLeft: [10, 100],
         autoPanPaddingBottomRight: [10, 10],
         content: () => getTable(node, auth, app.nodes),
       });

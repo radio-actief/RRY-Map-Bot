@@ -513,6 +513,12 @@ body.map-page {
     min-width: 0;
   }
 
+  /* A tall node card scrolls instead of running under the search box. */
+  .node-popup {
+    max-height: calc(100dvh - 200px);
+    overflow-y: auto;
+  }
+
   .leaflet-bottom.leaflet-left {
     bottom: calc(34px + var(--map-safe-bottom));
   }

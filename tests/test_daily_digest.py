@@ -12,6 +12,7 @@ object and inspected in-process.
 """
 from __future__ import annotations
 
+import json
 import os
 import sqlite3
 import sys
@@ -19,6 +20,8 @@ import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+import pytest
 
 THIS_DIR = Path(__file__).resolve().parent
 REPO_ROOT = THIS_DIR.parent
@@ -554,6 +557,233 @@ def test_gone_node_restored_then_removed_again_is_left_out() -> None:
     _events(conn, pk, start, "restored", "removed")
     agg = collect_changes_since(conn, start)
     assert agg["added"] == [] and agg["removed"] == [] and agg["restored"] == []
+
+
+
+# ---------------------------------------------------------------------------
+# Window bounded by finished syncs, real window line, missed-day catch-up
+# ---------------------------------------------------------------------------
+
+import asyncio  # noqa: E402
+
+import backend.daily_digest as dd  # noqa: E402
+from backend.database import get_connection  # noqa: E402
+
+
+class _FakeMessage:
+    def __init__(self, mid):
+        self.id = mid
+
+
+class _FakeChannel:
+    def __init__(self):
+        self.sent = []
+
+    async def send(self, embed=None, **kw):
+        self.sent.append(embed)
+        return _FakeMessage(1000 + len(self.sent))
+
+
+class _FakeBot:
+    def __init__(self):
+        self.channel = _FakeChannel()
+
+    def get_channel(self, cid):
+        return self.channel
+
+
+@pytest.fixture
+def digest_env(temp_db, monkeypatch):
+    import backend.discord_queries as dq
+
+    monkeypatch.setattr(dd, "DAILY_DIGEST_CHANNEL_ID", "123")
+    monkeypatch.setattr(dq, "get_statistics", lambda: {"total_nodes": 881, "active_7d": 362, "by_type": {2: 881}})
+    conn = get_connection()
+    yield conn, _FakeBot()
+    conn.close()
+
+
+def _z(dt):
+    return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _db_node(conn, pk, name, active=1):
+    conn.execute(
+        "INSERT OR REPLACE INTO belgian_nodes (public_key, type, adv_name, city, is_active) VALUES (?, 2, ?, 'Leuven', ?)",
+        (pk, name, active),
+    )
+
+
+def _db_change(conn, pk, change, when):
+    conn.execute(
+        "INSERT INTO node_changes (public_key, change_type, sync_date) VALUES (?, ?, ?)",
+        (pk, change, _z(when)),
+    )
+
+
+def _db_sync(conn, when, details=None):
+    conn.execute(
+        "INSERT INTO sync_history (sync_date, details) VALUES (?, ?)",
+        (_z(when), json.dumps(details or {})),
+    )
+
+
+def _post(bot, now, **kw):
+    return asyncio.run(dd.post_daily_digest(bot, now_utc=now, **kw))
+
+
+def _all_keys(embed):
+    return " ".join(f.value for f in embed.fields)
+
+
+def test_sync_committing_during_the_digest_is_counted_next_time(digest_env) -> None:
+    conn, bot = digest_env
+    d1 = datetime(2026, 11, 9, 8, 0, tzinfo=timezone.utc)
+    conn.execute("UPDATE digest_state SET last_sent_utc = ?, window_end_utc = ?", (_z(d1), _z(d1)))
+    # Finished sync at 08:30 the next day.
+    _db_node(conn, "a1" * 32, "Early")
+    _db_change(conn, "a1" * 32, "added", d1 + timedelta(hours=24, minutes=29))
+    _db_sync(conn, d1 + timedelta(hours=24, minutes=30))
+    conn.commit()
+
+    # Digest at 09:00 while the 08:59 sync is still writing (its rows not yet visible).
+    d2 = d1 + timedelta(hours=25)
+    assert _post(bot, d2)
+    first = bot.channel.sent[-1]
+    assert "Early" in _all_keys(first)
+
+    # That sync now commits: its rows are stamped before the digest ran.
+    _db_node(conn, "b2" * 32, "Late")
+    _db_change(conn, "b2" * 32, "added", d2 - timedelta(seconds=30))
+    _db_sync(conn, d2 + timedelta(seconds=5))
+    conn.commit()
+
+    assert _post(bot, d2 + timedelta(hours=24))
+    second = bot.channel.sent[-1]
+    assert "Late" in _all_keys(second)
+    assert "Early" not in _all_keys(second), "nothing is counted twice"
+
+
+def test_changes_visible_before_their_sync_finished_wait_for_the_next_digest(digest_env) -> None:
+    conn, bot = digest_env
+    d1 = datetime(2026, 11, 9, 8, 0, tzinfo=timezone.utc)
+    conn.execute("UPDATE digest_state SET last_sent_utc = ?, window_end_utc = ?", (_z(d1), _z(d1)))
+    _db_node(conn, "c3" * 32, "Done")
+    _db_change(conn, "c3" * 32, "added", d1 + timedelta(hours=20))
+    _db_sync(conn, d1 + timedelta(hours=20, minutes=1))
+    # Node rows of a sync whose history row is not written yet.
+    _db_node(conn, "d4" * 32, "Pending")
+    _db_change(conn, "d4" * 32, "added", d1 + timedelta(hours=24, minutes=59))
+    conn.commit()
+
+    assert _post(bot, d1 + timedelta(hours=25))
+    assert "Pending" not in _all_keys(bot.channel.sent[-1])
+    _db_sync(conn, d1 + timedelta(hours=25, seconds=2))
+    conn.commit()
+    assert _post(bot, d1 + timedelta(hours=49))
+    assert "Pending" in _all_keys(bot.channel.sent[-1])
+
+
+def test_window_line_shows_each_sides_own_time_zone() -> None:
+    start = datetime(2026, 10, 24, 7, 0, tzinfo=timezone.utc)
+    end = datetime(2026, 10, 25, 8, 0, tzinfo=timezone.utc)
+    agg = {"added": ["a" * 64], "removed": [], "restored": [], "updated_count": 0}
+    embed = build_digest_embed(agg, start, end, {"total_nodes": 1}, 0, added_nodes=[_node(1)])
+    assert "2026-10-24 09:00 CEST → 2026-10-25 09:00 CET" in embed.description
+    assert "24 h" not in str(embed.to_dict())
+
+
+def test_digest_is_due_only_after_a_missed_time_today(digest_env) -> None:
+    conn, _ = digest_env
+    yesterday = datetime(2026, 11, 9, 8, 0, 3, tzinfo=timezone.utc)  # 09:00 CET
+    conn.execute("UPDATE digest_state SET last_sent_utc = ?", (_z(yesterday),))
+    conn.commit()
+    today_0830 = datetime(2026, 11, 10, 7, 30, tzinfo=timezone.utc)
+    today_1400 = datetime(2026, 11, 10, 13, 0, tzinfo=timezone.utc)
+    assert not dd.digest_is_due(conn, today_0830)
+    assert dd.digest_is_due(conn, today_1400)
+    conn.execute("UPDATE digest_state SET last_sent_utc = ?", (_z(today_1400 - timedelta(hours=5)),))
+    conn.commit()
+    assert not dd.digest_is_due(conn, today_1400)
+
+
+def test_digest_is_not_due_before_the_first_digest(digest_env) -> None:
+    conn, _ = digest_env
+    assert not dd.digest_is_due(conn, datetime(2026, 11, 10, 13, 0, tzinfo=timezone.utc))
+
+
+def test_missed_digest_is_caught_up_once_covering_the_whole_gap(digest_env) -> None:
+    conn, bot = digest_env
+    two_days_ago = datetime(2026, 11, 8, 8, 0, tzinfo=timezone.utc)
+    conn.execute("UPDATE digest_state SET last_sent_utc = ?, window_end_utc = ?", (_z(two_days_ago), _z(two_days_ago)))
+    for i, hours in enumerate((5, 30, 50)):  # spread over the two missed days
+        pk = f"{i:x}e" * 32
+        _db_node(conn, pk, f"Gap{i}")
+        _db_change(conn, pk, "added", two_days_ago + timedelta(hours=hours))
+        _db_sync(conn, two_days_ago + timedelta(hours=hours, minutes=1))
+    conn.commit()
+
+    start_late = datetime(2026, 11, 10, 13, 0, tzinfo=timezone.utc)  # bot back at 14:00 CET
+    assert _post(bot, start_late, only_if_due=True)
+    assert not _post(bot, start_late + timedelta(minutes=1), only_if_due=True)
+    assert not _post(bot, start_late + timedelta(hours=3), only_if_due=True)
+    assert len(bot.channel.sent) == 1
+    embed = bot.channel.sent[0]
+    assert all(f"Gap{i}" in _all_keys(embed) for i in range(3))
+    assert embed.description.count("2026-11-08 09:00 CET") == 1
+
+
+def test_missed_digest_catch_up_runs_once_even_when_started_twice(digest_env) -> None:
+    conn, bot = digest_env
+    yesterday = datetime(2026, 11, 9, 8, 0, tzinfo=timezone.utc)
+    conn.execute("UPDATE digest_state SET last_sent_utc = ?, window_end_utc = ?", (_z(yesterday), _z(yesterday)))
+    _db_node(conn, "f6" * 32, "Once")
+    _db_change(conn, "f6" * 32, "added", yesterday + timedelta(hours=3))
+    _db_sync(conn, yesterday + timedelta(hours=3, minutes=1))
+    conn.commit()
+    now = datetime(2026, 11, 10, 13, 0, tzinfo=timezone.utc)
+
+    async def both():
+        return await asyncio.gather(
+            dd.post_daily_digest(bot, now_utc=now, only_if_due=True),
+            dd.post_daily_digest(bot, now_utc=now, only_if_due=True),
+        )
+
+    assert sorted(asyncio.run(both())) == [False, True]
+    assert len(bot.channel.sent) == 1
+
+
+
+def test_old_digest_state_gets_window_columns_and_keeps_its_values(tmp_path, monkeypatch) -> None:
+    import backend.database as dbm
+
+    db_path = str(tmp_path / "old.db")
+    old = sqlite3.connect(db_path)
+    old.executescript(
+        """
+        CREATE TABLE digest_state (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            last_sent_utc TEXT, last_channel_id TEXT, last_message_id TEXT
+        );
+        INSERT INTO digest_state VALUES (1, '2026-10-26T08:00:00Z', '42', '99');
+        """
+    )
+    old.commit()
+    old.close()
+    monkeypatch.setenv("DATABASE_PATH", db_path)
+    monkeypatch.setattr(dbm, "DATABASE_PATH", db_path)
+    dbm.init_database()
+    dbm.init_database()  # idempotent
+
+    conn = dbm.get_connection()
+    row = dict(conn.execute("SELECT * FROM digest_state").fetchone())
+    assert row["last_sent_utc"] == "2026-10-26T08:00:00Z"
+    assert row["last_channel_id"] == "42"
+    assert row["window_end_utc"] is None and row["last_change_id"] is None
+    # First window after the upgrade starts at the old last_sent_utc.
+    window = dd.digest_window(conn, datetime(2026, 10, 27, 8, 0, tzinfo=timezone.utc))
+    assert window.start_utc == datetime(2026, 10, 26, 8, 0, tzinfo=timezone.utc)
+    conn.close()
 
 
 if __name__ == "__main__":

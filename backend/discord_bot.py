@@ -3,6 +3,8 @@ Discord Bot for RRY-Map-Bot
 Handles all Discord bot functionality including commands and interactions.
 """
 
+import asyncio
+
 import discord
 from discord import app_commands
 from discord.ext import commands, tasks
@@ -974,6 +976,20 @@ async def _before_daily_digest_loop() -> None:
     await bot.wait_until_ready()
 
 
+# A missed digest time (bot down at DAILY_DIGEST_* today) is caught up once
+# per process start; post_daily_digest(only_if_due=True) re-checks the state,
+# so a reconnect or a second start that day never posts it twice.
+_digest_catch_up_started = False
+
+
+async def _catch_up_missed_digest() -> None:
+    try:
+        if await post_daily_digest(bot, only_if_due=True):
+            print("[daily_digest] Posted the missed digest on start.")
+    except Exception as e:
+        print(f"[daily_digest] catch-up error: {e}")
+
+
 # Digest slash command group — admin-only
 digest_group = app_commands.Group(
     name="digest",
@@ -1127,6 +1143,10 @@ async def on_ready():
                 print(f"[daily_digest] Loop already running: {e}")
         else:
             print("[daily_digest] Loop already running.")
+        global _digest_catch_up_started
+        if not _digest_catch_up_started:
+            _digest_catch_up_started = True
+            asyncio.create_task(_catch_up_missed_digest())
     else:
         print("[daily_digest] Disabled via DAILY_DIGEST_ENABLED=0.")
 

@@ -173,6 +173,7 @@ def init_database() -> None:
             INSERT OR IGNORE INTO digest_state (id, last_sent_utc)
             VALUES (1, NULL)
         """)
+        ensure_digest_state_columns(conn)
 
         # node_claims: append-only event log of /node claim and /node unclaim
         cursor.execute("""
@@ -209,6 +210,30 @@ def init_database() -> None:
         raise
     finally:
         conn.close()
+
+
+DIGEST_STATE_COLUMNS = (
+    # End of the last digest window: the last finished sync it covered.
+    ("window_end_utc", "TEXT"),
+    # Highest node_changes.id that window covered (the next one starts after it).
+    ("last_change_id", "INTEGER"),
+    # Active node total when the last digest ran (for "since yesterday").
+    ("last_total_nodes", "INTEGER"),
+)
+
+
+def ensure_digest_state_columns(conn: sqlite3.Connection) -> None:
+    """Add the digest window columns to ``digest_state`` when missing.
+
+    Additive only (``ALTER TABLE ... ADD COLUMN``); existing rows keep their
+    values and the new columns start out NULL. Safe to call on every start.
+    """
+    existing = {row[1] for row in conn.execute("PRAGMA table_info(digest_state)")}
+    if not existing:
+        return
+    for name, decl in DIGEST_STATE_COLUMNS:
+        if name not in existing:
+            conn.execute(f"ALTER TABLE digest_state ADD COLUMN {name} {decl}")
 
 
 def ensure_sync_state_table(conn: sqlite3.Connection) -> None:

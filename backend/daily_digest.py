@@ -21,11 +21,12 @@ Schema the digest relies on (all pre-existing except digest_state):
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import sys
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, NamedTuple, Optional
 from zoneinfo import ZoneInfo
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
@@ -47,7 +48,7 @@ except (ImportError, ModuleNotFoundError):  # pragma: no cover - defensive fallb
     STARTUP_CHANNEL_ID = os.getenv('STARTUP_CHANNEL_ID')
     NODE_TYPE_ICONS = {1: "📱", 2: "📡", 3: "💾", 4: "🌡️"}
 
-from backend.database import get_connection
+from backend.database import ensure_digest_state_columns, get_connection
 from backend.datetime_utils import format_utc_iso, parse_utc
 from backend.discord_branding import apply_brand_to_embed
 from backend.discord_formatting import MAP_BASE_URL, format_digest_node_line
@@ -90,7 +91,13 @@ _STATE_AFTER = {'added': 'active', 'restored': 'active', 'removed': 'gone'}
 _STATE_BEFORE = {'added': 'new', 'restored': 'gone', 'removed': 'active'}
 
 
-def collect_changes_since(conn, since_utc: datetime) -> Dict[str, List[str]]:
+def collect_changes_since(
+    conn,
+    since_utc: datetime,
+    *,
+    after_id: Optional[int] = None,
+    upto_id: Optional[int] = None,
+) -> Dict[str, List[str]]:
     """Return the net add/remove/restore buckets since ``since_utc``.
 
     Per public_key, the state just before the window is compared with the
@@ -114,6 +121,9 @@ def collect_changes_since(conn, since_utc: datetime) -> Dict[str, List[str]]:
     Args:
         conn: sqlite3 connection.
         since_utc: Aware UTC datetime, lower bound of the window (inclusive).
+            Used only when ``after_id`` / ``upto_id`` are not given.
+        after_id / upto_id: ``node_changes.id`` bounds of the window
+            (``after_id < id <= upto_id``), as set by :func:`digest_window`.
 
     Returns:
         Dict with keys 'added', 'removed', 'restored', 'updated_count' and the
@@ -126,15 +136,19 @@ def collect_changes_since(conn, since_utc: datetime) -> Dict[str, List[str]]:
     since_iso = since_utc.astimezone(timezone.utc).isoformat(timespec="seconds")
 
     cursor = conn.cursor()
+    if after_id is not None and upto_id is not None:
+        bound_sql, bound_params = "id > ? AND id <= ?", (after_id, upto_id)
+    else:
+        bound_sql, bound_params = "julianday(sync_date) >= julianday(?)", (since_iso,)
     cursor.execute(
-        """
+        f"""
         SELECT public_key, change_type
         FROM node_changes
         WHERE change_type IN ('added','removed','restored','updated')
-          AND julianday(sync_date) >= julianday(?)
+          AND {bound_sql}
         ORDER BY julianday(sync_date) ASC, id ASC
         """,
-        (since_iso,),
+        bound_params,
     )
     lifecycle: Dict[str, List[str]] = {}
     updated_only: set = set()
@@ -166,6 +180,17 @@ def collect_changes_since(conn, since_utc: datetime) -> Dict[str, List[str]]:
         'updated_count': len(updated_only),
         'since_utc': since_utc,
     }
+
+
+def _count_syncs_between(conn, start_utc: datetime, end_utc: datetime) -> int:
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT COUNT(*) FROM sync_history WHERE julianday(sync_date) > julianday(?)"
+        " AND julianday(sync_date) <= julianday(?)",
+        (_format_utc(start_utc), _format_utc(end_utc)),
+    )
+    row = cursor.fetchone()
+    return int(row[0] if row else 0)
 
 
 def _count_syncs_since(conn, since_utc: datetime) -> int:
@@ -263,13 +288,9 @@ def build_digest_embed(
     updated_count = int(agg.get('updated_count', 0))
     total_changes = added_count + restored_count + removed_count
 
-    tz = ZoneInfo(DAILY_DIGEST_TZ)
-    start_local = period_start.astimezone(tz)
-    end_local = period_end.astimezone(tz)
     description = (
         f"Daily activity on the [#BEMesh Map](https://meshmap.radio-actief.be)\n"
-        f"**{start_local.strftime('%Y-%m-%d %H:%M')} → "
-        f"{end_local.strftime('%Y-%m-%d %H:%M')} {end_local.tzname()}**\n\u200b"
+        f"**{format_window(period_start, period_end)}**\n\u200b"
     )
 
     embed = discord.Embed(
@@ -283,7 +304,7 @@ def build_digest_embed(
         value=(
             f"- **Syncs in window:** {sync_count}\n"
             f"- **Total changes:** {total_changes}\n"
-            f"- **Window:** 24 h\n\u200b"
+            f"- **Window:** {_window_hours(period_start, period_end)} h\n\u200b"
         ),
         inline=True,
     )
@@ -351,6 +372,21 @@ def build_digest_embed(
     return apply_brand_to_embed(embed)
 
 
+def format_window(start_utc: datetime, end_utc: datetime) -> str:
+    """``2026-10-24 09:00 CEST → 2026-10-25 09:00 CET``: each side its own zone."""
+    tz = ZoneInfo(DAILY_DIGEST_TZ)
+    start_local = start_utc.astimezone(tz)
+    end_local = end_utc.astimezone(tz)
+    return (
+        f"{start_local.strftime('%Y-%m-%d %H:%M')} {start_local.tzname()} → "
+        f"{end_local.strftime('%Y-%m-%d %H:%M')} {end_local.tzname()}"
+    )
+
+
+def _window_hours(start_utc: datetime, end_utc: datetime) -> int:
+    return round((end_utc - start_utc).total_seconds() / 3600)
+
+
 def _next_digest_label(now_utc: datetime) -> str:
     tz = ZoneInfo(DAILY_DIGEST_TZ)
     now_local = now_utc.astimezone(tz)
@@ -370,35 +406,130 @@ def _next_digest_label(now_utc: datetime) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _get_last_sent(conn) -> Optional[datetime]:
-    cursor = conn.cursor()
-    cursor.execute("SELECT last_sent_utc FROM digest_state WHERE id = 1")
-    row = cursor.fetchone()
-    if row is None:
-        return None
-    return _parse_iso_utc(row[0])
+class DigestWindow(NamedTuple):
+    """One digest window: ``start_utc`` -> ``end_utc`` and its node_changes ids."""
+
+    start_utc: datetime
+    end_utc: datetime
+    after_id: int
+    upto_id: int
 
 
-def _update_digest_state(conn, sent_utc: datetime, channel_id: Optional[str], message_id: Optional[str]) -> None:
-    cursor = conn.cursor()
-    cursor.execute(
+def _get_digest_state(conn) -> Dict[str, Any]:
+    ensure_digest_state_columns(conn)
+    row = conn.execute("SELECT * FROM digest_state WHERE id = 1").fetchone()
+    return dict(row) if row is not None else {}
+
+
+def digest_window(conn, now_utc: datetime) -> DigestWindow:
+    """The window the next digest covers.
+
+    It starts where the previous digest's window ended and ends at the last
+    *finished* sync (its ``sync_history`` row is written after its node rows
+    are committed). Only node_changes up to that sync are counted, by id:
+    rows a sync is still writing get higher ids once committed, so they fall
+    into the next window instead of being lost from both.
+    """
+    state = _get_digest_state(conn)
+    start = (
+        _parse_iso_utc(state.get('window_end_utc'))
+        or _parse_iso_utc(state.get('last_sent_utc'))
+        or now_utc - timedelta(hours=24)
+    )
+    start_iso = _format_utc(start)
+
+    after_id = state.get('last_change_id')
+    if after_id is None:
+        row = conn.execute(
+            "SELECT COALESCE(MAX(id), 0) FROM node_changes WHERE julianday(sync_date) < julianday(?)",
+            (start_iso,),
+        ).fetchone()
+        after_id = int(row[0])
+
+    row = conn.execute(
+        "SELECT sync_date FROM sync_history ORDER BY julianday(sync_date) DESC LIMIT 1"
+    ).fetchone()
+    last_sync = _parse_iso_utc(row[0]) if row else None
+    end = max(start, min(last_sync, now_utc)) if last_sync else start
+
+    row = conn.execute(
+        "SELECT COALESCE(MAX(id), ?) FROM node_changes WHERE id > ? AND julianday(sync_date) <= julianday(?)",
+        (after_id, after_id, _format_utc(end)),
+    ).fetchone()
+    return DigestWindow(start, end, int(after_id), int(row[0]))
+
+
+def _scheduled_time_on(now_utc: datetime) -> datetime:
+    """Today's (local) digest time, as aware UTC."""
+    tz = ZoneInfo(DAILY_DIGEST_TZ)
+    local = now_utc.astimezone(tz).replace(
+        hour=DAILY_DIGEST_HOUR, minute=DAILY_DIGEST_MINUTE, second=0, microsecond=0,
+    )
+    return local.astimezone(timezone.utc)
+
+
+def digest_is_due(conn, now_utc: datetime) -> bool:
+    """True when today's digest time has passed without a digest run.
+
+    Used on bot start to catch up a missed day once. Before the very first
+    digest (no ``last_sent_utc``) nothing is due; the daily loop starts it.
+    """
+    last_sent = _parse_iso_utc(_get_digest_state(conn).get('last_sent_utc'))
+    if last_sent is None:
+        return False
+    scheduled = _scheduled_time_on(now_utc)
+    return now_utc >= scheduled and last_sent < scheduled
+
+
+def _update_digest_state(
+    conn,
+    sent_utc: datetime,
+    window: DigestWindow,
+    channel_id: Optional[str],
+    message_id: Optional[str],
+) -> None:
+    conn.execute(
         """
         UPDATE digest_state
            SET last_sent_utc   = ?,
+               window_end_utc  = ?,
+               last_change_id  = ?,
                last_channel_id = ?,
                last_message_id = ?
          WHERE id = 1
         """,
-        (_format_utc(sent_utc), channel_id, message_id),
+        (_format_utc(sent_utc), _format_utc(window.end_utc), window.upto_id, channel_id, message_id),
     )
     conn.commit()
 
 
-async def post_daily_digest(bot, *, force: bool = False) -> bool:
+# One digest at a time (the daily loop and the start-up catch-up may overlap).
+_POST_LOCK: Optional[tuple] = None
+
+
+def _post_lock() -> asyncio.Lock:
+    global _POST_LOCK
+    loop = asyncio.get_running_loop()
+    if _POST_LOCK is None or _POST_LOCK[0] is not loop:
+        _POST_LOCK = (loop, asyncio.Lock())
+    return _POST_LOCK[1]
+
+
+async def post_daily_digest(
+    bot,
+    *,
+    force: bool = False,
+    only_if_due: bool = False,
+    now_utc: Optional[datetime] = None,
+) -> bool:
     """Build and post the daily digest embed to the configured channel.
 
     Returns True when a message was sent, False when the digest was skipped
-    (empty window, misconfiguration, or channel not reachable).
+    (empty window, not due, misconfiguration, or channel not reachable).
+
+    ``only_if_due`` posts only when today's digest time passed without a
+    digest (see :func:`digest_is_due`); the bot uses it on start to catch up a
+    missed day once, covering the whole gap.
     """
     channel_id = DAILY_DIGEST_CHANNEL_ID or STARTUP_CHANNEL_ID
     if not channel_id:
@@ -416,62 +547,69 @@ async def post_daily_digest(bot, *, force: bool = False) -> bool:
             print(f"[daily_digest] Could not fetch channel {channel_id}: {e}")
             return False
 
-    conn = get_connection()
-    try:
-        last_sent = _get_last_sent(conn)
-        now_utc = datetime.now(timezone.utc)
-        window_start = last_sent if last_sent else (now_utc - timedelta(hours=24))
-
-        agg = collect_changes_since(conn, window_start)
-        total = len(agg['added']) + len(agg['removed']) + len(agg['restored'])
-
-        if total == 0 and not force:
-            print(
-                f"[daily_digest] No net changes since {window_start.isoformat()} — skipping post."
-            )
-            _update_digest_state(conn, now_utc, str(channel_id), None)
-            return False
-
+    async with _post_lock():
+        conn = get_connection()
         try:
-            from backend.discord_queries import get_statistics  # local import: avoid cycles
-            stats = get_statistics()
-        except Exception as e:
-            print(f"[daily_digest] get_statistics failed: {e}; continuing with zeros.")
-            stats = {
-                'total_nodes': 0,
-                'claimed_nodes': 0,
-                'unclaimed_nodes': 0,
-                'registered_users': 0,
-                'total_cities': 0,
-                'by_type': {},
-            }
+            now = now_utc or datetime.now(timezone.utc)
+            if only_if_due and not digest_is_due(conn, now):
+                return False
 
-        sync_count = _count_syncs_since(conn, window_start)
+            window = digest_window(conn, now)
+            agg = collect_changes_since(
+                conn, window.start_utc, after_id=window.after_id, upto_id=window.upto_id,
+            )
+            total = len(agg['added']) + len(agg['removed']) + len(agg['restored'])
 
-        added_nodes = _get_node_details_by_keys(agg['added'][:50], conn)
-        restored_nodes = _get_node_details_by_keys(agg['restored'][:50], conn)
-        removed_nodes = _get_node_details_by_keys(agg['removed'][:50], conn)
+            if total == 0 and not force:
+                print(
+                    f"[daily_digest] No net changes {window.start_utc.isoformat()} -> "
+                    f"{window.end_utc.isoformat()}; skipping post."
+                )
+                _update_digest_state(conn, now, window, str(channel_id), None)
+                return False
 
-        embed = build_digest_embed(
-            agg,
-            window_start,
-            now_utc,
-            stats,
-            sync_count,
-            added_nodes=added_nodes,
-            restored_nodes=restored_nodes,
-            removed_nodes=removed_nodes,
-        )
+            try:
+                from backend.discord_queries import get_statistics  # local import: avoid cycles
+                stats = get_statistics()
+            except Exception as e:
+                print(f"[daily_digest] get_statistics failed: {e}; continuing with zeros.")
+                stats = {
+                    'total_nodes': 0,
+                    'claimed_nodes': 0,
+                    'unclaimed_nodes': 0,
+                    'registered_users': 0,
+                    'total_cities': 0,
+                    'by_type': {},
+                }
 
-        msg = await channel.send(embed=embed)
-        print(f"[daily_digest] Posted digest to channel {channel_id} (msg id={getattr(msg, 'id', None)}).")
+            sync_count = _count_syncs_between(conn, window.start_utc, window.end_utc)
 
-        _update_digest_state(
-            conn,
-            now_utc,
-            str(channel_id),
-            str(getattr(msg, 'id', '') or '') or None,
-        )
-        return True
-    finally:
-        conn.close()
+            added_nodes = _get_node_details_by_keys(agg['added'][:50], conn)
+            restored_nodes = _get_node_details_by_keys(agg['restored'][:50], conn)
+            removed_nodes = _get_node_details_by_keys(agg['removed'][:50], conn)
+
+            embed = build_digest_embed(
+                agg,
+                window.start_utc,
+                window.end_utc,
+                stats,
+                sync_count,
+                added_nodes=added_nodes,
+                restored_nodes=restored_nodes,
+                removed_nodes=removed_nodes,
+                next_digest_label=_next_digest_label(now + timedelta(minutes=1)),
+            )
+
+            msg = await channel.send(embed=embed)
+            print(f"[daily_digest] Posted digest to channel {channel_id} (msg id={getattr(msg, 'id', None)}).")
+
+            _update_digest_state(
+                conn,
+                now,
+                window,
+                str(channel_id),
+                str(getattr(msg, 'id', '') or '') or None,
+            )
+            return True
+        finally:
+            conn.close()

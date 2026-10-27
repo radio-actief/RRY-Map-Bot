@@ -29,7 +29,7 @@ DB_TIMESTAMP_COLUMNS: dict[str, tuple[str, ...]] = {
     ),
     "node_changes": ("sync_date",),
     "sync_history": ("sync_date",),
-    "digest_state": ("last_sent_utc",),
+    "digest_state": ("last_sent_utc", "window_end_utc"),
 }
 
 

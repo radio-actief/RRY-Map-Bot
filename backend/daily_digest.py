@@ -60,12 +60,15 @@ except (ImportError, ModuleNotFoundError):  # pragma: no cover - defensive fallb
 from backend.database import ensure_digest_state_columns, get_connection
 from backend.datetime_utils import format_utc_iso, parse_utc
 from backend.discord_branding import apply_brand_to_embed
-from backend.discord_formatting import MAP_BASE_URL, format_digest_node_line
+from backend.discord_formatting import (
+    MAP_BASE_URL,
+    PROVINCE_NAMES,
+    _province_by_town,
+    format_digest_node_line,
+)
 
 FIELD_LINES_MAX_CHARS = 950
-# Discord caps an embed at 6000 characters and 25 fields; keep room for the author line.
-EMBED_MAX_CHARS = 5800
-EMBED_MAX_FIELDS = 25
+FIELD_MAX_CHARS = 1024  # Discord's cap for one field value
 STATS_PAGE_URL = f"{MAP_BASE_URL.rstrip('/')}/stats"
 
 
@@ -237,16 +240,16 @@ def _get_node_details_by_keys(public_keys: List[str], conn) -> List[Dict[str, An
         return []
     normalized = [k.replace(' ', '').replace('-', '').lower() for k in public_keys]
     cursor = conn.cursor()
-    placeholders = ','.join(['?'] * len(normalized))
-    cursor.execute(
-        f"SELECT * FROM belgian_nodes WHERE public_key IN ({placeholders})",
-        normalized,
-    )
-    rows = cursor.fetchall()
     out = []
-    for r in rows:
-        d = dict(r) if not isinstance(r, dict) else r
-        out.append(d)
+    for i in range(0, len(normalized), 500):
+        chunk = normalized[i:i + 500]
+        placeholders = ','.join(['?'] * len(chunk))
+        cursor.execute(
+            f"SELECT * FROM belgian_nodes WHERE public_key IN ({placeholders})",
+            chunk,
+        )
+        for r in cursor.fetchall():
+            out.append(dict(r) if not isinstance(r, dict) else r)
     return out
 
 
@@ -289,39 +292,44 @@ def render_node_list(nodes: List[Dict[str, Any]], total: int, *, link: bool = Tr
     return fill_field_lines(_node_lines(nodes, link=link), total)
 
 
-def split_field_lines(
-    lines: List[str], total: int, budget: int, max_fields: int,
-    limit: int = FIELD_LINES_MAX_CHARS,
-) -> List[str]:
-    """Whole lines spread over up to ``max_fields`` field values within ``budget`` characters.
+BULK_MIN_NODES = 26
+LIST_MAX_LINES = 10
 
-    The last value ends with "+N more" when lines are left over, so a long list
-    continues in extra fields instead of stopping after the first one.
-    """
-    note_room = len(f"+{max(total, len(lines))} more on the [stats page]({STATS_PAGE_URL})") + 1
-    values: List[str] = []
-    current: List[str] = []
-    used = 0
-    shown = 0
-    for line in lines:
-        extra = len(line) + (1 if current else 0)
-        if used + extra > limit:
-            if len(values) + 1 >= max_fields:
-                break
-            values.append("\n".join(current))
-            budget -= used
-            current, used, extra = [], 0, len(line)
-        if used + extra + note_room > budget:
-            break
-        current.append(line)
-        used += extra
-        shown += 1
-    rest = max(total, len(lines)) - shown
-    if rest > 0:
-        current.append(f"+{rest} more on the [stats page]({STATS_PAGE_URL})")
-    if current:
-        values.append("\n".join(current))
-    return values
+
+def render_section(
+    nodes: List[Dict[str, Any]], total: int, *, link: bool = True,
+) -> str:
+    """One field value: up to 10 whole lines, or counts by type and province for a bulk section."""
+    if total >= BULK_MIN_NODES:
+        return _bulk_summary(nodes)
+    lines = _node_lines(nodes, link=link)[:LIST_MAX_LINES]
+    limit = FIELD_MAX_CHARS
+    if total > len(lines):
+        limit -= len(f"+{total} more on the [stats page]({STATS_PAGE_URL})") + 1
+    return fill_field_lines(lines, total, limit)
+
+
+def _bulk_summary(nodes: List[Dict[str, Any]]) -> str:
+    """``📡 672 · 📱 168`` and ``Most in: Antwerpen 150 · …`` plus a pointer to the stats page."""
+    by_type: Dict[int, int] = {}
+    by_province: Dict[str, int] = {}
+    towns = _province_by_town()
+    for n in nodes:
+        t = int(n.get('type') or 0)
+        by_type[t] = by_type.get(t, 0) + 1
+        code = towns.get((n.get('city') or '').strip())
+        if code:
+            name = PROVINCE_NAMES.get(code, code)
+            by_province[name] = by_province.get(name, 0) + 1
+    out: List[str] = []
+    types = sorted(by_type.items(), key=lambda kv: (-kv[1], kv[0]))
+    if types:
+        out.append(" · ".join(f"{NODE_TYPE_ICONS.get(t, '•')} {c}" for t, c in types))
+    top = sorted(by_province.items(), key=lambda kv: (-kv[1], kv[0]))[:5]
+    if top:
+        out.append("Most in: " + " · ".join(f"{name} {c}" for name, c in top))
+    out.append(f"Full list on the [stats page]({STATS_PAGE_URL})")
+    return "\n".join(out)
 
 
 # ---------------------------------------------------------------------------
@@ -347,7 +355,8 @@ def build_digest_embed(
     Pure function: no DB access, no Discord client access. ``stats`` is the
     return value of ``backend.discord_queries.get_statistics()``. Node lists
     (``added_nodes`` / ``restored_nodes`` / ``removed_nodes``) are already
-    hydrated from ``belgian_nodes`` by the caller and capped to 50.
+    hydrated from ``belgian_nodes`` by the caller. Up to 10 are listed per section;
+    a section with 26 or more nodes shows counts by type and top provinces instead.
     ``previous_total`` is the active total at the previous digest (net change
     falls back to this window's buckets without it). ``held_back`` comes from
     :func:`held_back_removals`.
@@ -361,12 +370,10 @@ def build_digest_embed(
     restored_count = len(agg.get('restored', []))
     removed_count = len(agg.get('removed', []))
 
+    empty = added_count + restored_count + removed_count == 0
     embed = discord.Embed(
         title="📅 Daily Map Digest",
-        description=(
-            f"Daily activity on the [#BEMesh Map]({MAP_BASE_URL.rstrip('/')})\n"
-            f"**{format_window(period_start, period_end)}**"
-        ),
+        description=_description(period_start, period_end, empty),
         color=discord.Color.blue(),
     )
 
@@ -383,12 +390,12 @@ def build_digest_embed(
         embed.add_field(name="📝 Changes", value=" · ".join(changes), inline=False)
 
     total = int(stats.get('total_nodes', 0) or 0)
-    if previous_total is not None:
+    net_part = ""
+    if previous_total is not None and not empty:
         net = total - int(previous_total)
-    else:
-        net = added_count + restored_count - removed_count
+        net_part = f" ({_signed(net)} {_since_label(period_start, period_end)})"
     totals = [
-        f"On the map: **{total}** ({_signed(net)} {_since_label(period_start, period_end)})"
+        f"On the map: **{total}**{net_part}"
         f" · heard in the last 7 days: **{int(stats.get('active_7d', 0) or 0)}**",
     ]
     if 'claimed_nodes' in stats:
@@ -428,19 +435,24 @@ def build_digest_embed(
         )
         if count > 0
     ]
-    for i, (title, nodes, count, link) in enumerate(lists):
-        # Each list may use an even share of what is left, so a long first list
-        # never pushes the later ones out of the message.
-        left = len(lists) - i
-        budget = (EMBED_MAX_CHARS - len(embed)) // left
-        fields = (EMBED_MAX_FIELDS - len(embed.fields)) // left
-        name = f"{title} ({count})"
-        cont = f"{title} (cont.)"
-        budget -= len(name) + len(cont) * max(0, fields - 1)
-        values = split_field_lines(_node_lines(nodes or [], link=link), count, budget, max(1, fields))
-        for j, value in enumerate(values):
-            embed.add_field(name=name if j == 0 else cont, value=value, inline=False)
+    for title, nodes, count, link in lists:
+        embed.add_field(
+            name=f"{title} ({count})",
+            value=render_section(nodes or [], count, link=link),
+            inline=False,
+        )
     return embed
+
+
+def _description(start_utc: datetime, end_utc: datetime, empty: bool) -> str:
+    text = f"Daily activity on the [#BEMesh Map]({MAP_BASE_URL.rstrip('/')})"
+    if empty:
+        return text + "\n**No changes since the last digest**"
+    window = format_window(start_utc, end_utc)
+    left, _, right = window.partition(" → ")
+    if left == right:
+        return text
+    return f"{text}\n**{window}**"
 
 
 def _signed(n: int) -> str:
@@ -672,9 +684,9 @@ async def post_daily_digest(
                 window.start_utc,
                 window.end_utc,
                 stats,
-                added_nodes=_get_node_details_by_keys(agg['added'][:50], conn),
-                restored_nodes=_get_node_details_by_keys(agg['restored'][:50], conn),
-                removed_nodes=_get_node_details_by_keys(agg['removed'][:50], conn),
+                added_nodes=_get_node_details_by_keys(agg['added'], conn),
+                restored_nodes=_get_node_details_by_keys(agg['restored'], conn),
+                removed_nodes=_get_node_details_by_keys(agg['removed'], conn),
                 previous_total=previous_total,
                 held_back=held,
                 next_digest_label=_next_digest_label(now + timedelta(minutes=1)),

@@ -109,9 +109,15 @@ def format_frequency_display(params: Dict[str, Any]) -> str:
     return f"Custom: Freq: {freq} MHz, SF: {sf}, BW: {bw}, CR: {cr}"
 
 
-def get_map_link(node: Dict[str, Any]) -> str:
+DIGEST_LINK_KEY_CHARS = 12
+
+
+def get_map_link(node: Dict[str, Any], *, short: bool = False) -> str:
+    """Map link for a node; ``short`` uses the first 12 hex of the key (the map accepts a unique prefix)."""
     base = MAP_BASE_URL.rstrip("/")
     pk = (node.get("public_key") or "").strip()
+    if pk and short:
+        pk = pk.replace(" ", "").replace("-", "").lower()[:DIGEST_LINK_KEY_CHARS]
     if pk:
         return f"{base}/?node={quote(pk, safe='')}"
     return base
@@ -166,6 +172,14 @@ def escape_node_name(text: Optional[str]) -> str:
     return escape_mentions(escaped)
 
 
+PROVINCE_NAMES = {
+    "VAN": "Antwerpen", "VOV": "Oost-Vlaanderen", "VWV": "West-Vlaanderen",
+    "VLI": "Limburg", "VBR": "Vlaams-Brabant", "BRU": "Brussel",
+    "WBR": "Waals-Brabant", "WHT": "Henegouwen", "WLG": "Luik",
+    "WLX": "Luxemburg", "WNA": "Namen",
+}
+
+
 @lru_cache(maxsize=1)
 def _province_by_town() -> Dict[str, str]:
     """``plaats`` -> short province code (``be-vbr`` -> ``VBR``) from be-locode.json."""
@@ -206,7 +220,7 @@ def format_digest_node_line(node: Dict[str, Any], *, link: bool = True) -> str:
     if len(raw) > DIGEST_NAME_MAX_CHARS:
         raw = raw[:DIGEST_NAME_MAX_CHARS - 1] + "…"
     name = escape_node_name(raw)
-    parts = [f"[{name}]({get_map_link(node)})" if link else name]
+    parts = [f"[{name}]({get_map_link(node, short=True)})" if link else name]
     town = format_node_town(node)
     if town:
         parts.append(town)

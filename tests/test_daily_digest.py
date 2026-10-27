@@ -391,7 +391,7 @@ def test_digest_line_has_icon_linked_name_town_province_owner() -> None:
     node = _node(1, adv_name="BE-LEU-RRY184", discord_owner_id="301234567890123456")
     line = format_digest_node_line(node)
     assert line.startswith("📡 ")
-    assert f"[BE-LEU-RRY184]({get_map_link(node)})" in line
+    assert f"[BE-LEU-RRY184]({get_map_link(node, short=True)})" in line
     assert "Leuven (VBR)" in line
     assert line.endswith("<@301234567890123456>")
     assert "\n" not in line
@@ -454,7 +454,7 @@ def test_render_node_list_sorts_by_type_then_name() -> None:
     assert order == ["Mike", "alpha", "zulu", "Bravo"]
 
 
-def test_embed_with_23_deleted_nodes_stays_within_field_limit() -> None:
+def test_23_deleted_nodes_show_ten_lines_and_a_more_note() -> None:
     now = datetime(2026, 10, 27, 8, 0, tzinfo=timezone.utc)
     nodes = [_node(i) for i in range(23)]
     agg = {"added": [], "removed": [n["public_key"] for n in nodes], "restored": [], "updated_count": 0}
@@ -463,51 +463,88 @@ def test_embed_with_23_deleted_nodes_stays_within_field_limit() -> None:
         removed_nodes=nodes,
     )
     fields = [f for f in embed.fields if "Deleted Nodes" in f.name]
-    assert fields[0].name == "❌ Deleted Nodes (23)"
-    assert all(len(f.value) <= 1024 for f in fields)
-    assert sum(f.value.count("\n") + 1 for f in fields) == 23, "every node is listed across the fields"
-    assert "](" not in fields[0].value.split("\n")[0], "deleted nodes are not linked to the map"
+    assert [f.name for f in fields] == ["❌ Deleted Nodes (23)"]
+    lines = fields[0].value.split("\n")
+    assert len(lines) == 11 and lines[-1] == f"+13 more on the [stats page]({STATS_URL})"
+    assert len(fields[0].value) <= 1024
+    assert "](" not in lines[0], "deleted nodes are not linked to the map"
 
 
-def test_long_linked_list_continues_in_extra_fields() -> None:
+def test_twelve_new_nodes_are_one_field_with_ten_lines_and_two_more() -> None:
     now = datetime(2026, 10, 27, 8, 0, tzinfo=timezone.utc)
-    nodes = [_node(i) for i in range(20)]
+    nodes = [_node(i, adv_name=f"BE-TST-{i:02d}", discord_owner_id=None) for i in range(12)]
     agg = {"added": [n["public_key"] for n in nodes], "removed": [], "restored": [], "updated_count": 0}
     embed = build_digest_embed(
         agg, now - timedelta(hours=24), now, {"total_nodes": 881, "by_type": {2: 881}},
         added_nodes=nodes,
     )
     fields = [f for f in embed.fields if "New Nodes" in f.name]
-    assert fields[0].name == "✅ New Nodes (20)"
-    assert all(f.name == "✅ New Nodes (cont.)" for f in fields[1:])
-    assert len(fields) > 1
-    assert all(len(f.value) <= 1024 for f in fields)
-    assert sum(f.value.count("](") for f in fields) == 20, "all 20 linked lines are shown"
-    assert len(embed) <= 6000
+    assert [f.name for f in fields] == ["✅ New Nodes (12)"]
+    lines = fields[0].value.split("\n")
+    assert len(lines) == 11
+    assert sum(l.count("](") for l in lines[:10]) == 10
+    assert lines[-1] == f"+2 more on the [stats page]({STATS_URL})"
+    assert "(cont.)" not in _text(embed)
+
+
+def test_digest_links_use_the_first_12_hex_of_the_key() -> None:
+    line = format_digest_node_line(_node(255))
+    assert "?node=" + f"{255:064x}"[:12] + ")" in line
+    assert f"{255:064x}" not in line
+    spaced = format_digest_node_line(_node(1, public_key=" AB-CD EF0123456789" + "0" * 40))
+    assert "?node=abcdef012345)" in spaced
+
+
+def test_879_new_nodes_become_counts_by_type_and_top_provinces() -> None:
+    now = datetime(2026, 10, 27, 8, 0, tzinfo=timezone.utc)
+    towns = ["Antwerpen"] * 3 + ["Gent"] * 2 + ["Leuven", "Brugge", "Hasselt", "Namur", "Liège", "Arlon", "Mons"]
+    nodes = [
+        _node(i, type=(2 if i < 672 else 1 if i < 840 else 3 if i < 878 else 4), city=towns[i % len(towns)])
+        for i in range(879)
+    ]
+    agg = {"added": [n["public_key"] for n in nodes], "removed": [], "restored": [], "updated_count": 0}
+    embed = build_digest_embed(
+        agg, now - timedelta(hours=24), now, {"total_nodes": 879, "by_type": {2: 879}},
+        added_nodes=nodes, previous_total=None,
+    )
+    fields = [f for f in embed.fields if "New Nodes" in f.name]
+    assert [f.name for f in fields] == ["✅ New Nodes (879)"]
+    value = fields[0].value
+    assert value.startswith("📡 672 · 📱 168 · 💾 38 · 🌡️ 1\n")
+    assert "Most in: " in value and value.count(" · ") >= 3 + 4
+    most = value.split("Most in: ")[1].split("\n")[0]
+    assert len(most.split(" · ")) == 5
+    assert value.endswith(f"Full list on the [stats page]({STATS_URL})")
+    assert "](" not in value.replace(f"]({STATS_URL})", "")
+    assert "(cont.)" not in _text(embed)
+    assert "since yesterday" not in _text(embed)
+    assert len(embed) < 2500
+
+
+def test_25_nodes_are_still_listed_and_26_are_counted() -> None:
+    now = datetime(2026, 10, 27, 8, 0, tzinfo=timezone.utc)
+    for count, bulk in ((25, False), (26, True)):
+        nodes = [_node(i) for i in range(count)]
+        agg = {"added": [n["public_key"] for n in nodes], "removed": [], "restored": [], "updated_count": 0}
+        embed = build_digest_embed(agg, now - timedelta(hours=24), now, {"total_nodes": 1},
+                                   added_nodes=nodes)
+        value = [f for f in embed.fields if "New Nodes" in f.name][0].value
+        assert ("Full list on the" in value) is bulk
 
 
 def test_very_long_lists_stay_within_the_embed_limit() -> None:
     now = datetime(2026, 10, 27, 8, 0, tzinfo=timezone.utc)
-    added = [_node(i) for i in range(50)]
-    removed = [_node(100 + i) for i in range(50)]
+    added = [_node(i, adv_name="N" * 90) for i in range(900)]
+    removed = [_node(1000 + i, adv_name="M" * 90) for i in range(20)]
+    restored = [_node(2000 + i, adv_name="R" * 90) for i in range(15)]
     agg = {"added": [n["public_key"] for n in added], "removed": [n["public_key"] for n in removed],
-           "restored": [], "updated_count": 0}
+           "restored": [n["public_key"] for n in restored], "updated_count": 0}
     embed = build_digest_embed(
         agg, now - timedelta(hours=24), now, {"total_nodes": 881, "by_type": {2: 881}},
-        added_nodes=added, removed_nodes=removed,
+        added_nodes=added, removed_nodes=removed, restored_nodes=restored,
     )
     assert len(embed) <= 6000
-    assert len(embed.fields) <= 25
     assert all(len(f.value) <= 1024 for f in embed.fields)
-    import re
-    for title in ("New Nodes", "Deleted Nodes"):
-        lines = [l for f in embed.fields if title in f.name for l in f.value.split("\n")]
-        more = re.match(r"\+(\d+) more", lines[-1])
-        listed = len(lines) - (1 if more else 0)
-        assert listed + (int(more.group(1)) if more else 0) == 50, (title, listed, lines[-1])
-    new_lines = [l for f in embed.fields if "New Nodes" in f.name for l in f.value.split("\n")]
-    assert new_lines[-1].startswith("+"), "50 linked lines cannot all fit"
-
 
 
 # ---------------------------------------------------------------------------
@@ -840,9 +877,26 @@ def test_totals_line_shows_map_total_heard_last_7_days_and_net_change() -> None:
     assert "On the map: **881** (−13 since yesterday) · heard in the last 7 days: **362**" in text
 
 
-def test_net_change_without_previous_total_comes_from_the_window() -> None:
+def test_first_digest_has_no_since_yesterday_part() -> None:
     embed = build_digest_embed(_agg(5, 18, 2), _START, _END, _STATS)
-    assert "(−11 since yesterday)" in _text(embed)
+    text = _text(embed)
+    assert "On the map: **881** · heard in the last 7 days: **362**" in text
+    assert "since" not in text
+
+
+def test_empty_window_says_no_changes_and_has_no_net_part() -> None:
+    embed = build_digest_embed(_agg(), _START, _END, _STATS, previous_total=881)
+    assert "No changes since the last digest" in embed.description
+    assert "→" not in embed.description
+    text = _text(embed)
+    assert "±0" not in text and "since yesterday" not in text
+    assert "On the map: **881** · heard" in text
+
+
+def test_window_with_equal_start_and_end_is_not_shown() -> None:
+    embed = build_digest_embed(_agg(1), _START, _START, _STATS, previous_total=880)
+    assert "→" not in embed.description
+    assert "No changes" not in embed.description
 
 
 def test_net_change_after_a_longer_gap_names_the_start_day() -> None:
@@ -912,6 +966,28 @@ def test_quiet_day_still_posts_nothing(digest_env) -> None:
     assert not _post(bot, d1 + timedelta(hours=24))
     assert bot.channel.sent == []
     assert conn.execute("SELECT last_total_nodes FROM digest_state").fetchone()[0] is not None
+
+
+def test_forced_run_with_nothing_new_says_no_changes(digest_env) -> None:
+    conn, bot = digest_env
+    d1 = datetime(2026, 11, 9, 8, 0, tzinfo=timezone.utc)
+    conn.execute("UPDATE digest_state SET last_sent_utc = ?, window_end_utc = ?", (_z(d1), _z(d1)))
+    conn.commit()
+    assert _post(bot, d1 + timedelta(minutes=5), force=True)
+    text = _text(bot.channel.sent[-1])
+    assert "No changes since the last digest" in text
+    assert "→" not in text and "±0" not in text
+
+
+def test_first_digest_post_has_no_since_yesterday(digest_env) -> None:
+    conn, bot = digest_env
+    d1 = datetime(2026, 11, 9, 8, 0, tzinfo=timezone.utc)
+    _db_node(conn, "a7" * 32, "One")
+    _db_change(conn, "a7" * 32, "added", d1 - timedelta(hours=2))
+    _db_sync(conn, d1 - timedelta(hours=1))
+    conn.commit()
+    assert _post(bot, d1)
+    assert "since" not in _text(bot.channel.sent[-1])
 
 
 if __name__ == "__main__":

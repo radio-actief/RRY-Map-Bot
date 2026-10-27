@@ -162,3 +162,27 @@ def test_sync_history_row_per_run(run):
     rows = history_rows()
     assert len(rows) == 2
     assert rows[0]['nodes_added'] == 25
+
+
+def test_node_without_source_does_not_break_the_sync(run):
+    run(base_feed())
+    conn = get_connection()
+    conn.execute("UPDATE belgian_nodes SET source = NULL WHERE public_key = 'be03'")
+    conn.commit()
+    conn.close()
+
+    result = run(without(base_feed(), 'be03'))
+    assert result['success']
+    assert result['changes']['removed'] == ['be03']
+
+
+def test_restored_node_gets_canonical_timestamps(run):
+    run(base_feed())
+    run(without(base_feed(), 'be03'))
+    run(base_feed())
+    row = node_row('be03')
+    assert row['last_advert'] == '2026-10-01T10:00:00Z'
+    assert row['updated_date'] == '2026-10-01T10:00:00Z'
+
+    run(base_feed())
+    assert change_types('be03') == ['added', 'removed', 'restored']

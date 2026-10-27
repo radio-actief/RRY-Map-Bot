@@ -427,7 +427,7 @@ def track_changes(current_nodes: List[Dict[str, Any]],
         key for key in previous_keys - current_keys
         if previous_nodes[key].get('is_active', True)
         and not (
-            previous_nodes[key].get('source', '').lower() == 'discord'
+            (previous_nodes[key].get('source') or '').lower() == 'discord'
             and previous_nodes[key].get('discord_owner_id')
         )
     }
@@ -439,7 +439,7 @@ def track_changes(current_nodes: List[Dict[str, Any]],
     # - Have no discord_owner_id (unclaimed)
     deactivated_unclaimed_discord_keys = {
         key for key in removed_keys
-        if previous_nodes[key].get('source', '').lower() == 'discord'
+        if (previous_nodes[key].get('source') or '').lower() == 'discord'
         and not previous_nodes[key].get('discord_owner_id')
     }
     
@@ -587,7 +587,8 @@ def restore_removed_node(node: Dict[str, Any], conn) -> None:
         conn: Database connection.
     """
     cursor = conn.cursor()
-    
+    normalize_node_timestamps(node)
+
     # Normalize public key: remove spaces, dashes, convert to lowercase
     # This matches the normalization in get_node_by_key
     public_key_normalized = node['public_key'].replace(' ', '').replace('-', '').lower()

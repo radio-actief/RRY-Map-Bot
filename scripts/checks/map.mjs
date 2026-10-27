@@ -179,6 +179,28 @@ export default async function (ctx) {
   ctx.check("map: a ?node= deep link leaves Filters inactive", deepLabel === "Filters", deepLabel);
   await deep.close();
 
+  // A 12-hex key prefix (the Discord digest links) opens the node when only one node matches it.
+  const popupFor = async (path, list) => {
+    const p = await ctx.open(path, {
+      setup: async (pg) => {
+        await pg.route("**/api/v1/belgian-nodes", (r) => r.fulfill({ contentType: "application/json", body: JSON.stringify(list) }));
+      },
+    });
+    await p.waitForSelector(".leaflet-marker-icon", { timeout: 10000 }).catch(() => {});
+    await p.waitForSelector(".leaflet-popup", { timeout: 4000 }).catch(() => {});
+    const popup = text(await p.locator(".leaflet-popup").first().textContent({ timeout: 500 }).catch(() => ""));
+    const errors = [...p.errors];
+    await p.close();
+    return { popup, errors };
+  };
+  const target = nodes[5];
+  const byPrefix = await popupFor(`/?node=${target.public_key.slice(0, 12)}`, nodes);
+  ctx.check("map: a 12-hex key prefix opens that node's popup", byPrefix.popup.includes(target.adv_name), byPrefix.popup);
+  const twin = { ...nodes[6], adv_name: "Twin node", public_key: nodes[6].public_key.slice(0, 12) + "f".repeat(52) };
+  const crowded = [...nodes, twin];
+  const ambiguous = await popupFor(`/?node=${nodes[6].public_key.slice(0, 12)}`, crowded);
+  ctx.check("map: an ambiguous key prefix opens nothing and no page error", ambiguous.popup === "" && !ambiguous.errors.length, `${ambiguous.popup} | ${ambiguous.errors.join("; ")}`);
+
   // Opening the layers panel leaves the zoom bar its own width.
   const zoom = await ctx.open("/", { setup: withNodes() });
   const zoomWidth = () => zoom.locator(".leaflet-control-zoom").evaluate((e) => Math.round(e.getBoundingClientRect().width));

@@ -2016,9 +2016,18 @@ createApp({
     }
     function findNodeByPubKey(nodes, key) {
       const k = normalizePubKey(key);
-      return k
-        ? (nodes.find((n) => normalizePubKey(n.public_key) === k) ?? null)
-        : null;
+      if (!k) return null;
+      const exact = nodes.find((n) => normalizePubKey(n.public_key) === k);
+      if (exact) return exact;
+      // A key prefix (as in the Discord digest links) opens the node only when
+      // exactly one node starts with it.
+      if (k.length >= 12 && k.length < 64 && /^[0-9a-f]+$/.test(k)) {
+        const matches = nodes.filter((n) =>
+          normalizePubKey(n.public_key).startsWith(k),
+        );
+        if (matches.length === 1) return matches[0];
+      }
+      return null;
     }
 
     async function refreshMap({

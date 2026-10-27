@@ -84,25 +84,32 @@ def _format_utc(dt: datetime) -> str:
 # ---------------------------------------------------------------------------
 
 
+# State a lifecycle event leaves the node in, and the state it implies the
+# node was in just before it.
+_STATE_AFTER = {'added': 'active', 'restored': 'active', 'removed': 'gone'}
+_STATE_BEFORE = {'added': 'new', 'restored': 'gone', 'removed': 'active'}
+
+
 def collect_changes_since(conn, since_utc: datetime) -> Dict[str, List[str]]:
     """Return the net add/remove/restore buckets since ``since_utc``.
 
-    Rules (per public_key, deduped across the window):
-        added     -> currently is_active=1 AND this window includes an
-                     explicit ``added`` row AND (no prior node_changes history,
-                     OR ``added`` again after a prior lifecycle — re-import).
-        restored  -> currently is_active=1 AND this window includes a
-                     'restored' change AND had a 'removed' row before the
-                     window (reactivation logged in the sync).
-        removed   -> currently is_active=0 AND this window includes an
-                     explicit ``removed`` row (or no ``belgian_nodes`` row but
-                     ``removed`` in the window). Routine ``updated`` rows on
-                     inactive nodes do not count as a new deletion each day.
-        (flaps)   -> ``added``+``removed`` in the same window while still
-                     inactive, or ``removed``+``restored`` in the same window,
-                     are omitted from all buckets (net active stock unchanged).
-        updated   -> intentionally excluded from the digest (matches the
-                     old per-sync notification).
+    Per public_key, the state just before the window is compared with the
+    state at its end; only ``added`` / ``removed`` / ``restored`` rows count
+    (``updated`` rows are routine and never move a node between buckets):
+
+        before = what the first lifecycle row in the window implies
+                 (added -> new, removed -> active, restored -> gone)
+        after  = what the last lifecycle row in the window leaves
+                 (added / restored -> active, removed -> gone)
+
+        new    -> active : added
+        gone   -> active : restored
+        active -> gone   : removed
+        anything else    : left out (no net change, e.g. removed then
+                           restored, or added then removed again)
+
+    So a node that goes away and comes back (or the reverse) several times in
+    one window is shown by its final state whenever that state changed.
 
     Args:
         conn: sqlite3 connection.
@@ -119,90 +126,44 @@ def collect_changes_since(conn, since_utc: datetime) -> Dict[str, List[str]]:
     since_iso = since_utc.astimezone(timezone.utc).isoformat(timespec="seconds")
 
     cursor = conn.cursor()
-
     cursor.execute(
         """
         SELECT public_key, change_type
         FROM node_changes
         WHERE change_type IN ('added','removed','restored','updated')
           AND julianday(sync_date) >= julianday(?)
+        ORDER BY julianday(sync_date) ASC, id ASC
         """,
         (since_iso,),
     )
-    window_events: Dict[str, set] = {}
-    for row in cursor.fetchall():
-        pk = row[0]
-        ct = row[1]
+    lifecycle: Dict[str, List[str]] = {}
+    updated_only: set = set()
+    for pk, ct in cursor.fetchall():
         if not pk or not ct:
             continue
-        window_events.setdefault(pk, set()).add(ct)
+        if ct == 'updated':
+            updated_only.add(pk)
+        else:
+            lifecycle.setdefault(pk, []).append(ct)
+    updated_only -= set(lifecycle)
 
     added: List[str] = []
     removed: List[str] = []
     restored: List[str] = []
-    updated_count = 0
-
-    for pk, types in window_events.items():
-        if 'updated' in types and not (types & {'added', 'removed', 'restored'}):
-            updated_count += 1
-
-        cursor.execute(
-            "SELECT is_active FROM belgian_nodes WHERE public_key = ?",
-            (pk,),
-        )
-        row = cursor.fetchone()
-        if row is None:
-            if 'removed' in types:
-                removed.append(pk)
-            continue
-        is_active = int(row[0] or 0)
-
-        cursor.execute(
-            """
-            SELECT change_type, sync_date
-            FROM node_changes
-            WHERE public_key = ?
-              AND julianday(sync_date) < julianday(?)
-            ORDER BY julianday(sync_date) ASC
-            """,
-            (pk, since_iso),
-        )
-        prior = cursor.fetchall()
-        had_prior_history = len(prior) > 0
-        had_prior_removed = any((r[0] == 'removed') for r in prior)
-
-        # Same-window opposing lifecycle events with no net active-stock change.
-        if 'removed' in types and 'restored' in types:
-            continue
-        if 'added' in types and 'removed' in types and is_active == 0:
-            continue
-
-        if is_active == 0:
-            # Only count as removed when this window actually logged a removal.
-            # Otherwise inactive nodes that only receive routine `updated` rows
-            # would show under Deleted on every digest.
-            if 'removed' in types:
-                removed.append(pk)
-        else:
-            # Only count as restored when this window includes an explicit
-            # `restored` row. Otherwise every stable repeater that was ever
-            # offline once would reappear under Restored whenever it gets a
-            # routine `updated` sync row.
-            if had_prior_removed and 'restored' in types:
-                restored.append(pk)
-            # Only count as added when this window includes an explicit `added`
-            # row. Otherwise a key whose first ledger row is only `updated`
-            # (or bulk-import gaps) would be misclassified as New on every run.
-            elif not had_prior_history and 'added' in types:
-                added.append(pk)
-            elif 'added' in types:
-                added.append(pk)
+    for pk, events in lifecycle.items():
+        transition = (_STATE_BEFORE[events[0]], _STATE_AFTER[events[-1]])
+        if transition == ('new', 'active'):
+            added.append(pk)
+        elif transition == ('gone', 'active'):
+            restored.append(pk)
+        elif transition == ('active', 'gone'):
+            removed.append(pk)
 
     return {
         'added': added,
         'removed': removed,
         'restored': restored,
-        'updated_count': updated_count,
+        'updated_count': len(updated_only),
         'since_utc': since_utc,
     }
 

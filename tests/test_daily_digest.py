@@ -495,5 +495,66 @@ def test_embed_with_23_deleted_nodes_stays_within_field_limit() -> None:
     assert "](" not in field.value.split("\n")[0], "deleted nodes are not linked to the map"
 
 
+
+# ---------------------------------------------------------------------------
+# Net state per node: compare the state before the window with the state at
+# its end, so a node that goes and comes back (or the reverse) still shows.
+# ---------------------------------------------------------------------------
+
+
+def _events(conn, pk, start, *types):
+    for i, t in enumerate(types):
+        _insert_change(conn, pk, t, start + timedelta(minutes=10 * (i + 1)))
+    conn.commit()
+
+
+def test_active_node_removed_restored_removed_shows_as_deleted() -> None:
+    conn = _make_test_db()
+    start = datetime(2026, 10, 26, 8, 0, tzinfo=timezone.utc)
+    pk = "4" * 64
+    _insert_node(conn, pk, "Flip", is_active=0)
+    _insert_change(conn, pk, "added", start - timedelta(days=30))
+    _events(conn, pk, start, "removed", "restored", "removed")
+    agg = collect_changes_since(conn, start)
+    assert agg["removed"] == [pk]
+    assert agg["added"] == [] and agg["restored"] == []
+
+
+def test_new_node_added_removed_restored_shows_as_new() -> None:
+    conn = _make_test_db()
+    start = datetime(2026, 10, 26, 8, 0, tzinfo=timezone.utc)
+    pk = "5" * 64
+    _insert_node(conn, pk, "Newbie", is_active=1)
+    _events(conn, pk, start, "added", "removed", "restored")
+    agg = collect_changes_since(conn, start)
+    assert agg["added"] == [pk]
+    assert agg["removed"] == [] and agg["restored"] == []
+
+
+def test_gone_node_restored_removed_restored_shows_as_restored() -> None:
+    conn = _make_test_db()
+    start = datetime(2026, 10, 26, 8, 0, tzinfo=timezone.utc)
+    pk = "6" * 64
+    _insert_node(conn, pk, "Back", is_active=1)
+    _insert_change(conn, pk, "added", start - timedelta(days=30))
+    _insert_change(conn, pk, "removed", start - timedelta(days=3))
+    _events(conn, pk, start, "restored", "removed", "restored")
+    agg = collect_changes_since(conn, start)
+    assert agg["restored"] == [pk]
+    assert agg["added"] == [] and agg["removed"] == []
+
+
+def test_gone_node_restored_then_removed_again_is_left_out() -> None:
+    conn = _make_test_db()
+    start = datetime(2026, 10, 26, 8, 0, tzinfo=timezone.utc)
+    pk = "7" * 64
+    _insert_node(conn, pk, "Blip", is_active=0)
+    _insert_change(conn, pk, "added", start - timedelta(days=30))
+    _insert_change(conn, pk, "removed", start - timedelta(days=3))
+    _events(conn, pk, start, "restored", "removed")
+    agg = collect_changes_since(conn, start)
+    assert agg["added"] == [] and agg["removed"] == [] and agg["restored"] == []
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

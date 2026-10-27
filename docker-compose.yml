@@ -80,10 +80,11 @@ services:
     depends_on:
       - api
     healthcheck:
-      test: ["CMD", "python3", "-c", "import sys; sys.exit(0)"]
+      test: ["CMD", "python3", "backend/sync_health.py"]
       interval: 1m
       timeout: 10s
       retries: 3
+      start_period: 5m
 
 networks:
   rry-map-bot-network:

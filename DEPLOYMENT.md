@@ -93,22 +93,26 @@ The bot will:
 Endpoints:
 - `GET /api/v1/belgian-nodes` - Get all active Belgian nodes
 - `GET /api/v1/stats` - Get statistics
-- `GET /api/v1/health` - Health check
+- `GET /api/v1/health` - Health check (API process only)
+- `GET /api/v1/health/sync` - Age of the last sync run: 200 `ok`, or 503 `stale` (older than twice the sync interval) / `no_history`; point uptime monitoring here
 - `GET /` - Web map interface
 
 ### Sync Service
 
 - **Container**: `rry-map-bot-sync`
-- **Command**: Runs sync every 6 hours
+- **Command**: Runs sync every `SYNC_INTERVAL_MINUTES` (default 6 hours)
 - **Restart**: `unless-stopped`
 - **Initial Delay**: 60 seconds (allows API to start first)
+- **Health Check**: `python3 backend/sync_health.py` (unhealthy when the last run is older than twice the interval)
 
 The sync service:
 - Downloads nodes from official MeshCore map
 - Filters by Belgian geographic bounds
-- Verifies with Geopy (respects rate limits)
-- Integrates changes into database
-- Runs automatically every X hours (env var)
+- Verifies with the local Belgian geocoder (Geopy only as an optional fallback). A node on the map that is outside Belgium for two runs in a row is removed; new or inactive nodes outside Belgium are never added
+- Integrates changes into database, one run at a time (`data/sync.lock`)
+- Holds back a mass removal (more than 25 nodes or 5 % of active nodes) and records it in `sync_history`; nodes missing for 3 runs in a row are removed once the feed is back to its normal size
+- Exits 0 when done, 1 when the run failed, 2 when some nodes failed (listed in `sync_history.details.errors`)
+- Writes `data/geocode_failures.log`: one line when a node's result changes plus one summary line per run, rotated at 5 MB (3 old files)
 
 ## Database Management
 

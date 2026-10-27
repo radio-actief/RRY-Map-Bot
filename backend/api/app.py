@@ -267,6 +267,20 @@ def health_check():
     }), 200
 
 
+@app.route('/api/v1/health/sync', methods=['GET'])
+def sync_health_check():
+    """
+    GET /api/v1/health/sync
+
+    Age of the last sync run. 200 with ``status: "ok"``; 503 with
+    ``status: "stale"`` when it is older than twice the sync interval, or
+    ``status: "no_history"`` when no run has been logged yet.
+    """
+    from backend.sync_health import get_sync_health
+    body, status = get_sync_health()
+    return jsonify(body), status
+
+
 # "Added" is based only on belgian_nodes.inserted_date (or created_at). Real sync_history/node_changes
 # are used only for removed, restored, updated (to avoid double-counting when sync logged existing nodes as "added").
 

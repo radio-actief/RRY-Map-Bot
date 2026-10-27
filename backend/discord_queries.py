@@ -147,6 +147,93 @@ def _sort_nodes_by_relevance(nodes: List[Dict[str, Any]], query: Optional[str]) 
     return sorted(nodes, key=score)
 
 
+def _like_pattern(text: str) -> str:
+    """``%text%`` for ``LIKE ... ESCAPE '\\'`` with ``%``, ``_`` and ``\\`` taken literally."""
+    escaped = text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return f"%{escaped}%"
+
+
+def _search_conditions(
+    *,
+    query: Optional[str] = None,
+    node_type: Optional[int] = None,
+    city: Optional[str] = None,
+    frequency_preset_name: Optional[str] = None,
+    owner_id: Optional[str] = None,
+    include_inactive: bool = False,
+    claimed: Optional[bool] = None,
+    source: Optional[str] = None,
+) -> tuple:
+    """WHERE conditions and parameters shared by the node search and its count."""
+    # include_inactive=True shows ONLY inactive nodes; the default only active ones.
+    conditions = ["is_active = 0" if include_inactive else "is_active = 1"]
+    params: List[Any] = []
+
+    # Substring match on name, public key or owner name; wildcards taken literally.
+    if query:
+        pattern = _like_pattern(query.lower())
+        conditions.append(
+            "(LOWER(adv_name) LIKE ? ESCAPE '\\' OR LOWER(public_key) LIKE ? ESCAPE '\\'"
+            " OR LOWER(discord_owner_name) LIKE ? ESCAPE '\\')"
+        )
+        params.extend([pattern, pattern, pattern])
+
+    if node_type is not None:
+        conditions.append("type = ?")
+        params.append(node_type)
+
+    if city:
+        conditions.append("LOWER(city) LIKE ? ESCAPE '\\'")
+        params.append(_like_pattern(city.lower()))
+
+    # Frequency preset: all four radio parameters in the params JSON
+    # ({"freq": 869.618, "sf": 8, "bw": 62.5, "cr": 8}).
+    if frequency_preset_name:
+        from config.config import FREQUENCY_PRESETS
+        preset = next(
+            (p for p in FREQUENCY_PRESETS if p['name'].lower() == frequency_preset_name.lower()),
+            None,
+        )
+        if preset:
+            conditions.append("(params LIKE ? AND params LIKE ? AND params LIKE ? AND params LIKE ?)")
+            params.extend([
+                f'%"freq": {preset["freq"]}%',
+                f'%"sf": {preset["sf"]}%',
+                f'%"bw": {preset["bw"]}%',
+                f'%"cr": {preset["cr"]}%',
+            ])
+
+    if owner_id:
+        conditions.append("discord_owner_id = ?")
+        params.append(str(owner_id))
+
+    if claimed is not None:
+        conditions.append("discord_owner_id IS NOT NULL" if claimed else "discord_owner_id IS NULL")
+
+    # Source filter (app and web are treated the same as "app" for search)
+    if source:
+        source_lower = source.lower()
+        if source_lower == 'app':
+            conditions.append("(LOWER(source) = 'app' OR LOWER(source) = 'web')")
+        elif source_lower == 'unknown':
+            conditions.append("(source IS NULL OR source = '' OR LOWER(source) = 'unknown')")
+        else:
+            conditions.append("LOWER(source) = ?")
+            params.append(source_lower)
+
+    return " AND ".join(conditions), params
+
+
+def _exact_key_match(norm: Optional[str], filters: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """The node for a full 64-char key when it passes the search filters."""
+    if not norm or len(norm) != 64:
+        return None
+    exact = get_node_by_key(norm, include_inactive=filters.get('include_inactive', False))
+    if exact and _node_passes_filters(exact, **filters):
+        return exact
+    return None
+
+
 def query_nodes_substring(
     query: Optional[str] = None,
     node_type: Optional[int] = None,
@@ -161,201 +248,173 @@ def query_nodes_substring(
     """
     Query nodes with substring matching (case-insensitive).
     By default filters for active nodes only (is_active = TRUE).
-    
+
     Args:
-        query: Substring to search in node name or public key.
+        query: Substring to search in node name, public key or owner name.
+            ``%`` and ``_`` are matched literally.
         node_type: Filter by node type (1-4).
-        city: Filter by city name (case-insensitive).
+        city: Filter by city name (case-insensitive substring).
         frequency_preset_name: Filter by frequency preset name (matches nodes using that preset).
         owner_id: Filter by Discord owner ID.
         limit: Maximum number of results (default 25).
-        include_inactive: If True, include inactive nodes (default False).
+        include_inactive: If True, show ONLY inactive nodes (default False: only active).
         claimed: Filter by claim status (True=claimed, False=unclaimed, None=both).
-        source: Filter by source type (discord, app, uploader, web, or None for all).
-    
+        source: Filter by source type (app, uploader, web, unknown, or None for all).
+
     Returns:
         List of node dictionaries matching the criteria.
+
+    Raises:
+        sqlite3.Error: when the database can't be read (never an empty list).
     """
-    norm = normalize_pubkey(query) if query else None
+    filters = dict(
+        node_type=node_type, city=city, frequency_preset_name=frequency_preset_name,
+        owner_id=owner_id, claimed=claimed, source=source, include_inactive=include_inactive,
+    )
+    exact = _exact_key_match(normalize_pubkey(query) if query else None, filters)
+    if exact:
+        return [exact]
 
-    # Full 64-char pubkey: try exact match first (respects active/inactive filter).
-    if norm and len(norm) == 64:
-        exact = get_node_by_key(norm, include_inactive=include_inactive)
-        if exact and _node_passes_filters(
-            exact,
-            node_type=node_type,
-            city=city,
-            frequency_preset_name=frequency_preset_name,
-            owner_id=owner_id,
-            claimed=claimed,
-            source=source,
-            include_inactive=include_inactive,
-        ):
-            return [exact]
-
+    where, params = _search_conditions(query=query, **filters)
     conn = get_connection()
-    cursor = conn.cursor()
-    
     try:
-        # Build WHERE clause
-        conditions = []
-        if include_inactive:
-            # If include_inactive is True, show ONLY inactive nodes
-            conditions.append("is_active = 0")
-        else:
-            # Default: only show active nodes
-            conditions.append("is_active = 1")
-        params = []
-        
-        # Query parameter (substring match on name, public key, or owner name)
-        if query:
-            query_lower = query.lower()
-            conditions.append(
-                "(LOWER(adv_name) LIKE ? OR LOWER(public_key) LIKE ? OR LOWER(discord_owner_name) LIKE ?)"
-            )
-            params.extend([f"%{query_lower}%", f"%{query_lower}%", f"%{query_lower}%"])
-        
-        # Node type filter
-        if node_type is not None:
-            conditions.append("type = ?")
-            params.append(node_type)
-        
-        # City filter (case-insensitive substring match)
-        if city:
-            city_lower = city.lower()
-            conditions.append("LOWER(city) LIKE ?")
-            params.append(f"%{city_lower}%")
-        
-        # Frequency preset filter (match nodes using the selected preset)
-        if frequency_preset_name:
-            # Get the preset parameters to match against
-            from config.config import FREQUENCY_PRESETS
-            preset = None
-            for p in FREQUENCY_PRESETS:
-                if p['name'].lower() == frequency_preset_name.lower():
-                    preset = p
-                    break
-            
-            if preset:
-                # Match nodes that have params matching this preset exactly
-                # JSON format: {"freq": 869.618, "sf": 8, "bw": 62.5, "cr": 8}
-                # We need to match all 4 parameters: freq, sf, bw, cr
-                freq = preset['freq']
-                sf = preset['sf']
-                bw = preset['bw']
-                cr = preset['cr']
-                
-                # Match the preset by checking all parameters in the JSON
-                # Use multiple LIKE conditions to ensure all params match
-                conditions.append("""
-                    (params LIKE ? AND params LIKE ? AND params LIKE ? AND params LIKE ?)
-                """)
-                params.append(f'%"freq": {freq}%')  # Match frequency (with space)
-                params.append(f'%"sf": {sf}%')      # Match spreading factor
-                params.append(f'%"bw": {bw}%')      # Match bandwidth
-                params.append(f'%"cr": {cr}%')      # Match coding rate
-        
-        # Owner filter (exact match by Discord user ID)
-        if owner_id:
-            conditions.append("discord_owner_id = ?")
-            params.append(str(owner_id))
-        
-        # Claimed filter
-        if claimed is not None:
-            if claimed:
-                conditions.append("discord_owner_id IS NOT NULL")
-            else:
-                conditions.append("discord_owner_id IS NULL")
-        
-        # Source filter (app and web are treated the same as "app" for search)
-        if source:
-            source_lower = source.lower()
-            if source_lower == 'app':
-                conditions.append("(LOWER(source) = 'app' OR LOWER(source) = 'web')")
-            elif source_lower == 'uploader':
-                conditions.append("LOWER(source) = ?")
-                params.append(source_lower)
-            elif source_lower == 'unknown':
-                conditions.append("(source IS NULL OR source = '' OR LOWER(source) = 'unknown')")
-            else:
-                conditions.append("LOWER(source) = ?")
-                params.append(source_lower)
-        
-        # Build query
-        if conditions:
-            where_clause = " AND ".join(conditions)
-            query_sql = f"""
-                SELECT * FROM belgian_nodes
-                WHERE {where_clause}
-                ORDER BY adv_name
-                LIMIT ?
-            """
-        else:
-            # No conditions - select all nodes (when include_inactive=True and no filters)
-            query_sql = """
-                SELECT * FROM belgian_nodes
-                ORDER BY adv_name
-                LIMIT ?
-            """
-        params.append(limit)
-        
-        cursor.execute(query_sql, params)
-        rows = cursor.fetchall()
-        
-        # Convert rows to dictionaries
-        nodes = [dict_from_row(row) for row in rows]
+        rows = conn.execute(
+            f"SELECT * FROM belgian_nodes WHERE {where} ORDER BY adv_name LIMIT ?",
+            [*params, limit],
+        ).fetchall()
+    finally:
+        conn.close()
+    nodes = [dict_from_row(row) for row in rows]
+    return _sort_nodes_by_relevance(nodes, query) if query else nodes
 
-        if query:
-            nodes = _sort_nodes_by_relevance(nodes, query)
 
-        return nodes
-        
-    except Exception as e:
-        print(f"Error querying nodes: {e}")
-        return []
+def count_nodes_substring(
+    query: Optional[str] = None,
+    node_type: Optional[int] = None,
+    city: Optional[str] = None,
+    frequency_preset_name: Optional[str] = None,
+    owner_id: Optional[str] = None,
+    include_inactive: bool = False,
+    claimed: Optional[bool] = None,
+    source: Optional[str] = None,
+) -> int:
+    """How many nodes ``query_nodes_substring`` would find without its limit."""
+    filters = dict(
+        node_type=node_type, city=city, frequency_preset_name=frequency_preset_name,
+        owner_id=owner_id, claimed=claimed, source=source, include_inactive=include_inactive,
+    )
+    if _exact_key_match(normalize_pubkey(query) if query else None, filters):
+        return 1
+    where, params = _search_conditions(query=query, **filters)
+    conn = get_connection()
+    try:
+        return conn.execute(f"SELECT COUNT(*) FROM belgian_nodes WHERE {where}", params).fetchone()[0]
+    finally:
+        conn.close()
+
+
+def search_owned_nodes(user_id: str, query: Optional[str] = None, limit: int = 25) -> List[Dict[str, Any]]:
+    """The caller's own nodes (active first, then inactive) whose name or key contains ``query``."""
+    conditions = ["discord_owner_id = ?"]
+    params: List[Any] = [str(user_id)]
+    norm = normalize_pubkey(query) if query else None
+    if norm and len(norm) == 64:
+        conditions.append("public_key = ?")
+        params.append(norm)
+    elif query:
+        pattern = _like_pattern(query.lower())
+        conditions.append("(LOWER(adv_name) LIKE ? ESCAPE '\\' OR LOWER(public_key) LIKE ? ESCAPE '\\')")
+        params.extend([pattern, pattern])
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            f"SELECT * FROM belgian_nodes WHERE {' AND '.join(conditions)} "
+            "ORDER BY is_active DESC, adv_name LIMIT ?",
+            [*params, limit],
+        ).fetchall()
+    finally:
+        conn.close()
+    return [dict_from_row(row) for row in rows]
+
+
+def unclaimed_node_suggestions(query: Optional[str], limit: int = 25) -> List[Dict[str, Any]]:
+    """Active, unclaimed nodes whose name or key contains ``query`` (for autocomplete)."""
+    params: List[Any] = []
+    where = "is_active = 1 AND discord_owner_id IS NULL"
+    text = (query or "").strip()
+    if text:
+        norm = normalize_pubkey(text)
+        pattern = _like_pattern((norm or text).lower())
+        where += " AND (LOWER(adv_name) LIKE ? ESCAPE '\\' OR LOWER(public_key) LIKE ? ESCAPE '\\')"
+        params.extend([_like_pattern(text.lower()), pattern])
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            f"SELECT public_key, adv_name, type, city FROM belgian_nodes WHERE {where} "
+            "ORDER BY adv_name LIMIT ?",
+            [*params, limit],
+        ).fetchall()
+    finally:
+        conn.close()
+    return [dict_from_row(row) for row in rows]
+
+
+def city_suggestions(query: Optional[str], limit: int = 25) -> List[str]:
+    """Cities of active nodes containing ``query``: those starting with it first, then by node count."""
+    where = "is_active = 1 AND city IS NOT NULL AND city != '' AND city != 'Unknown'"
+    text = (query or "").strip().lower()
+    pattern = _like_pattern(text)
+    prefix = pattern[1:]  # "text%": cities that start with the text come first
+    if text:
+        where += " AND LOWER(city) LIKE ? ESCAPE '\\'"
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            f"SELECT city, COUNT(*) AS n, LOWER(city) LIKE ? ESCAPE '\\' AS starts FROM belgian_nodes "
+            f"WHERE {where} GROUP BY city ORDER BY starts DESC, n DESC, city LIMIT ?",
+            [prefix, *([pattern] if text else []), limit],
+        ).fetchall()
+    finally:
+        conn.close()
+    return [row['city'] for row in rows]
+
+
+def record_command(command: str, user_id: Optional[str], *, ok: bool, duration_ms: Optional[int]) -> None:
+    """Append one ``command_log`` row (no command arguments are stored)."""
+    conn = get_connection()
+    try:
+        conn.execute(
+            "INSERT INTO command_log (ts, command, user_id, ok, duration_ms) VALUES (?, ?, ?, ?, ?)",
+            (get_current_timestamp(), command, str(user_id) if user_id is not None else None,
+             1 if ok else 0, duration_ms),
+        )
+        conn.commit()
     finally:
         conn.close()
 
 
 def get_user_nodes(user_id: str, include_inactive: bool = True) -> List[Dict[str, Any]]:
     """
-    Get all nodes owned by a user.
-    For /manage list command - shows both active and inactive nodes.
-    
-    Args:
-        user_id: Discord user ID.
-        include_inactive: If True, include inactive nodes (default True).
-    
-    Returns:
-        List of node dictionaries owned by the user.
+    Get all nodes owned by a user (active first when inactive ones are included).
+
+    Raises:
+        sqlite3.Error: when the database can't be read (never an empty list).
     """
     conn = get_connection()
-    cursor = conn.cursor()
-    
     try:
         if include_inactive:
-            # Show both active and inactive
-            cursor.execute("""
+            rows = conn.execute("""
                 SELECT * FROM belgian_nodes
                 WHERE discord_owner_id = ?
                 ORDER BY is_active DESC, adv_name
-            """, (str(user_id),))
+            """, (str(user_id),)).fetchall()
         else:
-            # Only active nodes
-            cursor.execute("""
+            rows = conn.execute("""
                 SELECT * FROM belgian_nodes
                 WHERE discord_owner_id = ? AND is_active = 1
                 ORDER BY adv_name
-            """, (str(user_id),))
-        
-        rows = cursor.fetchall()
-        nodes = [dict_from_row(row) for row in rows]
-        
-        return nodes
-        
-    except Exception as e:
-        print(f"Error getting user nodes: {e}")
-        return []
+            """, (str(user_id),)).fetchall()
+        return [dict_from_row(row) for row in rows]
     finally:
         conn.close()
 
@@ -461,6 +520,9 @@ def get_statistics(
     
     Returns:
         Dictionary with statistics (all filtered by preset when frequency_preset is set)
+
+    Raises:
+        sqlite3.Error: when the database can't be read (never all zeros).
     """
     conn = get_connection()
     cursor = conn.cursor()
@@ -719,20 +781,7 @@ def get_statistics(
         stats['active_30d'] = active_30d
         
         return stats
-        
-    except Exception as e:
-        print(f"Error getting statistics: {e}")
-        return {
-            'total_nodes': 0,
-            'by_type': {},
-            'by_type_map': {},
-            'top_cities': [],
-            'top_cities_repeaters': [],
-            'top_cities_companions': [],
-            'top_cities_room_servers': [],
-            'top_cities_sensors': [],
-            'recently_added': 0
-        }
+
     finally:
         conn.close()
 
@@ -778,15 +827,12 @@ def get_source_statistics() -> Dict[str, Any]:
             'by_source': by_source,
             'total': total
         }
-        
-    except Exception as e:
-        print(f"Error getting source statistics: {e}")
-        return {'by_source': {}, 'total': 0}
+
     finally:
         conn.close()
 
 
-def update_ownership(public_key: str, user_id: str, username: str) -> bool:
+def update_ownership(public_key: str, user_id: str, username: str, *, source: Optional[str] = None) -> bool:
     """
     Claim an unclaimed node for a Discord user.
 
@@ -798,10 +844,14 @@ def update_ownership(public_key: str, user_id: str, username: str) -> bool:
         public_key: Public key of the node (normalised to lowercase).
         user_id: Discord user ID.
         username: Discord username.
+        source: Where the claim came from: ``'bot'`` or ``'web'``.
 
     Returns:
         True if the node was found and the claim was recorded, False if it
         is missing, inactive or already claimed.
+
+    Raises:
+        sqlite3.Error: when the database can't be written (rolled back).
     """
     conn = get_connection()
     cursor = conn.cursor()
@@ -823,22 +873,21 @@ def update_ownership(public_key: str, user_id: str, username: str) -> bool:
 
         cursor.execute("""
             INSERT INTO node_claims
-                (public_key, discord_owner_id, discord_owner_name, action, timestamp)
-            VALUES (?, ?, ?, 'claim', CURRENT_TIMESTAMP)
-        """, (public_key_normalized, str(user_id), username))
+                (public_key, discord_owner_id, discord_owner_name, action, timestamp, source)
+            VALUES (?, ?, ?, 'claim', CURRENT_TIMESTAMP, ?)
+        """, (public_key_normalized, str(user_id), username, source))
 
         conn.commit()
         return True
 
-    except Exception as e:
-        print(f"Error updating ownership: {e}")
+    except Exception:
         conn.rollback()
-        return False
+        raise
     finally:
         conn.close()
 
 
-def remove_ownership(public_key: str, user_id: str) -> bool:
+def remove_ownership(public_key: str, user_id: str, *, source: Optional[str] = None) -> bool:
     """
     Unclaim a node previously claimed by ``user_id``.
 
@@ -849,10 +898,14 @@ def remove_ownership(public_key: str, user_id: str) -> bool:
     Args:
         public_key: Public key of the node (normalised to lowercase).
         user_id: Discord user ID (must match the current owner).
+        source: Where the unclaim came from: ``'bot'`` or ``'web'``.
 
     Returns:
         True if the node was owned by ``user_id`` and the unclaim was
         recorded, False otherwise.
+
+    Raises:
+        sqlite3.Error: when the database can't be written (rolled back).
     """
     conn = get_connection()
     cursor = conn.cursor()
@@ -880,17 +933,16 @@ def remove_ownership(public_key: str, user_id: str) -> bool:
 
         cursor.execute("""
             INSERT INTO node_claims
-                (public_key, discord_owner_id, discord_owner_name, action, timestamp)
-            VALUES (?, ?, ?, 'unclaim', CURRENT_TIMESTAMP)
-        """, (public_key_normalized, str(user_id), prior_owner_name))
+                (public_key, discord_owner_id, discord_owner_name, action, timestamp, source)
+            VALUES (?, ?, ?, 'unclaim', CURRENT_TIMESTAMP, ?)
+        """, (public_key_normalized, str(user_id), prior_owner_name, source))
 
         conn.commit()
         return True
 
-    except Exception as e:
-        print(f"Error removing ownership: {e}")
+    except Exception:
         conn.rollback()
-        return False
+        raise
     finally:
         conn.close()
 
@@ -932,10 +984,7 @@ def verify_ownership(public_key: str, user_id: str, include_inactive: bool = Fal
             return False
         
         return str(row['discord_owner_id']) == str(user_id)
-        
-    except Exception as e:
-        print(f"Error verifying ownership: {e}")
-        return False
+
     finally:
         conn.close()
 
@@ -1000,9 +1049,6 @@ def get_node_by_key(public_key: str, include_inactive: bool = False) -> Optional
                 node['params'] = {}
             return node
         return None
-        
-    except Exception as e:
-        print(f"Error getting node by key: {e}")
-        return None
+
     finally:
         conn.close()

@@ -1287,7 +1287,8 @@ def claim_node(public_key: str):
     success = update_ownership(
         public_key_normalized,
         user['id'],
-        user['username']
+        user['username'],
+        source='web',
     )
     
     if not success:
@@ -1340,7 +1341,7 @@ def unclaim_node(public_key: str):
         }), 404
     
     # Remove ownership
-    success = remove_ownership(public_key_normalized, user['id'])
+    success = remove_ownership(public_key_normalized, user['id'], source='web')
     
     if not success:
         return jsonify({

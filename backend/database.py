@@ -199,6 +199,8 @@ def init_database() -> None:
             ON node_claims(timestamp)
         """)
 
+        ensure_node_claims_source_column(conn)
+        ensure_command_log_table(conn)
         ensure_sync_state_table(conn)
 
         conn.commit()
@@ -234,6 +236,39 @@ def ensure_digest_state_columns(conn: sqlite3.Connection) -> None:
     for name, decl in DIGEST_STATE_COLUMNS:
         if name not in existing:
             conn.execute(f"ALTER TABLE digest_state ADD COLUMN {name} {decl}")
+
+
+def ensure_node_claims_source_column(conn: sqlite3.Connection) -> None:
+    """Add ``node_claims.source`` (``'bot'`` or ``'web'``) when missing.
+
+    Additive only; older rows keep NULL (source not recorded). Safe to call on
+    every start.
+    """
+    existing = {row[1] for row in conn.execute("PRAGMA table_info(node_claims)")}
+    if existing and "source" not in existing:
+        conn.execute("ALTER TABLE node_claims ADD COLUMN source VARCHAR(10)")
+
+
+def ensure_command_log_table(conn: sqlite3.Connection) -> None:
+    """Create the ``command_log`` table if missing: one row per bot command.
+
+    Holds no command arguments: time (UTC), command, Discord user id,
+    ok (1) or error (0), and the duration in milliseconds.
+    """
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS command_log (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            ts          TEXT NOT NULL,
+            command     VARCHAR(40) NOT NULL,
+            user_id     VARCHAR(20),
+            ok          INTEGER NOT NULL,
+            duration_ms INTEGER
+        )
+    """)
+    conn.execute("""
+        CREATE INDEX IF NOT EXISTS idx_command_log_ts
+        ON command_log(ts)
+    """)
 
 
 def ensure_sync_state_table(conn: sqlite3.Connection) -> None:

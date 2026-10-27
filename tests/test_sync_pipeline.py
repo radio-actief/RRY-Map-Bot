@@ -186,3 +186,100 @@ def test_restored_node_gets_canonical_timestamps(run):
 
     run(base_feed())
     assert change_types('be03') == ['added', 'removed', 'restored']
+
+
+# --- nodes outside Belgium (local geocoder) -------------------------------
+
+def test_active_node_moving_abroad_is_removed_after_two_runs(run):
+    run(base_feed())
+    abroad = replace(base_feed(), 'be03', adv_lat=GERMANY[0], adv_lon=GERMANY[1])
+
+    first = run(abroad)
+    assert first['changes']['removed'] == []
+    assert node_row('be03')['is_active'] is True
+
+    second = run(abroad)
+    assert second['changes']['removed'] == ['be03']
+    assert node_row('be03')['is_active'] is False
+    assert change_types('be03')[-1] == 'removed'
+
+
+def test_node_one_run_abroad_then_back_stays_active(run):
+    run(base_feed())
+    abroad = replace(base_feed(), 'be03', adv_lat=GERMANY[0], adv_lon=GERMANY[1])
+    run(abroad)
+    run(base_feed())
+    run(abroad)  # the miss counter starts over after a run back inside
+    assert node_row('be03')['is_active'] is True
+    assert 'removed' not in change_types('be03')
+
+
+def test_inactive_node_reappearing_abroad_is_not_restored(run):
+    run(base_feed())
+    run(without(base_feed(), 'be03'))
+    abroad = replace(base_feed(), 'be03', adv_lat=GERMANY[0], adv_lon=GERMANY[1])
+    run(abroad)
+    run(abroad)
+    assert node_row('be03')['is_active'] is False
+    assert 'restored' not in change_types('be03')
+
+
+# --- geocode_failures.log --------------------------------------------------
+
+def geocode_log_lines(temp_db):
+    path = os.path.join(os.path.dirname(temp_db), 'geocode_failures.log')
+    if not os.path.exists(path):
+        return []
+    with open(path, encoding='utf-8') as f:
+        return [line.rstrip('\n').split('\t') for line in f]
+
+
+def test_geocode_log_lists_each_foreign_node_once(run, temp_db):
+    feed = base_feed() + [
+        feed_node('de01', *GERMANY),
+        feed_node('de02', GERMANY[0] + 0.01, GERMANY[1]),
+        feed_node('nl01', 51.45, 5.48),  # Eindhoven
+    ]
+    for _ in range(3):
+        run(feed)
+
+    lines = geocode_log_lines(temp_db)
+    node_lines = [l for l in lines if l[4] != 'summary']
+    summaries = [l for l in lines if l[4] == 'summary']
+    assert sorted(l[1] for l in node_lines) == ['de01', 'de02', 'nl01']
+    assert all(l[4] == 'dropped' for l in node_lines)
+    assert len(summaries) == 3
+    assert summaries[0][6].startswith('3 outside Belgium, 3 new')
+    assert summaries[-1][6].startswith('3 outside Belgium, 0 new')
+
+
+def test_geocode_log_records_when_a_result_changes(run, temp_db):
+    run(base_feed())
+    abroad = replace(base_feed(), 'be03', adv_lat=GERMANY[0], adv_lon=GERMANY[1])
+    run(abroad)
+    run(abroad)
+    run(abroad)
+    run(base_feed())
+
+    actions = [l[4] for l in geocode_log_lines(temp_db) if l[1] == 'be03']
+    assert actions == ['kept_pending', 'dropped', 'cleared']
+
+
+def test_geocode_log_rotates_at_size_cap(tmp_path, monkeypatch):
+    log = tmp_path / 'geocode_failures.log'
+    monkeypatch.setattr(sync, 'GEOCODE_LOG_MAX_BYTES', 100)
+    for i in range(6):
+        log.write_text(f'run {i}\n' + 'x' * 120)
+        sync._rotate_geocode_log(log)
+    names = sorted(p.name for p in tmp_path.iterdir())
+    assert names == ['geocode_failures.log.1', 'geocode_failures.log.2', 'geocode_failures.log.3']
+    assert (tmp_path / 'geocode_failures.log.1').read_text().startswith('run 5')
+
+
+def test_oversized_old_geocode_log_is_set_aside_not_deleted(tmp_path, monkeypatch):
+    log = tmp_path / 'geocode_failures.log'
+    monkeypatch.setattr(sync, 'GEOCODE_LOG_MAX_BYTES', 100)
+    log.write_text('old\n' + 'x' * 5000)
+    sync._rotate_geocode_log(log)
+    assert (tmp_path / 'geocode_failures.log.legacy').read_text().startswith('old')
+    assert not log.exists()

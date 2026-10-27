@@ -63,7 +63,9 @@ from backend.database import (
     json_serialize,
     json_deserialize,
     get_current_timestamp,
-    dict_from_row
+    dict_from_row,
+    get_sync_state,
+    set_sync_state,
 )
 from backend.datetime_utils import normalize_node_timestamps
 from backend.discord_branding import apply_brand_to_embed
@@ -74,6 +76,19 @@ from pathlib import Path
 # Safety: skip applying removals if count exceeds this (avoids mass delete on API/network issues)
 REMOVAL_SAFETY_MAX_ABSOLUTE = 25
 REMOVAL_SAFETY_MAX_PERCENT_OF_ACTIVE = 0.05  # 5%
+
+# Local geocoder: an active node is removed once it has been outside Belgium
+# for this many runs in a row (one run of border GPS jitter is tolerated).
+FOREIGN_MISSES_BEFORE_REMOVAL = 2
+
+# geocode_failures.log: rotate at this size, keep this many old files.
+GEOCODE_LOG_MAX_BYTES = 5 * 1024 * 1024
+GEOCODE_LOG_BACKUPS = 3
+# A file this many times over the cap predates rotation; it is renamed to
+# ``.legacy`` instead of being rotated (and eventually deleted).
+GEOCODE_LOG_LEGACY_FACTOR = 10
+
+GEOCODE_MISSES_STATE_KEY = 'geocode_misses'
 
 
 def _geocode_failures_log_path() -> Path:
@@ -89,33 +104,101 @@ def _geocode_failures_log_path() -> Path:
 _geopy_failures_log_path = _geocode_failures_log_path
 
 
-def _log_geocode_failure(
-    public_key: str,
-    reason: str,
-    lat: Optional[float],
-    lon: Optional[float],
-    kept_from_db: bool,
-    source: str = "local",
-) -> None:
-    """Append one line to the geocode-failures log.
+def _rotate_geocode_log(log_path: Path) -> None:
+    """Rotate ``log_path`` once it reaches ``GEOCODE_LOG_MAX_BYTES``.
 
-    Columns: ``ts\tpublic_key\tlat\tlon\taction\tsource\treason``.
-    ``source`` is either ``local`` (BelgianGeocoder miss) or ``geopy`` (Nominatim failure).
+    Keeps ``GEOCODE_LOG_BACKUPS`` old files (``.1`` is the newest). A file far
+    over the cap was written before rotation existed: it is renamed to
+    ``.legacy`` and left for an admin to archive or delete.
     """
+    try:
+        size = log_path.stat().st_size
+    except OSError:
+        return
+    if size < GEOCODE_LOG_MAX_BYTES:
+        return
+    name = log_path.name
+    legacy = log_path.with_name(f"{name}.legacy")
+    if size >= GEOCODE_LOG_MAX_BYTES * GEOCODE_LOG_LEGACY_FACTOR and not legacy.exists():
+        os.replace(log_path, legacy)
+        return
+    for i in range(GEOCODE_LOG_BACKUPS - 1, 0, -1):
+        older = log_path.with_name(f"{name}.{i}")
+        if older.exists():
+            os.replace(older, log_path.with_name(f"{name}.{i + 1}"))
+    os.replace(log_path, log_path.with_name(f"{name}.1"))
+
+
+def _write_geocode_log(lines: List[str]) -> None:
+    """Append ``lines`` to the geocode-failures log, rotating it first if needed."""
+    if not lines:
+        return
     try:
         log_path = _geocode_failures_log_path()
         log_path.parent.mkdir(parents=True, exist_ok=True)
-        ts = get_current_timestamp()
-        action = "kept_from_db" if kept_from_db else "dropped"
-        line = f"{ts}\t{public_key}\t{lat}\t{lon}\t{action}\t{source}\t{reason}\n"
+        _rotate_geocode_log(log_path)
         with open(log_path, "a", encoding="utf-8") as f:
-            f.write(line)
+            f.writelines(lines)
     except OSError:
         pass  # Do not fail sync if logging fails
 
 
-# Back-compat alias for the legacy name used in older code paths.
-_log_geopy_failure = _log_geocode_failure
+def _geocode_log_line(ts: str, public_key: str, lat: Any, lon: Any,
+                      action: str, source: str, reason: str) -> str:
+    """One log line: ``ts\tpublic_key\tlat\tlon\taction\tsource\treason``."""
+    lat = '' if lat is None else lat
+    lon = '' if lon is None else lon
+    return f"{ts}\t{public_key}\t{lat}\t{lon}\t{action}\t{source}\t{reason}\n"
+
+
+def update_geocode_misses(
+    previous: Dict[str, Dict[str, Any]],
+    misses: Dict[str, Dict[str, Any]],
+    source: str,
+) -> tuple:
+    """Fold this run's verification misses into the stored miss state.
+
+    ``previous`` is the stored state (``key -> {count, action, source}``) and
+    ``misses`` this run's misses (``key -> {action, reason, lat, lon}``).
+    ``count`` is the number of consecutive runs a key has failed; a key that
+    did not fail this run is dropped from the state (counter starts over).
+
+    Returns ``(new_state, log_lines)``. A node gets a log line only when its
+    result changes: first miss, a different action, or back to verified
+    (``cleared``). Every run adds one ``summary`` line.
+    """
+    ts = get_current_timestamp()
+    new_state: Dict[str, Dict[str, Any]] = {}
+    lines: List[str] = []
+    new_count = changed_count = 0
+
+    for key, miss in misses.items():
+        prev = previous.get(key)
+        new_state[key] = {
+            'count': (prev.get('count', 0) if prev else 0) + 1,
+            'action': miss['action'],
+            'source': source,
+        }
+        if prev is None:
+            new_count += 1
+        elif prev.get('action') != miss['action']:
+            changed_count += 1
+        else:
+            continue
+        lines.append(_geocode_log_line(ts, key, miss.get('lat'), miss.get('lon'),
+                                       miss['action'], source, miss.get('reason', 'unknown')))
+
+    cleared = [key for key in previous if key not in misses]
+    for key in cleared:
+        lines.append(_geocode_log_line(ts, key, None, None, 'cleared',
+                                       previous[key].get('source', source), 'verified or no longer checked'))
+
+    label = 'outside Belgium' if source == 'local' else 'not verified'
+    lines.append(_geocode_log_line(
+        ts, '-', None, None, 'summary', source,
+        f"{len(misses)} {label}, {new_count} new, {changed_count} changed, {len(cleared)} cleared",
+    ))
+    return new_state, lines
 
 
 def download_official_nodes() -> List[Dict[str, Any]]:
@@ -204,23 +287,35 @@ def verify_nodes_locally(
     nodes: List[Dict[str, Any]],
     previous_nodes: Optional[Dict[str, Dict[str, Any]]] = None,
     geocoder: Optional["Any"] = None,
+    miss_counts: Optional[Dict[str, int]] = None,
+    misses: Optional[Dict[str, Dict[str, Any]]] = None,
 ) -> List[Dict[str, Any]]:
     """Verify nodes with the local Belgian geocoder (no network, no rate limit).
 
-    Semantics match :func:`verify_nodes_with_geopy`:
+    The local geocoder has no outages, so a miss means the node is not in
+    Belgium:
     - Local hit → keep node, set ``city`` from the canonical ``plaats`` label.
-    - Local miss but node is already in DB → keep node with its DB city.
-    - Local miss and node is new → drop.
-    Failures are logged to ``<db_dir>/geocode_failures.log`` with ``source=local``.
+    - Miss for a node that is active in the DB → keep it (with its DB city)
+      until it has missed ``FOREIGN_MISSES_BEFORE_REMOVAL`` runs in a row,
+      then drop it so it follows the normal removal path. This rides out
+      border GPS jitter.
+    - Miss for a new or inactive node → drop (never added or restored).
+
+    ``miss_counts`` holds each key's consecutive misses before this run.
+    Misses are recorded in ``misses`` (``key -> {action, reason, lat, lon}``)
+    for the caller to log; see :func:`update_geocode_misses`.
     """
     if geocoder is None:
         from backend.belgian_geocoder import get_geocoder as _gg
         geocoder = _gg()
 
     previous_nodes = previous_nodes or {}
+    miss_counts = miss_counts or {}
+    if misses is None:
+        misses = {}
     verified_nodes: List[Dict[str, Any]] = []
     verified_count = 0
-    failed_kept_from_db = 0
+    kept_pending = 0
     failed_dropped = 0
 
     print(f"Verifying {len(nodes)} nodes with local Belgian geocoder "
@@ -238,28 +333,30 @@ def verify_nodes_locally(
                 node['province_code'] = result['province_code']
             verified_nodes.append(node)
             verified_count += 1
+            continue
+
+        key = node.get('public_key')
+        prev = previous_nodes.get(key) if key else None
+        is_active = bool(prev and prev.get('is_active', True))
+        keep = is_active and miss_counts.get(key, 0) + 1 < FOREIGN_MISSES_BEFORE_REMOVAL
+        if keep:
+            node['city'] = prev.get('city')
+            verified_nodes.append(node)
+            kept_pending += 1
         else:
-            key = node.get('public_key')
-            kept = bool(key and key in previous_nodes)
-            if kept:
-                node['city'] = previous_nodes[key].get('city')
-                verified_nodes.append(node)
-                failed_kept_from_db += 1
-            else:
-                failed_dropped += 1
-            _log_geocode_failure(
-                key or "",
-                result.get("reason", "unknown"),
-                node.get("adv_lat"),
-                node.get("adv_lon"),
-                kept_from_db=kept,
-                source="local",
-            )
+            failed_dropped += 1
+        if key:
+            misses[key] = {
+                'action': 'kept_pending' if keep else 'dropped',
+                'reason': result.get('reason', 'unknown'),
+                'lat': node.get('adv_lat'),
+                'lon': node.get('adv_lon'),
+            }
 
     elapsed = time.time() - t0
     rate = (len(nodes) / elapsed) if elapsed > 0 else float('inf')
     print(f"Local geocoding complete: {verified_count} Belgian verified, "
-          f"{failed_kept_from_db} kept from DB, {failed_dropped} dropped "
+          f"{kept_pending} kept for one more run, {failed_dropped} dropped "
           f"({elapsed:.2f}s, {rate:.0f} nodes/s)")
     return verified_nodes
 
@@ -316,12 +413,13 @@ def verify_with_geopy(node: Dict[str, Any], geolocator: Nominatim) -> Dict[str, 
 
 def verify_nodes_with_geopy(nodes: List[Dict[str, Any]], 
                             delay: float = 1.5,
-                            previous_nodes: Optional[Dict[str, Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
+                            previous_nodes: Optional[Dict[str, Dict[str, Any]]] = None,
+                            misses: Optional[Dict[str, Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
     """
     Verify nodes with Geopy, respecting rate limits.
     - If Geopy confirms Belgium: keep node and set city from Geopy.
-    - If Geopy fails but node is already in DB (previous_nodes): keep node and keep city from DB.
-    - If Geopy fails and node is new: drop (do not add unverified new nodes).
+    - If Geopy fails but node is active in the DB (previous_nodes): keep node and keep city from DB.
+    - If Geopy fails and node is new or inactive: drop (do not add or restore unverified nodes).
     This avoids false "removed" for existing nodes when Geopy times out or rate-limits.
     
     Args:
@@ -329,12 +427,16 @@ def verify_nodes_with_geopy(nodes: List[Dict[str, Any]],
         delay: Delay between Geopy requests in seconds (default 1.5).
         previous_nodes: Optional dict of existing nodes from DB (public_key -> node). Used to keep
             nodes that fail Geopy but are already in the DB, preserving their city.
+        misses: Optional dict filled with this run's failures
+            (``key -> {action, reason, lat, lon}``) for the caller to log.
     
     Returns:
         List of verified Belgian nodes plus existing nodes that failed verification (with DB city).
     """
     geolocator = Nominatim(user_agent=GEOPY_USER_AGENT)
     previous_nodes = previous_nodes or {}
+    if misses is None:
+        misses = {}
     verified_nodes = []
     verified_count = 0
     failed_kept_from_db = 0
@@ -351,21 +453,21 @@ def verify_nodes_with_geopy(nodes: List[Dict[str, Any]],
             verified_count += 1
         else:
             key = node.get('public_key')
-            kept = key and key in previous_nodes
+            kept = bool(key and key in previous_nodes
+                        and previous_nodes[key].get('is_active', True))
             if kept:
                 node['city'] = previous_nodes[key].get('city')
                 verified_nodes.append(node)
                 failed_kept_from_db += 1
             else:
                 failed_dropped += 1
-            _log_geocode_failure(
-                key or "",
-                result.get("reason", "unknown"),
-                node.get("adv_lat"),
-                node.get("adv_lon"),
-                kept_from_db=kept,
-                source="geopy",
-            )
+            if key:
+                misses[key] = {
+                    'action': 'kept_from_db' if kept else 'dropped',
+                    'reason': result.get('reason', 'unknown'),
+                    'lat': node.get('adv_lat'),
+                    'lon': node.get('adv_lon'),
+                }
         
         if i % 10 == 0:
             print(f"  Progress: {i}/{len(nodes)} verified ({verified_count} Belgian, "
@@ -1233,8 +1335,12 @@ def sync_belgian_nodes(
         # 2. Filter by Belgian geographic bounds
         bounded_nodes = filter_by_bounds(all_nodes)
         
-        # 3. Load DB state for Geopy (when Geopy fails, we keep nodes already in DB with their city)
+        # 3. Load DB state for verification (misses for nodes already in the DB
+        #    are judged against their DB row and consecutive-miss counter)
         db_for_geopy = load_previous_nodes_from_db()
+        previous_misses = get_sync_state(conn, GEOCODE_MISSES_STATE_KEY, {})
+        misses: Dict[str, Dict[str, Any]] = {}
+        miss_source: Optional[str] = None
         
         # 4. Verify nodes (local geocoder by default; Geopy as optional fallback)
         if skip_geopy:
@@ -1256,10 +1362,13 @@ def sync_belgian_nodes(
                     geocoder_err = e
 
             if geocoder is not None:
+                miss_source = 'local'
                 belgian_nodes = verify_nodes_locally(
                     bounded_nodes,
                     previous_nodes=db_for_geopy,
                     geocoder=geocoder,
+                    miss_counts={k: v.get('count', 0) for k, v in previous_misses.items()},
+                    misses=misses,
                 )
             elif _GEOPY_AVAILABLE:
                 if geocoder_err is not None:
@@ -1271,8 +1380,10 @@ def sync_belgian_nodes(
                     )
                 else:
                     print("Using Geopy/Nominatim (forced via --use-geopy / USE_GEOPY_FALLBACK)")
+                miss_source = 'geopy'
                 belgian_nodes = verify_nodes_with_geopy(
-                    bounded_nodes, delay=geopy_delay, previous_nodes=db_for_geopy
+                    bounded_nodes, delay=geopy_delay, previous_nodes=db_for_geopy,
+                    misses=misses,
                 )
             else:
                 raise RuntimeError(
@@ -1344,12 +1455,22 @@ def sync_belgian_nodes(
         changes['updated'] = actually_updated
         changes['updated_count'] = len(actually_updated)
         
+        # 7b. Remember this run's verification misses (consecutive-miss
+        #     counters); log lines are written once the run has committed.
+        geocode_log_lines: List[str] = []
+        if miss_source is not None:
+            new_misses, geocode_log_lines = update_geocode_misses(
+                previous_misses, misses, miss_source
+            )
+            set_sync_state(conn, GEOCODE_MISSES_STATE_KEY, new_misses)
+
         # Commit all changes
         conn.commit()
         
         # 8. Log sync summary
         log_sync_summary(changes, conn)
         conn.commit()
+        _write_geocode_log(geocode_log_lines)
         
         # 9. Calculate elapsed time
         elapsed_time = time.time() - start_time

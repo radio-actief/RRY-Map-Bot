@@ -198,6 +198,8 @@ def init_database() -> None:
             ON node_claims(timestamp)
         """)
 
+        ensure_sync_state_table(conn)
+
         conn.commit()
         print(f"Database initialized successfully at {get_db_path()}")
         
@@ -207,6 +209,41 @@ def init_database() -> None:
         raise
     finally:
         conn.close()
+
+
+def ensure_sync_state_table(conn: sqlite3.Connection) -> None:
+    """Create the ``sync_state`` key/value table (JSON values) if missing.
+
+    Holds what the sync carries from one run to the next: per-node geocode
+    misses and removals held back by the safety cap.
+    """
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS sync_state (
+            key        TEXT PRIMARY KEY,
+            value      TEXT,  -- JSON stored as TEXT in SQLite
+            updated_at TEXT
+        )
+    """)
+
+
+def get_sync_state(conn: sqlite3.Connection, key: str, default: Any = None) -> Any:
+    """Read one ``sync_state`` value (decoded JSON), or ``default``."""
+    row = conn.execute("SELECT value FROM sync_state WHERE key = ?", (key,)).fetchone()
+    if row is None or row[0] is None:
+        return default
+    value = json_deserialize(row[0])
+    return default if value is None else value
+
+
+def set_sync_state(conn: sqlite3.Connection, key: str, value: Any) -> None:
+    """Write one ``sync_state`` value as JSON. Does not commit."""
+    conn.execute(
+        """
+        INSERT INTO sync_state (key, value, updated_at) VALUES (?, ?, ?)
+        ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+        """,
+        (key, json_serialize(value), get_current_timestamp()),
+    )
 
 
 def json_serialize(data: Any) -> str:

@@ -73,9 +73,15 @@ from backend.discord_formatting import format_node_compact
 import sqlite3
 from pathlib import Path
 
-# Safety: skip applying removals if count exceeds this (avoids mass delete on API/network issues)
+# Safety: hold back removals if count exceeds this (avoids mass delete on API/network issues)
 REMOVAL_SAFETY_MAX_ABSOLUTE = 25
 REMOVAL_SAFETY_MAX_PERCENT_OF_ACTIVE = 0.05  # 5%
+# Held removals are applied once the same key has been missing this many runs
+# in a row, provided the feed is not shrunk compared with before the hold.
+REMOVAL_HOLD_RUNS = 3
+REMOVAL_HOLD_MIN_FEED_RATIO = 0.9
+
+HELD_REMOVALS_STATE_KEY = 'held_removals'
 
 # Local geocoder: an active node is removed once it has been outside Belgium
 # for this many runs in a row (one run of border GPS jitter is tolerated).
@@ -939,13 +945,92 @@ def merge_node_update(node: Dict[str, Any],
     return True
 
 
-def log_sync_summary(changes: Dict[str, Any], conn) -> None:
+def apply_removal_safety_cap(
+    changes: Dict[str, Any],
+    active_count: int,
+    total_downloaded: int,
+    previous_downloaded: Optional[int],
+    held: Optional[Dict[str, Any]],
+) -> tuple:
+    """Hold back a mass removal; let it through once it proves consistent.
+
+    When more than ``REMOVAL_SAFETY_MAX_ABSOLUTE`` removals, or more than
+    ``REMOVAL_SAFETY_MAX_PERCENT_OF_ACTIVE`` of the active nodes, are due,
+    each due key's missing-run counter goes up. Keys missing for
+    ``REMOVAL_HOLD_RUNS`` runs in a row are removed, but only while the feed
+    is at least ``REMOVAL_HOLD_MIN_FEED_RATIO`` of its size before the hold
+    (the largest feed seen since, if bigger). A sudden feed drop is never
+    applied. A run under the cap removes as usual and ends the hold.
+
+    ``changes`` is edited in place (``removed`` and the unclaimed Discord
+    subset keep only the keys applied this run). Returns
+    ``(report, new_held_state)``; ``report`` is ``None`` when the cap did
+    not trip and goes into ``sync_history.details['removal_safety']``.
+    """
+    removed = changes['removed']
+    over_absolute = len(removed) > REMOVAL_SAFETY_MAX_ABSOLUTE
+    over_percent = active_count > 0 and len(removed) > active_count * REMOVAL_SAFETY_MAX_PERCENT_OF_ACTIVE
+    if not removed or not (over_absolute or over_percent):
+        return None, {}
+
+    held = held or {}
+    prev_runs = held.get('keys', {})
+    runs = {key: prev_runs.get(key, 0) + 1 for key in removed}
+
+    baseline = held.get('baseline_downloaded') or previous_downloaded or total_downloaded
+    feed_normal = total_downloaded >= baseline * REMOVAL_HOLD_MIN_FEED_RATIO
+
+    apply = sorted(k for k, n in runs.items() if n >= REMOVAL_HOLD_RUNS) if feed_normal else []
+    apply_set = set(apply)
+    still_held = sorted(k for k in runs if k not in apply_set)
+
+    changes['removed'] = apply
+    changes['removed_count'] = len(apply)
+    changes['deactivated_unclaimed_discord'] = [
+        k for k in changes.get('deactivated_unclaimed_discord', []) if k in apply_set
+    ]
+    changes['deactivated_unclaimed_discord_count'] = len(changes['deactivated_unclaimed_discord'])
+
+    report = {
+        'due_count': len(removed),
+        'held_count': len(still_held),
+        'held_keys': still_held[:100],
+        'applied_count': len(apply),
+        'max_runs_missing': max(runs.values()),
+        'feed_normal': feed_normal,
+        'total_downloaded': total_downloaded,
+        'baseline_downloaded': baseline,
+    }
+    new_state = {
+        'keys': {k: runs[k] for k in still_held},
+        'baseline_downloaded': max(baseline, total_downloaded),
+        'since': held.get('since') or get_current_timestamp(),
+    } if still_held else {}
+    return report, new_state
+
+
+def previous_download_count(conn) -> Optional[int]:
+    """Feed size of the last logged sync run (``None`` if unknown)."""
+    row = conn.execute(
+        "SELECT details FROM sync_history ORDER BY id DESC LIMIT 1"
+    ).fetchone()
+    if row is None:
+        return None
+    details = json_deserialize(row[0]) or {}
+    value = details.get('total_downloaded') if isinstance(details, dict) else None
+    return value if isinstance(value, int) and value > 0 else None
+
+
+def log_sync_summary(changes: Dict[str, Any], conn,
+                     extra: Optional[Dict[str, Any]] = None) -> None:
     """
     Log sync summary to sync_history table.
     
     Args:
         changes: Dictionary with change counts and lists.
         conn: Database connection.
+        extra: Optional run facts merged into ``details`` (feed sizes,
+            safety-cap report, errors).
     """
     cursor = conn.cursor()
     
@@ -956,6 +1041,8 @@ def log_sync_summary(changes: Dict[str, Any], conn) -> None:
         'updated_keys': changes.get('updated', [])[:100],
         'deactivated_unclaimed_discord_keys': changes.get('deactivated_unclaimed_discord', [])[:100],  # Track deactivated unclaimed Discord nodes in this cycle
     }
+    if extra:
+        details.update(extra)
     
     cursor.execute("""
         INSERT INTO sync_history (
@@ -1400,15 +1487,28 @@ def sync_belgian_nodes(
         # 6. Track changes
         changes = track_changes(belgian_nodes, previous_nodes)
         
-        # 6b. Failsafe: do not apply mass removals (e.g. API returned partial/empty)
+        # 6b. Failsafe: hold back mass removals (e.g. API returned partial/empty)
         active_count = sum(1 for n in previous_nodes.values() if n.get('is_active', True))
-        removed_count = changes['removed_count']
-        over_absolute = removed_count > REMOVAL_SAFETY_MAX_ABSOLUTE
-        over_percent = active_count > 0 and removed_count > (active_count * REMOVAL_SAFETY_MAX_PERCENT_OF_ACTIVE)
-        if removed_count > 0 and (over_absolute or over_percent):
-            print(f"\n⚠️  SAFETY: Skipping {removed_count} removals (max {REMOVAL_SAFETY_MAX_ABSOLUTE} or {REMOVAL_SAFETY_MAX_PERCENT_OF_ACTIVE*100:.0f}% of active). Check API/network.")
-            changes['removed'] = []
-            changes['removed_count'] = 0
+        safety_report, held_state = apply_removal_safety_cap(
+            changes,
+            active_count,
+            len(all_nodes),
+            previous_download_count(conn),
+            get_sync_state(conn, HELD_REMOVALS_STATE_KEY, {}),
+        )
+        set_sync_state(conn, HELD_REMOVALS_STATE_KEY, held_state)
+        if safety_report:
+            msg = (
+                f"SAFETY: holding back {safety_report['held_count']} of "
+                f"{safety_report['due_count']} removals (max {REMOVAL_SAFETY_MAX_ABSOLUTE} or "
+                f"{REMOVAL_SAFETY_MAX_PERCENT_OF_ACTIVE*100:.0f}% of active); "
+                f"applied {safety_report['applied_count']} missing for "
+                f"{REMOVAL_HOLD_RUNS}+ runs; longest missing {safety_report['max_runs_missing']} run(s); "
+                f"feed {safety_report['total_downloaded']} vs {safety_report['baseline_downloaded']} "
+                f"before the hold ({'normal' if safety_report['feed_normal'] else 'SHRUNK'})."
+            )
+            print(f"\n⚠️  {msg}")
+            print(msg, file=sys.stderr)
         
         # 7. Integrate changes into database
         print("\nIntegrating changes into database...")
@@ -1468,7 +1568,14 @@ def sync_belgian_nodes(
         conn.commit()
         
         # 8. Log sync summary
-        log_sync_summary(changes, conn)
+        run_facts: Dict[str, Any] = {
+            'total_downloaded': len(all_nodes),
+            'bounded': len(bounded_nodes),
+            'verified': len(belgian_nodes),
+        }
+        if safety_report:
+            run_facts['removal_safety'] = safety_report
+        log_sync_summary(changes, conn, extra=run_facts)
         conn.commit()
         _write_geocode_log(geocode_log_lines)
         
@@ -1519,6 +1626,7 @@ def sync_belgian_nodes(
             'bounded': len(bounded_nodes),
             'verified': len(belgian_nodes),
             'changes': changes,
+            'removal_safety': safety_report,
             'elapsed_time': elapsed_time
         }
         

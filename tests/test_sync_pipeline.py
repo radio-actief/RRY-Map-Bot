@@ -283,3 +283,62 @@ def test_oversized_old_geocode_log_is_set_aside_not_deleted(tmp_path, monkeypatc
     sync._rotate_geocode_log(log)
     assert (tmp_path / 'geocode_failures.log.legacy').read_text().startswith('old')
     assert not log.exists()
+
+
+# --- mass-removal safety cap -----------------------------------------------
+# 25 active nodes: more than 5 % (i.e. 2 or more) missing at once trips the cap.
+
+def padding(count=20):
+    """Nodes far outside the Belgian box (Paris area): they only make the feed bigger."""
+    return [feed_node(f'fr{i:02d}', 48.80 + i * 0.001, 2.30) for i in range(count)]
+
+
+def test_safety_cap_skip_is_recorded_in_sync_history(run):
+    run(base_feed())
+    result = run(without(base_feed(), 'be01', 'be02'))
+    assert result['changes']['removed'] == []
+    assert node_row('be01')['is_active'] is True
+
+    last = history_rows()[-1]
+    assert last['nodes_removed'] == 0
+    safety = last['details']['removal_safety']
+    assert safety['held_count'] == 2
+    assert sorted(safety['held_keys']) == ['be01', 'be02']
+    assert safety['applied_count'] == 0
+
+
+def test_safety_cap_applies_removals_on_third_consistent_run(run):
+    run(base_feed())
+    missing = without(base_feed(), 'be01', 'be02')
+    run(missing)
+    run(missing)
+    assert node_row('be01')['is_active'] is True
+
+    third = run(missing)
+    assert sorted(third['changes']['removed']) == ['be01', 'be02']
+    assert node_row('be01')['is_active'] is False
+    assert node_row('be02')['is_active'] is False
+    assert history_rows()[-1]['details']['removal_safety']['applied_count'] == 2
+
+
+def test_safety_cap_holds_while_the_feed_is_shrunk(run):
+    run(base_feed() + padding())
+    shrunk = without(base_feed(), 'be01', 'be02')  # feed drops from 45 to 23 nodes
+    for _ in range(4):
+        result = run(shrunk)
+        assert result['changes']['removed'] == []
+    assert node_row('be01')['is_active'] is True
+
+    back = run(without(base_feed(), 'be01', 'be02') + padding())
+    assert sorted(back['changes']['removed']) == ['be01', 'be02']
+
+
+def test_safety_cap_count_starts_over_when_nodes_return(run):
+    run(base_feed())
+    missing = without(base_feed(), 'be01', 'be02')
+    run(missing)
+    run(missing)
+    run(base_feed())
+    run(missing)
+    assert node_row('be01')['is_active'] is True
+    assert history_rows()[-1]['details']['removal_safety']['held_count'] == 2

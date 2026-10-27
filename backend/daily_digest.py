@@ -63,6 +63,9 @@ from backend.discord_branding import apply_brand_to_embed
 from backend.discord_formatting import MAP_BASE_URL, format_digest_node_line
 
 FIELD_LINES_MAX_CHARS = 950
+# Discord caps an embed at 6000 characters and 25 fields; keep room for the author line.
+EMBED_MAX_CHARS = 5800
+EMBED_MAX_FIELDS = 25
 STATS_PAGE_URL = f"{MAP_BASE_URL.rstrip('/')}/stats"
 
 
@@ -272,13 +275,53 @@ def fill_field_lines(lines: List[str], total: int, limit: int = FIELD_LINES_MAX_
     return "\n".join(shown)
 
 
-def render_node_list(nodes: List[Dict[str, Any]], total: int, *, link: bool = True) -> str:
-    """Digest list value: sorted by node type, then name; whole lines only."""
+def _node_lines(nodes: List[Dict[str, Any]], *, link: bool) -> List[str]:
+    """Digest lines sorted by node type, then name."""
     ordered = sorted(
         nodes,
         key=lambda n: (int(n.get('type') or 0), str(n.get('adv_name') or '').casefold()),
     )
-    return fill_field_lines([format_digest_node_line(n, link=link) for n in ordered], total)
+    return [format_digest_node_line(n, link=link) for n in ordered]
+
+
+def render_node_list(nodes: List[Dict[str, Any]], total: int, *, link: bool = True) -> str:
+    """Digest list value: sorted by node type, then name; whole lines only."""
+    return fill_field_lines(_node_lines(nodes, link=link), total)
+
+
+def split_field_lines(
+    lines: List[str], total: int, budget: int, max_fields: int,
+    limit: int = FIELD_LINES_MAX_CHARS,
+) -> List[str]:
+    """Whole lines spread over up to ``max_fields`` field values within ``budget`` characters.
+
+    The last value ends with "+N more" when lines are left over, so a long list
+    continues in extra fields instead of stopping after the first one.
+    """
+    note_room = len(f"+{max(total, len(lines))} more on the [stats page]({STATS_PAGE_URL})") + 1
+    values: List[str] = []
+    current: List[str] = []
+    used = 0
+    shown = 0
+    for line in lines:
+        extra = len(line) + (1 if current else 0)
+        if used + extra > limit:
+            if len(values) + 1 >= max_fields:
+                break
+            values.append("\n".join(current))
+            budget -= used
+            current, used, extra = [], 0, len(line)
+        if used + extra + note_room > budget:
+            break
+        current.append(line)
+        used += extra
+        shown += 1
+    rest = max(total, len(lines)) - shown
+    if rest > 0:
+        current.append(f"+{rest} more on the [stats page]({STATS_PAGE_URL})")
+    if current:
+        values.append("\n".join(current))
+    return values
 
 
 # ---------------------------------------------------------------------------
@@ -371,22 +414,33 @@ def build_digest_embed(
             inline=False,
         )
 
-    for title, nodes, count, link in (
-        ("✅ New Nodes", added_nodes, added_count, True),
-        ("🔄 Restored Nodes", restored_nodes, restored_count, True),
-        ("❌ Deleted Nodes", removed_nodes, removed_count, False),
-    ):
-        if count > 0:
-            embed.add_field(
-                name=f"{title} ({count})",
-                value=render_node_list(nodes or [], total=count, link=link),
-                inline=False,
-            )
-
     if next_digest_label is None:
         next_digest_label = _next_digest_label(period_end)
     embed.set_footer(text=f"Next digest: {next_digest_label}")
-    return apply_brand_to_embed(embed)
+    apply_brand_to_embed(embed)
+
+    lists = [
+        (title, nodes, count, link)
+        for title, nodes, count, link in (
+            ("✅ New Nodes", added_nodes, added_count, True),
+            ("🔄 Restored Nodes", restored_nodes, restored_count, True),
+            ("❌ Deleted Nodes", removed_nodes, removed_count, False),
+        )
+        if count > 0
+    ]
+    for i, (title, nodes, count, link) in enumerate(lists):
+        # Each list may use an even share of what is left, so a long first list
+        # never pushes the later ones out of the message.
+        left = len(lists) - i
+        budget = (EMBED_MAX_CHARS - len(embed)) // left
+        fields = (EMBED_MAX_FIELDS - len(embed.fields)) // left
+        name = f"{title} ({count})"
+        cont = f"{title} (cont.)"
+        budget -= len(name) + len(cont) * max(0, fields - 1)
+        values = split_field_lines(_node_lines(nodes or [], link=link), count, budget, max(1, fields))
+        for j, value in enumerate(values):
+            embed.add_field(name=name if j == 0 else cont, value=value, inline=False)
+    return embed
 
 
 def _signed(n: int) -> str:

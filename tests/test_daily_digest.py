@@ -462,11 +462,51 @@ def test_embed_with_23_deleted_nodes_stays_within_field_limit() -> None:
         agg, now - timedelta(hours=24), now, {"total_nodes": 881, "by_type": {2: 881}},
         removed_nodes=nodes,
     )
-    field = next(f for f in embed.fields if f.name.startswith("❌ Deleted Nodes"))
-    assert field.name == "❌ Deleted Nodes (23)"
-    assert len(field.value) <= 1024
-    assert "more on the [stats page]" in field.value
-    assert "](" not in field.value.split("\n")[0], "deleted nodes are not linked to the map"
+    fields = [f for f in embed.fields if "Deleted Nodes" in f.name]
+    assert fields[0].name == "❌ Deleted Nodes (23)"
+    assert all(len(f.value) <= 1024 for f in fields)
+    assert sum(f.value.count("\n") + 1 for f in fields) == 23, "every node is listed across the fields"
+    assert "](" not in fields[0].value.split("\n")[0], "deleted nodes are not linked to the map"
+
+
+def test_long_linked_list_continues_in_extra_fields() -> None:
+    now = datetime(2026, 10, 27, 8, 0, tzinfo=timezone.utc)
+    nodes = [_node(i) for i in range(20)]
+    agg = {"added": [n["public_key"] for n in nodes], "removed": [], "restored": [], "updated_count": 0}
+    embed = build_digest_embed(
+        agg, now - timedelta(hours=24), now, {"total_nodes": 881, "by_type": {2: 881}},
+        added_nodes=nodes,
+    )
+    fields = [f for f in embed.fields if "New Nodes" in f.name]
+    assert fields[0].name == "✅ New Nodes (20)"
+    assert all(f.name == "✅ New Nodes (cont.)" for f in fields[1:])
+    assert len(fields) > 1
+    assert all(len(f.value) <= 1024 for f in fields)
+    assert sum(f.value.count("](") for f in fields) == 20, "all 20 linked lines are shown"
+    assert len(embed) <= 6000
+
+
+def test_very_long_lists_stay_within_the_embed_limit() -> None:
+    now = datetime(2026, 10, 27, 8, 0, tzinfo=timezone.utc)
+    added = [_node(i) for i in range(50)]
+    removed = [_node(100 + i) for i in range(50)]
+    agg = {"added": [n["public_key"] for n in added], "removed": [n["public_key"] for n in removed],
+           "restored": [], "updated_count": 0}
+    embed = build_digest_embed(
+        agg, now - timedelta(hours=24), now, {"total_nodes": 881, "by_type": {2: 881}},
+        added_nodes=added, removed_nodes=removed,
+    )
+    assert len(embed) <= 6000
+    assert len(embed.fields) <= 25
+    assert all(len(f.value) <= 1024 for f in embed.fields)
+    import re
+    for title in ("New Nodes", "Deleted Nodes"):
+        lines = [l for f in embed.fields if title in f.name for l in f.value.split("\n")]
+        more = re.match(r"\+(\d+) more", lines[-1])
+        listed = len(lines) - (1 if more else 0)
+        assert listed + (int(more.group(1)) if more else 0) == 50, (title, listed, lines[-1])
+    new_lines = [l for f in embed.fields if "New Nodes" in f.name for l in f.value.split("\n")]
+    assert new_lines[-1].startswith("+"), "50 linked lines cannot all fit"
 
 
 

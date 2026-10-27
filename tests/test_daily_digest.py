@@ -28,7 +28,6 @@ REPO_ROOT = THIS_DIR.parent
 sys.path.insert(0, str(REPO_ROOT))
 
 from backend.daily_digest import (  # noqa: E402
-    _count_syncs_since,
     build_digest_embed,
     collect_changes_since,
 )
@@ -302,32 +301,6 @@ class TestCollectChangesSince(unittest.TestCase):
         self.assertEqual(len(agg["added"]), 1)
 
 
-class TestCountSyncsSince(unittest.TestCase):
-    def setUp(self) -> None:
-        self.conn = _make_test_db()
-
-    def tearDown(self) -> None:
-        self.conn.close()
-
-    def test_handles_iso_and_legacy_timestamps(self) -> None:
-        window_start = datetime(2026, 5, 8, 9, 0, 0, tzinfo=timezone.utc)
-        self.conn.execute(
-            "INSERT INTO sync_history (sync_date, nodes_added, nodes_removed, nodes_restored, nodes_updated) VALUES (?, 0, 0, 0, 0)",
-            ("2026-05-08 08:00:00",),
-        )
-        self.conn.execute(
-            "INSERT INTO sync_history (sync_date, nodes_added, nodes_removed, nodes_restored, nodes_updated) VALUES (?, 0, 0, 0, 0)",
-            ("2026-05-08T08:30:00+00:00",),
-        )
-        self.conn.execute(
-            "INSERT INTO sync_history (sync_date, nodes_added, nodes_removed, nodes_restored, nodes_updated) VALUES (?, 0, 0, 0, 0)",
-            ("2026-05-08T10:30:00+00:00",),
-        )
-        self.conn.commit()
-
-        self.assertEqual(_count_syncs_since(self.conn, window_start), 1)
-
-
 class TestBuildDigestEmbed(unittest.TestCase):
     def test_embed_sections_rendered(self) -> None:
         try:
@@ -361,17 +334,15 @@ class TestBuildDigestEmbed(unittest.TestCase):
         ]
 
         embed = build_digest_embed(
-            agg, window_start, now, stats, sync_count=48,
+            agg, window_start, now, stats,
             added_nodes=added_nodes,
             restored_nodes=[],
             removed_nodes=removed_nodes,
         )
 
         field_names = [f.name for f in embed.fields]
-        self.assertTrue(any("Period" in n for n in field_names), field_names)
         self.assertTrue(any("Changes" in n for n in field_names), field_names)
-        self.assertTrue(any("Overall Statistics" in n for n in field_names), field_names)
-        self.assertTrue(any("Nodes by Type" in n for n in field_names), field_names)
+        self.assertTrue(any("Map totals" in n for n in field_names), field_names)
         self.assertTrue(any("New Nodes" in n for n in field_names), field_names)
         self.assertTrue(any("Deleted Nodes" in n for n in field_names), field_names)
         self.assertFalse(any("Restored Nodes" in n for n in field_names), field_names)
@@ -488,7 +459,7 @@ def test_embed_with_23_deleted_nodes_stays_within_field_limit() -> None:
     nodes = [_node(i) for i in range(23)]
     agg = {"added": [], "removed": [n["public_key"] for n in nodes], "restored": [], "updated_count": 0}
     embed = build_digest_embed(
-        agg, now - timedelta(hours=24), now, {"total_nodes": 881, "by_type": {2: 881}}, 48,
+        agg, now - timedelta(hours=24), now, {"total_nodes": 881, "by_type": {2: 881}},
         removed_nodes=nodes,
     )
     field = next(f for f in embed.fields if f.name.startswith("❌ Deleted Nodes"))
@@ -688,7 +659,7 @@ def test_window_line_shows_each_sides_own_time_zone() -> None:
     start = datetime(2026, 10, 24, 7, 0, tzinfo=timezone.utc)
     end = datetime(2026, 10, 25, 8, 0, tzinfo=timezone.utc)
     agg = {"added": ["a" * 64], "removed": [], "restored": [], "updated_count": 0}
-    embed = build_digest_embed(agg, start, end, {"total_nodes": 1}, 0, added_nodes=[_node(1)])
+    embed = build_digest_embed(agg, start, end, {"total_nodes": 1}, added_nodes=[_node(1)])
     assert "2026-10-24 09:00 CEST → 2026-10-25 09:00 CET" in embed.description
     assert "24 h" not in str(embed.to_dict())
 
@@ -784,6 +755,123 @@ def test_old_digest_state_gets_window_columns_and_keeps_its_values(tmp_path, mon
     window = dd.digest_window(conn, datetime(2026, 10, 27, 8, 0, tzinfo=timezone.utc))
     assert window.start_utc == datetime(2026, 10, 26, 8, 0, tzinfo=timezone.utc)
     conn.close()
+
+
+
+# ---------------------------------------------------------------------------
+# Layout: totals, net change, held-back removals, no spacer fields
+# ---------------------------------------------------------------------------
+
+_STATS = {
+    "total_nodes": 881, "active_7d": 362, "claimed_nodes": 214, "unclaimed_nodes": 667,
+    "registered_users": 97, "total_cities": 312, "by_type": {1: 168, 2: 655, 3: 41, 4: 17},
+}
+_START = datetime(2026, 10, 26, 8, 0, tzinfo=timezone.utc)
+_END = datetime(2026, 10, 27, 8, 0, tzinfo=timezone.utc)
+
+
+def _agg(added=0, removed=0, restored=0):
+    return {
+        "added": [f"a{i:063x}" for i in range(added)],
+        "removed": [f"b{i:063x}" for i in range(removed)],
+        "restored": [f"c{i:063x}" for i in range(restored)],
+        "updated_count": 900,
+    }
+
+
+def _text(embed):
+    return "\n".join([embed.description or ""] + [f"{f.name}\n{f.value}" for f in embed.fields])
+
+
+def test_layout_has_no_spacers_noise_lines_or_inline_columns() -> None:
+    embed = build_digest_embed(_agg(2, 1), _START, _END, _STATS, previous_total=880,
+                               added_nodes=[_node(1), _node(2)], removed_nodes=[_node(3)])
+    text = _text(embed)
+    assert all(f.name.strip("\u200b ") and f.value.strip("\u200b ") for f in embed.fields)
+    assert not any(f.inline for f in embed.fields)
+    assert "Updated" not in text
+    assert "Syncs in window" not in text
+    assert "❌ Deleted Nodes (1)" in [f.name for f in embed.fields]
+
+
+def test_totals_line_shows_map_total_heard_last_7_days_and_net_change() -> None:
+    embed = build_digest_embed(_agg(5, 18, 2), _START, _END, _STATS, previous_total=894)
+    text = _text(embed)
+    assert "On the map: **881** (−13 since yesterday) · heard in the last 7 days: **362**" in text
+
+
+def test_net_change_without_previous_total_comes_from_the_window() -> None:
+    embed = build_digest_embed(_agg(5, 18, 2), _START, _END, _STATS)
+    assert "(−11 since yesterday)" in _text(embed)
+
+
+def test_net_change_after_a_longer_gap_names_the_start_day() -> None:
+    embed = build_digest_embed(_agg(3), _START - timedelta(days=2), _END, _STATS, previous_total=878)
+    assert "(+3 since Sat 24 Oct)" in _text(embed)
+
+
+def test_held_back_removals_line_only_when_it_happened() -> None:
+    held = {"held_count": 30, "still_held": True}
+    embed = build_digest_embed(_agg(1), _START, _END, _STATS, held_back=held)
+    assert "Removals held back: 30 nodes — waiting for confirmation" in _text(embed)
+    plain = build_digest_embed(_agg(1), _START, _END, _STATS)
+    assert "held back" not in _text(plain)
+
+
+def test_post_uses_the_previous_digest_total(digest_env, monkeypatch) -> None:
+    import backend.discord_queries as dq
+
+    conn, bot = digest_env
+    d1 = datetime(2026, 11, 9, 8, 0, tzinfo=timezone.utc)
+    conn.execute("UPDATE digest_state SET last_sent_utc = ?, window_end_utc = ?", (_z(d1), _z(d1)))
+    _db_node(conn, "a7" * 32, "One")
+    _db_change(conn, "a7" * 32, "added", d1 + timedelta(hours=2))
+    _db_sync(conn, d1 + timedelta(hours=2, minutes=1))
+    conn.commit()
+    assert _post(bot, d1 + timedelta(hours=24))
+    stored = conn.execute("SELECT last_total_nodes FROM digest_state").fetchone()[0]
+    assert stored == 881
+
+    monkeypatch.setattr(dq, "get_statistics", lambda: {"total_nodes": 879, "active_7d": 360, "by_type": {}})
+    _db_node(conn, "b8" * 32, "Two", active=0)
+    _db_change(conn, "b8" * 32, "removed", d1 + timedelta(hours=30))
+    _db_sync(conn, d1 + timedelta(hours=30, minutes=1))
+    conn.commit()
+    assert _post(bot, d1 + timedelta(hours=48))
+    assert "On the map: **879** (−2 since yesterday)" in _text(bot.channel.sent[-1])
+
+
+def test_held_back_removals_are_posted_even_without_map_changes(digest_env) -> None:
+    conn, bot = digest_env
+    d1 = datetime(2026, 11, 9, 8, 0, tzinfo=timezone.utc)
+    conn.execute("UPDATE digest_state SET last_sent_utc = ?, window_end_utc = ?", (_z(d1), _z(d1)))
+    _db_sync(conn, d1 + timedelta(hours=3), {"removal_safety": {"held_count": 12, "due_count": 40}})
+    _db_sync(conn, d1 + timedelta(hours=4), {"removal_safety": {"held_count": 31, "due_count": 31}})
+    conn.commit()
+    assert _post(bot, d1 + timedelta(hours=24))
+    assert "Removals held back: 31 nodes — waiting for confirmation" in _text(bot.channel.sent[-1])
+
+
+def test_held_back_removals_that_were_released_later_in_the_window(digest_env) -> None:
+    conn, bot = digest_env
+    d1 = datetime(2026, 11, 9, 8, 0, tzinfo=timezone.utc)
+    conn.execute("UPDATE digest_state SET last_sent_utc = ?, window_end_utc = ?", (_z(d1), _z(d1)))
+    _db_sync(conn, d1 + timedelta(hours=3), {"removal_safety": {"held_count": 30}})
+    _db_sync(conn, d1 + timedelta(hours=4), {})
+    conn.commit()
+    assert _post(bot, d1 + timedelta(hours=24))
+    assert "Removals held back: 30 nodes — released later" in _text(bot.channel.sent[-1])
+
+
+def test_quiet_day_still_posts_nothing(digest_env) -> None:
+    conn, bot = digest_env
+    d1 = datetime(2026, 11, 9, 8, 0, tzinfo=timezone.utc)
+    conn.execute("UPDATE digest_state SET last_sent_utc = ?, window_end_utc = ?", (_z(d1), _z(d1)))
+    _db_sync(conn, d1 + timedelta(hours=3), {"error_count": 0})
+    conn.commit()
+    assert not _post(bot, d1 + timedelta(hours=24))
+    assert bot.channel.sent == []
+    assert conn.execute("SELECT last_total_nodes FROM digest_state").fetchone()[0] is not None
 
 
 if __name__ == "__main__":

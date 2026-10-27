@@ -71,6 +71,8 @@ from backend.datetime_utils import normalize_node_timestamps
 from backend.discord_branding import apply_brand_to_embed
 from backend.discord_formatting import format_node_compact
 import sqlite3
+import fcntl
+from contextlib import contextmanager
 from pathlib import Path
 
 # Safety: hold back removals if count exceeds this (avoids mass delete on API/network issues)
@@ -1376,6 +1378,42 @@ def send_sync_notification(
         traceback.print_exc()
 
 
+_FAILED = object()
+
+
+@contextmanager
+def _node_savepoint(conn):
+    """Run one node's writes atomically inside the sync transaction."""
+    if not conn.in_transaction:
+        conn.execute("BEGIN")
+    conn.execute("SAVEPOINT sync_node")
+    try:
+        yield
+    except Exception:
+        conn.execute("ROLLBACK TO SAVEPOINT sync_node")
+        conn.execute("RELEASE SAVEPOINT sync_node")
+        raise
+    conn.execute("RELEASE SAVEPOINT sync_node")
+
+
+def _run_lock_path() -> Path:
+    """Lock file beside the database (``/app/data/sync.lock`` in Docker)."""
+    return Path(get_db_path()).parent / "sync.lock"
+
+
+def _acquire_run_lock():
+    """Take the sync run lock without waiting; ``None`` if another run holds it."""
+    path = _run_lock_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    handle = open(path, "w")
+    try:
+        fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        handle.close()
+        return None
+    return handle
+
+
 def sync_belgian_nodes(
     geopy_delay: float = 1.5,
     skip_geopy: bool = False,
@@ -1384,6 +1422,35 @@ def sync_belgian_nodes(
 ) -> Dict[str, Any]:
     """
     Main sync function: download, filter, verify, and integrate Belgian nodes.
+
+    Only one run at a time: a run that finds ``data/sync.lock`` held by
+    another run returns ``{'success': False, 'skipped': True}`` straight away.
+    See :func:`_sync_belgian_nodes_locked` for the arguments and result.
+    """
+    lock = _acquire_run_lock()
+    if lock is None:
+        msg = "Another sync run is in progress (data/sync.lock is held); skipping this run."
+        print(msg)
+        return {'success': False, 'skipped': True, 'error': msg}
+    try:
+        return _sync_belgian_nodes_locked(
+            geopy_delay=geopy_delay,
+            skip_geopy=skip_geopy,
+            use_geopy=use_geopy,
+            notify=notify,
+        )
+    finally:
+        lock.close()
+
+
+def _sync_belgian_nodes_locked(
+    geopy_delay: float = 1.5,
+    skip_geopy: bool = False,
+    use_geopy: Optional[bool] = None,
+    notify: bool = False,
+) -> Dict[str, Any]:
+    """
+    Download, filter, verify, and integrate Belgian nodes (caller holds the run lock).
 
     Args:
         geopy_delay: Delay between Geopy requests in seconds (only used when
@@ -1398,7 +1465,9 @@ def sync_belgian_nodes(
             ``discord-bot`` service now posts a single daily digest instead.
 
     Returns:
-        Dictionary with sync results and statistics.
+        Dictionary with sync results and statistics. ``partial`` is True when
+        one or more nodes failed (listed in ``errors``); the rest of the run
+        is committed.
     """
     if use_geopy is None:
         use_geopy = os.getenv("USE_GEOPY_FALLBACK", "").strip() in ("1", "true", "True", "yes", "YES")
@@ -1517,43 +1586,52 @@ def sync_belgian_nodes(
         # Keys are already normalized from step 1
         current_nodes_dict = {node['public_key']: node for node in belgian_nodes}
         
-        # Process added nodes
-        for public_key in changes['added']:
-            node = current_nodes_dict[public_key]
+        # Each node is written inside its own savepoint: a node that fails
+        # leaves nothing behind, is listed in ``errors`` and makes the run
+        # partial. Counts in sync_history are what was actually written.
+        errors: List[Dict[str, str]] = []
+
+        def _apply(stage: str, public_key: str, fn) -> Any:
             try:
-                integrate_added_node(node, conn)
+                with _node_savepoint(conn):
+                    return fn()
             except Exception as e:
-                print(f"Error integrating added node {public_key}: {e}")
-        
-        # Process removed nodes
-        for public_key in changes['removed']:
-            try:
-                integrate_removed_node(public_key, conn)
-            except Exception as e:
-                print(f"Error integrating removed node {public_key}: {e}")
-        
-        # Process restored nodes
-        for public_key in changes['restored']:
-            node = current_nodes_dict[public_key]
-            try:
-                restore_removed_node(node, conn)
-            except Exception as e:
-                print(f"Error restoring node {public_key}: {e}")
-        
-        # Process updated nodes - track which ones actually changed
-        actually_updated = []
-        for public_key in changes['updated']:
-            node = current_nodes_dict[public_key]
-            db_node = previous_nodes[public_key]
-            try:
-                if merge_node_update(node, db_node, conn):
-                    actually_updated.append(public_key)
-            except Exception as e:
-                print(f"Error updating node {public_key}: {e}")
-        
-        # Update changes dict with actual updated nodes
-        changes['updated'] = actually_updated
-        changes['updated_count'] = len(actually_updated)
+                print(f"Error ({stage}) for node {public_key}: {e}")
+                errors.append({'public_key': public_key, 'stage': stage, 'error': str(e)[:200]})
+                return _FAILED
+
+        added_ok = [
+            k for k in changes['added']
+            if _apply('add', k, lambda k=k: integrate_added_node(current_nodes_dict[k], conn)) is not _FAILED
+        ]
+        removed_ok = [
+            k for k in changes['removed']
+            if _apply('remove', k, lambda k=k: integrate_removed_node(k, conn)) is not _FAILED
+        ]
+        restored_ok = [
+            k for k in changes['restored']
+            if _apply('restore', k, lambda k=k: restore_removed_node(current_nodes_dict[k], conn)) is not _FAILED
+        ]
+        # Updated: only nodes whose data actually changed
+        actually_updated = [
+            k for k in changes['updated']
+            if _apply('update', k, lambda k=k: merge_node_update(
+                current_nodes_dict[k], previous_nodes[k], conn)) is True
+        ]
+
+        removed_ok_set = set(removed_ok)
+        changes['added'], changes['added_count'] = added_ok, len(added_ok)
+        changes['removed'], changes['removed_count'] = removed_ok, len(removed_ok)
+        changes['restored'], changes['restored_count'] = restored_ok, len(restored_ok)
+        changes['updated'], changes['updated_count'] = actually_updated, len(actually_updated)
+        changes['deactivated_unclaimed_discord'] = [
+            k for k in changes.get('deactivated_unclaimed_discord', []) if k in removed_ok_set
+        ]
+        changes['deactivated_unclaimed_discord_count'] = len(changes['deactivated_unclaimed_discord'])
+        if errors:
+            msg = f"PARTIAL: {len(errors)} node(s) failed and were skipped this run"
+            print(f"\n⚠️  {msg}")
+            print(msg, file=sys.stderr)
         
         # 7b. Remember this run's verification misses (consecutive-miss
         #     counters); log lines are written once the run has committed.
@@ -1572,6 +1650,8 @@ def sync_belgian_nodes(
             'total_downloaded': len(all_nodes),
             'bounded': len(bounded_nodes),
             'verified': len(belgian_nodes),
+            'error_count': len(errors),
+            'errors': errors[:50],
         }
         if safety_report:
             run_facts['removal_safety'] = safety_report
@@ -1622,6 +1702,8 @@ def sync_belgian_nodes(
         
         return {
             'success': True,
+            'partial': bool(errors),
+            'errors': errors,
             'total_downloaded': len(all_nodes),
             'bounded': len(bounded_nodes),
             'verified': len(belgian_nodes),
@@ -1643,14 +1725,11 @@ def sync_belgian_nodes(
         conn.close()
 
 
-if __name__ == '__main__':
-    # Ensure database is initialized before running sync
-    print("Initializing database...")
-    init_database()
-    print("Database ready.\n")
-    """Run sync when executed directly."""
+def main(argv: Optional[List[str]] = None) -> int:
+    """Command-line entry point. Exit codes: 0 done (or skipped because
+    another run holds the lock), 1 failed, 2 partial (some nodes failed)."""
     import argparse
-    
+
     parser = argparse.ArgumentParser(description='Sync Belgian nodes from official MeshCore map')
     parser.add_argument('--skip-geopy', action='store_true',
                        help='Skip verification entirely (for testing)')
@@ -1663,7 +1742,12 @@ if __name__ == '__main__':
                        help='Post a one-off per-sync Discord message (legacy behaviour). '
                             'Normal sync runs leave notifications to the daily digest job.')
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
+
+    # Ensure database is initialized before running sync
+    print("Initializing database...")
+    init_database()
+    print("Database ready.\n")
 
     result = sync_belgian_nodes(
         geopy_delay=args.geopy_delay,
@@ -1671,9 +1755,15 @@ if __name__ == '__main__':
         use_geopy=args.use_geopy or None,
         notify=args.notify,
     )
-    
-    if result['success']:
-        sys.exit(0)
-    else:
-        sys.exit(1)
 
+    if result.get('skipped'):
+        return 0
+    if not result.get('success'):
+        return 1
+    if result.get('partial'):
+        return 2
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

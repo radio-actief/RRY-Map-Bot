@@ -342,3 +342,88 @@ def test_safety_cap_count_starts_over_when_nodes_return(run):
     run(missing)
     assert node_row('be01')['is_active'] is True
     assert history_rows()[-1]['details']['removal_safety']['held_count'] == 2
+
+
+# --- partial failures ------------------------------------------------------
+
+def test_failed_node_makes_the_run_partial(run, monkeypatch):
+    run(base_feed())
+    real_merge = sync.merge_node_update
+
+    def flaky_merge(node, db_node, conn):
+        if node['public_key'] == 'be02':
+            raise RuntimeError('boom')
+        return real_merge(node, db_node, conn)
+
+    monkeypatch.setattr(sync, 'merge_node_update', flaky_merge)
+    feed = replace(replace(base_feed(), 'be01', adv_name='New 1'), 'be02', adv_name='New 2')
+    result = run(feed)
+
+    assert result['success'] is True
+    assert result['partial'] is True
+    assert result['changes']['updated'] == ['be01']
+    last = history_rows()[-1]
+    assert last['nodes_updated'] == 1
+    assert last['details']['error_count'] == 1
+    assert last['details']['errors'][0]['public_key'] == 'be02'
+
+
+def test_failed_node_leaves_no_half_written_rows(run, monkeypatch):
+    real_add = sync.integrate_added_node
+
+    def add_then_fail(node, conn):
+        real_add(node, conn)
+        if node['public_key'] == 'be04':
+            raise RuntimeError('boom after insert')
+
+    monkeypatch.setattr(sync, 'integrate_added_node', add_then_fail)
+    result = run(base_feed())
+    assert result['partial'] is True
+    assert result['changes']['added_count'] == 24
+    assert node_row('be04') is None
+    assert change_types('be04') == []
+    assert history_rows()[-1]['nodes_added'] == 24
+
+
+def test_clean_run_is_not_partial(run):
+    result = run(base_feed())
+    assert result['partial'] is False
+    assert history_rows()[-1]['details']['error_count'] == 0
+
+
+@pytest.mark.parametrize('result,code', [
+    ({'success': True, 'partial': False}, 0),
+    ({'success': True, 'partial': True}, 2),
+    ({'success': False, 'error': 'x'}, 1),
+    ({'success': False, 'skipped': True}, 0),
+])
+def test_exit_code(monkeypatch, temp_db, result, code):
+    monkeypatch.setattr(sync, 'sync_belgian_nodes', lambda **kw: result)
+    assert sync.main([]) == code
+
+
+# --- run lock --------------------------------------------------------------
+
+def test_run_is_skipped_while_another_holds_the_lock(run, temp_db, monkeypatch):
+    import fcntl
+    lock_path = os.path.join(os.path.dirname(temp_db), 'sync.lock')
+    holder = open(lock_path, 'w')
+    fcntl.flock(holder, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    try:
+        def no_download():
+            raise AssertionError('download must not run while locked')
+        monkeypatch.setattr(sync, 'download_official_nodes', no_download)
+        result = sync.sync_belgian_nodes()
+    finally:
+        holder.close()
+
+    assert result['skipped'] is True
+    assert result['success'] is False
+    assert history_rows() == []
+
+
+def test_lock_is_released_after_a_run(run, temp_db):
+    import fcntl
+    run(base_feed())
+    with open(os.path.join(os.path.dirname(temp_db), 'sync.lock'), 'w') as f:
+        fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)  # raises if still held

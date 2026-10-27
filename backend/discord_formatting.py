@@ -13,7 +13,6 @@ from functools import lru_cache
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional, Tuple
 from urllib.parse import quote
-from zoneinfo import ZoneInfo
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
@@ -33,9 +32,6 @@ except (ImportError, ModuleNotFoundError):
 from backend.database import json_deserialize
 
 DISCORD_EMBED_DESC_LIMIT = 4096
-DISCORD_EMBED_DESC_SAFE_BUFFER = 500
-DISCORD_EMBED_MAX_NODES_PER_CHUNK = 25
-DISCORD_EMBED_EARLY_BREAK_BUFFER = 150
 
 # Community and map name as the website writes it.
 BEMESH = "#BEmesh"
@@ -52,13 +48,6 @@ def truncate_public_key(pub_key: str, show_full: bool = False) -> str:
     if show_full:
         return pub_key_upper
     return pub_key_upper[:6] if len(pub_key_upper) > 6 else pub_key_upper
-
-
-def escape_discord_markdown(text: str) -> str:
-    if not text:
-        return ""
-    cleaned = text.replace('`', '')
-    return f"`{cleaned}`"
 
 
 def get_node_type_display(type_num: int) -> str:
@@ -86,16 +75,6 @@ def match_frequency_preset(params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
                 cr == preset['cr']):
             return preset
     return None
-
-
-def format_date_display(date_string: Optional[str]) -> str:
-    from backend.datetime_utils import parse_utc
-
-    dt = parse_utc(date_string)
-    if not dt:
-        return "N/A"
-    dt_cet = dt.astimezone(ZoneInfo("Europe/Brussels"))
-    return dt_cet.strftime("%Y-%m-%d %H:%M") + " " + dt_cet.tzname()
 
 
 def format_frequency_display(params: Dict[str, Any]) -> str:
@@ -149,22 +128,6 @@ def node_last_seen(node: Dict[str, Any]) -> Optional[datetime]:
 def discord_timestamp(dt: datetime, style: str = "R") -> str:
     """``<t:unix:R>``: Discord shows it in each viewer's own time zone and language."""
     return f"<t:{int(dt.timestamp())}:{style}>"
-
-
-def get_most_recent_date(node: Dict[str, Any]) -> Optional[str]:
-    from backend.datetime_utils import parse_utc
-
-    cet = ZoneInfo("Europe/Brussels")
-    dates_utc = []
-    for date_field in ('inserted_date', 'updated_date', 'last_advert'):
-        dt = parse_utc(node.get(date_field))
-        if dt:
-            dates_utc.append(dt)
-    if dates_utc:
-        most_recent_utc = max(dates_utc)
-        dt_cet = most_recent_utc.astimezone(cet)
-        return dt_cet.strftime('%Y-%m-%d %H:%M') + " " + dt_cet.tzname()
-    return None
 
 
 def ensure_node_params(node: Dict[str, Any]) -> Dict[str, Any]:
@@ -281,64 +244,6 @@ def format_node_compact(node: Dict[str, Any]) -> str:
     owner_id = node.get('discord_owner_id')
     owner = f"<@{owner_id}>" if owner_id else "Unclaimed"
     return f"{icon} `{pk_disp}` - {name} - {owner}"
-
-
-def format_node_simple(
-    node: Dict[str, Any],
-    show_coords: bool = False,
-    show_owner: bool = False,
-    include_map_link: bool = False,
-    show_inactive_badge: bool = False,
-) -> str:
-    ensure_node_params(node)
-    params = node.get('params', {})
-
-    icon = get_node_type_icon(node.get('type', 0))
-    pub_key_display = truncate_public_key(node.get('public_key', ''), show_full=False)
-    node_name = escape_discord_markdown(node.get('adv_name', 'Unknown'))
-
-    inactive_prefix = "⚫ Inactive · " if show_inactive_badge or not node.get('is_active', 1) else ""
-    line1 = f"{inactive_prefix}{icon} `{pub_key_display}` - {node_name}"
-    if show_owner:
-        owner_id = node.get('discord_owner_id')
-        if owner_id:
-            line1 += f" - 👤 <@{owner_id}>"
-
-    city = node.get('city', 'Unknown')
-    line2 = f"📍 {city}"
-    if show_coords:
-        lat = node.get('adv_lat')
-        lon = node.get('adv_lon')
-        if lat is not None and lon is not None:
-            line2 += f" ({lat}, {lon})"
-    line2 += " | 📅 "
-    most_recent = get_most_recent_date(node)
-    line2 += most_recent if most_recent else "N/A"
-
-    freq_display = format_frequency_display(params)
-    if freq_display.startswith("Preset: "):
-        freq_display = freq_display[8:]
-    source = node.get('source', 'N/A')
-    source_capitalized = source.capitalize() if source else 'N/A'
-    line3 = f"📻 Frequency: {freq_display} | ℹ️ Source: {source_capitalized}"
-
-    result = f"{line1}\n{line2}\n{line3}"
-    if include_map_link:
-        result += f"\n[View on map]({get_map_link(node)})"
-    return result
-
-
-def format_node_list(nodes: List[Dict[str, Any]], show_full_keys: bool = False) -> str:
-    if len(nodes) == 1:
-        node = nodes[0]
-        icon = get_node_type_icon(node.get('type', 0))
-        pub_key_display = truncate_public_key(node.get('public_key', ''), show_full=show_full_keys)
-        node_name = escape_discord_markdown(node.get('adv_name', 'Unknown'))
-        return f"{icon} `{pub_key_display}` - {node_name}"
-    lines = []
-    for node in nodes:
-        lines.append(format_node_simple(node, show_coords=False, show_owner=True))
-    return "\n\n".join(lines)
 
 
 def build_claim_embed_dict(node: Dict[str, Any], user_id: str, *, via_web: bool = False) -> Dict[str, Any]:
@@ -481,58 +386,3 @@ def fit_lines(lines: List[str], limit: int, *, separator: str = "\n") -> Tuple[L
         shown.append(line)
         used += extra
     return shown, len(lines) - len(shown)
-
-
-def chunk_embed_descriptions(
-    header_text: str,
-    formatted_items: List[str],
-) -> List[str]:
-    """
-    Split formatted node blocks into description strings that fit Discord embed limits.
-
-    Returns a list of description strings (header + chunk content each).
-    """
-    if not formatted_items:
-        return [header_text]
-
-    max_allowed = DISCORD_EMBED_DESC_LIMIT - DISCORD_EMBED_DESC_SAFE_BUFFER
-    chunks: List[List[str]] = []
-    current_chunk: List[str] = []
-
-    for item in formatted_items:
-        test_chunk = current_chunk + [item]
-        test_description = header_text + "\n\n".join(test_chunk)
-        if (
-            len(test_description) > max_allowed
-            or len(test_chunk) > DISCORD_EMBED_MAX_NODES_PER_CHUNK
-            or len(test_description) > (max_allowed - DISCORD_EMBED_EARLY_BREAK_BUFFER)
-        ):
-            if current_chunk:
-                chunks.append(current_chunk)
-                current_chunk = [item]
-            else:
-                current_chunk.append(item)
-        else:
-            current_chunk.append(item)
-
-    if current_chunk:
-        chunks.append(current_chunk)
-
-    descriptions = []
-    for chunk in chunks:
-        content = "\n\n".join(chunk)
-        description = header_text + content
-        while len(description) > max_allowed and chunk:
-            chunk = chunk[:-1]
-            description = header_text + ("\n\n".join(chunk) if chunk else "*Error: No nodes fit*")
-        descriptions.append(description)
-
-    return descriptions if descriptions else [header_text]
-
-
-def format_owner_display(node: Dict[str, Any]) -> str:
-    """Format owner for error messages: mention when possible."""
-    owner_id = node.get('discord_owner_id')
-    if owner_id:
-        return f"<@{owner_id}>"
-    return node.get('discord_owner_name', 'Unknown')

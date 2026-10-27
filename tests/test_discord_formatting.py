@@ -10,12 +10,10 @@ from backend.discord_formatting import (
     build_claim_embed_dict,
     build_search_summary,
     build_unclaim_embed_dict,
-    chunk_embed_descriptions,
     fit_lines,
     format_digest_node_line,
     format_full_node_details,
     format_node_line,
-    format_node_simple,
     map_button_components,
     truncate_public_key,
 )
@@ -38,26 +36,6 @@ class TestDiscordFormatting(unittest.TestCase):
         self.assertIn("`Brussels`", summary)
         self.assertIn("claimed: `false`", summary)
         self.assertIn("inactive: `true`", summary)
-
-    def test_format_node_simple_map_link_and_inactive_badge(self):
-        node = {
-            "public_key": "a" * 64,
-            "adv_name": "Test_Node",
-            "type": 2,
-            "city": "Brussels",
-            "is_active": 0,
-            "params": {"freq": 869.525, "sf": 10, "bw": 250, "cr": 5},
-            "source": "app",
-            "inserted_date": "2026-01-01T12:00:00Z",
-        }
-        text = format_node_simple(
-            node,
-            include_map_link=True,
-            show_inactive_badge=True,
-        )
-        self.assertIn("⚫ Inactive", text)
-        self.assertIn("[View on map]", text)
-        self.assertIn("meshmap", text)
 
     def test_claim_embed_is_two_lines_with_the_node_line(self):
         node = {
@@ -143,14 +121,6 @@ class TestDiscordFormatting(unittest.TestCase):
     def test_fit_lines_keeps_whole_lines(self):
         self.assertEqual(fit_lines(["aaa", "bbb", "ccc"], 7), (["aaa", "bbb"], 1))
         self.assertEqual(fit_lines(["aaa"], 100), (["aaa"], 0))
-
-    def test_chunk_embed_descriptions_splits_long_lists(self):
-        header = "**Search result for:** `test`\n\nFound **30** node(s):\n\n"
-        items = [f"Node block {i}\nline2\nline3\n[View on map](http://x)" for i in range(30)]
-        chunks = chunk_embed_descriptions(header, items)
-        self.assertGreater(len(chunks), 1)
-        for chunk in chunks:
-            self.assertLessEqual(len(chunk), 4096)
 
 
 if __name__ == "__main__":

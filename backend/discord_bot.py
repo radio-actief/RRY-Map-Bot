@@ -4,15 +4,18 @@ Handles all Discord bot functionality including commands and interactions.
 """
 
 import asyncio
+import re
+import sys
+import os
+import time
+import traceback
+from datetime import datetime, time as dtime, timezone
+from zoneinfo import ZoneInfo
+from typing import Optional, Dict, Any, List, Tuple
 
 import discord
 from discord import app_commands
-from discord.ext import commands, tasks
-import sys
-import os
-from datetime import datetime, time as dtime, timezone
-from zoneinfo import ZoneInfo
-from typing import Optional, Dict, Any, List
+from discord.ext import tasks
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
@@ -42,7 +45,7 @@ except (ImportError, ModuleNotFoundError):
     DAILY_DIGEST_HOUR = int(os.getenv('DAILY_DIGEST_HOUR', '9'))
     DAILY_DIGEST_MINUTE = int(os.getenv('DAILY_DIGEST_MINUTE', '0'))
     DAILY_DIGEST_TZ = os.getenv('DAILY_DIGEST_TZ', 'Europe/Brussels')
-    
+
     NODE_TYPES = {
         1: "companion",
         2: "repeater",
@@ -74,44 +77,162 @@ except (ImportError, ModuleNotFoundError):
 
 from backend.discord_branding import apply_brand_to_embed
 from backend.discord_formatting import (
+    BEMESH,
+    DISCORD_EMBED_DESC_LIMIT,
     build_claim_embed_dict,
     build_search_summary,
     build_unclaim_embed_dict,
-    chunk_embed_descriptions,
     dict_to_discord_embed,
     ensure_node_params,
+    fit_lines,
     format_full_node_details as _format_full_node_details,
-    format_node_list,
-    format_node_simple,
-    format_owner_display,
+    format_node_line,
+    get_map_base_url,
     get_map_link,
+    get_node_type_icon,
+    get_stats_url,
+    strip_backticks,
 )
 from backend.database import (
     init_database,
     get_connection,
-    get_current_timestamp,
-    dict_from_row,
-    json_deserialize
+    get_sync_state,
+    set_sync_state,
 )
 
 from backend.discord_queries import (
+    city_suggestions,
+    count_nodes_substring,
     query_nodes_substring,
     get_user_nodes,
+    record_command,
+    search_owned_nodes,
+    unclaimed_node_suggestions,
     update_ownership,
     remove_ownership,
-    verify_ownership,
-    get_node_by_key,
     get_statistics,
     get_source_statistics,
-    normalize_pubkey,
 )
 
-# Set up Discord bot intents
-intents = discord.Intents.default()
-intents.message_content = True
+GENERIC_ERROR = "Something went wrong — try again in a minute."
+NOT_IN_SERVER = f"Claiming only works inside the {BEMESH} Discord server."
 
-# Create bot instance
-bot = commands.Bot(command_prefix='!', intents=intents)
+# Server (custom) emojis used in bot texts as :name:. Unicode emoji are written
+# as the characters themselves: Discord does not turn :shortcodes: sent by a
+# bot into emoji.
+SERVER_EMOJI_NAMES = ("radioactief", "meshcore")
+
+# /search offers the presets used in Belgium; any preset name still works.
+SEARCH_PRESET_NAMES = (
+    "EU/UK (Narrow)",
+    "EU/UK (Long Range)",
+    "EU/UK (Medium Range)",
+    "EU 433MHz (Long Range)",
+)
+
+SEARCH_FETCH_LIMIT = 50  # nodes fetched (relevance-sorted) for a search page
+PICK_LIST_MAX = 10  # nodes listed when a claim/unclaim query matches several
+AUTOCOMPLETE_MAX = 25  # Discord's limit
+MY_NODES_CUSTOM_ID = "rrymap:mynodes"
+
+COLOR_INFO = discord.Color.blue()
+COLOR_WARN = discord.Color.orange()
+COLOR_OK = discord.Color.green()
+
+
+# ============================================================================
+# Bot, command tree and command log
+# ============================================================================
+
+# interaction id -> monotonic start time (application commands only)
+_command_started: Dict[int, float] = {}
+
+
+class CommandLogTree(app_commands.CommandTree):
+    """Command tree that remembers when each slash command started (for ``command_log``)."""
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.type is discord.InteractionType.application_command:
+            _command_started[interaction.id] = time.monotonic()
+        return True
+
+
+class MapBot(discord.Client):
+    """Slash commands only: default intents, no message content, no prefix commands."""
+
+    def __init__(self) -> None:
+        super().__init__(intents=discord.Intents.default())
+        self.tree = CommandLogTree(self)
+
+    async def setup_hook(self) -> None:
+        # "My nodes" buttons keep working on messages sent before a restart.
+        self.add_view(LinksView(my_nodes=True))
+
+
+async def run_db(fn, *args, **kwargs):
+    """Run blocking database work off the event loop."""
+    return await asyncio.to_thread(fn, *args, **kwargs)
+
+
+def _elapsed_ms(interaction: discord.Interaction) -> Optional[int]:
+    started = _command_started.pop(interaction.id, None)
+    if started is None:
+        return None
+    return int((time.monotonic() - started) * 1000)
+
+
+async def log_command_result(
+    interaction: discord.Interaction,
+    command_name: str,
+    *,
+    ok: bool,
+    duration_ms: Optional[int] = None,
+) -> None:
+    """Print one line and append a ``command_log`` row (no arguments are stored)."""
+    if duration_ms is None:
+        duration_ms = _elapsed_ms(interaction)
+    user_id = str(interaction.user.id)
+    stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    print(f"[{stamp} UTC] [{command_name}] user {user_id} {'ok' if ok else 'error'} {duration_ms} ms")
+    try:
+        await run_db(record_command, command_name, user_id, ok=ok, duration_ms=duration_ms)
+    except Exception as e:
+        print(f"[command_log] could not record {command_name}: {e}")
+
+
+async def send_error_reply(interaction: discord.Interaction, text: str = GENERIC_ERROR) -> None:
+    """Answer an interaction that failed: short, only for the user, no internals."""
+    try:
+        if interaction.response.is_done():
+            await interaction.followup.send(text, ephemeral=True)
+        else:
+            await interaction.response.send_message(text, ephemeral=True)
+    except discord.HTTPException as e:
+        print(f"Could not send the error reply: {e}")
+
+
+bot = MapBot()
+
+
+@bot.tree.error
+async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError) -> None:
+    """One handler for every slash command error: log the traceback, answer briefly."""
+    command = interaction.command
+    name = command.qualified_name if command else "unknown"
+    if isinstance(error, app_commands.CheckFailure):
+        text = "You can't use this command here."
+    else:
+        text = GENERIC_ERROR
+        original = getattr(error, "original", error)
+        print(f"[{name}] command error:")
+        traceback.print_exception(type(original), original, original.__traceback__)
+    await log_command_result(interaction, name, ok=False)
+    await send_error_reply(interaction, text)
+
+
+@bot.event
+async def on_app_command_completion(interaction: discord.Interaction, command) -> None:
+    await log_command_result(interaction, command.qualified_name, ok=True)
 
 
 # ============================================================================
@@ -120,6 +241,11 @@ bot = commands.Bot(command_prefix='!', intents=intents)
 
 def branded_embed(*args, **kwargs):
     return apply_brand_to_embed(discord.Embed(*args, **kwargs))
+
+
+def notice_embed(text: str, color: discord.Color = COLOR_WARN, title: Optional[str] = None) -> discord.Embed:
+    """Short reply as an embed (links in it never unfurl, mentions never ping)."""
+    return branded_embed(title=title, description=text, color=color)
 
 
 def format_full_node_details(node: Dict[str, Any], show_coordinates: bool = False) -> discord.Embed:
@@ -134,77 +260,114 @@ def build_unclaim_embed(node: Dict[str, Any], user_id: str) -> discord.Embed:
     return dict_to_discord_embed(build_unclaim_embed_dict(node, user_id, via_web=False), branded_embed)
 
 
-async def send_chunked_node_embeds(
-    interaction: discord.Interaction,
-    *,
-    title: str,
-    header_text: str,
-    formatted_items: List[str],
-    color: discord.Color,
-    footer_single: str,
-    footer_range: str,
-    ephemeral: bool = False,
-    total_count: Optional[int] = None,
-) -> None:
-    """Send embed(s) with node list chunked to Discord description limits."""
-    descriptions = chunk_embed_descriptions(header_text, formatted_items)
-    total = total_count if total_count is not None else len(formatted_items)
-
-    def _count_nodes_in_desc(desc: str) -> int:
-        body = desc[len(header_text):].strip()
-        return len([b for b in body.split("\n\n") if b.strip()]) if body else 0
-
-    running = 0
-    for idx, desc in enumerate(descriptions):
-        embed = branded_embed(
-            title=title if idx == 0 else f"{title} (continued)",
-            description=desc,
-            color=color,
-        )
-        nodes_in_chunk = _count_nodes_in_desc(desc)
-        if len(descriptions) == 1:
-            embed.set_footer(text=footer_single)
-        else:
-            start = running + 1
-            end = running + nodes_in_chunk
-            embed.set_footer(text=footer_range.format(start=start, end=end, total=total))
-        running += nodes_in_chunk
-        if idx == 0:
-            await interaction.response.send_message(embed=embed, ephemeral=ephemeral)
-        else:
-            await interaction.followup.send(embed=embed, ephemeral=ephemeral)
-
-
-def log_command(command_name: str, user: discord.User, query: Optional[str] = None, result: Optional[str] = None) -> None:
-    """
-    Log command execution to console.
-    
-    Args:
-        command_name: Name of the command executed.
-        user: Discord user who executed the command.
-        query: Optional query string used in the command.
-        result: Optional result summary.
-    """
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    user_info = f"@{user.name} (ID: {user.id})"
-    query_str = f' Query: "{query}"' if query else ""
-    result_str = f" Result: {result}" if result else ""
-    print(f"[{timestamp}] [{command_name}] User: {user_info}{query_str}{result_str}")
-
-
 def get_node_type_number(type_text: str) -> Optional[int]:
     """Convert node type text to number (case-insensitive)."""
     return NODE_TYPES_REVERSE.get(type_text.lower())
+
+
+def find_frequency_preset_name(value: Optional[str]) -> Optional[str]:
+    """The preset's own name for ``value`` (any known preset, any case), else None."""
+    if not value:
+        return None
+    wanted = str(value).strip().lower()
+    for preset in FREQUENCY_PRESETS:
+        if preset['name'].lower() == wanted:
+            return preset['name']
+    return None
+
+
+def _choice_value(value: Any) -> Any:
+    return value.value if isinstance(value, app_commands.Choice) else value
+
+
+def is_home_guild_member(interaction: discord.Interaction) -> bool:
+    """True when the command comes from a member, inside the configured server.
+
+    Same rule as the website's claim check: only members of ``DISCORD_GUILD_ID``
+    may claim. A guild interaction carries the member, so no extra API call.
+    """
+    if interaction.guild_id is None or not isinstance(interaction.user, discord.Member):
+        return False
+    return not DISCORD_GUILD_ID or str(interaction.guild_id) == str(DISCORD_GUILD_ID)
+
+
+def autocomplete_label(node: Dict[str, Any]) -> str:
+    """Plain-text choice label: icon, name, town, key prefix (max 100 chars)."""
+    name = " ".join(str(node.get('adv_name') or 'Unknown').split())
+    parts = [f"{get_node_type_icon(node.get('type') or 0)} {name}"]
+    city = (node.get('city') or '').strip()
+    if city and city != 'Unknown':
+        parts.append(city)
+    parts.append((node.get('public_key') or '')[:6].upper())
+    if node.get('is_active', 1) == 0:
+        parts.append("inactive")
+    label = " · ".join(parts)
+    return label if len(label) <= 100 else label[:99] + "…"
+
+
+def pick_one_embed(intro: str, nodes: List[Dict[str, Any]], total: int) -> discord.Embed:
+    """Several matches: the intro, up to ``PICK_LIST_MAX`` node lines, and how many more."""
+    lines = [format_node_line(n) for n in nodes[:PICK_LIST_MAX]]
+    shown, _ = fit_lines(lines, DISCORD_EMBED_DESC_LIMIT - len(intro) - 200)
+    text = intro + "\n\n" + "\n".join(shown)
+    rest = total - len(shown)
+    if rest > 0:
+        text += f"\n+{rest} more — type more of the name or key."
+    return notice_embed(text)
+
+
+class LinksView(discord.ui.View):
+    """Link buttons ("Open map", …) plus an optional "My nodes" button."""
+
+    def __init__(self, links: Tuple[Tuple[str, str], ...] = (), *, my_nodes: bool = False) -> None:
+        super().__init__(timeout=None)
+        for label, url in links:
+            self.add_item(discord.ui.Button(label=label, url=url))
+        if my_nodes:
+            self.add_item(MyNodesButton())
+
+    async def on_error(self, interaction: discord.Interaction, error: Exception, item) -> None:
+        traceback.print_exception(type(error), error, error.__traceback__)
+        await send_error_reply(interaction)
+
+
+class MyNodesButton(discord.ui.Button):
+    """Runs /mynodes for whoever clicks it (only they see the answer)."""
+
+    def __init__(self) -> None:
+        super().__init__(label="My nodes", style=discord.ButtonStyle.secondary, custom_id=MY_NODES_CUSTOM_ID)
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        started = time.monotonic()
+        ok = False
+        try:
+            await send_my_nodes(interaction)
+            ok = True
+        finally:
+            await log_command_result(
+                interaction, "mynodes button", ok=ok,
+                duration_ms=int((time.monotonic() - started) * 1000),
+            )
+
+
+def map_view(url: Optional[str] = None, label: str = "Open map", *, my_nodes: bool = False) -> LinksView:
+    return LinksView(((label, url or get_map_base_url()),), my_nodes=my_nodes)
 
 
 # ============================================================================
 # Bot Instructions Post Feature
 # ============================================================================
 
+INSTRUCTIONS_TITLE = ":radioactief: Radio-Actieve Bot - :meshcore: MeshCore Node Beheer"
+INSTRUCTIONS_TITLE_MARKER = "MeshCore Node Beheer"
+INSTRUCTIONS_COLOR = 0xFCFB40
+INSTRUCTIONS_STATE_KEY = "discord_instructions_message_id"
+
+
 def load_bot_instructions() -> str:
     """
     Load bot instructions from DISCORDBOT_INSTRUCTIONS.md file.
-    
+
     Returns:
         Instructions content as string.
     """
@@ -215,7 +378,7 @@ def load_bot_instructions() -> str:
         '/app/DISCORDBOT_INSTRUCTIONS.md',  # Docker path
         'DISCORDBOT_INSTRUCTIONS.md',  # Current directory
     ]
-    
+
     for instructions_path in possible_paths:
         try:
             abs_path = os.path.abspath(instructions_path)
@@ -224,11 +387,11 @@ def load_bot_instructions() -> str:
                     content = f.read()
                     print(f"Loaded bot instructions from: {abs_path}")
                     return content
-        except Exception as e:
+        except Exception:
             continue
-    
+
     # If all paths failed, return error message
-    print(f"ERROR: Could not find DISCORDBOT_INSTRUCTIONS.md in any of these paths:")
+    print("ERROR: Could not find DISCORDBOT_INSTRUCTIONS.md in any of these paths:")
     for path in possible_paths:
         print(f"  - {os.path.abspath(path)}")
     return "Bot instructions file (DISCORDBOT_INSTRUCTIONS.md) not found."
@@ -236,178 +399,196 @@ def load_bot_instructions() -> str:
 
 def resolve_custom_emojis_in_text(text: str, guild: Optional[discord.Guild]) -> str:
     """
-    Replace :emoji_name: shortcodes with Discord custom emoji format <:name:id>
-    (or <a:name:id> for animated) so server emojis render in the message.
-    Standard Unicode emojis (e.g. :flag_be:) are left as-is.
-    Replaces longer names first to avoid partial matches.
+    Replace :emoji_name: shortcodes of server emojis with <:name:id> (or
+    <a:name:id> for animated) so they render. Shortcodes of the bot's own
+    server emojis (``SERVER_EMOJI_NAMES``) that the server doesn't have, or
+    that can't be resolved (no guild), are dropped instead of showing as text.
     """
-    if not text or not guild:
+    if not text:
         return text
-    # Build list of (name, replacement) for all custom emojis, sort by name length desc
-    replacements = []
-    for emoji in guild.emojis:
-        if emoji.animated:
-            replacement = f"<a:{emoji.name}:{emoji.id}>"
-        else:
-            replacement = f"<:{emoji.name}:{emoji.id}>"
-        replacements.append((emoji.name, replacement))
-    replacements.sort(key=lambda x: -len(x[0]))  # longest first
     result = text
-    for name, replacement in replacements:
-        # Replace :name: only as whole shortcode (avoid replacing inside :longername:)
-        result = result.replace(f":{name}:", replacement)
+    if guild:
+        replacements = []
+        for emoji in guild.emojis:
+            if emoji.animated:
+                replacement = f"<a:{emoji.name}:{emoji.id}>"
+            else:
+                replacement = f"<:{emoji.name}:{emoji.id}>"
+            replacements.append((emoji.name, replacement))
+        replacements.sort(key=lambda x: -len(x[0]))  # longest first
+        for name, replacement in replacements:
+            result = result.replace(f":{name}:", replacement)
+    for name in SERVER_EMOJI_NAMES:
+        result = re.sub(rf"(?<![<\w]):{name}: ?", "", result)
     return result
+
+
+def render_instructions(content: str) -> str:
+    """Instructions markdown as an embed description (sections bold, map URL filled in)."""
+    content = content.replace("{MAP_URL}", get_map_base_url())
+    lines = content.split('\n')
+    formatted_lines = []
+    skip_next_blank = False
+
+    for line in lines:
+        line_stripped = line.strip()
+
+        # Title and subtitle lines are kept as they are.
+        if line_stripped.startswith('# '):
+            formatted_lines.append(line)
+            skip_next_blank = True  # Skip blank line after title only
+            continue
+        elif line_stripped.startswith('## '):
+            formatted_lines.append(line)
+            skip_next_blank = False
+            continue
+
+        # Skip footer lines (italic-only lines)
+        if line_stripped.startswith('*') and line_stripped.endswith('*'):
+            continue
+
+        # Section headers (###) become bold lines with a blank line before them.
+        if line_stripped.startswith('### '):
+            section_title = line_stripped[4:].strip()
+            if formatted_lines and formatted_lines[-1].strip():
+                formatted_lines.append('')
+            formatted_lines.append(f'**{section_title}**')
+            skip_next_blank = False
+        else:
+            if skip_next_blank and not line_stripped:
+                skip_next_blank = False
+                continue
+            formatted_lines.append(line)
+
+    formatted_content = re.sub(r'\n{4,}', '\n\n\n', '\n'.join(formatted_lines)).strip()
+
+    # Discord's description limit is 4096.
+    truncation_notice = '\n\n... (content truncated)'
+    max_length = DISCORD_EMBED_DESC_LIMIT - len(truncation_notice)
+    if len(formatted_content) > max_length:
+        original_length = len(formatted_content)
+        truncated = formatted_content[:max_length]
+        last_newline = truncated.rfind('\n')
+        if last_newline > max_length - 100:
+            truncated = truncated[:last_newline]
+        formatted_content = truncated + truncation_notice
+        print(f"Warning: Instructions truncated from {original_length} to {len(formatted_content)} characters")
+    return formatted_content
+
+
+def build_instructions_embed(guild: Optional[discord.Guild]) -> discord.Embed:
+    description = resolve_custom_emojis_in_text(render_instructions(load_bot_instructions()), guild)
+    title = " ".join(resolve_custom_emojis_in_text(INSTRUCTIONS_TITLE, guild).split())
+    if not title.startswith("<"):
+        title = "📡 " + title
+    return branded_embed(title=title, description=description, color=INSTRUCTIONS_COLOR)
+
+
+def _load_instructions_message_id() -> Optional[str]:
+    conn = get_connection()
+    try:
+        value = get_sync_state(conn, INSTRUCTIONS_STATE_KEY)
+    finally:
+        conn.close()
+    return str(value) if value else None
+
+
+def _save_instructions_message_id(message_id: int) -> None:
+    conn = get_connection()
+    try:
+        set_sync_state(conn, INSTRUCTIONS_STATE_KEY, str(message_id))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _is_instructions_message(message: discord.Message, bot_user_id: int) -> bool:
+    return message.author.id == bot_user_id and any(
+        INSTRUCTIONS_TITLE_MARKER in (embed.title or "") for embed in message.embeds
+    )
+
+
+async def _pinned_messages(channel) -> List[discord.Message]:
+    pins = channel.pins()
+    if hasattr(pins, "__aiter__"):  # discord.py 2.6+: paginated iterator
+        return [m async for m in pins]
+    return await pins
+
+
+async def find_instructions_message(channel, bot_user_id: int, known_ids: List[Optional[str]]):
+    """The existing instructions post: by stored id, else the bot's own pinned or recent post."""
+    for message_id in known_ids:
+        if not message_id:
+            continue
+        try:
+            return await channel.fetch_message(int(message_id))
+        except discord.NotFound:
+            print(f"Instructions message {message_id} not found; looking for the bot's own post.")
+    try:
+        for message in await _pinned_messages(channel):
+            if _is_instructions_message(message, bot_user_id):
+                return message
+    except discord.HTTPException as e:
+        print(f"Could not read pinned messages: {e}")
+    async for message in channel.history(limit=50):
+        if _is_instructions_message(message, bot_user_id):
+            return message
+    return None
 
 
 async def update_bot_instructions_post() -> None:
     """
-    Update bot instructions post in Discord channel as an embed.
-    Behavior:
-    - If neither STARTUP_CHANNEL_ID nor STARTUP_MESSAGE_ID defined: Do nothing
-    - If only STARTUP_CHANNEL_ID defined: Post placeholder message "PLACEHOLDER FOR BOT"
-    - If both defined: Edit existing message with instructions from DISCORDBOT_INSTRUCTIONS.md as embed
+    Keep one instructions post in ``STARTUP_CHANNEL_ID``, edited in place.
+
+    The post is found by ``STARTUP_MESSAGE_ID``, else by the id the bot stored
+    last time, else as the bot's own pinned or recent instructions post. Only
+    when none exists is a new one posted (and its id stored).
     """
-    channel_id = STARTUP_CHANNEL_ID
-    message_id = STARTUP_MESSAGE_ID
-    
-    if not channel_id:
-        # No channel configured, skip
+    if not STARTUP_CHANNEL_ID:
         print("No STARTUP_CHANNEL_ID configured, skipping instructions post update")
         return
-    
+
     try:
-        channel = bot.get_channel(int(channel_id))
+        channel = bot.get_channel(int(STARTUP_CHANNEL_ID))
         if not channel:
-            print(f"Warning: Channel {channel_id} not found")
+            print(f"Warning: Channel {STARTUP_CHANNEL_ID} not found")
             return
-        
-        # Load instructions from DISCORDBOT_INSTRUCTIONS.md
-        instructions_content = load_bot_instructions()
-        
-        # Color #fcfb40 in decimal (yellow)
-        embed_color = int('0xfcfb40', 16)
-        
-        # Process the markdown content - format sections, but include title/subtitle in description
-        lines = instructions_content.split('\n')
-        formatted_lines = []
-        skip_next_blank = False
-        
-        for i, line in enumerate(lines):
-            line_stripped = line.strip()
-            
-            # Include title and subtitle lines as-is (like old bot does)
-            # Just include them in the description without special formatting
-            if line_stripped.startswith('# '):
-                # Include the line as-is (with emojis, etc.)
-                formatted_lines.append(line)
-                skip_next_blank = True  # Skip blank line after title only
-                continue
-            elif line_stripped.startswith('## '):
-                # Include the line as-is (with emojis, etc.)
-                formatted_lines.append(line)
-                # Don't skip blank line after subtitle - we want to preserve spacing
-                skip_next_blank = False
-                continue
-            
-            # Skip footer lines (we'll handle separately if needed)
-            if line_stripped.startswith('*') and line_stripped.endswith('*'):
-                continue
-            
-            # Format section headers (###) to be bold but less prominent than title/subtitle
-            if line_stripped.startswith('### '):
-                section_title = line_stripped[4:].strip()
-                # Add spacing before section (except first one)
-                if formatted_lines and formatted_lines[-1].strip():
-                    formatted_lines.append('')  # Blank line before section
-                # Use regular bold (same as title/subtitle but they appear first so seem more important)
-                formatted_lines.append(f'**{section_title}**')
-                skip_next_blank = False
-            else:
-                # Preserve all other lines including blank lines
-                if skip_next_blank and not line_stripped:
-                    skip_next_blank = False
-                    continue
-                formatted_lines.append(line)
-        
-        # Join all lines, preserving spacing
-        formatted_content = '\n'.join(formatted_lines)
-        
-        # Clean up excessive blank lines (more than 2 consecutive) but preserve spacing
-        import re
-        formatted_content = re.sub(r'\n{4,}', '\n\n\n', formatted_content)
-        
-        # Remove leading/trailing blank lines
-        formatted_content = formatted_content.strip()
-        
-        # Truncate if needed (Discord description limit is 4096)
-        truncation_notice = '\n\n... (content truncated)'
-        max_length = 4096 - len(truncation_notice)
-        
-        if len(formatted_content) > max_length:
-            # Truncate at last newline before limit
-            truncated = formatted_content[:max_length]
-            last_newline = truncated.rfind('\n')
-            if last_newline > max_length - 100:  # If newline is reasonably close
-                formatted_content = truncated[:last_newline] + truncation_notice
-            else:
-                formatted_content = truncated[:max_length] + truncation_notice
-            print(f"Warning: Instructions truncated from {len(formatted_content)} to {max_length} characters")
-        
-        # Resolve server custom emojis (:radioactief:, :meshcore:, etc.) so they render
-        guild = getattr(channel, 'guild', None)
-        formatted_content = resolve_custom_emojis_in_text(formatted_content, guild)
-        embed_title = resolve_custom_emojis_in_text(
-            ":radioactief: Radio-Actieve Bot - :meshcore: MeshCore Node Beheer", guild
-        )
-        # Fallback if no guild or emojis not found (avoid showing raw :name: in title)
-        if embed_title.startswith(":"):
-            embed_title = "📡 Radio-Actieve Bot - MeshCore Node Beheer"
-        
-        # Create embed with everything in description (like old bot, but better formatted)
-        embed = branded_embed(
-            title=embed_title,
-            description=formatted_content,
-            color=embed_color
-        )
-        
-        if message_id:
-            # Edit existing message
+
+        embed = build_instructions_embed(getattr(channel, 'guild', None))
+        stored_id = await run_db(_load_instructions_message_id)
+        message = await find_instructions_message(channel, bot.user.id, [STARTUP_MESSAGE_ID, stored_id])
+
+        if message is not None:
             try:
-                message = await channel.fetch_message(int(message_id))
                 await message.edit(content=None, embed=embed)
-                print(f"✅ Updated bot instructions post: {message_id} (as embed)")
-            except discord.NotFound:
-                print(f"Warning: Message {message_id} not found, posting new message")
-                await channel.send(embed=embed)
             except discord.Forbidden:
-                print(f"Warning: No permission to edit message {message_id}")
-            except discord.HTTPException as e:
-                print(f"Error editing message: {e}")
-                import traceback
-                traceback.print_exc()
+                print(
+                    f"ERROR: message {message.id} is not the bot's own; can't edit the instructions post. "
+                    "Point STARTUP_MESSAGE_ID at the bot's post (or unset it)."
+                )
+                return
+            print(f"✅ Updated bot instructions post: {message.id} (as embed)")
         else:
-            # Post new placeholder message
-            placeholder = "PLACEHOLDER FOR BOT"
-            await channel.send(placeholder)
-            print(f"Posted placeholder message in channel {channel_id}")
+            message = await channel.send(embed=embed)
+            print(f"✅ Posted a new bot instructions post: {message.id}. Set STARTUP_MESSAGE_ID={message.id} to keep it.")
+
+        if str(message.id) != str(stored_id):
+            await run_db(_save_instructions_message_id, message.id)
     except Exception as e:
         print(f"Error updating bot instructions post: {e}")
-        import traceback
         traceback.print_exc()
 
-
-# ============================================================================
-# Bot Events
-# ============================================================================
 
 # ============================================================================
 # Discord Bot Commands
 # ============================================================================
 
-# Create command groups
-node_group = app_commands.Group(name="node", description="Manage node operations")
+node_group = app_commands.Group(
+    name="node",
+    description="Claim or release your nodes",
+    guild_only=True,
+)
 
-# Create choices for node types (must be defined before use in decorators)
 node_type_choices = [
     app_commands.Choice(name="Companion", value="companion"),
     app_commands.Choice(name="Repeater", value="repeater"),
@@ -415,121 +596,130 @@ node_type_choices = [
     app_commands.Choice(name="Sensor", value="sensor"),
 ]
 
-# Create choices for frequency presets (must be defined before use in decorators)
 frequency_preset_choices = [
     app_commands.Choice(name=preset['name'], value=preset['name'])
     for preset in FREQUENCY_PRESETS
+    if preset['name'] in SEARCH_PRESET_NAMES
 ]
 
-
-class UnclaimConfirmView(discord.ui.View):
-    """View for confirming unclaiming a node."""
-    def __init__(self, node: Dict[str, Any], user_id: str):
-        super().__init__(timeout=30.0)
-        self.node = node
-        self.user_id = user_id
-        self.chosen = False
-    
-    async def on_timeout(self):
-        """Disable all buttons and update message when view times out."""
-        for item in self.children:
-            item.disabled = True
-        
-        # Edit the message to show timeout
-        # Check if message attribute exists (set by discord.py when view is attached)
-        if hasattr(self, 'message') and self.message:
-            try:
-                # Get current embed
-                embed = self.message.embeds[0] if self.message.embeds else None
-                
-                if embed:
-                    # Add timeout notice to description
-                    timeout_notice = "\n\n⏱️ **Decision time elapsed.**"
-                    if embed.description:
-                        embed.description += timeout_notice
-                    else:
-                        embed.description = timeout_notice
-                    
-                    await self.message.edit(embed=embed, view=self)
-                else:
-                    # No embed, just update content
-                    timeout_notice = "\n\n⏱️ **Decision time elapsed.**"
-                    content = self.message.content + timeout_notice if self.message.content else timeout_notice
-                    await self.message.edit(content=content, view=self)
-            except Exception as e:
-                # If editing fails, just disable buttons (view is already disabled)
-                print(f"Error editing message on timeout: {e}")
-    
-    async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        """Only allow the command issuer to interact."""
-        if str(interaction.user.id) != self.user_id:
-            await interaction.response.send_message("This prompt is not for you.", ephemeral=True)
-            return False
-        return True
-    
-    @discord.ui.button(label="Yes, Unclaim", style=discord.ButtonStyle.danger, emoji="✅")
-    async def confirm_unclaim(self, interaction: discord.Interaction, button: discord.ui.Button):
-        """Confirm unclaiming."""
-        if self.chosen:
-            return
-        self.chosen = True
-        
-        # Disable all buttons
-        for item in self.children:
-            item.disabled = True
-        
-        await interaction.response.edit_message(view=self)
-        
-        # Remove ownership
-        success = remove_ownership(self.node['public_key'], self.user_id, source='bot')  # Logs to node_claims as 'unclaim'.
-        
-        if not success:
-            await interaction.followup.send(
-                "❌ **Error unclaiming node. Please try again.**",
-                ephemeral=True
-            )
-            log_command("NODE_UNCLAIM", interaction.user, self.node.get('adv_name', 'Unknown'), "FAILED: Database error")
-            return
-        
-        
-        log_command("NODE_UNCLAIM", interaction.user, self.node.get('adv_name', 'Unknown'), f"SUCCESS: Unclaimed {self.node.get('adv_name', 'Unknown')}")
-        embed = build_unclaim_embed(self.node, self.user_id)
-        await interaction.followup.send(embed=embed)
-    
-    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary, emoji="❌")
-    async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
-        """Cancel unclaiming."""
-        if self.chosen:
-            return
-        self.chosen = True
-        
-        # Disable all buttons
-        for item in self.children:
-            item.disabled = True
-        
-        await interaction.response.edit_message(
-            content="❌ **Unclaim cancelled.**",
-            view=self,
-            embed=None
-        )
-
-
-# Search source filter: only App and Uploader (Discord is not searchable; app and web treated as App in DB).
+# Search source filter: only App and Uploader (app and web are both "App").
 search_source_choices = [
     app_commands.Choice(name="App", value="app"),
     app_commands.Choice(name="Uploader", value="uploader"),
 ]
 
 
+class UnclaimConfirmView(discord.ui.View):
+    """Yes / Cancel for /node unclaim; only the person who asked can answer."""
+
+    def __init__(self, node: Dict[str, Any], user_id: str):
+        super().__init__(timeout=60.0)
+        self.node = node
+        self.user_id = user_id
+        self.chosen = False
+        self.message: Optional[discord.Message] = None  # set after sending
+
+    def _disable_all(self) -> None:
+        for item in self.children:
+            item.disabled = True
+
+    async def on_timeout(self):
+        """Show that the question expired; nothing changed."""
+        if self.chosen or self.message is None:
+            return
+        self._disable_all()
+        embed = self.message.embeds[0] if self.message.embeds else notice_embed("")
+        embed.description = (embed.description or "") + "\n\n⏱️ No answer in time, so nothing changed."
+        try:
+            await self.message.edit(embed=embed, view=self)
+        except discord.HTTPException as e:
+            print(f"Error editing message on timeout: {e}")
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        """Only allow the command issuer to interact."""
+        if str(interaction.user.id) != self.user_id:
+            await interaction.response.send_message("This prompt is not for you.", ephemeral=True)
+            return False
+        return True
+
+    async def on_error(self, interaction: discord.Interaction, error: Exception, item) -> None:
+        traceback.print_exception(type(error), error, error.__traceback__)
+        await send_error_reply(interaction)
+
+    @discord.ui.button(label="Yes, unclaim", style=discord.ButtonStyle.danger, emoji="✅")
+    async def confirm_unclaim(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if self.chosen:
+            await interaction.response.defer()  # second click: already being handled
+            return
+        self.chosen = True
+        self.stop()
+        await interaction.response.defer()
+
+        if not await run_db(remove_ownership, self.node['public_key'], self.user_id, source='bot'):
+            await interaction.edit_original_response(
+                embed=notice_embed("You don't own this node any more, so nothing changed."),
+                view=None,
+            )
+            return
+
+        await interaction.edit_original_response(
+            embed=notice_embed("✅ Unclaimed. The announcement is in the channel.", COLOR_OK),
+            view=None,
+        )
+        await interaction.followup.send(
+            embed=build_unclaim_embed(self.node, self.user_id),
+            view=map_view(get_map_link(self.node, short=True), "Open on map"),
+        )
+
+    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary, emoji="❌")
+    async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if self.chosen:
+            await interaction.response.defer()
+            return
+        self.chosen = True
+        self.stop()
+        await interaction.response.edit_message(
+            content=None,
+            embed=notice_embed("Unclaim cancelled. Nothing changed."),
+            view=None,
+        )
+
+
+def run_search(filters: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], int]:
+    """Relevance-sorted nodes for one search page and the real total."""
+    nodes = query_nodes_substring(limit=SEARCH_FETCH_LIMIT, **filters)
+    total = count_nodes_substring(**filters)
+    return nodes, max(total, len(nodes))
+
+
+def build_search_list_embed(summary: str, nodes: List[Dict[str, Any]], total: int) -> discord.Embed:
+    """One embed: the search, "Showing X of Y", one line per node, and "+N more"."""
+    header = f"**Search:** {summary}\n"
+    lines = [format_node_line(ensure_node_params(n)) for n in nodes]
+    more_template = "+{rest} more — refine your search or [open the map]({url})"
+    reserve = len(header) + 60 + len(more_template) + len(get_map_base_url()) + 20
+    shown, _ = fit_lines(lines, DISCORD_EMBED_DESC_LIMIT - reserve)
+    rest = total - len(shown)
+    if rest > 0:
+        count_line = f"Showing **{len(shown)}** of **{total}** nodes"
+    else:
+        count_line = f"Found **{total}** nodes"
+    description = f"{header}{count_line}\n\n" + "\n".join(shown)
+    if rest > 0:
+        description += "\n\n" + more_template.format(rest=rest, url=get_map_base_url())
+    return branded_embed(title="🔍 Search results", description=description, color=COLOR_INFO)
+
+
 @bot.tree.command(name="search", description="Search Belgian MeshCore nodes")
+@app_commands.guild_only()
 @app_commands.describe(
     query="Search by partial name, public key, or owner name",
     node_type="Filter by node type",
-    city="Filter by city (partial match)",
+    city="Filter by city (pick one or type part of a name)",
     frequency_preset="Filter by frequency preset",
-    owner="Filter by Discord owner (mention user for exact match, or search by name in query field)",
+    owner="Filter by Discord owner",
     claimed="Filter by claim status (true=claimed, false=unclaimed)",
-    inactive="Show only deactivated nodes (default: false, shows only active nodes)",
+    inactive="Show only inactive nodes (default: only active nodes)",
     source="Filter by source: App or Uploader"
 )
 @app_commands.choices(node_type=node_type_choices, frequency_preset=frequency_preset_choices, source=search_source_choices)
@@ -538,82 +728,71 @@ async def search_nodes(
     query: Optional[str] = None,
     node_type: Optional[app_commands.Choice[str]] = None,
     city: Optional[str] = None,
-    frequency_preset: Optional[app_commands.Choice[str]] = None,
+    frequency_preset: Optional[str] = None,
     owner: Optional[discord.User] = None,
     claimed: Optional[bool] = None,
     inactive: Optional[bool] = None,
     source: Optional[app_commands.Choice[str]] = None
 ):
     """Search for Belgian MeshCore nodes with various filters."""
-    has_query = query and str(query).strip()
-    has_type = node_type is not None
-    has_city = city and str(city).strip()
-    has_freq = frequency_preset is not None
-    has_owner = owner is not None
-    has_claimed = claimed is not None
-    has_inactive = inactive is not None
-    has_source = source is not None
-    if not any([has_query, has_type, has_city, has_freq, has_owner, has_claimed, has_inactive, has_source]):
+    query = query.strip() if query and query.strip() else None
+    city = city.strip() if city and city.strip() else None
+    if not any([query, node_type, city, frequency_preset, owner, claimed is not None, inactive is not None, source]):
         await interaction.response.send_message(
             "Provide at least one criterion: **query** (name, public key, or owner name), **node type**, **city**, **frequency preset**, **owner**, **claimed**, **inactive**, or **source** (App or Uploader).",
             ephemeral=True
         )
-        log_command("SEARCH", interaction.user, None, "REJECTED: no search criteria")
         return
 
     type_num = None
-    if node_type:
-        node_type_value = node_type.value if isinstance(node_type, app_commands.Choice) else node_type
+    node_type_value = _choice_value(node_type)
+    if node_type_value:
         type_num = get_node_type_number(node_type_value)
         if type_num is None:
             await interaction.response.send_message(
-                f"Invalid node type: {node_type_value}. Valid types: companion, repeater, room server, sensor",
+                f"Invalid node type: {strip_backticks(node_type_value)}. Valid types: companion, repeater, room server, sensor",
                 ephemeral=True
             )
-            log_command("SEARCH", interaction.user, query, f"ERROR: Invalid type {node_type_value}")
             return
 
-    owner_id = str(owner.id) if owner else None
     frequency_preset_name = None
     if frequency_preset:
-        frequency_preset_name = frequency_preset.value if isinstance(frequency_preset, app_commands.Choice) else frequency_preset
-    source_value = None
-    if source:
-        source_value = source.value if isinstance(source, app_commands.Choice) else source
-        if source_value and str(source_value).lower() == 'discord':
+        frequency_preset_name = find_frequency_preset_name(_choice_value(frequency_preset))
+        if frequency_preset_name is None:
             await interaction.response.send_message(
-                "You cannot filter by source **Discord**. Use **App** or **Uploader** only.",
-                ephemeral=True
+                "Unknown frequency preset. Pick one from the list.",
+                ephemeral=True,
             )
-            log_command("SEARCH", interaction.user, query, "REJECTED: source=discord")
             return
 
-    nodes = query_nodes_substring(
+    source_value = _choice_value(source)
+    if source_value and str(source_value).lower() == 'discord':
+        await interaction.response.send_message(
+            "You cannot filter by source **Discord**. Use **App** or **Uploader** only.",
+            ephemeral=True
+        )
+        return
+
+    await interaction.response.defer(thinking=True)
+
+    filters = dict(
         query=query,
         node_type=type_num,
         city=city,
         frequency_preset_name=frequency_preset_name,
-        owner_id=owner_id,
-        include_inactive=inactive if inactive else False,
+        owner_id=str(owner.id) if owner else None,
+        include_inactive=bool(inactive),
         claimed=claimed,
         source=source_value,
-        limit=50
     )
-
-    result_count = len(nodes) if nodes else 0
-    log_command("SEARCH", interaction.user, query, f"{result_count} nodes found")
-
-    node_type_label = None
-    if node_type:
-        node_type_label = node_type.value if isinstance(node_type, app_commands.Choice) else node_type
+    nodes, total = await run_db(run_search, filters)
 
     source_label = None
     if source_value:
-        source_label = "App" if source_value.lower() == 'app' else source_value.capitalize()
-
-    search_query_str = build_search_summary(
+        source_label = "App" if source_value.lower() == 'app' else str(source_value).capitalize()
+    summary = build_search_summary(
         query=query,
-        node_type=node_type_label,
+        node_type=node_type_value,
         city=city,
         frequency_preset_name=frequency_preset_name,
         owner_mention=owner.mention if owner else None,
@@ -624,248 +803,241 @@ async def search_nodes(
 
     if not nodes:
         embed = branded_embed(
-            title="🔍 Search Results",
-            description=f"**Search result for:** {search_query_str}\n\nNo nodes found matching your criteria.",
-            color=discord.Color.orange()
+            title="🔍 Search results",
+            description=f"**Search:** {summary}\n\nNo nodes found matching your criteria.",
+            color=COLOR_WARN,
         )
-        await interaction.response.send_message(embed=embed)
+        await interaction.followup.send(embed=embed, view=map_view())
         return
 
-    if len(nodes) == 1:
+    if total == 1:
         node = ensure_node_params(nodes[0])
-        embed = format_full_node_details(node, show_coordinates=False)
-        embed.description = f"**Search result for:** {search_query_str}\n\n{embed.description}"
-        embed.add_field(name="View on Map", value=f"[Open on map]({get_map_link(node)})", inline=False)
-        owner_id_val = node.get('discord_owner_id')
-        if owner_id_val:
-            embed.set_footer(text="Use `/mynodes` to see your owned nodes.")
-        else:
-            embed.set_footer(text="This node is unclaimed. Use `/node claim` to claim ownership. Use `/mynodes` to see your nodes.")
-        await interaction.response.send_message(embed=embed)
-    else:
-        total_nodes = len(nodes)
-        header_text = f"**Search result for:** {search_query_str}\n\nFound **{total_nodes}** node(s):\n\n"
-        show_inactive = bool(inactive)
-        formatted_nodes = [
-            format_node_simple(
-                ensure_node_params(node),
-                show_coords=False,
-                show_owner=True,
-                include_map_link=True,
-                show_inactive_badge=show_inactive,
-            )
-            for node in nodes
-        ]
-        await send_chunked_node_embeds(
-            interaction,
-            title="🔍 Search Results",
-            header_text=header_text,
-            formatted_items=formatted_nodes,
-            color=discord.Color.blue(),
-            footer_single="Use `/search` to refine, `/mynodes` for your nodes.",
-            footer_range="Showing {start}-{end} of {total} | Use `/search` to refine, `/mynodes` for your nodes.",
+        embed = format_full_node_details(node)
+        embed.description = f"**Search:** {summary}\n\n{embed.description}"
+        await interaction.followup.send(
+            embed=embed,
+            view=map_view(get_map_link(node, short=True), "Open on map", my_nodes=True),
         )
+        return
+
+    await interaction.followup.send(
+        embed=build_search_list_embed(summary, nodes, total),
+        view=map_view(my_nodes=True),
+    )
+
+
+@search_nodes.autocomplete('city')
+async def search_city_autocomplete(interaction: discord.Interaction, current: str) -> List[app_commands.Choice[str]]:
+    try:
+        cities = await run_db(city_suggestions, current, AUTOCOMPLETE_MAX)
+    except Exception as e:
+        print(f"[search city autocomplete] {e}")
+        return []
+    return [app_commands.Choice(name=c[:100], value=c[:100]) for c in cities]
+
+
+def run_claim_lookup(query: str) -> Tuple[List[Dict[str, Any]], int]:
+    nodes = query_nodes_substring(query=query, limit=PICK_LIST_MAX, claimed=False)
+    total = count_nodes_substring(query=query, claimed=False)
+    return nodes, max(total, len(nodes))
+
+
+def explain_unclaimable(query: str, user_id: str) -> str:
+    """Why ``query`` has no node to claim: yours, someone else's, inactive, or no match."""
+    shown_query = strip_backticks(query)
+    matches = (
+        query_nodes_substring(query=query, limit=2)
+        + query_nodes_substring(query=query, limit=2, include_inactive=True)
+    )
+    if len(matches) == 1:
+        node = matches[0]
+        line = format_node_line(node, owner=False)
+        owner_id = node.get('discord_owner_id')
+        if owner_id and str(owner_id) == str(user_id):
+            return f"This node is already yours:\n{line}"
+        if owner_id:
+            return f"This node is already claimed by <@{owner_id}>:\n{line}"
+        if not node.get('is_active', 1):
+            return f"This node is inactive, so it can't be claimed:\n{line}"
+    if matches:
+        return (
+            f"No unclaimed node matches `{shown_query}`; the nodes that match are claimed or inactive. "
+            "Pick a node from the suggestions."
+        )
+    return (
+        f"No node matches `{shown_query}`. Pick a node from the suggestions, "
+        f"or check the name or key on the [{BEMESH} map]({get_map_base_url()})."
+    )
 
 
 @node_group.command(name="claim", description="Claim ownership of an existing unclaimed node")
-@app_commands.describe(query="Node's partial name or partial public key")
+@app_commands.describe(query="Start typing the node's name or public key, then pick it")
 async def node_claim(interaction: discord.Interaction, query: str):
     """Claim ownership of a Belgian MeshCore node."""
-    nodes = query_nodes_substring(query=query, limit=25, claimed=False)
+    if not is_home_guild_member(interaction):
+        await interaction.response.send_message(NOT_IN_SERVER, ephemeral=True)
+        return
 
-    result_count = len(nodes) if nodes else 0
-    log_command("NODE_CLAIM", interaction.user, query, f"{result_count} unclaimed nodes found")
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    user_id = str(interaction.user.id)
+    nodes, total = await run_db(run_claim_lookup, query)
 
     if not nodes:
-        hint = ""
-        if normalize_pubkey(query):
-            claimed_match = query_nodes_substring(query=query, limit=1, claimed=True)
-            if claimed_match:
-                owner = format_owner_display(claimed_match[0])
-                hint = f"\n\nThis node appears to be already claimed by {owner}. Try `/search claimed:true` for details."
-            else:
-                hint = "\n\nNo matching unclaimed node found. Check the pubkey on [BEMesh Map](https://meshmap.radio-actief.be)."
-        await interaction.response.send_message(
-            f"Node not found in Belgian database (unclaimed).{hint}",
-            ephemeral=True,
+        await interaction.followup.send(embed=notice_embed(await run_db(explain_unclaimable, query, user_id)))
+        return
+
+    if total > 1:
+        intro = (
+            f"**{total}** unclaimed nodes match `{strip_backticks(query)}`. "
+            "Pick one from the suggestions, or type more of its name or key:"
         )
-        return
-
-    if len(nodes) > 1:
-        max_nodes_to_show = 10
-        nodes_to_show = nodes[:max_nodes_to_show]
-        error_msg = f"**Multiple unclaimed nodes found ({len(nodes)} total). Please be more specific:**\n\n"
-        error_msg += format_node_list(nodes_to_show, show_full_keys=False)
-        if len(nodes) > max_nodes_to_show:
-            error_msg += f"\n\n*... and {len(nodes) - max_nodes_to_show} more. Please refine your search.*"
-        await interaction.response.send_message(error_msg, ephemeral=True)
-        return
-
-    node = nodes[0]
-    if node.get('discord_owner_id'):
-        await interaction.response.send_message(
-            f"This node is already claimed by {format_owner_display(node)}.",
-            ephemeral=True,
-        )
-        log_command("NODE_CLAIM", interaction.user, query, "FAILED: Already claimed")
-        return
-
-    success = update_ownership(
-        node['public_key'],
-        str(interaction.user.id),
-        interaction.user.name,
-        source='bot',
-    )
-
-    if not success:
-        await interaction.response.send_message(
-            "Error claiming node. Please try again.",
-            ephemeral=True,
-        )
-        log_command("NODE_CLAIM", interaction.user, query, "FAILED: Database error")
-        return
-
-    log_command("NODE_CLAIM", interaction.user, query, f"SUCCESS: Claimed {node.get('adv_name', 'Unknown')}")
-    embed = build_claim_embed(node, str(interaction.user.id))
-    await interaction.response.send_message(embed=embed)
-
-
-@bot.tree.command(name="mynodes", description="List all your claimed nodes")
-async def mynodes(interaction: discord.Interaction):
-    """List all nodes owned by the user (including inactive ones)."""
-    nodes = get_user_nodes(str(interaction.user.id), include_inactive=True)
-    log_command("MYNODES", interaction.user, result=f"{len(nodes)} nodes owned")
-
-    if not nodes:
-        embed = branded_embed(
-            title="Your registered Nodes (0)",
-            description="You don't own any nodes.",
-            color=discord.Color.orange(),
-        )
-        await interaction.response.send_message(embed=embed, ephemeral=True)
-        return
-
-    active_nodes = [n for n in nodes if n.get('is_active', 1)]
-    inactive_nodes = [n for n in nodes if not n.get('is_active', 1)]
-
-    formatted_items: List[str] = []
-    if active_nodes:
-        formatted_items.append(f"**Active ({len(active_nodes)})**")
-        for node in active_nodes:
-            formatted_items.append(
-                format_node_simple(
-                    ensure_node_params(node),
-                    show_coords=True,
-                    show_owner=False,
-                    include_map_link=True,
-                )
-            )
-    if inactive_nodes:
-        formatted_items.append(f"**Inactive ({len(inactive_nodes)})**")
-        for node in inactive_nodes:
-            formatted_items.append(
-                format_node_simple(
-                    ensure_node_params(node),
-                    show_coords=True,
-                    show_owner=False,
-                    include_map_link=True,
-                    show_inactive_badge=True,
-                )
-            )
-
-    header_text = f"Nodes registered to {interaction.user.mention}\n\n"
-    await send_chunked_node_embeds(
-        interaction,
-        title=f"Your registered Nodes ({len(nodes)})",
-        header_text=header_text,
-        formatted_items=formatted_items,
-        color=discord.Color.blue(),
-        footer_single="Use `/node unclaim` to release ownership of any of these nodes.",
-        footer_range="Showing {start}-{end} of {total} nodes · Use `/node unclaim` to release ownership.",
-        ephemeral=True,
-        total_count=len(nodes),
-    )
-
-
-@node_group.command(name="unclaim", description="Remove ownership claim from a node")
-@app_commands.describe(query="Node's partial name or partial public key")
-async def node_unclaim(interaction: discord.Interaction, query: str):
-    """Remove your ownership claim from a node."""
-    norm = normalize_pubkey(query)
-    if norm and len(norm) == 64:
-        exact = get_node_by_key(norm, include_inactive=True)
-        nodes = [exact] if exact else []
-    else:
-        nodes = query_nodes_substring(query=query, limit=25, include_inactive=False)
-        if not nodes:
-            nodes = query_nodes_substring(query=query, limit=25, include_inactive=True)
-
-    log_command("NODE_UNCLAIM", interaction.user, query, f"{len(nodes)} nodes found")
-
-    if not nodes:
-        await interaction.response.send_message("Node not found.", ephemeral=True)
-        return
-
-    if len(nodes) > 1:
-        max_nodes_to_show = 10
-        nodes_to_show = nodes[:max_nodes_to_show]
-        error_msg = f"**Multiple nodes found ({len(nodes)} total). Please be more specific:**\n\n"
-        error_msg += format_node_list(nodes_to_show, show_full_keys=False)
-        if len(nodes) > max_nodes_to_show:
-            error_msg += f"\n\n*... and {len(nodes) - max_nodes_to_show} more. Please refine your search.*"
-        await interaction.response.send_message(error_msg, ephemeral=True)
+        await interaction.followup.send(embed=pick_one_embed(intro, nodes, total))
         return
 
     node = ensure_node_params(nodes[0])
-    if not verify_ownership(node['public_key'], str(interaction.user.id), include_inactive=True):
-        await interaction.response.send_message(
-            "You don't own this node.",
-            ephemeral=True,
-        )
+    claimed = await run_db(
+        update_ownership,
+        node['public_key'],
+        user_id,
+        interaction.user.name,
+        source='bot',
+    )
+    if not claimed:
+        # Someone claimed it (or it went inactive) a moment ago.
+        reason = await run_db(explain_unclaimable, node['public_key'], user_id)
+        await interaction.followup.send(embed=notice_embed(reason))
         return
 
-    embed = format_full_node_details(node, show_coordinates=True)
-    embed.title = "⚠️ Confirm Unclaim"
-    embed.description = (
-        "Are you sure you want to unclaim this node?\n\n"
-        "**This will remove your ownership and allow other members to claim it.**"
+    await interaction.edit_original_response(
+        embed=notice_embed("✅ Claimed. The announcement is in the channel.", COLOR_OK),
     )
-    embed.color = discord.Color.orange()
-    embed.set_footer(text="")
+    await interaction.followup.send(
+        embed=build_claim_embed(node, user_id),
+        view=map_view(get_map_link(node, short=True), "Open on map", my_nodes=True),
+    )
 
-    view = UnclaimConfirmView(node, str(interaction.user.id))
-    await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+@node_claim.autocomplete('query')
+async def claim_query_autocomplete(interaction: discord.Interaction, current: str) -> List[app_commands.Choice[str]]:
+    try:
+        nodes = await run_db(unclaimed_node_suggestions, current, AUTOCOMPLETE_MAX)
+    except Exception as e:
+        print(f"[node claim autocomplete] {e}")
+        return []
+    return [app_commands.Choice(name=autocomplete_label(n), value=n['public_key']) for n in nodes]
 
 
-@bot.tree.command(name="stats", description="Show Belgian MeshCore node statistics (overview, cities, frequencies, source)")
-async def stats(interaction: discord.Interaction):
-    """Display merged statistics in a single overview embed."""
-    stats_data = get_statistics()
-    source_stats = get_source_statistics()
-    log_command("STATS", interaction.user, result="Statistics displayed")
+def build_my_nodes_embed(nodes: List[Dict[str, Any]]) -> discord.Embed:
+    """Active and inactive sections in one embed; "+N more" when it doesn't fit."""
+    if not nodes:
+        return branded_embed(
+            title="Your nodes (0)",
+            description=(
+                "You don't own any nodes yet. Claim one with /node claim, "
+                f"or on the [{BEMESH} map]({get_map_base_url()})."
+            ),
+            color=COLOR_WARN,
+        )
+    active = [n for n in nodes if n.get('is_active', 1)]
+    inactive = [n for n in nodes if not n.get('is_active', 1)]
+    budget = DISCORD_EMBED_DESC_LIMIT - 200
+    blocks: List[str] = []
+    left_out = 0
+    for heading, group in ((f"**Active ({len(active)})**", active), (f"**Inactive ({len(inactive)})**", inactive)):
+        if not group:
+            continue
+        lines = [format_node_line(n, owner=False) for n in group]
+        shown, rest = fit_lines(lines, max(budget - len(heading) - 1, 0))
+        left_out += rest
+        if shown:
+            block = heading + "\n" + "\n".join(shown)
+            blocks.append(block)
+            budget -= len(block) + 2
+    description = "\n\n".join(blocks)
+    if left_out:
+        description += f"\n\n+{left_out} more on the [{BEMESH} map]({get_map_base_url()})"
+    embed = branded_embed(title=f"Your nodes ({len(nodes)})", description=description, color=COLOR_INFO)
+    embed.set_footer(text="Release a node with /node unclaim.")
+    return embed
 
+
+async def send_my_nodes(interaction: discord.Interaction) -> None:
+    """The caller's nodes, only for them (used by /mynodes and the "My nodes" button)."""
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    nodes = await run_db(get_user_nodes, str(interaction.user.id), include_inactive=True)
+    await interaction.followup.send(embed=build_my_nodes_embed(nodes), view=map_view(), ephemeral=True)
+
+
+@bot.tree.command(name="mynodes", description="List all your claimed nodes")
+@app_commands.guild_only()
+async def mynodes(interaction: discord.Interaction):
+    """List all nodes owned by the user (including inactive ones)."""
+    await send_my_nodes(interaction)
+
+
+@node_group.command(name="unclaim", description="Remove ownership claim from one of your nodes")
+@app_commands.describe(query="Start typing one of your nodes' name or public key, then pick it")
+async def node_unclaim(interaction: discord.Interaction, query: str):
+    """Remove your ownership claim from a node (only your own nodes are searched)."""
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    user_id = str(interaction.user.id)
+    nodes = await run_db(search_owned_nodes, user_id, query, AUTOCOMPLETE_MAX + 1)
+
+    if not nodes:
+        await interaction.followup.send(embed=notice_embed(
+            f"You don't own a node matching `{strip_backticks(query)}`. /mynodes lists your nodes."
+        ))
+        return
+
+    if len(nodes) > 1:
+        intro = (
+            f"**{len(nodes)}** of your nodes match `{strip_backticks(query)}`. "
+            "Pick one from the suggestions, or type more of its name or key:"
+        )
+        await interaction.followup.send(embed=pick_one_embed(intro, nodes, len(nodes)))
+        return
+
+    node = ensure_node_params(nodes[0])
+    embed = notice_embed(
+        f"{format_node_line(node, owner=False)}\n\nAfter this, anyone can claim it.",
+        title="⚠️ Unclaim this node?",
+    )
+    view = UnclaimConfirmView(node, user_id)
+    view.message = await interaction.followup.send(embed=embed, view=view, wait=True)
+
+
+@node_unclaim.autocomplete('query')
+async def unclaim_query_autocomplete(interaction: discord.Interaction, current: str) -> List[app_commands.Choice[str]]:
+    try:
+        nodes = await run_db(search_owned_nodes, str(interaction.user.id), current, AUTOCOMPLETE_MAX)
+    except Exception as e:
+        print(f"[node unclaim autocomplete] {e}")
+        return []
+    return [app_commands.Choice(name=autocomplete_label(n), value=n['public_key']) for n in nodes]
+
+
+def build_stats_embed(
+    stats_data: Dict[str, Any],
+    source_stats: Dict[str, Any],
+    guild: Optional[discord.Guild] = None,
+) -> discord.Embed:
+    """The /stats overview embed (same grouping as the web stats page)."""
     type_labels = {1: "Companions", 2: "Repeaters", 3: "Room servers", 4: "Sensors"}
-    type_icons = {1: "📱", 2: "📡", 3: "💾", 4: "🌡️"}
     total_nodes = stats_data.get("total_nodes", 0)
     total_cities = stats_data.get("total_cities", 0)
     total_users = stats_data.get("registered_users", 0)
     by_type = stats_data.get("by_type", {})
 
-    # --- Embed 1: Summary (same grouping as web stats page: Network, Activity, Frequency presets, Claimed, Top cities) ---
-    stats_title = ":flag_be::meshcore: #BEMesh MeshCore statistics :bar_chart:"
-    guild = getattr(interaction, 'guild', None)
-    stats_title = resolve_custom_emojis_in_text(stats_title, guild)
+    stats_title = " ".join(resolve_custom_emojis_in_text(
+        f"🇧🇪 :meshcore: {BEMESH} MeshCore statistics 📊", guild
+    ).split())
     embed1 = branded_embed(
         title=stats_title,
-        description="Overview of the Belgian MeshCore network statistics, from [#BEMesh Map](https://meshmap.radio-actief.be).",
-        color=discord.Color.blue()
+        description=f"Overview of the Belgian MeshCore network, from the [{BEMESH} map]({get_map_base_url()}).",
+        color=COLOR_INFO,
     )
     # Row 1: network size (nodes)
-    embed1.add_field(
-        name="\u200b",
-        value=f"**{total_nodes}** Nodes",
-        inline=False
-    )
+    embed1.add_field(name="​", value=f"**{total_nodes}** Nodes", inline=False)
     # Row 2: Network, Activity, Claimed (3 columns)
     network_lines = []
     for t in [1, 2, 3, 4]:
@@ -886,30 +1058,24 @@ async def stats(interaction: discord.Interaction):
     embed1.add_field(name="Claimed", value="\n".join(claimed_lines), inline=True)
 
     # Row 3: cities count
-    embed1.add_field(
-        name="\u200b",
-        value=f"Across **{total_cities}** cities",
-        inline=False
-    )
+    embed1.add_field(name="​", value=f"Across **{total_cities}** cities", inline=False)
 
-    # Row 4: Top cities (overall), Top cities (repeaters), Top cities (companions) (3 columns)
-    top_overall = stats_data.get("top_cities", [])[:10]
-    top_repeaters = stats_data.get("top_cities_repeaters", [])[:10]
-    top_companions = stats_data.get("top_cities_companions", [])[:10]
-    overall_lines = [f"{c['city']}: **{c['count']}**" for c in top_overall] if top_overall else ["—"]
-    repeater_lines = [f"{c['city']}: **{c['count']}**" for c in top_repeaters] if top_repeaters else ["—"]
-    companion_lines = [f"{c['city']}: **{c['count']}**" for c in top_companions] if top_companions else ["—"]
-    embed1.add_field(name="Top cities", value="\n".join(overall_lines), inline=True)
-    embed1.add_field(name="Top cities (repeaters only)", value="\n".join(repeater_lines), inline=True)
-    embed1.add_field(name="Top cities (companions only)", value="\n".join(companion_lines), inline=True)
+    # Row 4: Top cities (overall, repeaters, companions)
+    def city_lines(rows):
+        return "\n".join(f"{c['city']}: **{c['count']}**" for c in rows[:10]) if rows else "—"
+
+    embed1.add_field(name="Top cities", value=city_lines(stats_data.get("top_cities", [])), inline=True)
+    embed1.add_field(name="Top cities (repeaters only)", value=city_lines(stats_data.get("top_cities_repeaters", [])), inline=True)
+    embed1.add_field(name="Top cities (companions only)", value=city_lines(stats_data.get("top_cities_companions", [])), inline=True)
 
     # Row 5: Frequency presets, Source (2 columns)
     preset_counts = stats_data.get("frequency_presets", {})
     custom_count = stats_data.get("custom_frequency", 0)
     unknown_count = stats_data.get("unknown_frequency", 0)
-    freq_lines = []
-    for preset_name, count in sorted(preset_counts.items(), key=lambda x: x[1], reverse=True):
-        freq_lines.append(f"{preset_name}: **{count}**")
+    freq_lines = [
+        f"{preset_name}: **{count}**"
+        for preset_name, count in sorted(preset_counts.items(), key=lambda x: x[1], reverse=True)
+    ]
     if custom_count > 0:
         freq_lines.append(f"Custom settings: **{custom_count}**")
     if unknown_count > 0:
@@ -918,13 +1084,12 @@ async def stats(interaction: discord.Interaction):
 
     by_source = source_stats.get("by_source", {})
     total_src = source_stats.get("total", 0)
-    merged = {}
+    merged: Dict[str, int] = {}
     for s, cnt in by_source.items():
         key = s.lower() if s else ""
         if key == "web":
-            merged["app"] = merged.get("app", 0) + cnt
-        else:
-            merged[key] = merged.get(key, 0) + cnt
+            key = "app"
+        merged[key] = merged.get(key, 0) + cnt
     if merged and total_src > 0:
         source_labels = {"app": "App", "uploader": "Uploader", "unknown": "Unknown"}
         src_lines = [
@@ -935,16 +1100,30 @@ async def stats(interaction: discord.Interaction):
         source_value = "\n".join(src_lines)
     else:
         source_value = "No data."
-    embed1.add_field(name="Source type", value=source_value, inline=True)
+    embed1.add_field(name="Source type **", value=source_value, inline=True)
 
     notes_value = (
-        "_\\* Most recent of: inserted\\_date, updated\\_date, last\\_advert_\n"
-        "_\\*\\* Uploader = nodes reported by companions running [uploader software](https://github.com/recrof/map.meshcore.io-uploader); unreported nodes may be removed after 30 days inactivity._\n\n"
-        "Full statistics online: [meshmap.radio-actief.be/stats](https://meshmap.radio-actief.be/stats)"
+        "_\\* Nodes seen or changed in that period._\n"
+        "_\\*\\* Uploader = nodes reported by companions running [uploader software](https://github.com/recrof/map.meshcore.io-uploader); unreported nodes may be removed after 30 days inactivity._"
     )
-    embed1.add_field(name="\u200b", value=notes_value, inline=False)
+    embed1.add_field(name="​", value=notes_value, inline=False)
     embed1.set_footer(text="Made by the Radio-Actief.be community")
-    await interaction.response.send_message(embed=embed1)
+    return embed1
+
+
+def load_stats() -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    return get_statistics(), get_source_statistics()
+
+
+@bot.tree.command(name="stats", description="Show Belgian MeshCore node statistics (overview, cities, frequencies, source)")
+@app_commands.guild_only()
+async def stats(interaction: discord.Interaction):
+    """Display merged statistics in a single overview embed."""
+    await interaction.response.defer(thinking=True)
+    stats_data, source_stats = await run_db(load_stats)
+    embed = build_stats_embed(stats_data, source_stats, getattr(interaction, 'guild', None))
+    view = LinksView((("Open map", get_map_base_url()), ("Full statistics", get_stats_url())))
+    await interaction.followup.send(embed=embed, view=view)
 
 
 from backend.daily_digest import post_daily_digest
@@ -968,7 +1147,6 @@ async def daily_digest_loop() -> None:
         await post_daily_digest(bot)
     except Exception as e:
         print(f"[daily_digest_loop] error: {e}")
-        import traceback
         traceback.print_exc()
 
 
@@ -991,10 +1169,12 @@ async def _catch_up_missed_digest() -> None:
         print(f"[daily_digest] catch-up error: {e}")
 
 
-# Digest slash command group — admin-only
+# Digest slash command group: hidden for members without Manage Server.
 digest_group = app_commands.Group(
     name="digest",
     description="Daily map digest controls (admin only)",
+    guild_only=True,
+    default_permissions=discord.Permissions(manage_guild=True),
 )
 
 
@@ -1010,16 +1190,13 @@ def _is_guild_admin(interaction: discord.Interaction) -> bool:
 async def digest_run(interaction: discord.Interaction) -> None:
     if not _is_guild_admin(interaction):
         await interaction.response.send_message(
-            "You need server administrator permissions to run this command.",
+            "You need the Manage Server permission to run this command.",
             ephemeral=True,
         )
         return
     await interaction.response.defer(ephemeral=True, thinking=True)
-    try:
-        sent = await post_daily_digest(bot, force=True)
-    except Exception as e:
-        await interaction.followup.send(f"Digest failed: {e}", ephemeral=True)
-        return
+    # Errors go to the command error handler (logged, short answer).
+    sent = await post_daily_digest(bot, force=True)
     if sent:
         await interaction.followup.send("Daily digest posted.", ephemeral=True)
     else:
@@ -1059,16 +1236,15 @@ async def on_ready():
     """Called when the bot is ready and connected to Discord."""
     print(f"Bot logged in as {bot.user} (ID: {bot.user.id})")
     print(f"Connected to {len(bot.guilds)} guild(s)")
-    
+
     # Ensure database is initialized
     print("Initializing database...")
     init_database()
     print("Database ready.\n")
-    
+
     # Wait a moment for Discord to fully register the bot
-    import asyncio
     await asyncio.sleep(2)
-    
+
     # Verify commands are registered BEFORE sync
     print(f"\n[PRE-SYNC] Commands in bot.tree:")
     pre_sync_commands = list(bot.tree.get_commands())
@@ -1080,19 +1256,19 @@ async def on_ready():
                 print(f"    - /{cmd.name} {subcmd.name}")
         else:
             print(f"  - /{cmd.name}")
-    
+
     if len(pre_sync_commands) == 0:
         print("  ⚠️ ERROR: No commands found in bot.tree before sync!")
         print("  Commands may not be registered properly.")
         return
-    
+
     # Sync commands globally (works reliably, may take up to 1 hour to propagate)
     print(f"\n[SYNC] Syncing commands globally...")
-    
+
     try:
         synced = await bot.tree.sync()
         print(f"✅ Synced {len(synced)} command(s) globally")
-        
+
         if len(synced) == 0:
             print("  ⚠️  WARNING: Sync returned 0 commands!")
             print("  This might indicate:")
@@ -1110,7 +1286,7 @@ async def on_ready():
                     print(f"    - {cmd}")
             print("\n  ✅ Commands synced! They may take up to 1 hour to appear in all servers.")
             print("  Usually they appear within a few minutes. Try typing '/' in a channel.")
-                        
+
     except discord.HTTPException as e:
         print(f"  ❌ HTTP Error during sync: {e}")
         print(f"  Status: {e.status}, Code: {e.code}")
@@ -1121,13 +1297,11 @@ async def on_ready():
             print("  Permission denied! Bot may need 'applications.commands' scope.")
             print("  Re-invite the bot with: &scope=bot%20applications.commands")
         else:
-            import traceback
             traceback.print_exc()
     except Exception as e:
         print(f"  ❌ Error during sync: {e}")
-        import traceback
         traceback.print_exc()
-    
+
     # Update bot instructions post
     await update_bot_instructions_post()
 
@@ -1154,14 +1328,6 @@ async def on_ready():
     print("\n✅ Bot is ready!")
 
 
-@bot.event
-async def on_command_error(ctx, error):
-    """Handle command errors."""
-    if isinstance(error, commands.CommandNotFound):
-        return  # Ignore unknown commands
-    print(f"Command error: {error}")
-
-
 # ============================================================================
 # Main Entry Point
 # ============================================================================
@@ -1171,7 +1337,7 @@ def main():
     if not DISCORD_BOT_TOKEN:
         print("Error: DISCORD_BOT_TOKEN not set in environment variables")
         sys.exit(1)
-    
+
     print("Starting Discord bot...")
     try:
         bot.run(DISCORD_BOT_TOKEN)
@@ -1185,4 +1351,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

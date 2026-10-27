@@ -1,32 +1,30 @@
 # :radioactief: Radio-Actieve Bot
-## :meshcore: :flag_be: MeshCore Node Beheer
+## :meshcore: 🇧🇪 MeshCore Node Beheer
 Welkom bij de **Radio-Actieve Bot** instructies!
 Deze gids behandelt specifiek het **MeshCore** gedeelte van de bot.
 
 De bot helpt je met het beheren van je MeshCore netwerk nodes en moedigt contact aan met andere gebruikers in de Belgische community.
 
-Nodes worden via de MeshCore app toegevoegd aan de officiële map. Wij synchroniseren die officiële map meermaals per dag naar onze eigen [🇧🇪 **BEMesh Map**](https://meshmap.radio-actief.be).
+Nodes worden via de MeshCore app toegevoegd aan de officiële map. Wij synchroniseren die officiële map meermaals per dag naar onze eigen [🇧🇪 **#BEmesh map**]({MAP_URL}). Naam, locatie en radio-instellingen van een node komen van die officiële map: pas ze aan in de MeshCore app. Vragen? Zie "**_🆘 Hulp_**" onderaan.
 
-Als je node op de officiële map staat, kunnen aanpassingen die je via de bot doet (bv. stad) bij een volgende sync worden overschreven. We zoeken een balans voor de meest accurate info. Vragen? Zie "**_:sos: Hulp_**" onderaan.
+### 🚀 Aan de slag
+Is jouw node al op de officiële map (via de app)? Dan kan je die hier aan jouw Discord account koppelen met **`/node claim`**: begin de naam of public key te typen en kies je node uit de lijst.
+Gebruik je de bot liever niet? Claimen kan ook op de [**#BEmesh map**]({MAP_URL}).
 
-### :rocket: Aan de slag
-Is jouw node al op de officiële map (via de app)? Dan kan je die hier aan jouw Discord account koppelen met **`/node claim`**.
-Gebruik je de bot liever niet? Gebruik dan [**BEMesh Map**](https://meshmap.radio-actief.be).
+### 📋 Je nodes beheren
+- **`/mynodes`** - Bekijk al je nodes, actief en inactief
+- **`/node claim`** - Claim een node die nog geen eigenaar heeft
+- **`/node unclaim`** - Geef een van je nodes vrij (de lijst toont alleen jouw nodes)
 
-### :clipboard: Je Nodes Beheren
-- **`/mynodes`** - Bekijk al je nodes
-- **`/node claim`** - Claim een onbeheerde node
-- **`/node unclaim`** - Geef je node vrij
+### 🔍 Zoeken
+- **`/search`** - Zoek op naam, public key of eigenaar, en filter op type, stad, frequentiepreset, eigenaar, claimstatus, inactief of bron. Minstens één criterium invullen.
 
-### :mag: Zoeken
-- **`/search`** - Zoek op naam, public key, type, stad, frequentiepreset, eigenaar, claimstatus, inactief of bron. Minstens één criterium invullen.
+### 📊 Statistieken
+- **`/stats`** - Eén overzicht: nodes per type, activiteit, claims, top 10 steden, frequentiepresets en bron
 
-### :bar_chart: Statistieken
-- **`/stats`** - Eén overzicht met: algemene cijfers (nodes, types, presets, steden, activiteit), alle steden met aantallen, frequentie per type, en verdeling per bron
-
-### :bulb: Tips
+### 💡 Tips
 - **Node types**: 📱 Companion | 📡 Repeater | 💾 Room Server | 🌡️ Sensor
-- **Zichtbaarheid**: Alleen jij ziet je node-overzicht en foutmeldingen. Geslaagde acties (claimen, unclaimen) verschijnen in het kanaal, zichtbaar voor iedereen. Wijzig node-details via de [BEMesh Map](https://meshmap.radio-actief.be).
+- **Zichtbaarheid**: Alleen jij ziet je node-overzicht, foutmeldingen en de vraag of je een node echt wil vrijgeven. Zoekresultaten, statistieken en geslaagde acties (claimen, unclaimen) verschijnen in het kanaal, zichtbaar voor iedereen.
 
-### :sos: Hulp
+### 🆘 Hulp
 Voor vragen of problemen, stuur een bericht in <#1454797139959091412> en tag <@322808063197184011>.

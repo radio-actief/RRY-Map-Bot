@@ -598,9 +598,8 @@ The Discord bot can automatically update its own instructions post in a Discord 
 - `STARTUP_MESSAGE_ID` (optional): Message ID of existing post to update
 
 **Behavior**:
-1. **Neither defined**: Bot does nothing (no message updates)
-2. **Only `STARTUP_CHANNEL_ID` defined**: Bot posts a placeholder message "PLACEHOLDER FOR BOT"
-3. **Both defined**: Bot edits the existing message with content from `DISCORDBOT_INSTRUCTIONS.md`
+1. **No `STARTUP_CHANNEL_ID`**: Bot does nothing (no message updates)
+2. **`STARTUP_CHANNEL_ID` set**: Bot edits its instructions post with content from `DISCORDBOT_INSTRUCTIONS.md`. It finds the post by `STARTUP_MESSAGE_ID`, else by the id it stored in `sync_state`, else as its own pinned or recent instructions post. Only when none exists does it post a new one (and store its id), so restarts never add copies.
 
 **Implementation**:
 - Runs on bot startup (`on_ready` event)

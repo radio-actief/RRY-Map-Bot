@@ -79,22 +79,6 @@ NODE_TYPE_NAMES = {
     4: "Sensors",
 }
 
-# Display order everywhere: repeaters, room servers, companions, sensors.
-NODE_TYPE_ORDER = {2: 0, 3: 1, 1: 2, 4: 3}
-
-
-def _type_rank(t: int) -> int:
-    return NODE_TYPE_ORDER.get(t, len(NODE_TYPE_ORDER))
-
-
-def type_counts_line(counts: Dict[int, int]) -> str:
-    """``📡 Repeaters 22 · 💾 Room Servers 1``: zero counts left out, fixed type order."""
-    return " · ".join(
-        f"{NODE_TYPE_ICONS.get(t, '•')} {NODE_TYPE_NAMES.get(t, f'Type {t}')} {c}"
-        for t, c in sorted(counts.items(), key=lambda kv: (_type_rank(kv[0]), kv[0]))
-        if c
-    )
-
 
 # ---------------------------------------------------------------------------
 # Time helpers
@@ -298,7 +282,7 @@ def _node_lines(nodes: List[Dict[str, Any]], *, link: bool) -> List[str]:
     """Digest lines sorted by node type, then name."""
     ordered = sorted(
         nodes,
-        key=lambda n: (_type_rank(int(n.get('type') or 0)), str(n.get('adv_name') or '').casefold()),
+        key=lambda n: (int(n.get('type') or 0), str(n.get('adv_name') or '').casefold()),
     )
     return [format_digest_node_line(n, link=link) for n in ordered]
 
@@ -313,14 +297,11 @@ LIST_MAX_LINES = 10
 
 
 def render_section(
-    nodes: List[Dict[str, Any]], total: int, *, link: bool = True, totals_types: str = "",
+    nodes: List[Dict[str, Any]], total: int, *, link: bool = True,
 ) -> str:
-    """One field value: up to 10 whole lines, or counts by type and province for a bulk section.
-
-    ``totals_types`` is the Map totals type line; a bulk type line equal to it is left out.
-    """
+    """One field value: up to 10 whole lines, or counts by type and province for a bulk section."""
     if total >= BULK_MIN_NODES:
-        return _bulk_summary(nodes, totals_types)
+        return _bulk_summary(nodes)
     lines = _node_lines(nodes, link=link)[:LIST_MAX_LINES]
     limit = FIELD_MAX_CHARS
     if total > len(lines):
@@ -328,8 +309,8 @@ def render_section(
     return fill_field_lines(lines, total, limit)
 
 
-def _bulk_summary(nodes: List[Dict[str, Any]], totals_types: str = "") -> str:
-    """``📡 Repeaters 672 · 📱 Companions 168`` and ``Most in: Antwerpen 150 · …`` plus a pointer to the stats page."""
+def _bulk_summary(nodes: List[Dict[str, Any]]) -> str:
+    """``📡 672 · 📱 168`` and ``Most in: Antwerpen 150 · …`` plus a pointer to the stats page."""
     by_type: Dict[int, int] = {}
     by_province: Dict[str, int] = {}
     towns = _province_by_town()
@@ -341,9 +322,9 @@ def _bulk_summary(nodes: List[Dict[str, Any]], totals_types: str = "") -> str:
             name = PROVINCE_NAMES.get(code, code)
             by_province[name] = by_province.get(name, 0) + 1
     out: List[str] = []
-    types = type_counts_line(by_type)
-    if types and types != totals_types:
-        out.append(types)
+    types = sorted(by_type.items(), key=lambda kv: (-kv[1], kv[0]))
+    if types:
+        out.append(" · ".join(f"{NODE_TYPE_ICONS.get(t, '•')} {c}" for t, c in types))
     top = sorted(by_province.items(), key=lambda kv: (-kv[1], kv[0]))[:5]
     if top:
         out.append("Most in: " + " · ".join(f"{name} {c}" for name, c in top))
@@ -392,34 +373,21 @@ def build_digest_embed(
     empty = added_count + restored_count + removed_count == 0
     embed = discord.Embed(
         title="📅 Daily Map Digest",
-        description=_description(period_start, period_end, empty, added_count, restored_count, removed_count),
+        description=_description(period_start, period_end, empty),
         color=discord.Color.blue(),
     )
 
-    lists = [
-        (title, nodes, count, link)
-        for title, nodes, count, link in (
-            ("✅ New Nodes", added_nodes, added_count, True),
-            ("🔄 Restored Nodes", restored_nodes, restored_count, True),
-            ("❌ Deleted Nodes", removed_nodes, removed_count, False),
+    changes = [
+        f"{label}: **{count}**"
+        for label, count in (
+            ("✅ New", added_count),
+            ("🔄 Restored", restored_count),
+            ("❌ Deleted", removed_count),
         )
         if count > 0
     ]
-    totals_types = type_counts_line(stats.get('by_type') or {})
-    for title, nodes, count, link in lists:
-        embed.add_field(
-            name=f"{title} ({count})",
-            value=render_section(nodes or [], count, link=link, totals_types=totals_types),
-            inline=False,
-        )
-    if held_back and held_back.get('held_count'):
-        n = int(held_back['held_count'])
-        status = "waiting for confirmation" if held_back.get('still_held') else "released later"
-        embed.add_field(
-            name="⚠️ Sync",
-            value=f"Removals held back: {n} node{'s' if n != 1 else ''} — {status}",
-            inline=False,
-        )
+    if changes:
+        embed.add_field(name="📝 Changes", value=" · ".join(changes), inline=False)
 
     total = int(stats.get('total_nodes', 0) or 0)
     net_part = ""
@@ -435,36 +403,56 @@ def build_digest_embed(
             f"Claimed: {stats.get('claimed_nodes', 0)} · Registered users: "
             f"{stats.get('registered_users', 0)} · Cities: {stats.get('total_cities', 0)}"
         )
-    by_type = type_counts_line(stats.get('by_type') or {})
+    by_type = [
+        f"{NODE_TYPE_ICONS.get(t, '•')} {NODE_TYPE_NAMES.get(t, f'Type {t}')} {c}"
+        for t, c in sorted((stats.get('by_type') or {}).items())
+        if c
+    ]
     if by_type:
-        totals.append(by_type)
+        totals.append(" · ".join(by_type))
     embed.add_field(name="📊 Map totals", value="\n".join(totals), inline=False)
+
+    if held_back and held_back.get('held_count'):
+        n = int(held_back['held_count'])
+        status = "waiting for confirmation" if held_back.get('still_held') else "released later"
+        embed.add_field(
+            name="⚠️ Sync",
+            value=f"Removals held back: {n} node{'s' if n != 1 else ''} — {status}",
+            inline=False,
+        )
 
     if next_digest_label is None:
         next_digest_label = _next_digest_label(period_end)
     embed.set_footer(text=f"Next digest: {next_digest_label}")
     apply_brand_to_embed(embed)
 
+    lists = [
+        (title, nodes, count, link)
+        for title, nodes, count, link in (
+            ("✅ New Nodes", added_nodes, added_count, True),
+            ("🔄 Restored Nodes", restored_nodes, restored_count, True),
+            ("❌ Deleted Nodes", removed_nodes, removed_count, False),
+        )
+        if count > 0
+    ]
+    for title, nodes, count, link in lists:
+        embed.add_field(
+            name=f"{title} ({count})",
+            value=render_section(nodes or [], count, link=link),
+            inline=False,
+        )
     return embed
 
 
-def _description(
-    start_utc: datetime, end_utc: datetime, empty: bool,
-    added: int = 0, restored: int = 0, removed: int = 0,
-) -> str:
-    text = f"Daily activity on the [#BEmesh Map]({MAP_BASE_URL.rstrip('/')})"
+def _description(start_utc: datetime, end_utc: datetime, empty: bool) -> str:
+    text = f"Daily activity on the [#BEMesh Map]({MAP_BASE_URL.rstrip('/')})"
     if empty:
         return text + "\n**No changes since the last digest**"
-    if start_utc != end_utc:
-        text += f"\n**{format_window(start_utc, end_utc)}**"
-    counts = " · ".join(
-        f"{label} {count} {word}"
-        for label, count, word in (
-            ("✅", added, "new"), ("🔄", restored, "restored"), ("❌", removed, "deleted"),
-        )
-        if count > 0
-    )
-    return f"{text}\n{counts}" if counts else text
+    window = format_window(start_utc, end_utc)
+    left, _, right = window.partition(" → ")
+    if left == right:
+        return text
+    return f"{text}\n**{window}**"
 
 
 def _signed(n: int) -> str:
@@ -480,27 +468,17 @@ def _since_label(start_utc: datetime, end_utc: datetime) -> str:
     if end_utc - start_utc <= timedelta(hours=30):
         return "since yesterday"
     start_local = start_utc.astimezone(ZoneInfo(DAILY_DIGEST_TZ))
-    return f"since {_window_side(start_local)[:10]}"
-
-
-_WEEKDAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
-_MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
-
-
-def _window_side(dt: datetime) -> str:
-    return f"{_WEEKDAYS[dt.weekday()]} {dt.day:02d} {_MONTHS[dt.month - 1]} {dt:%H:%M}"
+    return f"since {start_local.strftime('%a %d %b')}"
 
 
 def format_window(start_utc: datetime, end_utc: datetime) -> str:
-    """``Mon 26 Oct 23:00 → Tue 27 Oct 09:08 CET``; each side keeps its own zone when they differ."""
+    """``2026-10-24 09:00 CEST → 2026-10-25 09:00 CET``: each side its own zone."""
     tz = ZoneInfo(DAILY_DIGEST_TZ)
     start_local = start_utc.astimezone(tz)
     end_local = end_utc.astimezone(tz)
-    if start_local.tzname() == end_local.tzname():
-        return f"{_window_side(start_local)} → {_window_side(end_local)} {end_local.tzname()}"
     return (
-        f"{_window_side(start_local)} {start_local.tzname()} → "
-        f"{_window_side(end_local)} {end_local.tzname()}"
+        f"{start_local.strftime('%Y-%m-%d %H:%M')} {start_local.tzname()} → "
+        f"{end_local.strftime('%Y-%m-%d %H:%M')} {end_local.tzname()}"
     )
 
 
@@ -515,7 +493,7 @@ def _next_digest_label(now_utc: datetime) -> str:
     )
     if target <= now_local:
         target += timedelta(days=1)
-    return f"{_window_side(target)} {target.tzname()}"
+    return f"{target.strftime('%Y-%m-%d %H:%M')} {target.tzname()}"
 
 
 # ---------------------------------------------------------------------------

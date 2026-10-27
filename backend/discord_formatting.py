@@ -204,12 +204,13 @@ def _province_by_town() -> Dict[str, str]:
 
 
 def format_node_town(node: Dict[str, Any]) -> str:
-    """``Leuven``; the province name when the town is unknown but the province is; else empty."""
+    """``Leuven (VBR)``; empty when the town is unknown."""
     city = (node.get('city') or '').strip()
     if not city or city == 'Unknown':
-        code = str(node.get('province_code') or '').split("-")[-1].upper()
-        return PROVINCE_NAMES.get(code, "")
-    return escape_node_name(city)
+        return ""
+    town = escape_node_name(city)
+    code = _province_by_town().get(city)
+    return f"{town} ({code})" if code else town
 
 
 def format_digest_node_line(node: Dict[str, Any], *, link: bool = True) -> str:

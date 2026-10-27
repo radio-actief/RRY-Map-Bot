@@ -341,7 +341,7 @@ class TestBuildDigestEmbed(unittest.TestCase):
         )
 
         field_names = [f.name for f in embed.fields]
-        self.assertFalse(any("Changes" in n for n in field_names), field_names)
+        self.assertTrue(any("Changes" in n for n in field_names), field_names)
         self.assertTrue(any("Map totals" in n for n in field_names), field_names)
         self.assertTrue(any("New Nodes" in n for n in field_names), field_names)
         self.assertTrue(any("Deleted Nodes" in n for n in field_names), field_names)
@@ -387,13 +387,12 @@ def test_node_name_escapes_markdown_and_mentions() -> None:
     assert escape_node_name("a\\[x") == "a\\\\\\[x"
 
 
-def test_digest_line_has_icon_linked_name_town_owner_and_no_province_code() -> None:
+def test_digest_line_has_icon_linked_name_town_province_owner() -> None:
     node = _node(1, adv_name="BE-LEU-RRY184", discord_owner_id="301234567890123456")
     line = format_digest_node_line(node)
     assert line.startswith("📡 ")
     assert f"[BE-LEU-RRY184]({get_map_link(node, short=True)})" in line
-    assert "· Leuven ·" in line
-    assert "(VBR)" not in line
+    assert "Leuven (VBR)" in line
     assert line.endswith("<@301234567890123456>")
     assert "\n" not in line
 
@@ -452,7 +451,7 @@ def test_render_node_list_sorts_by_type_then_name() -> None:
     ]
     value = render_node_list(nodes, total=4)
     order = [ln.split("[", 1)[1].split("]", 1)[0] for ln in value.split("\n")]
-    assert order == ["alpha", "zulu", "Bravo", "Mike"]
+    assert order == ["Mike", "alpha", "zulu", "Bravo"]
 
 
 def test_23_deleted_nodes_show_ten_lines_and_a_more_note() -> None:
@@ -511,7 +510,7 @@ def test_879_new_nodes_become_counts_by_type_and_top_provinces() -> None:
     fields = [f for f in embed.fields if "New Nodes" in f.name]
     assert [f.name for f in fields] == ["✅ New Nodes (879)"]
     value = fields[0].value
-    assert value.startswith("📡 Repeaters 672 · 💾 Room Servers 38 · 📱 Companions 168 · 🌡️ Sensors 1\n")
+    assert value.startswith("📡 672 · 📱 168 · 💾 38 · 🌡️ 1\n")
     assert "Most in: " in value and value.count(" · ") >= 3 + 4
     most = value.split("Most in: ")[1].split("\n")[0]
     assert len(most.split(" · ")) == 5
@@ -738,7 +737,7 @@ def test_window_line_shows_each_sides_own_time_zone() -> None:
     end = datetime(2026, 10, 25, 8, 0, tzinfo=timezone.utc)
     agg = {"added": ["a" * 64], "removed": [], "restored": [], "updated_count": 0}
     embed = build_digest_embed(agg, start, end, {"total_nodes": 1}, added_nodes=[_node(1)])
-    assert "Sat 24 Oct 09:00 CEST → Sun 25 Oct 09:00 CET" in embed.description
+    assert "2026-10-24 09:00 CEST → 2026-10-25 09:00 CET" in embed.description
     assert "24 h" not in str(embed.to_dict())
 
 
@@ -779,7 +778,7 @@ def test_missed_digest_is_caught_up_once_covering_the_whole_gap(digest_env) -> N
     assert len(bot.channel.sent) == 1
     embed = bot.channel.sent[0]
     assert all(f"Gap{i}" in _all_keys(embed) for i in range(3))
-    assert embed.description.count("Sun 08 Nov 09:00") == 1
+    assert embed.description.count("2026-11-08 09:00 CET") == 1
 
 
 def test_missed_digest_catch_up_runs_once_even_when_started_twice(digest_env) -> None:
@@ -990,109 +989,6 @@ def test_first_digest_post_has_no_since_yesterday(digest_env) -> None:
     assert _post(bot, d1)
     assert "since" not in _text(bot.channel.sent[-1])
 
-
-def test_description_has_link_window_and_counts_and_no_changes_field() -> None:
-    embed = build_digest_embed(_agg(5, 18, 2), _START, _END, _STATS, previous_total=894)
-    lines = embed.description.split("\n")
-    assert lines[0].startswith("Daily activity on the [#BEmesh Map](")
-    assert lines[1].startswith("**") and "→" in lines[1]
-    assert lines[2] == "✅ 5 new · 🔄 2 restored · ❌ 18 deleted"
-    assert len(lines) == 3
-    assert not any("Changes" in f.name for f in embed.fields)
-
-
-def test_description_counts_leave_out_zero_parts() -> None:
-    embed = build_digest_embed(_agg(12, 1, 0), _START, _END, _STATS)
-    assert embed.description.split("\n")[2] == "✅ 12 new · ❌ 1 deleted"
-
-
-def test_empty_forced_run_has_no_counts_line() -> None:
-    embed = build_digest_embed(_agg(), _START, _END, _STATS)
-    assert embed.description.split("\n") == [
-        embed.description.split("\n")[0], "**No changes since the last digest**",
-    ]
-
-
-def test_field_order_sections_then_sync_then_totals_last() -> None:
-    nodes = [_node(1)]
-    agg = {"added": ["a" * 64], "restored": ["b" * 64], "removed": ["c" * 64], "updated_count": 0}
-    embed = build_digest_embed(
-        agg, _START, _END, _STATS, added_nodes=nodes, restored_nodes=nodes, removed_nodes=nodes,
-        held_back={"held_count": 2, "still_held": True},
-    )
-    names = [f.name for f in embed.fields]
-    assert names[0].startswith("✅ New") and names[1].startswith("🔄 Restored")
-    assert names[2].startswith("❌ Deleted") and names[3].startswith("⚠️ Sync")
-    assert names[4].startswith("📊 Map totals") and len(names) == 5
-
-
-def test_nodes_are_ordered_repeaters_room_servers_companions_sensors() -> None:
-    nodes = [
-        _node(1, type=4, adv_name="S"), _node(2, type=1, adv_name="C"),
-        _node(3, type=3, adv_name="R"), _node(4, type=2, adv_name="P"),
-    ]
-    lines = render_node_list(nodes, 4).split("\n")
-    assert [ln[:1] for ln in lines] == ["📡", "💾", "📱", "🌡"]
-
-
-def test_type_counts_use_words_same_order_in_totals_and_leave_out_zero() -> None:
-    stats = {**_STATS, "by_type": {1: 7, 2: 22, 3: 1, 4: 0}}
-    embed = build_digest_embed(_agg(1), _START, _END, stats)
-    totals = [f for f in embed.fields if "Map totals" in f.name][0].value
-    assert "📡 Repeaters 22 · 💾 Room Servers 1 · 📱 Companions 7" in totals
-    assert "Sensors" not in totals
-
-
-def test_unknown_town_falls_back_to_province_name_only() -> None:
-    line = format_digest_node_line(_node(1, city="Unknown", province_code="be-vov"))
-    assert "Oost-Vlaanderen" in line and "VOV" not in line
-    known = format_digest_node_line(_node(1, province_code="be-vov"))
-    assert "Oost-Vlaanderen" not in known
-
-
-def test_window_line_formats() -> None:
-    f = dd.format_window
-    # shared zone: one zone at the end
-    assert f(datetime(2026, 10, 26, 22, 0, tzinfo=timezone.utc),
-             datetime(2026, 10, 27, 8, 8, tzinfo=timezone.utc)) == "Mon 26 Oct 23:00 → Tue 27 Oct 09:08 CET"
-    # DST change: each side its own zone
-    assert f(datetime(2026, 10, 25, 7, 0, tzinfo=timezone.utc),
-             datetime(2026, 10, 26, 8, 0, tzinfo=timezone.utc)) == "Sun 25 Oct 08:00 → Mon 26 Oct 09:00 CET"
-    assert f(datetime(2026, 10, 24, 7, 0, tzinfo=timezone.utc),
-             datetime(2026, 10, 25, 8, 0, tzinfo=timezone.utc)) == "Sat 24 Oct 09:00 CEST → Sun 25 Oct 09:00 CET"
-    # same-day window still shows both dates
-    assert f(datetime(2026, 11, 10, 8, 0, tzinfo=timezone.utc),
-             datetime(2026, 11, 10, 12, 0, tzinfo=timezone.utc)) == "Tue 10 Nov 09:00 → Tue 10 Nov 13:00 CET"
-
-
-def test_brand_is_spelled_bemesh_in_backend_discord_text() -> None:
-    import pathlib
-    for path in pathlib.Path(dd.__file__).parent.glob("*.py"):
-        assert "#BEMesh" not in path.read_text(encoding="utf-8"), path.name
-        assert "[BEMesh Map]" not in path.read_text(encoding="utf-8"), path.name
-
-
-
-def test_footer_uses_the_window_date_style() -> None:
-    end = datetime(2026, 10, 27, 8, 0, tzinfo=timezone.utc)  # Tue 27 Oct 09:00 CET
-    embed = build_digest_embed({"added": [], "removed": [], "restored": []}, end - timedelta(hours=24), end,
-                               {"total_nodes": 1})
-    assert embed.footer.text == "Next digest: Wed 28 Oct 09:00 CET"
-
-
-def test_bulk_section_leaves_out_a_type_line_equal_to_the_totals() -> None:
-    end = datetime(2026, 10, 27, 8, 0, tzinfo=timezone.utc)
-    nodes = [_node(i, type=2) for i in range(30)]
-    stats = {"total_nodes": 30, "by_type": {2: 30}}
-    agg = {"added": [n["public_key"] for n in nodes], "removed": [], "restored": []}
-    embed = build_digest_embed(agg, end - timedelta(hours=24), end, stats, added_nodes=nodes)
-    new = next(f for f in embed.fields if "New Nodes" in f.name)
-    assert "Repeaters 30" not in new.value, "same as the Map totals line"
-    assert "Repeaters 30" in next(f for f in embed.fields if "Map totals" in f.name).value
-    stats_more = {"total_nodes": 40, "by_type": {2: 35, 1: 5}}
-    embed = build_digest_embed(agg, end - timedelta(hours=24), end, stats_more, added_nodes=nodes)
-    new = next(f for f in embed.fields if "New Nodes" in f.name)
-    assert "Repeaters 30" in new.value, "kept when it differs from the totals"
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -50,7 +50,10 @@ except (ImportError, ModuleNotFoundError):  # pragma: no cover - defensive fallb
 from backend.database import get_connection
 from backend.datetime_utils import format_utc_iso, parse_utc
 from backend.discord_branding import apply_brand_to_embed
-from backend.discord_formatting import format_node_compact
+from backend.discord_formatting import MAP_BASE_URL, format_digest_node_line
+
+FIELD_LINES_MAX_CHARS = 950
+STATS_PAGE_URL = f"{MAP_BASE_URL.rstrip('/')}/stats"
 
 
 NODE_TYPE_NAMES = {
@@ -234,6 +237,40 @@ def _get_node_details_by_keys(public_keys: List[str], conn) -> List[Dict[str, An
 
 
 # ---------------------------------------------------------------------------
+# Node lists
+# ---------------------------------------------------------------------------
+
+
+def fill_field_lines(lines: List[str], total: int, limit: int = FIELD_LINES_MAX_CHARS) -> str:
+    """Join whole lines up to ``limit`` characters, then say how many are left.
+
+    Lines are never cut, so a mention, link or escape is never broken. ``total``
+    is the full count for the list (it may be larger than ``len(lines)``).
+    """
+    shown: List[str] = []
+    used = 0
+    for line in lines:
+        extra = len(line) + (1 if shown else 0)
+        if used + extra > limit:
+            break
+        shown.append(line)
+        used += extra
+    rest = max(total, len(lines)) - len(shown)
+    if rest > 0:
+        shown.append(f"+{rest} more on the [stats page]({STATS_PAGE_URL})")
+    return "\n".join(shown)
+
+
+def render_node_list(nodes: List[Dict[str, Any]], total: int, *, link: bool = True) -> str:
+    """Digest list value: sorted by node type, then name; whole lines only."""
+    ordered = sorted(
+        nodes,
+        key=lambda n: (int(n.get('type') or 0), str(n.get('adv_name') or '').casefold()),
+    )
+    return fill_field_lines([format_digest_node_line(n, link=link) for n in ordered], total)
+
+
+# ---------------------------------------------------------------------------
 # Embed builder (pure function; no Discord client required)
 # ---------------------------------------------------------------------------
 
@@ -335,35 +372,17 @@ def build_digest_embed(
         )
         embed.add_field(name="\u200b", value="\u200b", inline=True)
 
-    if added_nodes:
-        formatted = "\n".join([f"- {format_node_compact(n)}" for n in added_nodes])
-        if added_count > len(added_nodes):
-            formatted += f"\n\n*... and {added_count - len(added_nodes)} more*"
-        embed.add_field(
-            name=f"✅ New Nodes ({added_count})",
-            value=formatted[:1024],
-            inline=False,
-        )
-
-    if restored_nodes:
-        formatted = "\n".join([f"- {format_node_compact(n)}" for n in restored_nodes])
-        if restored_count > len(restored_nodes):
-            formatted += f"\n\n*... and {restored_count - len(restored_nodes)} more*"
-        embed.add_field(
-            name=f"🔄 Restored Nodes ({restored_count})",
-            value=formatted[:1024],
-            inline=False,
-        )
-
-    if removed_nodes:
-        formatted = "\n".join([f"- {format_node_compact(n)}" for n in removed_nodes])
-        if removed_count > len(removed_nodes):
-            formatted += f"\n\n*... and {removed_count - len(removed_nodes)} more*"
-        embed.add_field(
-            name=f"❌ Deleted Nodes ({removed_count})",
-            value=formatted[:1024],
-            inline=False,
-        )
+    for title, nodes, count, link in (
+        ("✅ New Nodes", added_nodes, added_count, True),
+        ("🔄 Restored Nodes", restored_nodes, restored_count, True),
+        ("❌ Deleted Nodes", removed_nodes, removed_count, False),
+    ):
+        if count > 0:
+            embed.add_field(
+                name=f"{title} ({count})",
+                value=render_node_list(nodes or [], total=count, link=link),
+                inline=False,
+            )
 
     if next_digest_label is None:
         next_digest_label = _next_digest_label(period_end)

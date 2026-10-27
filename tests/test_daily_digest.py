@@ -376,5 +376,124 @@ class TestBuildDigestEmbed(unittest.TestCase):
         self.assertIn("Next digest:", (embed.footer.text or ""))
 
 
+
+# ---------------------------------------------------------------------------
+# Node lines: escaping, town, map link, owner, sort, whole-line field filling
+# ---------------------------------------------------------------------------
+
+from backend.daily_digest import fill_field_lines, render_node_list  # noqa: E402
+from backend.discord_formatting import (  # noqa: E402
+    escape_node_name,
+    format_digest_node_line,
+    get_map_link,
+)
+
+STATS_URL = "https://meshmap.radio-actief.be/stats"
+
+
+def _node(i: int, **kw):
+    node = {
+        "public_key": f"{i:064x}",
+        "type": 2,
+        "adv_name": f"BE-TST-RRY{i:03d}-Repeater",
+        "city": "Leuven",
+        "discord_owner_id": "301234567890123456" if i % 3 == 0 else None,
+    }
+    node.update(kw)
+    return node
+
+
+def test_node_name_escapes_markdown_and_mentions() -> None:
+    out = escape_node_name("a*b_c~d|e`f [x] @everyone @here")
+    for raw in ("*", "_", "~", "|", "`", "[", "]"):
+        assert f"\\{raw}" in out, (raw, out)
+    assert "@everyone" not in out
+    assert "@here" not in out
+    # A backslash in the name can't un-escape the bracket after it.
+    assert escape_node_name("a\\[x") == "a\\\\\\[x"
+
+
+def test_digest_line_has_icon_linked_name_town_province_owner() -> None:
+    node = _node(1, adv_name="BE-LEU-RRY184", discord_owner_id="301234567890123456")
+    line = format_digest_node_line(node)
+    assert line.startswith("📡 ")
+    assert f"[BE-LEU-RRY184]({get_map_link(node)})" in line
+    assert "Leuven (VBR)" in line
+    assert line.endswith("<@301234567890123456>")
+    assert "\n" not in line
+
+
+def test_digest_line_unclaimed_has_no_owner_and_unknown_town_is_left_out() -> None:
+    line = format_digest_node_line(_node(2, city="Unknown", discord_owner_id=None))
+    assert "Unclaimed" not in line
+    assert "Unknown" not in line
+    assert "<@" not in line
+
+
+def test_digest_line_without_link_for_nodes_no_longer_on_the_map() -> None:
+    line = format_digest_node_line(_node(3, adv_name="Gone"), link=False)
+    assert "](" not in line
+    assert "Gone" in line
+
+
+def test_digest_line_escapes_hostile_names() -> None:
+    line = format_digest_node_line(_node(4, adv_name="*bold*_x_~s~|p| @everyone"))
+    assert "@everyone" not in line
+    assert "\\*bold\\*" in line
+    assert "\\|p\\|" in line
+
+
+def test_fill_field_lines_keeps_whole_lines_and_counts_the_rest() -> None:
+    nodes = [_node(i) for i in range(23)]
+    lines = [format_digest_node_line(n) for n in nodes]
+    value = fill_field_lines(lines, total=23)
+    assert len(value) <= 1024
+    shown = value.split("\n")
+    more = shown[-1]
+    body = shown[:-1]
+    assert all(line in lines for line in body), "every shown line is complete"
+    assert len(body) < 23
+    assert more == f"+{23 - len(body)} more on the [stats page]({STATS_URL})"
+    assert len("\n".join(body)) <= 950
+
+
+def test_fill_field_lines_without_overflow_has_no_more_line() -> None:
+    lines = [format_digest_node_line(_node(i)) for i in range(3)]
+    assert fill_field_lines(lines, total=3) == "\n".join(lines)
+
+
+def test_fill_field_lines_counts_nodes_that_were_not_loaded() -> None:
+    lines = [format_digest_node_line(_node(i)) for i in range(2)]
+    value = fill_field_lines(lines, total=60)
+    assert value.endswith(f"+58 more on the [stats page]({STATS_URL})")
+
+
+def test_render_node_list_sorts_by_type_then_name() -> None:
+    nodes = [
+        _node(1, type=2, adv_name="zulu"),
+        _node(2, type=1, adv_name="Mike"),
+        _node(3, type=2, adv_name="alpha"),
+        _node(4, type=3, adv_name="Bravo"),
+    ]
+    value = render_node_list(nodes, total=4)
+    order = [ln.split("[", 1)[1].split("]", 1)[0] for ln in value.split("\n")]
+    assert order == ["Mike", "alpha", "zulu", "Bravo"]
+
+
+def test_embed_with_23_deleted_nodes_stays_within_field_limit() -> None:
+    now = datetime(2026, 10, 27, 8, 0, tzinfo=timezone.utc)
+    nodes = [_node(i) for i in range(23)]
+    agg = {"added": [], "removed": [n["public_key"] for n in nodes], "restored": [], "updated_count": 0}
+    embed = build_digest_embed(
+        agg, now - timedelta(hours=24), now, {"total_nodes": 881, "by_type": {2: 881}}, 48,
+        removed_nodes=nodes,
+    )
+    field = next(f for f in embed.fields if f.name.startswith("❌ Deleted Nodes"))
+    assert field.name == "❌ Deleted Nodes (23)"
+    assert len(field.value) <= 1024
+    assert "more on the [stats page]" in field.value
+    assert "](" not in field.value.split("\n")[0], "deleted nodes are not linked to the map"
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

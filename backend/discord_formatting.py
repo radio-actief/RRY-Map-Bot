@@ -7,8 +7,9 @@ so command output, web claim notifications, and digests stay consistent.
 
 from __future__ import annotations
 
-import sys
 import os
+import sys
+from functools import lru_cache
 from typing import Any, Callable, Dict, List, Optional, Tuple
 from urllib.parse import quote
 from zoneinfo import ZoneInfo
@@ -145,12 +146,82 @@ def ensure_node_params(node: Dict[str, Any]) -> Dict[str, Any]:
     return node
 
 
+DIGEST_NAME_MAX_CHARS = 40
+
+
+def escape_node_name(text: Optional[str]) -> str:
+    """Escape a user-chosen name for Discord markdown, mentions and link text.
+
+    ``*``, ``_``, ``~``, ``|``, backticks, ``[`` / ``]`` and friends are
+    backslash-escaped; ``@everyone`` / ``@here`` / ``<@id>`` are defused with a
+    zero-width space. Newlines become spaces so a name stays on one line.
+    """
+    from discord.utils import escape_markdown, escape_mentions
+
+    cleaned = " ".join(str(text or "").split())
+    # Brackets are swapped out first so escape_markdown's own backslash
+    # escaping can't pair with them; they come back escaped.
+    cleaned = cleaned.replace("[", "\ue000").replace("]", "\ue001")
+    escaped = escape_markdown(cleaned).replace("\ue000", "\\[").replace("\ue001", "\\]")
+    return escape_mentions(escaped)
+
+
+@lru_cache(maxsize=1)
+def _province_by_town() -> Dict[str, str]:
+    """``plaats`` -> short province code (``be-vbr`` -> ``VBR``) from be-locode.json."""
+    import json
+    from pathlib import Path
+
+    path = Path(os.getenv(
+        "BE_LOCODE_JSON",
+        str(Path(__file__).resolve().parent.parent / "data" / "be-locode.json"),
+    ))
+    try:
+        rows = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    out: Dict[str, str] = {}
+    for row in rows if isinstance(rows, list) else []:
+        town = row.get("plaats")
+        code = (row.get("province_code") or "").split("-")[-1].upper()
+        if town and code and len(code) <= 3:
+            out[town] = code
+    return out
+
+
+def format_node_town(node: Dict[str, Any]) -> str:
+    """``Leuven (VBR)``; empty when the town is unknown."""
+    city = (node.get('city') or '').strip()
+    if not city or city == 'Unknown':
+        return ""
+    town = escape_node_name(city)
+    code = _province_by_town().get(city)
+    return f"{town} ({code})" if code else town
+
+
+def format_digest_node_line(node: Dict[str, Any], *, link: bool = True) -> str:
+    """One short digest line: icon, name (linked to the map), town, owner."""
+    icon = get_node_type_icon(node.get('type', 0) or 0)
+    raw = " ".join(str(node.get('adv_name') or 'Unknown').split())
+    if len(raw) > DIGEST_NAME_MAX_CHARS:
+        raw = raw[:DIGEST_NAME_MAX_CHARS - 1] + "…"
+    name = escape_node_name(raw)
+    parts = [f"[{name}]({get_map_link(node)})" if link else name]
+    town = format_node_town(node)
+    if town:
+        parts.append(town)
+    owner_id = node.get('discord_owner_id')
+    if owner_id:
+        parts.append(f"<@{owner_id}>")
+    return f"{icon} " + " · ".join(parts)
+
+
 def format_node_compact(node: Dict[str, Any]) -> str:
-    """Single-line format for digest and sync notifications."""
+    """Single-line format for sync notifications."""
     type_num = node.get('type', 0) or 0
     icon = get_node_type_icon(type_num)
     pk_disp = truncate_public_key(node.get('public_key', ''), show_full=False)
-    name = (node.get('adv_name') or 'Unknown').replace('_', '\\_')
+    name = escape_node_name(node.get('adv_name') or 'Unknown')
     owner_id = node.get('discord_owner_id')
     owner = f"<@{owner_id}>" if owner_id else "Unclaimed"
     return f"{icon} `{pk_disp}` - {name} - {owner}"

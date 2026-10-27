@@ -69,7 +69,7 @@ from backend.database import (
 )
 from backend.datetime_utils import normalize_node_timestamps
 from backend.discord_branding import apply_brand_to_embed
-from backend.discord_formatting import format_node_compact
+from backend.discord_formatting import BEMESH, format_node_compact, get_map_base_url
 import sqlite3
 import fcntl
 from contextlib import contextmanager
@@ -1218,7 +1218,7 @@ def send_sync_notification(
                 # Build notification embed
                 embed = discord.Embed(
                     title="🔄 Sync Complete",
-                    description="Sync completed and updated the [#BEMesh Map](https://meshmap.radio-actief.be)\n\u200b",
+                    description=f"Sync completed and updated the [{BEMESH} map]({get_map_base_url()})\n\u200b",
                     color=discord.Color.blue()
                 )
                 

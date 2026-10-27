@@ -122,8 +122,8 @@ def branded_embed(*args, **kwargs):
     return apply_brand_to_embed(discord.Embed(*args, **kwargs))
 
 
-def format_full_node_details(node: Dict[str, Any], show_coordinates: bool = False, user_id: Optional[str] = None) -> discord.Embed:
-    return _format_full_node_details(node, branded_embed, show_coordinates, user_id)
+def format_full_node_details(node: Dict[str, Any], show_coordinates: bool = False) -> discord.Embed:
+    return _format_full_node_details(node, branded_embed, show_coordinates)
 
 
 def build_claim_embed(node: Dict[str, Any], user_id: str) -> discord.Embed:
@@ -481,7 +481,7 @@ class UnclaimConfirmView(discord.ui.View):
         await interaction.response.edit_message(view=self)
         
         # Remove ownership
-        success = remove_ownership(self.node['public_key'], self.user_id)  # Logs to node_claims as 'unclaim'.
+        success = remove_ownership(self.node['public_key'], self.user_id, source='bot')  # Logs to node_claims as 'unclaim'.
         
         if not success:
             await interaction.followup.send(
@@ -633,7 +633,7 @@ async def search_nodes(
 
     if len(nodes) == 1:
         node = ensure_node_params(nodes[0])
-        embed = format_full_node_details(node, show_coordinates=False, user_id=str(interaction.user.id))
+        embed = format_full_node_details(node, show_coordinates=False)
         embed.description = f"**Search result for:** {search_query_str}\n\n{embed.description}"
         embed.add_field(name="View on Map", value=f"[Open on map]({get_map_link(node)})", inline=False)
         owner_id_val = node.get('discord_owner_id')
@@ -714,6 +714,7 @@ async def node_claim(interaction: discord.Interaction, query: str):
         node['public_key'],
         str(interaction.user.id),
         interaction.user.name,
+        source='bot',
     )
 
     if not success:

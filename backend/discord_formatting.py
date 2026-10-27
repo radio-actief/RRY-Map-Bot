@@ -10,6 +10,7 @@ from __future__ import annotations
 import os
 import sys
 from functools import lru_cache
+from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional, Tuple
 from urllib.parse import quote
 from zoneinfo import ZoneInfo
@@ -35,6 +36,9 @@ DISCORD_EMBED_DESC_LIMIT = 4096
 DISCORD_EMBED_DESC_SAFE_BUFFER = 500
 DISCORD_EMBED_MAX_NODES_PER_CHUNK = 25
 DISCORD_EMBED_EARLY_BREAK_BUFFER = 150
+
+# Community and map name as the website writes it.
+BEMESH = "#BEmesh"
 
 DISCORD_COLOR_GREEN = 5763719
 DISCORD_COLOR_ORANGE = 15105570
@@ -121,6 +125,30 @@ def get_map_link(node: Dict[str, Any], *, short: bool = False) -> str:
     if pk:
         return f"{base}/?node={quote(pk, safe='')}"
     return base
+
+
+def get_map_base_url() -> str:
+    """The map's home page (follows ``MAP_BASE_URL``)."""
+    return MAP_BASE_URL.rstrip("/")
+
+
+def get_stats_url() -> str:
+    """The statistics page (follows ``MAP_BASE_URL``)."""
+    return f"{get_map_base_url()}/stats"
+
+
+def node_last_seen(node: Dict[str, Any]) -> Optional[datetime]:
+    """Most recent of ``inserted_date``, ``updated_date`` and ``last_advert`` (UTC)."""
+    from backend.datetime_utils import parse_utc
+
+    dates = [parse_utc(node.get(key)) for key in ('inserted_date', 'updated_date', 'last_advert')]
+    dates = [d for d in dates if d]
+    return max(dates) if dates else None
+
+
+def discord_timestamp(dt: datetime, style: str = "R") -> str:
+    """``<t:unix:R>``: Discord shows it in each viewer's own time zone and language."""
+    return f"<t:{int(dt.timestamp())}:{style}>"
 
 
 def get_most_recent_date(node: Dict[str, Any]) -> Optional[str]:
@@ -230,6 +258,20 @@ def format_digest_node_line(node: Dict[str, Any], *, link: bool = True) -> str:
     return f"{icon} " + " · ".join(parts)
 
 
+def format_node_line(node: Dict[str, Any], *, owner: bool = True, seen: bool = True) -> str:
+    """The bot's one-line node: the digest line, plus ``seen <t:…:R>`` when known."""
+    line = format_digest_node_line(node if owner else {**node, 'discord_owner_id': None})
+    last = node_last_seen(node) if seen else None
+    if last:
+        line += " · seen " + discord_timestamp(last)
+    return line
+
+
+def strip_backticks(text: Optional[str]) -> str:
+    """User text shown inside a code span: backticks removed, one line."""
+    return " ".join(str(text or "").replace("`", "").split())
+
+
 def format_node_compact(node: Dict[str, Any]) -> str:
     """Single-line format for sync notifications."""
     type_num = node.get('type', 0) or 0
@@ -299,77 +341,37 @@ def format_node_list(nodes: List[Dict[str, Any]], show_full_keys: bool = False) 
     return "\n\n".join(lines)
 
 
-def _source_capitalized(node: Dict[str, Any]) -> str:
-    source = node.get('source', 'N/A')
-    return source.capitalize() if source else 'N/A'
-
-
 def build_claim_embed_dict(node: Dict[str, Any], user_id: str, *, via_web: bool = False) -> Dict[str, Any]:
-    node_name = node.get('adv_name', 'Unknown')
+    """Two lines: who claimed it, then the node line. The map button goes with the message."""
     type_icon = get_node_type_icon(node.get('type', 0))
-    pub_key_display = truncate_public_key(node.get('public_key', ''), show_full=False)
-    type_text = get_node_type_display(node.get('type', 0))
-    city = node.get('city', 'Unknown')
-    source_capitalized = _source_capitalized(node)
-    map_url = get_map_link(node)
-
     if via_web:
-        footer = "Claimed via web app. Use `/search` or `/mynodes` for details."
+        what = f"<@{user_id}> claimed this node on the map."
     else:
-        footer = "Use `/mynodes` to see your owned nodes."
-
+        what = f"<@{user_id}> claimed this node."
     return {
-        "title": f"{type_icon} Node Claimed",
-        "description": (
-            f"**{node_name}** `{pub_key_display}` ({type_text.lower()}) "
-            f"has been claimed by <@{user_id}>"
-        ),
+        "title": f"{type_icon} Node claimed",
+        "description": f"{what}\n{format_node_line(node, owner=False)}",
         "color": DISCORD_COLOR_GREEN,
-        "fields": [
-            {"name": "Public Key", "value": f"`{truncate_public_key(node.get('public_key', ''), show_full=True)}`", "inline": True},
-            {"name": "Node Name", "value": node_name, "inline": True},
-            {"name": "Node Type", "value": type_text, "inline": True},
-            {"name": "Location", "value": city, "inline": True},
-            {"name": "Source Type", "value": source_capitalized, "inline": True},
-            {"name": "Claimed By", "value": f"<@{user_id}>", "inline": True},
-            {"name": "View on Map", "value": f"[Open on map]({map_url})", "inline": False},
-        ],
-        "footer": {"text": footer},
     }
 
 
 def build_unclaim_embed_dict(node: Dict[str, Any], user_id: str, *, via_web: bool = False) -> Dict[str, Any]:
-    node_name = node.get('adv_name', 'Unknown')
+    """Two lines: who released it, then the node line. The map button goes with the message."""
     type_icon = get_node_type_icon(node.get('type', 0))
-    pub_key_display = truncate_public_key(node.get('public_key', ''), show_full=False)
-    type_text = get_node_type_display(node.get('type', 0))
-    city = node.get('city', 'Unknown')
-    source_capitalized = _source_capitalized(node)
-    map_url = get_map_link(node)
-
     if via_web:
-        footer = "Unclaimed via web app. Use `/search` or `/mynodes` for details."
+        what = f"<@{user_id}> released this node on the map. Anyone can claim it now."
     else:
-        footer = "Use `/mynodes` to see your owned nodes."
-
+        what = f"<@{user_id}> released this node. Anyone can claim it now."
     return {
-        "title": f"{type_icon} Node Unclaimed",
-        "description": (
-            f"**{node_name}** `{pub_key_display}` ({type_text.lower()}) "
-            f"has been unclaimed by <@{user_id}>"
-        ),
+        "title": f"{type_icon} Node unclaimed",
+        "description": f"{what}\n{format_node_line(node, owner=False)}",
         "color": DISCORD_COLOR_ORANGE,
-        "fields": [
-            {"name": "Public Key", "value": f"`{truncate_public_key(node.get('public_key', ''), show_full=True)}`", "inline": True},
-            {"name": "Node Name", "value": node_name, "inline": True},
-            {"name": "Node Type", "value": type_text, "inline": True},
-            {"name": "Location", "value": city, "inline": True},
-            {"name": "Source Type", "value": source_capitalized, "inline": True},
-            {"name": "Status", "value": "Unclaimed", "inline": True},
-            {"name": "View on Map", "value": f"[Open on map]({map_url})", "inline": False},
-        ],
-        "footer": {"text": footer},
     }
+
+
+def map_button_components(url: str, label: str = "Open on map") -> List[Dict[str, Any]]:
+    """Message ``components`` with one link button (for messages sent through the REST API)."""
+    return [{"type": 1, "components": [{"type": 2, "style": 5, "label": label, "url": url}]}]
 
 
 def dict_to_discord_embed(embed_dict: Dict[str, Any], branded_embed: Callable) -> Any:
@@ -401,40 +403,24 @@ def format_full_node_details(
     node: Dict[str, Any],
     branded_embed: Callable,
     show_coordinates: bool = False,
-    user_id: Optional[str] = None,
 ) -> Any:
-    """Format full node information as a branded Discord embed."""
+    """One node as a branded Discord embed: key, type, town, owner, frequency, first and last seen."""
     import discord
+    from backend.datetime_utils import parse_utc
 
     ensure_node_params(node)
-    node_name = node.get('adv_name', 'Unknown')
     type_num = node.get('type', 0)
-    type_text = get_node_type_display(type_num)
-    type_icon = get_node_type_icon(type_num)
-    freq_display = format_frequency_display(node.get('params', {}))
-    pub_key_display_short = truncate_public_key(node.get('public_key', ''), show_full=False)
-    pub_key_display = truncate_public_key(node.get('public_key', ''), show_full=True)
-    city = node.get('city', 'Unknown')
-
     owner_id = node.get('discord_owner_id')
-    owner = f"<@{owner_id}>" if owner_id else "Unclaimed"
-
-    if user_id:
-        description = (
-            f"**{node_name}** `{pub_key_display_short}` ({type_text.lower()}) "
-            f"details found by <@{user_id}>"
-        )
-    else:
-        description = f"**{node_name}**"
 
     embed = branded_embed(
-        title=f"{type_icon} Detailed node info",
-        description=description,
+        title=f"{get_node_type_icon(type_num)} Node details",
+        description=f"**{escape_node_name(node.get('adv_name') or 'Unknown')}**",
         color=discord.Color.blue(),
     )
-    embed.add_field(name="Public Key", value=f"`{pub_key_display}`", inline=False)
-    embed.add_field(name="Type", value=type_text, inline=True)
-    embed.add_field(name="City", value=city, inline=True)
+    embed.add_field(name="Public key", value=f"`{truncate_public_key(node.get('public_key', ''), show_full=True)}`", inline=False)
+    embed.add_field(name="Type", value=get_node_type_display(type_num), inline=True)
+    embed.add_field(name="Town", value=format_node_town(node) or "Unknown", inline=True)
+    embed.add_field(name="Owner", value=f"<@{owner_id}>" if owner_id else "Unclaimed", inline=True)
 
     if show_coordinates:
         lat = node.get('adv_lat')
@@ -442,34 +428,14 @@ def format_full_node_details(
         if lat is not None and lon is not None:
             embed.add_field(name="Location", value=f"`{lat}, {lon}`", inline=True)
 
-    embed.add_field(name="Owner", value=owner, inline=True)
-    embed.add_field(name="Frequency", value=freq_display, inline=False)
+    embed.add_field(name="Frequency", value=format_frequency_display(node.get('params', {})), inline=False)
 
-    link = node.get('link')
-    if link:
-        embed.add_field(name="MeshCore Link", value=f"`{link}`", inline=False)
-
-    for label, key in (
-        ("Inserted Date", "inserted_date"),
-        ("Updated Date", "updated_date"),
-        ("Last Advert", "last_advert"),
-    ):
-        val = node.get(key)
-        if val:
-            embed.add_field(name=label, value=format_date_display(val), inline=True)
-
-    inserted_by = node.get('inserted_by')
-    if inserted_by:
-        embed.add_field(name="Inserted By", value=f"`{inserted_by.upper()}`", inline=True)
-
-    updated_by = node.get('updated_by')
-    if updated_by:
-        embed.add_field(name="Updated By", value=f"`{updated_by.upper()}`", inline=True)
-
-    source = node.get('source')
-    if source:
-        embed.add_field(name="Source", value=f"`{source.upper()}`", inline=True)
-
+    first = parse_utc(node.get('inserted_date'))
+    if first:
+        embed.add_field(name="First seen", value=discord_timestamp(first), inline=True)
+    last = node_last_seen(node)
+    if last:
+        embed.add_field(name="Last seen", value=discord_timestamp(last), inline=True)
     return embed
 
 
@@ -486,13 +452,13 @@ def build_search_summary(
 ) -> str:
     parts = []
     if query:
-        parts.append(f"`{query}`")
+        parts.append(f"`{strip_backticks(query)}`")
     if node_type:
         parts.append(f"type: `{node_type}`")
     if city:
-        parts.append(f"city: `{city}`")
+        parts.append(f"city: `{strip_backticks(city)}`")
     if frequency_preset_name:
-        parts.append(f"frequency preset: `{frequency_preset_name}`")
+        parts.append(f"frequency preset: `{strip_backticks(frequency_preset_name)}`")
     if owner_mention:
         parts.append(f"owner: {owner_mention}")
     if claimed is not None:
@@ -502,6 +468,19 @@ def build_search_summary(
     if source_label:
         parts.append(f"source: `{source_label}`")
     return ", ".join(parts) if parts else "all nodes"
+
+
+def fit_lines(lines: List[str], limit: int, *, separator: str = "\n") -> Tuple[List[str], int]:
+    """Whole lines that fit in ``limit`` characters, and how many were left out."""
+    shown: List[str] = []
+    used = 0
+    for line in lines:
+        extra = len(line) + (len(separator) if shown else 0)
+        if used + extra > limit:
+            break
+        shown.append(line)
+        used += extra
+    return shown, len(lines) - len(shown)
 
 
 def chunk_embed_descriptions(

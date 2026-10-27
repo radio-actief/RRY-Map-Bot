@@ -313,11 +313,14 @@ LIST_MAX_LINES = 10
 
 
 def render_section(
-    nodes: List[Dict[str, Any]], total: int, *, link: bool = True,
+    nodes: List[Dict[str, Any]], total: int, *, link: bool = True, totals_types: str = "",
 ) -> str:
-    """One field value: up to 10 whole lines, or counts by type and province for a bulk section."""
+    """One field value: up to 10 whole lines, or counts by type and province for a bulk section.
+
+    ``totals_types`` is the Map totals type line; a bulk type line equal to it is left out.
+    """
     if total >= BULK_MIN_NODES:
-        return _bulk_summary(nodes)
+        return _bulk_summary(nodes, totals_types)
     lines = _node_lines(nodes, link=link)[:LIST_MAX_LINES]
     limit = FIELD_MAX_CHARS
     if total > len(lines):
@@ -325,7 +328,7 @@ def render_section(
     return fill_field_lines(lines, total, limit)
 
 
-def _bulk_summary(nodes: List[Dict[str, Any]]) -> str:
+def _bulk_summary(nodes: List[Dict[str, Any]], totals_types: str = "") -> str:
     """``📡 Repeaters 672 · 📱 Companions 168`` and ``Most in: Antwerpen 150 · …`` plus a pointer to the stats page."""
     by_type: Dict[int, int] = {}
     by_province: Dict[str, int] = {}
@@ -339,7 +342,7 @@ def _bulk_summary(nodes: List[Dict[str, Any]]) -> str:
             by_province[name] = by_province.get(name, 0) + 1
     out: List[str] = []
     types = type_counts_line(by_type)
-    if types:
+    if types and types != totals_types:
         out.append(types)
     top = sorted(by_province.items(), key=lambda kv: (-kv[1], kv[0]))[:5]
     if top:
@@ -402,10 +405,11 @@ def build_digest_embed(
         )
         if count > 0
     ]
+    totals_types = type_counts_line(stats.get('by_type') or {})
     for title, nodes, count, link in lists:
         embed.add_field(
             name=f"{title} ({count})",
-            value=render_section(nodes or [], count, link=link),
+            value=render_section(nodes or [], count, link=link, totals_types=totals_types),
             inline=False,
         )
     if held_back and held_back.get('held_count'):
@@ -511,7 +515,7 @@ def _next_digest_label(now_utc: datetime) -> str:
     )
     if target <= now_local:
         target += timedelta(days=1)
-    return f"{target.strftime('%Y-%m-%d %H:%M')} {target.tzname()}"
+    return f"{_window_side(target)} {target.tzname()}"
 
 
 # ---------------------------------------------------------------------------

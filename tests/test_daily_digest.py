@@ -1072,5 +1072,27 @@ def test_brand_is_spelled_bemesh_in_backend_discord_text() -> None:
         assert "[BEMesh Map]" not in path.read_text(encoding="utf-8"), path.name
 
 
+
+def test_footer_uses_the_window_date_style() -> None:
+    end = datetime(2026, 10, 27, 8, 0, tzinfo=timezone.utc)  # Tue 27 Oct 09:00 CET
+    embed = build_digest_embed({"added": [], "removed": [], "restored": []}, end - timedelta(hours=24), end,
+                               {"total_nodes": 1})
+    assert embed.footer.text == "Next digest: Wed 28 Oct 09:00 CET"
+
+
+def test_bulk_section_leaves_out_a_type_line_equal_to_the_totals() -> None:
+    end = datetime(2026, 10, 27, 8, 0, tzinfo=timezone.utc)
+    nodes = [_node(i, type=2) for i in range(30)]
+    stats = {"total_nodes": 30, "by_type": {2: 30}}
+    agg = {"added": [n["public_key"] for n in nodes], "removed": [], "restored": []}
+    embed = build_digest_embed(agg, end - timedelta(hours=24), end, stats, added_nodes=nodes)
+    new = next(f for f in embed.fields if "New Nodes" in f.name)
+    assert "Repeaters 30" not in new.value, "same as the Map totals line"
+    assert "Repeaters 30" in next(f for f in embed.fields if "Map totals" in f.name).value
+    stats_more = {"total_nodes": 40, "by_type": {2: 35, 1: 5}}
+    embed = build_digest_embed(agg, end - timedelta(hours=24), end, stats_more, added_nodes=nodes)
+    new = next(f for f in embed.fields if "New Nodes" in f.name)
+    assert "Repeaters 30" in new.value, "kept when it differs from the totals"
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

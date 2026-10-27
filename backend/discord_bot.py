@@ -684,7 +684,7 @@ async def node_claim(interaction: discord.Interaction, query: str):
                 owner = format_owner_display(claimed_match[0])
                 hint = f"\n\nThis node appears to be already claimed by {owner}. Try `/search claimed:true` for details."
             else:
-                hint = "\n\nNo matching unclaimed node found. Check the pubkey on [BEMesh Map](https://meshmap.radio-actief.be)."
+                hint = "\n\nNo matching unclaimed node found. Check the pubkey on [BEmesh Map](https://meshmap.radio-actief.be)."
         await interaction.response.send_message(
             f"Node not found in Belgian database (unclaimed).{hint}",
             ephemeral=True,
@@ -851,12 +851,12 @@ async def stats(interaction: discord.Interaction):
     by_type = stats_data.get("by_type", {})
 
     # --- Embed 1: Summary (same grouping as web stats page: Network, Activity, Frequency presets, Claimed, Top cities) ---
-    stats_title = ":flag_be::meshcore: #BEMesh MeshCore statistics :bar_chart:"
+    stats_title = ":flag_be::meshcore: #BEmesh MeshCore statistics :bar_chart:"
     guild = getattr(interaction, 'guild', None)
     stats_title = resolve_custom_emojis_in_text(stats_title, guild)
     embed1 = branded_embed(
         title=stats_title,
-        description="Overview of the Belgian MeshCore network statistics, from [#BEMesh Map](https://meshmap.radio-actief.be).",
+        description="Overview of the Belgian MeshCore network statistics, from [#BEmesh Map](https://meshmap.radio-actief.be).",
         color=discord.Color.blue()
     )
     # Row 1: network size (nodes)

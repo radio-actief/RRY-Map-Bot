@@ -397,7 +397,7 @@ def test_unclaim_confirm_flow(db):
         assert "Unclaimed" in click.original_edits[0]["embed"].description
         assert click.original_edits[0]["view"] is None
         _, kwargs = click.followup.sent[0]
-        assert kwargs["embed"].description.startswith("<@111> released this node.")
+        assert kwargs["embed"].description.split("\n")[0] == "<@111> unclaimed this node."
         assert _buttons(kwargs["view"]) == [("Open on map", "https://meshmap.radio-actief.be/?node=a3a3a3a3a3a3")]
 
         second = FakeInteraction(user_id=111)

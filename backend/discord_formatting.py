@@ -261,12 +261,12 @@ def build_claim_embed_dict(node: Dict[str, Any], user_id: str, *, via_web: bool 
 
 
 def build_unclaim_embed_dict(node: Dict[str, Any], user_id: str, *, via_web: bool = False) -> Dict[str, Any]:
-    """Two lines: who released it, then the node line. The map button goes with the message."""
+    """Two lines: who unclaimed it, then the node line. The map button goes with the message."""
     type_icon = get_node_type_icon(node.get('type', 0))
     if via_web:
-        what = f"<@{user_id}> released this node on the map. Anyone can claim it now."
+        what = f"<@{user_id}> unclaimed this node on the map."
     else:
-        what = f"<@{user_id}> released this node. Anyone can claim it now."
+        what = f"<@{user_id}> unclaimed this node."
     return {
         "title": f"{type_icon} Node unclaimed",
         "description": f"{what}\n{format_node_line(node, owner=False)}",

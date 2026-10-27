@@ -62,7 +62,7 @@ class TestDiscordFormatting(unittest.TestCase):
         node = {"public_key": "c" * 64, "adv_name": "Node", "type": 1, "city": "Antwerp"}
         embed = build_unclaim_embed_dict(node, "999", via_web=True)
         self.assertEqual(embed["color"], DISCORD_COLOR_ORANGE)
-        self.assertTrue(embed["description"].startswith("<@999> released this node on the map."))
+        self.assertEqual(embed["description"].split("\n")[0], "<@999> unclaimed this node on the map.")
         self.assertNotIn("`", embed["description"])
 
     def test_node_line_is_the_digest_line_plus_seen(self):

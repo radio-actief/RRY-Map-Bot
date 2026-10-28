@@ -56,7 +56,13 @@ function ReadResult() {
   const r = store.lastRead.value;
   if (!r) return null;
   if (!r.ok) return <Notice kind="error">{t("read.failed", { reason: r.reason })}</Notice>;
-  return r.missing.length ? <Notice kind="warn">{t("read.missing", { commands: r.missing.join(", ") })}</Notice> : null;
+  const incomplete = !!store.snapshot.value?.regions?.incomplete;
+  return (
+    <>
+      {r.missing.length ? <Notice kind="warn">{t("read.missing", { commands: r.missing.join(", ") })}</Notice> : null}
+      {incomplete ? <Notice kind="warn">{t("read.regionsIncomplete")}</Notice> : null}
+    </>
+  );
 }
 
 const GROUP_ORDER: CheckupGroup[] = ["radio", "advertising", "repeating", "timing", "regions", "advanced"];

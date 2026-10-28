@@ -118,6 +118,19 @@ describe("Connect step", () => {
     expect(store.notice.value?.text).toMatch(/reset/);
   });
 
+  it("after a Read whose region replies were cut beyond repair, says the region list may be incomplete", () => {
+    store.step.value = "connect";
+    store.device.value = { status: "connected", link: null, firmware: "v1.17.1" };
+    store.snapshot.value = { settings: {}, missing: [], regions: { allowed: ["be"], denied: [], incomplete: true } };
+    store.lastRead.value = { ok: true, count: 30, missing: [] };
+    render(<Connect />);
+    expect(screen.getByText(/The region list may be incomplete/)).toBeTruthy();
+    cleanup();
+    store.snapshot.value = { settings: {}, missing: [], regions: { allowed: ["be"], denied: [] } };
+    render(<Connect />);
+    expect(screen.queryByText(/The region list may be incomplete/)).toBeNull();
+  });
+
   it("connecting checks the firmware once and fills the device card", async () => {
     store.step.value = "connect";
     const port = new FakePort(read);

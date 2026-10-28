@@ -4,7 +4,7 @@
  */
 import { t } from "../i18n/t";
 import { aclChanges, parseAcl, type AclEntry } from "./acl";
-import { PROVINCE_NAMES } from "./be-regions";
+import { GEWEST_NAMES, PROVINCE_NAMES } from "./be-regions";
 import {
   buildName,
   buildPrefix,
@@ -27,7 +27,12 @@ import {
   deviceRegionsFromRead,
   HOME_OVERRIDE_OMIT,
   homeRegionCode,
+  parseRegionGet,
   parseRegionTree,
+  parseRegionTreeEntries,
+  regionListMayBeCut,
+  regionTreeCut,
+  type RegionTreeEntry,
   policyFor,
   policyFromDevice,
   regionsByState,
@@ -94,6 +99,8 @@ export type DeviceSnapshot = {
     denied: string[];
     /** Each region's parent from the bare `region` tree (null = under *); absent when it was not read. */
     parents?: Record<string, string | null>;
+    /** The firmware cut the tree and a list: a region the configurator did not ask for by name may be missing. */
+    incomplete?: boolean;
   };
   version?: string;
   role?: string;
@@ -356,6 +363,80 @@ function parseRegionList(s: string): string[] {
     .filter(Boolean);
 }
 
+/**
+ * The region replies the firmware cut off (see regionTreeCut, regionListMayBeCut) are made whole
+ * from what else was read: a whole tree carries every region and its flood flag; a cut tree is
+ * filled from the lists and the `region get <name>` replies (see regionNamesToAsk). Only when the
+ * tree and a list were both cut can a region whose name nobody asked for be missing: the read is
+ * marked incomplete. Nothing cut and nothing asked leaves the lists as they are.
+ */
+function completeRegions(
+  regions: NonNullable<DeviceSnapshot["regions"]>,
+  replies: Record<string, string>,
+  allowedReply: string | undefined,
+  deniedReply: string | undefined,
+): void {
+  const tree = Object.prototype.hasOwnProperty.call(replies, "region") ? replies.region : undefined;
+  const treeCut = tree !== undefined && regionTreeCut(tree);
+  const listCut = [allowedReply, deniedReply].some((r) => r !== undefined && regionListMayBeCut(r));
+  const gets = Object.keys(replies)
+    .filter((k) => k.startsWith("region get "))
+    .map((k) => parseRegionGet(replies[k]))
+    .filter((g): g is RegionTreeEntry => !!g);
+  if (!treeCut && !listCut && !gets.length) return;
+
+  const flood = new Map<string, boolean>();
+  const parents: Record<string, string | null> = {};
+  let wildcard = regions.allowed.includes("*") ? true : regions.denied.includes("*") ? false : null;
+  if (tree !== undefined) {
+    const t = parseRegionTreeEntries(tree);
+    if (t.wildcardFlood !== null) wildcard = t.wildcardFlood;
+    for (const e of t.entries) {
+      parents[e.name] = e.parent;
+      flood.set(e.name, e.flood);
+    }
+  }
+  for (const n of regions.allowed) if (n !== "*" && !flood.has(n)) flood.set(n, true);
+  for (const n of regions.denied) if (n !== "*" && !flood.has(n)) flood.set(n, false);
+  for (const g of gets) {
+    parents[g.name] = g.parent;
+    flood.set(g.name, g.flood);
+  }
+  const names = [...flood.keys()];
+  regions.allowed = [...(wildcard ? ["*"] : []), ...names.filter((n) => flood.get(n))];
+  regions.denied = [...(wildcard === false ? ["*"] : []), ...names.filter((n) => !flood.get(n))];
+  if (regions.parents) regions.parents = { ...regions.parents, ...parents };
+  if (treeCut && listCut) regions.incomplete = true;
+}
+
+/**
+ * The regions to ask for one by one with `region get <name>` after a Read: none when the tree came
+ * whole. Under a cut tree, the names in the lists, the home and the default that the tree did not
+ * show (for their parent); when a list may be cut as well, also every candidate (the regions the
+ * configurator knows for this place) that nothing showed.
+ */
+export function regionNamesToAsk(replies: Record<string, string>, candidates: string[]): string[] {
+  const tree = replies.region;
+  if (tree === undefined || !regionTreeCut(tree)) return [];
+  const shown = new Set(parseRegionTreeEntries(tree).entries.map((e) => e.name));
+  const lists = ["region list allowed", "region list denied"].map((c) => (c in replies ? strip(replies[c]) : undefined));
+  const home = "region home" in replies ? afterPrefix(strip(replies["region home"]), /^home is\s+(.+)$/i) : "";
+  const def = "region default" in replies ? afterPrefix(strip(replies["region default"]), /^default scope is\s+(.+)$/i) : "";
+  const named = [...lists.flatMap((l) => (l === undefined ? [] : parseRegionList(l))), home, def];
+  const listCut = lists.some((l) => l !== undefined && regionListMayBeCut(l));
+  const ask = new Set<string>();
+  for (const n of [...named, ...(listCut ? candidates : [])]) {
+    if (n && n !== "*" && n !== "<null>" && !shown.has(n) && !/\s/.test(n)) ask.add(n);
+  }
+  return [...ask];
+}
+
+/** The region codes a Read checks one by one when the replies were cut: the plan's rows, Belgium's levels, the neighbours and eu. */
+export function regionCandidates(plan: Plan): string[] {
+  const rows = plan.regions?.rows.map((r) => r.code) ?? [];
+  return [...new Set([...rows, "eu", "be", ...Object.keys(GEWEST_NAMES), ...Object.keys(PROVINCE_NAMES), "nl", "lu", "fr", "de", "gb"])];
+}
+
 /** `home is X` / `default scope is X`; an unexpected reply is kept as is (old parseRegion*Name || value). */
 const afterPrefix = (s: string, re: RegExp) => {
   const m = s.match(re);
@@ -439,6 +520,7 @@ export function snapshotFromReplies(replies: Record<string, string>, missing: st
       denied: denied !== undefined ? parseRegionList(denied) : [],
       ...(Object.prototype.hasOwnProperty.call(replies, "region") ? { parents: parseRegionTree(replies.region) } : {}),
     };
+    completeRegions(s.regions, replies, allowed, denied);
   }
 
   const acl = Object.prototype.hasOwnProperty.call(replies, "get acl") ? parseAcl(replies["get acl"]) : null;

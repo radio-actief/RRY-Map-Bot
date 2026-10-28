@@ -1,5 +1,5 @@
 import { parseVersion, supportsRegionDef } from "../core/firmware";
-import { snapshotFromReplies, type DeviceSnapshot } from "../core/plan";
+import { regionNamesToAsk, snapshotFromReplies, type DeviceSnapshot } from "../core/plan";
 import { isErrorReply, type SerialLink } from "./serial";
 
 /** What "Read from the device" asks, in this order (verbatim from the old page). */
@@ -48,9 +48,15 @@ export const READ_BACK_COMMANDS = READ_COMMANDS.filter((c) => !IDENTITY_READS.in
 
 /**
  * Ask every read command (or `commands`). An error reply, a timeout (empty reply) or a lost link
- * puts the command in `missing`; only good replies reach the parser.
+ * puts the command in `missing`; only good replies reach the parser. Region replies the firmware
+ * cut off are completed with `region get <name>` (see regionNamesToAsk); `candidates` names the
+ * regions to check when the lists may be cut too.
  */
-export async function readAll(link: SerialLink, commands: string[] = READ_COMMANDS): Promise<DeviceSnapshot> {
+export async function readAll(
+  link: SerialLink,
+  commands: string[] = READ_COMMANDS,
+  candidates: (partial: DeviceSnapshot) => string[] = () => [],
+): Promise<DeviceSnapshot> {
   const replies: Record<string, string> = {};
   const missing: string[] = [];
   for (const cmd of commands) {
@@ -64,6 +70,17 @@ export async function readAll(link: SerialLink, commands: string[] = READ_COMMAN
       else replies[cmd] = reply;
     } catch {
       missing.push(cmd);
+    }
+  }
+  // The firmware cuts the region replies at 159 bytes: ask for the rest one region at a time.
+  const ask = regionNamesToAsk(replies, candidates(snapshotFromReplies(replies, missing)));
+  for (const name of ask) {
+    if (!link.connected) break;
+    try {
+      const reply = await link.command(`region get ${name}`);
+      if (reply && !isErrorReply(reply)) replies[`region get ${name}`] = reply;
+    } catch {
+      /* link lost: what was read stays */
     }
   }
   return snapshotFromReplies(replies, missing);

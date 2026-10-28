@@ -67,6 +67,14 @@ describe("Regions step", () => {
     expect(rowFor("be").classList.contains("focused")).toBe(false);
   });
 
+  it("says the region list may be incomplete when the last Read could not read it whole", () => {
+    chooseLocation({ type: "city", label: "Ronse", place: RONSE } as never);
+    store.snapshot.value = { settings: {}, missing: [], regions: { allowed: ["be"], denied: [], incomplete: true } };
+    render(<Regions />);
+    expect(screen.getByText(/The region list may be incomplete/)).toBeTruthy();
+    store.snapshot.value = null;
+  });
+
   it("lists neighbours in three groups: municipalities, provinces, countries", () => {
     chooseLocation({ type: "city", label: "Ronse", place: RONSE } as never);
     render(<Regions />);

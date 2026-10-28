@@ -911,26 +911,71 @@ export type DeviceRegions = {
   parents?: Record<string, string | null>;
 };
 
+/** One line of the bare `region` tree: the region, its parent (null = under *) and whether it may flood. */
+export type RegionTreeEntry = { name: string; parent: string | null; flood: boolean };
+
 /**
  * The bare `region` reply: one line per region, indented one space per level under `*` (itself
- * `*^` when it is the home), the name then `^` for home and ` F` when flood is allowed. The firmware cuts the reply at 159 bytes, so a
- * last line without its LF is dropped; parents come before children, so every whole line is right.
+ * `*^` when it is the home), the name then `^` for home and ` F` when flood is allowed. The firmware
+ * cuts the reply at 159 bytes (see regionTreeCut), so a last line without its LF is dropped;
+ * parents come before children, so every whole line is right. `wildcardFlood` is null when the
+ * reply is not a tree.
  */
-export function parseRegionTree(reply: string): Record<string, string | null> {
-  const parents: Record<string, string | null> = {};
+export function parseRegionTreeEntries(reply: string): { wildcardFlood: boolean | null; entries: RegionTreeEntry[] } {
+  const entries: RegionTreeEntry[] = [];
   const lines = String(reply || "").split("\n");
   lines.pop(); // the text after the last LF: empty, or a line the cap cut off
-  if (!/^\*\^?( F)?$/.test(lines[0] ?? "")) return parents;
+  const root = /^\*\^?( F)?$/.exec(lines[0] ?? "");
+  if (!root) return { wildcardFlood: null, entries };
   const path: string[] = [];
   for (const line of lines.slice(1)) {
     const depth = line.length - line.trimStart().length;
-    const name = line.trim().replace(/ F$/, "").replace(/\^$/, "");
+    const trimmed = line.trim();
+    const flood = / F$/.test(trimmed);
+    const name = trimmed.replace(/ F$/, "").replace(/\^$/, "");
     if (depth < 1 || depth > path.length + 1 || !name || /\s/.test(name)) break;
     path.length = depth - 1;
-    parents[name] = depth === 1 ? null : path[depth - 2];
+    entries.push({ name, parent: depth === 1 ? null : path[depth - 2], flood });
     path.push(name);
   }
-  return parents;
+  return { wildcardFlood: !!root[1], entries };
+}
+
+/** Each region's parent from the bare `region` reply (null = top level); see parseRegionTreeEntries. */
+export function parseRegionTree(reply: string): Record<string, string | null> {
+  return Object.fromEntries(parseRegionTreeEntries(reply).entries.map((e) => [e.name, e.parent]));
+}
+
+/** The firmware writes every CLI reply into a 160-byte buffer: at most 159 bytes come out. */
+export const REPLY_MAX_BYTES = 159;
+/** The longest region name the firmware keeps (RegionEntry name[31]). */
+export const REGION_NAME_MAX = 30;
+
+const replyBytes = (s: string) => new TextEncoder().encode(s).length;
+
+/**
+ * The `region` tree was cut: it filled the buffer, or its last line has no LF. The firmware gives
+ * no sign of it (RegionMap::exportTo through a BufStream that stops at 159 bytes).
+ */
+export function regionTreeCut(reply: string): boolean {
+  return replyBytes(reply) >= REPLY_MAX_BYTES || !reply.endsWith("\n");
+}
+
+/**
+ * `region list allowed|denied` may have left a name out: the firmware skips each name that no
+ * longer fits its buffer and goes on with the next (RegionMap::exportNamesTo), without a sign. A
+ * name of L bytes is skipped once the list holds 158 - L bytes, so a list shorter than
+ * 157 - REGION_NAME_MAX bytes is whole.
+ */
+export function regionListMayBeCut(reply: string): boolean {
+  return reply.trim() !== "-none-" && replyBytes(reply.trim()) >= 157 - REGION_NAME_MAX;
+}
+
+/** A `region get <name>` reply (" name (parent) F"; no parent at the top level, F when it may flood), or null for an error. */
+export function parseRegionGet(reply: string): RegionTreeEntry | null {
+  const m = /^\s*#?(\S+)(?:\s+\(#?(\S+)\))?\s*(F)?\s*$/.exec(String(reply || ""));
+  if (!m || /^err/i.test(m[1]) || /^unknown/i.test(m[1])) return null;
+  return { name: m[1], parent: m[2] ?? null, flood: m[3] === "F" };
 }
 
 /** Device region state from the read replies (old rememberDeviceRegionsFromRead). */

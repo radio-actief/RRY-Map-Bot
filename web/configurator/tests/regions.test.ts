@@ -27,7 +27,10 @@ import {
   policyFor,
   policyFromDevice,
   regionCommandLines,
+  parseRegionGet,
   parseRegionTree,
+  regionListMayBeCut,
+  regionTreeCut,
   regionsAfterApply,
   regionsByState,
   regionsMatch,
@@ -749,6 +752,29 @@ describe("free regions", () => {
     expect(denied.rows.filter((r) => r.code === "zone").map((r) => [r.group, r.allow, r.deny])).toEqual([
       ["free", false, true],
     ]);
+  });
+});
+
+describe("cut-off region replies", () => {
+  it("a tree of 159 bytes, or one that does not end its last line, was cut", () => {
+    expect(regionTreeCut("* F\n be F\n")).toBe(false);
+    expect(regionTreeCut("* F\n be F\n  be-w")).toBe(true);
+    expect(regionTreeCut(`* F\n${" x F\n".repeat(31)}`.slice(0, 159))).toBe(true);
+  });
+
+  it("a list of 127 bytes or more may have skipped a name (up to 30 characters)", () => {
+    expect(regionListMayBeCut("*,be,be-vov,beron")).toBe(false);
+    expect(regionListMayBeCut("-none-")).toBe(false);
+    expect(regionListMayBeCut("a".repeat(126))).toBe(false);
+    expect(regionListMayBeCut("a".repeat(127))).toBe(true);
+  });
+
+  it("parses region get: name, parent (none at the top level) and the flood flag", () => {
+    expect(parseRegionGet(" be-vov (be-vlg) F")).toEqual({ name: "be-vov", parent: "be-vlg", flood: true });
+    expect(parseRegionGet(" bemak (be-vov) ")).toEqual({ name: "bemak", parent: "be-vov", flood: false });
+    expect(parseRegionGet(" be F")).toEqual({ name: "be", parent: null, flood: true });
+    expect(parseRegionGet(" #zone F")).toEqual({ name: "zone", parent: null, flood: true });
+    expect(parseRegionGet("Err - unknown region")).toBeNull();
   });
 });
 

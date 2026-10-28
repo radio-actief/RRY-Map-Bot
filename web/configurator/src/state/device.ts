@@ -4,7 +4,7 @@
  */
 import { effect } from "@preact/signals";
 import { commandLines, type ScriptGroup } from "../core/cli";
-import { deviceRegionsFromSnapshot, planFromSnapshot, type DeviceSnapshot } from "../core/plan";
+import { deviceRegionsFromSnapshot, planFromSnapshot, regionCandidates, type DeviceSnapshot, type Plan } from "../core/plan";
 import { policyFor, regionsAfterApply } from "../core/regions";
 import { REGION_DEF_MIN_TEXT } from "../core/firmware";
 import { pubkeyFromSetReply, type VanityKey } from "../core/vanity";
@@ -189,7 +189,8 @@ export async function readDevice(): Promise<void> {
   store.reading.value = true;
   store.lastRead.value = null;
   try {
-    const snapshot = await readAll(link);
+    const places = () => store.data.peek().places ?? [];
+    const snapshot = await readAll(link, READ_COMMANDS, (partial) => regionCandidates(planFromSnapshot(partial, places())));
     if (!link.connected || store.device.peek().link !== link) {
       store.lastRead.value = { ok: false, reason: t("read.linkLost") };
       return;
@@ -214,10 +215,10 @@ const KEPT_ON_READ_BACK = ["version", "role", "publicKey", "publicKeyPending", "
  * ones and the device regions carry the tree. The identity, firmware version and clock stay from
  * the last Read. When the link goes, the regions that were sent stand in.
  */
-async function readBack(link: SerialLink): Promise<void> {
+async function readBack(link: SerialLink, sent: Plan): Promise<void> {
   readingBack = true;
   try {
-    const fresh = await readAll(link, READ_BACK_COMMANDS);
+    const fresh = await readAll(link, READ_BACK_COMMANDS, () => regionCandidates(sent));
     if (!link.connected || store.device.peek().link !== link) return;
     const old = store.snapshot.peek();
     const snapshot: DeviceSnapshot = { ...fresh };
@@ -330,7 +331,7 @@ export async function applyPlan(script: ScriptGroup[], { skipFirmwareCheck = fal
     store.startPlan.value = plan;
     const clock = await setClock(link);
     store.apply.value = { phase: "readBack", total };
-    await readBack(link);
+    await readBack(link, plan);
     appendLog({ text: t("log.applied"), kind: "ok" });
     const stillConnected = link.connected && store.device.peek().link === link;
     store.apply.value = {

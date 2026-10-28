@@ -169,6 +169,7 @@
   "read.confirm": "Read and overwrite form",
   "read.missing": "No reply to: {commands}. Those fields keep the #BEmesh defaults.",
   "read.failed": "Read failed: {reason}",
+  "read.regionsIncomplete": "The region list may be incomplete. This repeater holds more regions than the firmware prints in one reply; the configurator asked for every region it knows by name, but a region with another name can be missing.",
   "site.hilltop": "Hilltop",
   "site.hilltop.desc": "Clear view over a larger area: a mast, a ridge, the roof of a high-rise.",
   "site.hilltop.range": "20+ neighbours",

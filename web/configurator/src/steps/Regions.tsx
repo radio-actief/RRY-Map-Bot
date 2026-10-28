@@ -259,6 +259,7 @@ export function Regions() {
         <p class="sub regions-empty">{t("regions.empty")}</p>
       ) : (
         <>
+          {store.snapshot.value?.regions?.incomplete ? <Notice kind="warn">{t("read.regionsIncomplete")}</Notice> : null}
           {regionCount.value > MAX_REGIONS ? (
             <Notice kind="warn">{t("error.regionCount", { count: regionCount.value, max: MAX_REGIONS })}</Notice>
           ) : null}

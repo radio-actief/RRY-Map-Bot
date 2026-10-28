@@ -3,6 +3,7 @@ import read from "./fixtures/read-ronse.json";
 import { FakePort } from "./fakes/fake-port";
 import { SerialLink, isErrorReply } from "../src/device/serial";
 import { READ_COMMANDS, apply, checkFirmware, readAll, run } from "../src/device/repeater";
+import { regionReplies, type FwRegion } from "./fakes/region-firmware";
 
 const FAST = { interCommandDelayMs: 0, bootDrainMs: 0, disconnectSettleMs: 0, replyTimeoutMs: 40 };
 
@@ -12,6 +13,53 @@ async function linkTo(replies: Record<string, string>, disconnectAfter?: number)
   await link.open();
   return { port, link };
 }
+
+/** A repeater with many regions: be, Vlaanderen, Oost-Vlaanderen and `n` municipalities under it, the last one denied. */
+function bigTable(n: number): FwRegion[] {
+  const munis = Array.from({ length: n }, (_, i) => ({ name: `be${String.fromCharCode(97 + Math.floor(i / 26))}${String.fromCharCode(97 + (i % 26))}x`, parent: "be-vov", flood: i < n - 1 }));
+  return [{ name: "be", flood: true }, { name: "be-vlg", parent: "be", flood: true }, { name: "be-vov", parent: "be-vlg", flood: true }, ...munis];
+}
+
+describe("readAll: regions longer than one reply", () => {
+  it("a tree the firmware cut off is completed with region get for the names in the lists", async () => {
+    const table = bigTable(16);
+    const { replies, fullTree } = regionReplies(table);
+    expect(fullTree.length).toBeGreaterThan(159);
+    expect(replies.region.length).toBe(159);
+    const { port, link } = await linkTo({ ...read, ...replies });
+    const s = await readAll(link);
+    const asked = port.received.filter((c) => c.startsWith("region get "));
+    expect(asked.length).toBeGreaterThan(0);
+    expect(asked.length).toBeLessThan(table.length);
+    expect(Object.keys(s.regions!.parents!).sort()).toEqual(table.map((r) => r.name).sort());
+    for (const r of table) expect(s.regions!.parents![r.name]).toBe(r.parent ?? null);
+    expect(s.regions!.allowed.sort()).toEqual(["*", ...table.filter((r) => r.flood).map((r) => r.name)].sort());
+    expect(s.regions!.denied).toEqual([table.at(-1)!.name]);
+    expect(s.regions!.incomplete).toBeFalsy();
+  });
+
+  it("when the allowed list is cut too, every region it knows is asked for, and the read says it may be incomplete", async () => {
+    const table = bigTable(28);
+    const { replies } = regionReplies(table);
+    expect(replies["region list allowed"].length).toBeGreaterThanOrEqual(127);
+    const listed = replies["region list allowed"].split(",");
+    const skipped = table.filter((r) => r.flood && !listed.includes(r.name));
+    expect(skipped.length).toBeGreaterThan(0);
+    const { port, link } = await linkTo({ ...read, ...replies });
+    const s = await readAll(link, READ_COMMANDS, () => table.map((r) => r.name));
+    for (const r of skipped) expect(port.received).toContain(`region get ${r.name}`);
+    expect(s.regions!.allowed.sort()).toEqual(["*", ...table.filter((r) => r.flood).map((r) => r.name)].sort());
+    expect(Object.keys(s.regions!.parents!).length).toBe(table.length);
+    expect(s.regions!.incomplete).toBe(true);
+  });
+
+  it("a short tree and short lists ask nothing more", async () => {
+    const { port, link } = await linkTo(read);
+    const s = await readAll(link, READ_COMMANDS, () => ["be", "beron", "bexyz"]);
+    expect(port.received.some((c) => c.startsWith("region get"))).toBe(false);
+    expect(s.regions!.incomplete).toBeFalsy();
+  });
+});
 
 describe("readAll", () => {
   it("reads every setting from the ronse fixture", async () => {

@@ -11,6 +11,11 @@ import {
 } from "../lib/vue.esm-browser.prod.js";
 import * as ntools from "./node-utils.js";
 
+// Page language: src/shared/i18n.js (loaded in <head>) fetches the messages and translates the static page first.
+const I18N = window.BEmeshI18n;
+await I18N.ready;
+const t = I18N.t;
+
 // MDI path (same as @mdi/js).
 const mdiOpenInNew =
   "M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z";
@@ -26,11 +31,11 @@ function formatInserterUpdater(
   currentNode = null,
   copyRole = "inserter",
 ) {
-  if (!val) return "N/A";
+  if (!val) return t("map.na");
   const copyTitle =
     copyRole === "updater"
-      ? "Copy updater public key"
-      : "Copy inserter public key";
+      ? t("map.copyUpdaterKey")
+      : t("map.copyInserterKey");
   const copyable = createCopyableElement(
     val,
     shortenForDisplay(val.toUpperCase(), 18),
@@ -43,17 +48,13 @@ function formatInserterUpdater(
     !isSameNode &&
     nodes.some((n) => normalizePubKeyForCompare(n.public_key) === k);
   const gotoLink = inDb
-    ? ` <a class="node-popup__map-jump" href="?node=${encodeURIComponent(val)}" title="Go to node on map" aria-label="Go to node on map"><svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="${mdiOpenInNew}" fill="currentColor"/></svg></a>`
+    ? ` <a class="node-popup__map-jump" href="?node=${encodeURIComponent(val)}" title="${escapeAttrHtml(t("map.goToNode"))}" aria-label="${escapeAttrHtml(t("map.goToNode"))}"><svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="${mdiOpenInNew}" fill="currentColor"/></svg></a>`
     : "";
   return copyable + gotoLink;
 }
 
-const types = {
-  1: "Client",
-  2: "Repeater",
-  3: "Room Server",
-  4: "Sensor",
-};
+/** Node type name in the page language (1 client, 2 repeater, 3 room server, 4 sensor). */
+const typeName = (n) => t(`map.type.${n}`);
 
 /** Bootstrap Icons classes for node types (shown in popup header). */
 function getNodeTypeMeta(node) {
@@ -68,7 +69,7 @@ function getNodeTypeMeta(node) {
   return {
     typeNum,
     icon: iconByType[typeNum] || iconByType[1],
-    label: types[typeNum] || types[1],
+    label: typeName(typeNum),
   };
 }
 
@@ -84,20 +85,20 @@ function getNodeSourceHeaderMeta(node) {
   let href = null;
 
   if (lowerVal === "uploader") {
-    tooltipText = "Uploader: Auto-uploaded via MeshCore map uploader tool";
+    tooltipText = t("map.source.uploader");
     icon = "bi bi-cloud-upload";
   } else if (lowerVal === "app") {
-    tooltipText = "App: Added via a MeshCore app";
+    tooltipText = t("map.source.app");
     icon = "bi bi-grid-3x3-gap-fill";
   } else if (lowerVal === "web") {
-    tooltipText = "Web: Added via legacy official map";
+    tooltipText = t("map.source.web");
     icon = "bi bi-globe";
   } else if (lowerVal === "discord") {
-    tooltipText = "Discord: Added via Discord";
+    tooltipText = t("map.source.discord");
     icon = "bi bi-chat-dots-fill";
   } else {
     const cap = lowerVal.charAt(0).toUpperCase() + lowerVal.slice(1);
-    tooltipText = `Source: ${cap}`;
+    tooltipText = t("map.source.other", { name: cap });
     icon = "bi bi-database";
   }
 
@@ -181,7 +182,7 @@ function copyToClipboard(text, element) {
       // Show confirmation
       const originalText = element.innerHTML;
       element.innerHTML =
-        '<span style="color: #4CAF50; font-weight: bold;">✓ Copied!</span>';
+        `<span style="color: #4CAF50; font-weight: bold;">✓ ${escapeAttrHtml(t("map.copied"))}</span>`;
       element.style.cursor = "pointer";
 
       // Reset after 3 seconds
@@ -193,7 +194,7 @@ function copyToClipboard(text, element) {
       console.error("Failed to copy:", err);
       const originalText = element.innerHTML;
       element.innerHTML =
-        '<span style="color: #f44336; font-weight: bold;">✗ Failed</span>';
+        `<span style="color: #f44336; font-weight: bold;">✗ ${escapeAttrHtml(t("map.copyFailed"))}</span>`;
       setTimeout(() => {
         element.innerHTML = originalText;
       }, 3000);
@@ -213,8 +214,8 @@ function copyToClipboardWithQrWrapFeedback(text, wrapEl) {
       ? " node-qr-wrap-feedback--inline"
       : "";
     const inner = ok
-      ? `<span class="node-qr-wrap-feedback node-qr-wrap-feedback--ok${inlineCls}"><i class="bi bi-check-lg" aria-hidden="true"></i> Copied!</span>`
-      : `<span class="node-qr-wrap-feedback node-qr-wrap-feedback--err${inlineCls}"><i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i> Failed</span>`;
+      ? `<span class="node-qr-wrap-feedback node-qr-wrap-feedback--ok${inlineCls}"><i class="bi bi-check-lg" aria-hidden="true"></i> ${escapeAttrHtml(t("map.copied"))}</span>`
+      : `<span class="node-qr-wrap-feedback node-qr-wrap-feedback--err${inlineCls}"><i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i> ${escapeAttrHtml(t("map.copyFailed"))}</span>`;
     let frozenH = null;
     if (fieldEl.classList.contains("node-qr-card__field-text")) {
       frozenH = fieldEl.getBoundingClientRect().height;
@@ -444,10 +445,10 @@ function formatFrequencyKnownTooltip(presets) {
 }
 
 const radioParamDesc = {
-  bw: { label: "Bandwidth", unit: " kHz" },
-  freq: { label: "Frequency", unit: "MHz" },
-  sf: { label: "Spreading factor", unit: "" },
-  cr: { label: "Coding rate", unit: "" },
+  bw: { labelKey: "map.radio.bw", unit: " kHz" },
+  freq: { labelKey: "map.radio.freq", unit: "MHz" },
+  sf: { labelKey: "map.radio.sf", unit: "" },
+  cr: { labelKey: "map.radio.cr", unit: "" },
 };
 
 function escapeAttrHtml(text) {
@@ -462,7 +463,7 @@ function formatRadioParams(params) {
     typeof params !== "object" ||
     Object.keys(params).length === 0
   ) {
-    return "N/A";
+    return t("map.na");
   }
 
   const preset = matchFrequencyPreset(params);
@@ -487,10 +488,10 @@ function formatRadioParams(params) {
     if (!meta || (typeof val === "number" && Number.isNaN(val))) continue;
     const numStr = escapeAttrHtml(String(val));
     const suffix = meta.unit ? escapeAttrHtml(meta.unit) : "";
-    html += `<div>${escapeAttrHtml(meta.label)}: ${numStr}${suffix}</div>`;
+    html += `<div>${escapeAttrHtml(t(meta.labelKey))}: ${numStr}${suffix}</div>`;
   }
 
-  return html || "N/A";
+  return html || t("map.na");
 }
 
 /** Parse API/DB timestamp as UTC epoch ms. Naive ``YYYY-MM-DD HH:MM:SS`` => UTC. */
@@ -504,7 +505,7 @@ function parseUtcMs(dateString) {
   return Date.parse(s);
 }
 
-// Format date as relative time (exact upstream implementation)
+// Format date as relative time (upstream's units, worded by Intl.RelativeTimeFormat in the page language)
 function timeAgo(msec) {
   const seconds = Math.floor((Date.now() - msec) / 1000);
 
@@ -521,37 +522,37 @@ function timeAgo(msec) {
     const count = Math.floor(seconds / unit.limit);
 
     if (count >= 1) {
-      return `${count} ${unit.name}${count > 1 ? "s" : ""} ago`;
+      return new Intl.RelativeTimeFormat(I18N.locale(), { numeric: "always" }).format(-count, unit.name);
     }
   }
 
-  return "just now";
+  return t("map.justNow");
 }
 
 /** Tight relative labels for narrow UI (e.g. popup activity strip): no “ago”, short units. */
 function timeAgoCompact(msec) {
   const seconds = Math.floor((Date.now() - msec) / 1000);
-  if (seconds < 45) return "now";
+  if (seconds < 45) return t("map.ago.now");
 
   const tiers = [
-    { limit: 31536000, suf: "y" },
-    { limit: 2592000, suf: "mo" },
-    { limit: 86400, suf: "d" },
-    { limit: 3600, suf: "h" },
-    { limit: 60, suf: "min" },
+    { limit: 31536000, unit: "y" },
+    { limit: 2592000, unit: "mo" },
+    { limit: 86400, unit: "d" },
+    { limit: 3600, unit: "h" },
+    { limit: 60, unit: "min" },
   ];
 
-  for (const { limit, suf } of tiers) {
+  for (const { limit, unit } of tiers) {
     const count = Math.floor(seconds / limit);
-    if (count >= 1) return `${count}${suf}`;
+    if (count >= 1) return t(`map.ago.${unit}`, { count });
   }
-  return "now";
+  return t("map.ago.now");
 }
 
 function formatRelativeTimeCompact(dateString) {
-  if (!dateString) return "N/A";
+  if (!dateString) return t("map.na");
   const ms = parseUtcMs(dateString);
-  if (Number.isNaN(ms)) return "Invalid date";
+  if (Number.isNaN(ms)) return t("map.invalidDate");
   const date = new Date(ms);
   const titleCET = formatInCET(date);
   const long = timeAgo(ms);
@@ -563,8 +564,8 @@ function formatRelativeTimeCompact(dateString) {
 // Format date in CET/CEST with timezone label (for tooltips and display)
 // Note: timeZoneName cannot be used with dateStyle/timeStyle, so we use explicit options.
 function formatInCET(date) {
-  if (!(date instanceof Date) || isNaN(date.getTime())) return "Invalid date";
-  return new Intl.DateTimeFormat("en-GB", {
+  if (!(date instanceof Date) || isNaN(date.getTime())) return t("map.invalidDate");
+  return new Intl.DateTimeFormat(I18N.locale(), {
     timeZone: "Europe/Brussels",
     year: "numeric",
     month: "2-digit",
@@ -577,10 +578,10 @@ function formatInCET(date) {
 
 // Helper function to format date string with timeAgo; tooltip shows exact time in CET
 function formatRelativeTime(dateString) {
-  if (!dateString) return "N/A";
+  if (!dateString) return t("map.na");
 
   const ms = parseUtcMs(dateString);
-  if (Number.isNaN(ms)) return "Invalid date";
+  if (Number.isNaN(ms)) return t("map.invalidDate");
 
   const dt = new Date(ms);
   const titleCET = formatInCET(dt);
@@ -601,7 +602,7 @@ function shortenForDisplay(str, maxLen = 24) {
 // Create clickable copy element
 // options: { hintStyle, extraClasses, dataHint, copyTitle } — copyTitle overrides default "Click to copy" tooltip.
 function createCopyableElement(text, displayText = null, options = null) {
-  if (!text) return "N/A";
+  if (!text) return t("map.na");
   const display = displayText || text;
   const opts = options && typeof options === "object" ? options : {};
   const hintStyle = !!opts.hintStyle;
@@ -636,7 +637,7 @@ function createCopyableElement(text, displayText = null, options = null) {
   const titleRaw =
     opts.copyTitle != null && String(opts.copyTitle).trim() !== ""
       ? String(opts.copyTitle).trim()
-      : "Click to copy";
+      : t("map.clickToCopy");
   const titleAttr = escapeAttrHtml(titleRaw);
 
   return `<span class="${classes.join(" ")}" data-copy="${escapedText}"${styleAttr}${dataHintAttr} title="${titleAttr}">${escapedDisplay}</span>`;
@@ -653,8 +654,8 @@ function buildCoordsMenuWrapFromLatLon(latN, lonN, toggleLabelEscaped) {
   const mapy = `https://mapy.com/?q=${latN},${lonN}`;
   return (
     `<span class="coords-menu-wrap">` +
-    `<a href="#" class="coords-menu-toggle" onclick="event.preventDefault();event.stopPropagation();this.parentElement.classList.toggle('open');return false;" title="Copy coordinates &amp; open in maps">${toggleLabelEscaped}</a>` +
-    `<span class="coords-menu">${createCopyableElement(plain, "Copy coordinates")}<a href="${osm}" target="_blank" rel="noopener noreferrer">OpenStreetMap</a><a href="${gMap}" target="_blank" rel="noopener noreferrer">Google Maps</a><a href="${mapy}" target="_blank" rel="noopener noreferrer">Mapy.com</a></span>` +
+    `<a href="#" class="coords-menu-toggle" onclick="event.preventDefault();event.stopPropagation();this.parentElement.classList.toggle('open');return false;" title="${escapeAttrHtml(t("map.coordsMenu"))}">${toggleLabelEscaped}</a>` +
+    `<span class="coords-menu">${createCopyableElement(plain, t("map.copyCoords"))}<a href="${osm}" target="_blank" rel="noopener noreferrer">OpenStreetMap</a><a href="${gMap}" target="_blank" rel="noopener noreferrer">Google Maps</a><a href="${mapy}" target="_blank" rel="noopener noreferrer">Mapy.com</a></span>` +
     `</span>`
   );
 }
@@ -679,13 +680,13 @@ function collectQrEnlargeContext(slot) {
   const card = slot?.closest?.(".node-qr-card");
   const titleEl = popup?.querySelector?.(".node-popup__title");
   const typeIcon = popup?.querySelector?.(".node-popup__type-icon");
-  const name = (titleEl?.textContent || "").trim() || "Unnamed node";
+  const name = (titleEl?.textContent || "").trim() || t("map.unnamed");
   const typeLabel =
     (
       typeIcon?.getAttribute("aria-label") ||
       typeIcon?.getAttribute("title") ||
       ""
-    ).trim() || "Node";
+    ).trim() || t("map.node");
   const publicKey = (card?.getAttribute("data-public-key") || "").trim();
   return { name, typeLabel, publicKey };
 }
@@ -704,7 +705,7 @@ async function openQrEnlargeOverlay(slot, link) {
   backdrop.className = "node-qr-enlarge-backdrop";
   backdrop.setAttribute("role", "dialog");
   backdrop.setAttribute("aria-modal", "true");
-  backdrop.setAttribute("aria-label", `Enlarged QR code — ${ctx.name}`);
+  backdrop.setAttribute("aria-label", t("map.qrEnlarged", { name: ctx.name }));
 
   const panel = document.createElement("div");
   panel.className = "node-qr-enlarge-panel";
@@ -713,7 +714,7 @@ async function openQrEnlargeOverlay(slot, link) {
   const closeBtn = document.createElement("button");
   closeBtn.type = "button";
   closeBtn.className = "node-qr-enlarge-close";
-  closeBtn.setAttribute("aria-label", "Close");
+  closeBtn.setAttribute("aria-label", t("map.close"));
   closeBtn.textContent = "\u00d7";
 
   const titleEl = document.createElement("h2");
@@ -835,7 +836,7 @@ function buildAnalyzerFooterMenu(node, letsMeshUrl) {
   const o8 = escapeAttrHtml(on8arUrl);
   return (
     `<span class="coords-menu-wrap node-popup-analyzer-menu">` +
-    `<a href="#" class="node-popup-action node-popup-action--external node-popup-action--icon-only node-popup-analyzer-menu__toggle" onclick="event.preventDefault();event.stopPropagation();this.parentElement.classList.toggle('open');return false;" title="Choose network analyzer" aria-label="Choose network analyzer"><i class="bi bi-search" aria-hidden="true"></i></a>` +
+    `<a href="#" class="node-popup-action node-popup-action--external node-popup-action--icon-only node-popup-analyzer-menu__toggle" onclick="event.preventDefault();event.stopPropagation();this.parentElement.classList.toggle('open');return false;" title="${escapeAttrHtml(t("map.analyzer"))}" aria-label="${escapeAttrHtml(t("map.analyzer"))}"><i class="bi bi-search" aria-hidden="true"></i></a>` +
     `<span class="coords-menu" role="menu">` +
     `<a role="menuitem" href="${lm}" target="_blank" rel="noopener noreferrer">Let\u2019s Mesh Analyzer</a>` +
     `<a role="menuitem" href="${o8}" target="_blank" rel="noopener noreferrer">ON8AR Analyzer</a>` +
@@ -946,7 +947,7 @@ function bindPopupQrRefill(popup, getContentRoot) {
 const columnOrder = ["link"];
 const columns = {
   coords: {
-    label: "Coordinates",
+    labelKey: "map.col.coords",
     value: (val, node) => {
       if (node?.adv_lat != null && node?.adv_lon != null) {
         const latN = Number(node.adv_lat);
@@ -981,12 +982,12 @@ const columns = {
     },
   },
   adv_name: {
-    label: "Name",
+    labelKey: "map.col.name",
   },
   status: {
-    label: "Freshness",
+    labelKey: "map.col.freshness",
     value: (val) => {
-      const desc = updateStatusDesc[val] || "N/A";
+      const desc = statusDesc(val);
       const statusClass =
         val && Object.prototype.hasOwnProperty.call(updateStatusDesc, val)
           ? `update-${val}`
@@ -995,42 +996,42 @@ const columns = {
     },
   },
   inserted_date: {
-    label: "Inserted",
+    labelKey: "map.inserted",
     value: (val) => formatRelativeTime(val),
   },
   updated_date: {
-    label: "Updated",
+    labelKey: "map.updated",
     value: (val) => formatRelativeTime(val),
   },
   last_advert: {
-    label: "Last advert",
+    labelKey: "map.lastAdvert",
     value: (val) => formatRelativeTime(val),
   },
   public_key: {
-    label: "Public key",
+    labelKey: "map.publicKey",
     value: (val) =>
       createCopyableElement(val, shortenForDisplay(val.toUpperCase(), 22)),
   },
   inserted_by: {
-    label: "Inserted by",
+    labelKey: "map.col.insertedBy",
     value: (val, node, nodes = []) =>
       formatInserterUpdater(val, nodes, node, "inserter"),
   },
   updated_by: {
-    label: "Updated by",
+    labelKey: "map.updatedBy",
     value: (val, node, nodes = []) =>
       formatInserterUpdater(val, nodes, node, "updater"),
   },
   type: {
-    label: "Type",
-    value: (val) => types[val],
+    labelKey: "map.col.type",
+    value: (val) => typeName(val),
   },
   params: {
-    label: "Radio params",
+    labelKey: "map.col.radio",
     value: (val) => formatRadioParams(val),
   },
   link: {
-    label: "Meshcore link",
+    labelKey: "map.col.link",
     value: (val) => {
       const link =
         typeof val === "string"
@@ -1040,31 +1041,31 @@ const columns = {
               ? `meshcore://${val}`
               : ""
           : "";
-      if (!link) return "N/A";
+      if (!link) return t("map.na");
       return createCopyableElement(link, shortenForDisplay(link, 24));
     },
   },
   city: {
-    label: "City",
-    value: (val) => val || "Unknown",
+    labelKey: "map.col.city",
+    value: (val) => (val ? I18N.municipalityName(val) : t("map.unknown")),
   },
   discord_owner_name: {
-    label: "Discord Owner",
+    labelKey: "map.col.owner",
     value: (val, node) => {
       // This function is only called if val exists (field is shown)
       const ownerId = node?.discord_owner_id;
       if (ownerId) {
         // Create clickable Discord DM link
         // discord:// works for desktop Discord app, https:// works for web
-        return `<a href="https://discord.com/users/${ownerId}" target="_blank" title="Send DM to ${val}">@${val}</a>`;
+        return `<a href="https://discord.com/users/${ownerId}" target="_blank" title="${escapeAttrHtml(t("map.sendDm", { name: val }))}">@${val}</a>`;
       }
       return `@${val}`;
     },
   },
   source: {
-    label: "Source",
+    labelKey: "map.col.source",
     value: (val) => {
-      if (!val) return "N/A";
+      if (!val) return t("map.na");
       const lowerVal = val.toLowerCase();
       // Capitalize first letter only
       const capitalizedVal =
@@ -1072,14 +1073,8 @@ const columns = {
 
       // Define tooltip text based on source type
       let tooltipText = "";
-      if (lowerVal === "uploader") {
-        tooltipText = "Uploader: Auto-uploaded via MeshCore map uploader tool";
-      } else if (lowerVal === "app") {
-        tooltipText = "App: Added via a MeshCore app";
-      } else if (lowerVal === "web") {
-        tooltipText = "Web: Added via legacy official map";
-      } else if (lowerVal === "discord") {
-        tooltipText = "Discord: Added via Discord";
+      if (["uploader", "app", "web", "discord"].includes(lowerVal)) {
+        tooltipText = escapeAttrHtml(t(`map.source.${lowerVal}`));
       }
 
       // Create the value with tooltip
@@ -1087,7 +1082,7 @@ const columns = {
 
       // If source is "uploader", add a clickable icon next to it
       if (lowerVal === "uploader") {
-        valueHtml += ` <a href="https://github.com/recrof/map.meshcore.io-uploader" target="_blank" rel="noopener noreferrer" title="View MeshCore map uploader on GitHub" style="color: #4CAF50; text-decoration: none; margin-left: 4px;">🔗</a>`;
+        valueHtml += ` <a href="https://github.com/recrof/map.meshcore.io-uploader" target="_blank" rel="noopener noreferrer" title="${escapeAttrHtml(t("map.uploaderOnGithub"))}" style="color: #4CAF50; text-decoration: none; margin-left: 4px;">🔗</a>`;
       }
 
       return valueHtml;
@@ -1132,7 +1127,7 @@ function clearLocationHash() {
 function buildHeaderCityLineHtml(node) {
   const cityRaw = node?.city;
   const city = cityRaw != null ? String(cityRaw).trim() : "";
-  const displayCity = city || "Unknown";
+  const displayCity = city ? I18N.municipalityName(city) : t("map.unknown");
   const latN = node?.adv_lat != null ? Number(node.adv_lat) : NaN;
   const lonN = node?.adv_lon != null ? Number(node.adv_lon) : NaN;
   if (Number.isFinite(latN) && Number.isFinite(lonN)) {
@@ -1150,17 +1145,17 @@ function buildNodeActivityStripHtml(node) {
   const items = [
     {
       key: "inserted_date",
-      label: "Inserted",
+      label: t("map.inserted"),
       icon: "bi bi-rocket-takeoff",
     },
     {
       key: "updated_date",
-      label: "Updated",
+      label: t("map.updated"),
       icon: "bi bi-arrow-repeat",
     },
     {
       key: "last_advert",
-      label: "Last advert",
+      label: t("map.lastAdvert"),
       icon: "bi bi-rss",
     },
   ];
@@ -1187,7 +1182,7 @@ function buildNodeActivityStripHtml(node) {
     })
     .join("");
 
-  return `<div class="node-popup__activity" role="list" aria-label="Node dates: inserted, updated, last advert">${cells}</div>`;
+  return `<div class="node-popup__activity" role="list" aria-label="${escapeAttrHtml(t("map.datesLabel"))}">${cells}</div>`;
 }
 
 function buildRadioParamsPanelHtml(node) {
@@ -1199,8 +1194,8 @@ function buildRadioParamsPanelHtml(node) {
   ) {
     return (
       `<div class="node-popup__panel-block">` +
-      `<div class="node-popup__panel-kicker"><span class="node-popup__panel-icon" aria-hidden="true"><i class="bi bi-sliders" aria-hidden="true"></i></span><span>Radio</span></div>` +
-      `<div class="node-popup__panel-body"><span class="node-popup__muted">Not specified</span></div></div>`
+      `<div class="node-popup__panel-kicker"><span class="node-popup__panel-icon" aria-hidden="true"><i class="bi bi-sliders" aria-hidden="true"></i></span><span>${escapeAttrHtml(t("map.radio"))}</span></div>` +
+      `<div class="node-popup__panel-body"><span class="node-popup__muted">${escapeAttrHtml(t("map.notSpecified"))}</span></div></div>`
     );
   }
   const preset = matchFrequencyPreset(params);
@@ -1208,7 +1203,7 @@ function buildRadioParamsPanelHtml(node) {
     const presetTitle = escapeAttrHtml(presetHoverDetailsText(preset));
     return (
       `<div class="node-popup__panel-block">` +
-      `<div class="node-popup__panel-kicker"><span class="node-popup__panel-icon" aria-hidden="true"><i class="bi bi-sliders" aria-hidden="true"></i></span><span>Radio</span></div>` +
+      `<div class="node-popup__panel-kicker"><span class="node-popup__panel-icon" aria-hidden="true"><i class="bi bi-sliders" aria-hidden="true"></i></span><span>${escapeAttrHtml(t("map.radio"))}</span></div>` +
       `<div class="node-popup__panel-body"><span class="node-popup__radio-preset" title="${presetTitle}">${escapeAttrHtml(preset.name)}</span></div></div>`
     );
   }
@@ -1235,7 +1230,7 @@ function buildRadioParamsPanelHtml(node) {
   }
   if (Number.isFinite(bw)) {
     chips.push(
-      `<span class="node-popup__chip">${escapeAttrHtml(String(bw))}\u00a0kHz BW</span>`,
+      `<span class="node-popup__chip">${escapeAttrHtml(t("map.chip.bw", { bw: String(bw) }))}</span>`,
     );
   }
   if (Number.isFinite(cr)) {
@@ -1244,11 +1239,11 @@ function buildRadioParamsPanelHtml(node) {
     );
   }
   const inner = chips.length
-    ? `<div class="node-popup__radio-custom"><span class="node-popup__chip-hint node-popup__chip-hint--lead">Custom</span><div class="node-popup__chip-row">${chips.join("")}</div></div>`
-    : `<span class="node-popup__muted">Not specified</span>`;
+    ? `<div class="node-popup__radio-custom"><span class="node-popup__chip-hint node-popup__chip-hint--lead">${escapeAttrHtml(t("map.custom"))}</span><div class="node-popup__chip-row">${chips.join("")}</div></div>`
+    : `<span class="node-popup__muted">${escapeAttrHtml(t("map.notSpecified"))}</span>`;
   return (
     `<div class="node-popup__panel-block">` +
-    `<div class="node-popup__panel-kicker"><span class="node-popup__panel-icon" aria-hidden="true"><i class="bi bi-sliders" aria-hidden="true"></i></span><span>Radio</span></div>` +
+    `<div class="node-popup__panel-kicker"><span class="node-popup__panel-icon" aria-hidden="true"><i class="bi bi-sliders" aria-hidden="true"></i></span><span>${escapeAttrHtml(t("map.radio"))}</span></div>` +
     `<div class="node-popup__panel-body">${inner}</div></div>`
   );
 }
@@ -1266,8 +1261,8 @@ function buildNodeIdentityPanelHtml(
     const copyHtml = createCopyableElement(pk, display);
     blocks.push(
       `<div class="node-popup__panel-block">` +
-        `<div class="node-popup__panel-kicker"><span class="node-popup__panel-icon" aria-hidden="true"><i class="bi bi-key" aria-hidden="true"></i></span><span>Public key</span></div>` +
-        `<div class="node-popup__panel-body"><div class="node-popup__pk-wrap" title="${escapeAttrHtml("Copy public key")}">${copyHtml}</div></div></div>`,
+        `<div class="node-popup__panel-kicker"><span class="node-popup__panel-icon" aria-hidden="true"><i class="bi bi-key" aria-hidden="true"></i></span><span>${escapeAttrHtml(t("map.publicKey"))}</span></div>` +
+        `<div class="node-popup__panel-body"><div class="node-popup__pk-wrap" title="${escapeAttrHtml(t("map.copyPublicKey"))}">${copyHtml}</div></div></div>`,
     );
   }
 
@@ -1284,18 +1279,18 @@ function buildNodeIdentityPanelHtml(
       normalizePubKeyForCompare(ins) === normalizePubKeyForCompare(upd);
     let inner = "";
     if (same) {
-      inner = `<div class="node-popup__prov-row"><span class="node-popup__prov-label">Added &amp; updated by</span><span class="node-popup__prov-value">${formatInserterUpdater(ins, nodes, node, "inserter")}</span></div>`;
+      inner = `<div class="node-popup__prov-row"><span class="node-popup__prov-label">${escapeAttrHtml(t("map.addedUpdatedBy"))}</span><span class="node-popup__prov-value">${formatInserterUpdater(ins, nodes, node, "inserter")}</span></div>`;
     } else {
       if (insPresent) {
-        inner += `<div class="node-popup__prov-row"><span class="node-popup__prov-label">Added by</span><span class="node-popup__prov-value">${formatInserterUpdater(ins, nodes, node, "inserter")}</span></div>`;
+        inner += `<div class="node-popup__prov-row"><span class="node-popup__prov-label">${escapeAttrHtml(t("map.addedBy"))}</span><span class="node-popup__prov-value">${formatInserterUpdater(ins, nodes, node, "inserter")}</span></div>`;
       }
       if (updPresent) {
-        inner += `<div class="node-popup__prov-row"><span class="node-popup__prov-label">Updated by</span><span class="node-popup__prov-value">${formatInserterUpdater(upd, nodes, node, "updater")}</span></div>`;
+        inner += `<div class="node-popup__prov-row"><span class="node-popup__prov-label">${escapeAttrHtml(t("map.updatedBy"))}</span><span class="node-popup__prov-value">${formatInserterUpdater(upd, nodes, node, "updater")}</span></div>`;
       }
     }
     blocks.push(
       `<div class="node-popup__panel-block">` +
-        `<div class="node-popup__panel-kicker"><span class="node-popup__panel-icon" aria-hidden="true"><i class="bi bi-clock-history" aria-hidden="true"></i></span><span>Uploader identity</span></div>` +
+        `<div class="node-popup__panel-kicker"><span class="node-popup__panel-icon" aria-hidden="true"><i class="bi bi-clock-history" aria-hidden="true"></i></span><span>${escapeAttrHtml(t("map.uploaderIdentity"))}</span></div>` +
         `<div class="node-popup__panel-body node-popup__panel-body--prov">${inner}</div></div>`,
     );
   }
@@ -1306,16 +1301,16 @@ function buildNodeIdentityPanelHtml(
     const at = escapeAttrHtml(owner);
     const linkBody =
       oid != null && String(oid).trim() !== ""
-        ? `<a class="node-popup__discord-user" href="https://discord.com/users/${encodeURIComponent(String(oid))}" target="_blank" rel="noopener noreferrer" title="Send private message to owner via Discord" aria-label="Send private message to owner via Discord">@${at}</a>`
+        ? `<a class="node-popup__discord-user" href="https://discord.com/users/${encodeURIComponent(String(oid))}" target="_blank" rel="noopener noreferrer" title="${escapeAttrHtml(t("map.dmOwner"))}" aria-label="${escapeAttrHtml(t("map.dmOwner"))}">@${at}</a>`
         : `<span class="node-popup__discord-user node-popup__discord-user--bare">@${at}</span>`;
     blocks.push(
       `<div class="node-popup__panel-block node-popup__panel-block--owner">` +
-        `<div class="node-popup__panel-kicker"><span class="node-popup__panel-icon node-popup__panel-icon--discord" aria-hidden="true"><i class="bi bi-shield-check" aria-hidden="true"></i></span><span>Claimed by</span></div>` +
+        `<div class="node-popup__panel-kicker"><span class="node-popup__panel-icon node-popup__panel-icon--discord" aria-hidden="true"><i class="bi bi-shield-check" aria-hidden="true"></i></span><span>${escapeAttrHtml(t("map.claimedBy"))}</span></div>` +
         `<div class="node-popup__panel-body">${linkBody}</div></div>`,
     );
   }
 
-  return `<section class="node-popup__panel" aria-label="Keys, ownership, and radio">${blocks.join("")}</section>`;
+  return `<section class="node-popup__panel" aria-label="${escapeAttrHtml(t("map.panelLabel"))}">${blocks.join("")}</section>`;
 }
 
 function getTable(node, authState = null, nodes = []) {
@@ -1346,48 +1341,48 @@ function getTable(node, authState = null, nodes = []) {
         const display = shortenForDisplay(pkRaw.toUpperCase(), 26);
         return (
           `<div class="node-qr-card__bar-start">` +
-          `<div class="node-popup__pk-wrap" title="${escapeAttrHtml("Copy public key")}">` +
+          `<div class="node-popup__pk-wrap" title="${escapeAttrHtml(t("map.copyPublicKey"))}">` +
           `<span class="node-qr-card__field-text">` +
           `<span class="node-qr-card__field-slice">${escapeAttrHtml(display)}</span>` +
           `</span></div></div>` +
-          `<span class="node-qr-card__hint">Public key</span>`
+          `<span class="node-qr-card__hint">${escapeAttrHtml(t("map.publicKey"))}</span>`
         );
       })()
     : `<div class="node-qr-card__bar-start" aria-hidden="true"></div>`;
   const escapedMc = escapeAttrHtml(meshcoreCopyLink);
   const linkSnippet = shortenForDisplay(meshcoreCopyLink, 26);
   const qrBlock = qrUri
-    ? `<div class="node-qr-card"${dataPublicKeyAttr} role="button" tabindex="0" aria-label="Copy MeshCore link" data-meshcore-copy="${escapedMc}"><div class="node-qr-card__header">${qrHeaderPk}</div><div class="node-qr-card__inner"><div class="node-qr-slot" data-meshcore-link="${escapeAttrHtml(qrUri)}"></div></div><div class="node-qr-card__footer"><div class="node-qr-card__bar-start"><div class="node-popup__pk-wrap" title="${escapeAttrHtml("Copy MeshCore link")}"><span class="node-qr-card__field-text"><span class="node-qr-card__field-slice">${escapeAttrHtml(linkSnippet)}</span></span></div></div><span class="node-qr-card__hint">MeshCore link</span></div></div>`
+    ? `<div class="node-qr-card"${dataPublicKeyAttr} role="button" tabindex="0" aria-label="${escapeAttrHtml(t("map.copyLink"))}" data-meshcore-copy="${escapedMc}"><div class="node-qr-card__header">${qrHeaderPk}</div><div class="node-qr-card__inner"><div class="node-qr-slot" data-meshcore-link="${escapeAttrHtml(qrUri)}"></div></div><div class="node-qr-card__footer"><div class="node-qr-card__bar-start"><div class="node-popup__pk-wrap" title="${escapeAttrHtml(t("map.copyLink"))}"><span class="node-qr-card__field-text"><span class="node-qr-card__field-slice">${escapeAttrHtml(linkSnippet)}</span></span></div></div><span class="node-qr-card__hint">${escapeAttrHtml(t("map.link"))}</span></div></div>`
     : "";
 
   const statusKey = node.status || "none";
-  const statusDesc = updateStatusDesc[statusKey] || "N/A";
+  const freshness = statusDesc(statusKey);
   const statusDotClass =
     statusKey &&
     Object.prototype.hasOwnProperty.call(updateStatusDesc, statusKey)
       ? `update-${statusKey}`
       : "update-none";
   const typeMeta = getNodeTypeMeta(node);
-  const displayName = node.adv_name?.trim() ? node.adv_name : "Unnamed node";
+  const displayName = node.adv_name?.trim() ? node.adv_name : t("map.unnamed");
 
   const sourceMeta = getNodeSourceHeaderMeta(node);
   const sourceHeaderEl = sourceMeta
     ? (() => {
         const inner = `<i class="${sourceMeta.icon}" aria-hidden="true"></i>`;
         const cls = `node-popup__source-icon node-popup__source-icon--${sourceMeta.safeClass}`;
-        const t = escapeAttrHtml(`Source type: ${sourceMeta.tooltipText}`);
+        const tip = escapeAttrHtml(t("map.sourceType", { text: sourceMeta.tooltipText }));
         return sourceMeta.href
-          ? `<a class="${cls}" href="${escapeAttrHtml(sourceMeta.href)}" target="_blank" rel="noopener noreferrer" title="${t}" aria-label="${t}">${inner}</a>`
-          : `<span class="${cls}" title="${t}" aria-label="${t}">${inner}</span>`;
+          ? `<a class="${cls}" href="${escapeAttrHtml(sourceMeta.href)}" target="_blank" rel="noopener noreferrer" title="${tip}" aria-label="${tip}">${inner}</a>`
+          : `<span class="${cls}" title="${tip}" aria-label="${tip}">${inner}</span>`;
       })()
     : "";
 
   const headerHtml =
     `<header class="node-popup__header">` +
     `<span class="node-popup__type-icon" title="${escapeAttrHtml(typeMeta.label)}" aria-label="${escapeAttrHtml(typeMeta.label)}"><i class="${typeMeta.icon}" aria-hidden="true"></i></span>` +
-    `<span class="node-popup__freshness" title="${escapeAttrHtml(`Freshness: ${statusDesc}`)}" aria-label="${escapeAttrHtml(`Freshness: ${statusDesc}`)}"><span class="status-dot ${statusDotClass}"></span></span>` +
+    `<span class="node-popup__freshness" title="${escapeAttrHtml(t("map.freshness", { desc: freshness }))}" aria-label="${escapeAttrHtml(t("map.freshness", { desc: freshness }))}"><span class="status-dot ${statusDotClass}"></span></span>` +
     `<div class="node-popup__head-text">` +
-    `<h3 class="node-popup__title" title="${escapeAttrHtml(`Name: ${displayName}`)}" aria-label="${escapeAttrHtml(`Name: ${displayName}`)}">${escapeAttrHtml(displayName)}</h3>` +
+    `<h3 class="node-popup__title" title="${escapeAttrHtml(t("map.nameLabel", { name: displayName }))}" aria-label="${escapeAttrHtml(t("map.nameLabel", { name: displayName }))}">${escapeAttrHtml(displayName)}</h3>` +
     buildHeaderCityLineHtml(node) +
     `</div>` +
     sourceHeaderEl +
@@ -1407,7 +1402,7 @@ function getTable(node, authState = null, nodes = []) {
           const shouldShow = node[key];
           if (!shouldShow) return [];
           return [
-            `<td><b>${escapeAttrHtml(columns[key].label)}</b></td><td>${
+            `<td><b>${escapeAttrHtml(t(columns[key].labelKey))}</b></td><td>${
               columns[key].value
                 ? columns[key].value(node[key], node, nodes)
                 : escapeAttrHtml(String(node[key] ?? ""))
@@ -1430,7 +1425,7 @@ function getTable(node, authState = null, nodes = []) {
       let footerCenter = "";
       if (authState && authState.authenticated) {
         if (isUnclaimed) {
-          footerCenter = `<a href="javascript:void(0)" class="node-popup-action node-popup-action--claim" onclick="window.claimNode('${publicKey}')">Claim</a>`;
+          footerCenter = `<a href="javascript:void(0)" class="node-popup-action node-popup-action--claim" onclick="window.claimNode('${publicKey}')">${escapeAttrHtml(t("map.claim"))}</a>`;
         } else {
           const nodeOwnerId = node.discord_owner_id;
           const currentUserId = authState.user?.id;
@@ -1440,11 +1435,11 @@ function getTable(node, authState = null, nodes = []) {
             currentUserId &&
             String(nodeOwnerId) === String(currentUserId)
           ) {
-            footerCenter = `<a href="javascript:void(0)" class="node-popup-action node-popup-action--danger" onclick="window.unclaimNode('${publicKey}')">Unclaim</a>`;
+            footerCenter = `<a href="javascript:void(0)" class="node-popup-action node-popup-action--danger" onclick="window.unclaimNode('${publicKey}')">${escapeAttrHtml(t("map.unclaim"))}</a>`;
           }
         }
       } else if (isUnclaimed) {
-        footerCenter = `<a href="/auth/login" class="node-popup-action node-popup-action--claim">Claim</a>`;
+        footerCenter = `<a href="/auth/login" class="node-popup-action node-popup-action--claim">${escapeAttrHtml(t("map.claim"))}</a>`;
       }
 
       const source = (node.source || "").toLowerCase();
@@ -1454,10 +1449,10 @@ function getTable(node, authState = null, nodes = []) {
 
       const delUrl = escapeAttrHtml(getDeletionMailUrl(node));
       const footerEnd = isNotDiscordSource
-        ? `<a href="${delUrl}" class="node-popup-action node-popup-action--danger node-popup-action--icon-only" title="Request deletion" aria-label="Request deletion"><i class="bi bi-trash" aria-hidden="true"></i></a>`
+        ? `<a href="${delUrl}" class="node-popup-action node-popup-action--danger node-popup-action--icon-only" title="${escapeAttrHtml(t("map.requestDeletion"))}" aria-label="${escapeAttrHtml(t("map.requestDeletion"))}"><i class="bi bi-trash" aria-hidden="true"></i></a>`
         : "";
 
-      return `<nav class="node-popup-actions" aria-label="Node actions"><div class="node-popup-actions__row"><div class="node-popup-actions__slot node-popup-actions__slot--start">${footerStart}</div><div class="node-popup-actions__slot node-popup-actions__slot--center">${footerCenter}</div><div class="node-popup-actions__slot node-popup-actions__slot--end">${footerEnd}</div></div></nav>`;
+      return `<nav class="node-popup-actions" aria-label="${escapeAttrHtml(t("map.actions"))}"><div class="node-popup-actions__row"><div class="node-popup-actions__slot node-popup-actions__slot--start">${footerStart}</div><div class="node-popup-actions__slot node-popup-actions__slot--center">${footerCenter}</div><div class="node-popup-actions__slot node-popup-actions__slot--end">${footerEnd}</div></div></nav>`;
     })() +
     "</div>"
   );
@@ -1519,14 +1514,30 @@ function getNodeUpdateStatus(node) {
   return "recent";
 }
 
+/** The claim API answers in English: its known messages get the page language, anything else shows as sent. */
+const API_ERRORS = {
+  "Not authenticated": "map.api.notAuthenticated",
+  "Failed to claim node. Node may not exist, may already be claimed, or may be inactive.": "map.claim.failedDefault",
+  "Failed to unclaim node.": "map.unclaim.failedDefault",
+};
+function apiErrorText(message, fallbackKey) {
+  if (!message) return t(fallbackKey);
+  return Object.prototype.hasOwnProperty.call(API_ERRORS, message) ? t(API_ERRORS[message]) : message;
+}
+
 // Update status descriptions (matches upstream)
 const updateStatusDesc = {
-  none: "manually added",
-  recent: "updated recently",
-  stale: "updated while ago",
-  old: "not updated",
-  extinct: "will be deleted soon",
+  none: "map.status.none",
+  recent: "map.status.recent",
+  stale: "map.status.stale",
+  old: "map.status.old",
+  extinct: "map.status.extinct",
 };
+
+/** Freshness description for an update status in the page language. */
+function statusDesc(key) {
+  return Object.prototype.hasOwnProperty.call(updateStatusDesc, key) ? t(updateStatusDesc[key]) : t("map.na");
+}
 
 function getDeletionMailUrl(node) {
   const deletionMailUrl = new URL("mailto:recrof@gmail.com");
@@ -1552,9 +1563,10 @@ function getDeletionMailUrl(node) {
     .replaceAll("\n", "%0A");
 }
 
-const appAttribution = `
-	Original map by <a target="_blank" href="https://github.com/sponsors/recrof?frequency=one-time&sponsor=recrof"><strong>recrof</strong></a> | Modified by the <a target="_blank" href="https://github.com/radio-actief"><strong>Radio-Actief</strong></a> community
-`;
+const appAttribution = t("map.attribution", {
+  recrof: `<a target="_blank" href="https://github.com/sponsors/recrof?frequency=one-time&sponsor=recrof"><strong>recrof</strong></a>`,
+  radioActief: `<a target="_blank" href="https://github.com/radio-actief"><strong>Radio-Actief</strong></a>`,
+});
 
 const baseMapSelected =
   localStorage.getItem("baseMapSelected") || "OpenStreetMap";
@@ -1562,13 +1574,13 @@ const baseMaps = {
   OpenStreetMap: L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 19,
     className: "osm-tiles",
-    attribution: `Tiles: &copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> | ${appAttribution}`,
+    attribution: `${t("map.tiles")}: &copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> | ${appAttribution}`,
   }),
   "Esri Satellite": L.tileLayer(
     "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
     {
       maxZoom: 18,
-      attribution: `Tiles: &copy; Esri | Sources: Esri, DigitalGlobe, GeoEye, i-cubed, USDA FSA, USGS, AEX, Getmapping, Aerogrid, IGN, IGP, swisstopo, GIS Users | ${appAttribution}`,
+      attribution: `${t("map.tiles")}: &copy; Esri | ${t("map.sources")}: Esri, DigitalGlobe, GeoEye, i-cubed, USDA FSA, USGS, AEX, Getmapping, Aerogrid, IGN, IGP, swisstopo, GIS Users | ${appAttribution}`,
     },
   ),
 };
@@ -1621,7 +1633,7 @@ map.on("baselayerchange", function (ev) {
 
 // Map type (layers) above zoom in/out (bottom-left)
 L.control.layers(baseMaps, null, { position: "bottomleft" }).addTo(map);
-L.control.zoom({ position: "bottomleft" }).addTo(map);
+L.control.zoom({ position: "bottomleft", zoomInTitle: t("zoom.in"), zoomOutTitle: t("zoom.out") }).addTo(map);
 window.BEmeshMapShade.attach(L, map, baseMaps.OpenStreetMap, {
   position: "bottomleft",
 });
@@ -1847,11 +1859,7 @@ createApp({
         return;
       }
 
-      if (
-        !confirm(
-          "Claim this node?\n\nYou will become the owner and can edit its details.",
-        )
-      ) {
+      if (!confirm(t("map.claim.confirm"))) {
         return;
       }
 
@@ -1863,9 +1871,7 @@ createApp({
         const data = await res.json();
 
         if (res.ok && data.success) {
-          alert(
-            "✓ Node claimed successfully!\n\nYou are now the owner of this node.",
-          );
+          alert(t("map.claim.done"));
           // Reload nodes to reflect changes
           await downloadNodes();
           await nextTick();
@@ -1894,24 +1900,20 @@ createApp({
         } else {
           // Handle specific error cases
           if (res.status === 403 && data.discord_invite_url) {
-            const message = `⚠️ Discord Server Membership Required\n\n${data.error}\n\nTo claim nodes, you must be a member of our Discord server.\n\nAfter joining, please log out and log back in to refresh your membership status.`;
-            if (confirm(message + "\n\nOpen Discord invite in a new tab?")) {
+            const message = t("map.claim.membership");
+            if (confirm(message + "\n\n" + t("map.claim.openInvite"))) {
               window.open(data.discord_invite_url, "_blank");
             }
           } else {
-            const errorMsg = data.error || "Failed to claim node";
-            alert(
-              `❌ Unable to Claim Node\n\n${errorMsg}\n\nPlease check that:\n• The node exists and is active\n• The node is not already claimed by someone else`,
-            );
+            const errorMsg = apiErrorText(data.error, "map.claim.failedDefault");
+            alert(t("map.claim.failed", { error: errorMsg }));
           }
         }
       } catch (e) {
         console.error("Error claiming node:", e);
         const supportLink =
           "https://discord.com/channels/1391758345622257665/1454797139959091412";
-        alert(
-          `❌ Network Error\n\nUnable to claim node due to a connection error.\n\nIf this issue persists, please report it in our Discord support channel:\n${supportLink}`,
-        );
+        alert(t("map.claim.network", { link: supportLink }));
       }
     }
 
@@ -1921,11 +1923,7 @@ createApp({
         return;
       }
 
-      if (
-        !confirm(
-          "Unclaim this node?\n\nYou will lose ownership and anyone will be able to claim it.",
-        )
-      ) {
+      if (!confirm(t("map.unclaim.confirm"))) {
         return;
       }
 
@@ -1937,9 +1935,7 @@ createApp({
         const data = await res.json();
 
         if (res.ok && data.success) {
-          alert(
-            "✓ Node unclaimed successfully!\n\nThe node is now available for others to claim.",
-          );
+          alert(t("map.unclaim.done"));
           // Reload nodes to reflect changes
           await downloadNodes();
           await nextTick();
@@ -1966,28 +1962,20 @@ createApp({
           });
           refreshOpenPopups();
         } else {
-          const errorMsg = data.error || "Failed to unclaim node";
+          const errorMsg = apiErrorText(data.error, "map.unclaim.failedDefault");
           if (data.error === "You do not own this node.") {
-            alert(
-              `❌ Ownership Error\n\n${errorMsg}\n\nYou can only unclaim nodes that you own.`,
-            );
+            alert(t("map.unclaim.notOwner"));
           } else if (data.error === "Node not found.") {
-            alert(
-              `❌ Node Not Found\n\n${errorMsg}\n\nThe node may have been deleted or the identifier is incorrect.`,
-            );
+            alert(t("map.unclaim.notFound"));
           } else {
-            alert(
-              `❌ Unable to Unclaim Node\n\n${errorMsg}\n\nPlease try again or contact support if the issue persists.`,
-            );
+            alert(t("map.unclaim.failed", { error: errorMsg }));
           }
         }
       } catch (e) {
         console.error("Error unclaiming node:", e);
         const supportLink =
           "https://discord.com/channels/1391758345622257665/1454797139959091412";
-        alert(
-          `❌ Network Error\n\nUnable to unclaim node due to a connection error.\n\nIf this issue persists, please report it in our Discord support channel:\n${supportLink}`,
-        );
+        alert(t("map.unclaim.network", { link: supportLink }));
       }
     }
 
@@ -2409,11 +2397,7 @@ createApp({
         console.error("Error loading map nodes:", e);
         const supportLink =
           "https://discord.com/channels/1391758345622257665/1454797139959091412";
-        alert(
-          `❌ Failed to Load Map Data\n\nUnable to load nodes from the server.\n\nError: ${
-            e.message || e
-          }\n\nIf this issue persists, please report it in our Discord support channel:\n${supportLink}`,
-        );
+        alert(t("map.loadFailed", { error: e.message || e, link: supportLink }));
       } finally {
         app.loading = false;
       }
@@ -2638,26 +2622,23 @@ createApp({
       const roomServersCount = nodes.filter((n) => n.type === 3).length;
       const sensorsCount = nodes.filter((n) => n.type === 4).length;
 
-      const dot = (type, title, count) =>
-        `<span class="count-item pointer-help" title="${title}"><i class="dot dot-${type}" aria-hidden="true"></i><b>${count}</b></span>`;
-      let statsString = `<span><b>${nodes.length}</b> nodes</span>`;
-      statsString += dot(1, "Total client nodes", companionsCount);
-      statsString += dot(2, "Total repeater nodes", repeatersCount);
-      statsString += dot(3, "Total room server nodes", roomServersCount);
+      const num = (n) => I18N.number(n);
+      const dot = (type, count) =>
+        `<span class="count-item pointer-help" title="${escapeAttrHtml(t(`map.total.${type}`))}"><i class="dot dot-${type}" aria-hidden="true"></i><b>${num(count)}</b></span>`;
+      let statsString = `<span>${t("map.nodeCount", { count: nodes.length, n: num(nodes.length) })}</span>`;
+      statsString += dot(1, companionsCount);
+      statsString += dot(2, repeatersCount);
+      statsString += dot(3, roomServersCount);
       if (sensorsCount > 0) {
-        statsString += dot(4, "Total sensor nodes", sensorsCount);
+        statsString += dot(4, sensorsCount);
       }
 
       result.push(statsString);
-      result.push(
-        `<span class="pointer-help" title="Nodes added in last 24 hours">24h <b>${c1}</b></span>`,
-      );
-      result.push(
-        `<span class="pointer-help" title="Nodes added in last 7 days">7d <b>${c7}</b></span>`,
-      );
-      result.push(
-        `<span class="pointer-help" title="Nodes added in last 30 days">30d <b>${c30}</b></span>`,
-      );
+      const recent = (key, count) =>
+        `<span class="pointer-help" title="${escapeAttrHtml(t(`map.added.${key}`))}">${escapeAttrHtml(t(`map.added.${key}.short`))} <b>${num(count)}</b></span>`;
+      result.push(recent("24h", c1));
+      result.push(recent("7d", c7));
+      result.push(recent("30d", c30));
 
       return result;
     });
@@ -2785,9 +2766,8 @@ createApp({
       const inviteUrl = loginReturnParams.get("invite_url");
 
       if (error === "not_guild_member" && inviteUrl) {
-        const message =
-          "⚠️ Discord Server Membership Required\n\nTo claim nodes, you must be a member of our Discord server.\n\nAfter joining, please log out and log back in to refresh your membership status.";
-        if (confirm(message + "\n\nOpen Discord invite in a new tab?")) {
+        const message = t("map.claim.membership");
+        if (confirm(message + "\n\n" + t("map.claim.openInvite"))) {
           window.open(inviteUrl, "_blank");
         }
         // Clean up URL
@@ -2957,6 +2937,8 @@ createApp({
 
     window.refreshMap = refreshMap;
     return {
+      t,
+      num: (n) => I18N.number(n),
       app,
       auth,
       refreshMap,

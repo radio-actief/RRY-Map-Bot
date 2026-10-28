@@ -13,6 +13,7 @@
       href="https://fonts.googleapis.com/css2?family=Figtree:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap"
       rel="stylesheet"
     />
+    <script src="./src/shared/i18n.js" data-i18n="map"></script>
     <script src="./src/shared/theme.js"></script>
     <link rel="stylesheet" href="./lib/css/bootstrap-icons.css" />
     <link rel="stylesheet" href="./lib/css/leaflet.css" />
@@ -27,18 +28,23 @@
       name="viewport"
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
-    <title>#BEmesh Map</title>
+    <meta
+      name="description"
+      content="Map of the Belgian MeshCore nodes: repeaters, companions, room servers and sensors"
+      data-i18n-attr="content:map.description"
+    />
+    <title data-i18n="map.title">#BEmesh Map</title>
   </head>
   <body class="map-page">
     <div id="map"></div>
     <div id="app" v-cloak>
       <div class="loading" v-if="app.loading"></div>
       <header class="topbar">
-        <span class="wordmark"><b>#BE</b>mesh map</span>
-        <nav class="switcher" aria-label="Pages">
-          <a href="/" aria-current="page">Map</a><a href="/stats">Stats</a
-          ><a href="/region-map">Region map</a
-          ><a href="/configurator">Configurator</a>
+        <span class="wordmark"><b>#BE</b><span data-i18n="map.wordmark">mesh map</span></span>
+        <nav class="switcher" aria-label="Pages" data-i18n-attr="aria-label:top.pages">
+          <a href="/" aria-current="page" data-i18n="page.map">Map</a><a href="/stats" data-i18n="page.stats">Stats</a
+          ><a href="/region-map" data-i18n="page.regionMap">Region map</a
+          ><a href="/configurator" data-i18n="page.configurator">Configurator</a>
         </nav>
         <span class="chip counts-chip" v-if="stats.length">
           <span v-html="stats[0]"></span>
@@ -48,9 +54,10 @@
         </span>
         <span class="spacer"></span>
         <span data-account-chip></span>
+        <span data-lang-switch></span>
         <span class="menu-wrap" data-page-menu>
-          <button type="button" class="icon" aria-label="Menu">☰</button>
-          <nav class="menu" aria-label="Menu" hidden></nav>
+          <button type="button" class="icon" aria-label="Menu" data-i18n-attr="aria-label:menu.label">☰</button>
+          <nav class="menu" aria-label="Menu" data-i18n-attr="aria-label:menu.label" hidden></nav>
         </span>
         <button type="button" class="icon" data-theme-toggle aria-label="Theme">
           ◐
@@ -68,6 +75,7 @@
               v-model="app.search"
               placeholder="Search nodes, name or key"
               aria-label="Search nodes, name or key"
+              data-i18n-attr="placeholder:map.search; aria-label:map.search"
               autocomplete="off"
               v-if="app.nodes"
             />
@@ -80,7 +88,7 @@
               aria-controls="node-filter"
               @click.stop="app.filterMenuOpen = !app.filterMenuOpen"
             >
-              {{ filtersActive ? "Filters active" : "Filters" }}
+              {{ filtersActive ? t("map.filtersActive") : t("map.filters") }}
             </button>
           </div>
           <div class="search-results" v-if="searchResults?.length > 0 && !app.filterMenuOpen">
@@ -112,27 +120,28 @@
           id="node-filter"
           v-show="app.filterMenuOpen"
         >
-          <div class="filter-label">Type</div>
+          <div class="filter-label" data-i18n="map.filter.type">Type</div>
           <div class="filter-chips">
             <label class="chip toggle"
-              ><input type="checkbox" value="1" v-model="app.nodeFilter" />Clients</label
+              ><input type="checkbox" value="1" v-model="app.nodeFilter" /><span data-i18n="map.filter.clients">Clients</span></label
             >
             <label class="chip toggle"
-              ><input type="checkbox" value="2" v-model="app.nodeFilter" />Repeaters</label
+              ><input type="checkbox" value="2" v-model="app.nodeFilter" /><span data-i18n="map.filter.repeaters">Repeaters</span></label
             >
             <label class="chip toggle"
-              ><input type="checkbox" value="3" v-model="app.nodeFilter" />Room servers</label
+              ><input type="checkbox" value="3" v-model="app.nodeFilter" /><span data-i18n="map.filter.roomServers">Room servers</span></label
             >
             <label class="chip toggle"
-              ><input type="checkbox" value="4" v-model="app.nodeFilter" />Sensors</label
+              ><input type="checkbox" value="4" v-model="app.nodeFilter" /><span data-i18n="map.filter.sensors">Sensors</span></label
             >
           </div>
-          <div class="filter-label">Source</div>
+          <div class="filter-label" data-i18n="map.filter.source">Source</div>
           <div class="segmented">
             <button
               type="button"
               :aria-pressed="app.sourceFilter.length === 0 || (app.sourceFilter.includes('app') && app.sourceFilter.includes('uploader'))"
               @click="app.sourceFilter = ['app', 'uploader']"
+              data-i18n="map.filter.all"
             >
               All
             </button>
@@ -140,6 +149,7 @@
               type="button"
               :aria-pressed="app.sourceFilter.length === 1 && app.sourceFilter[0] === 'app'"
               @click="app.sourceFilter = ['app']"
+              data-i18n="map.filter.app"
             >
               App
             </button>
@@ -147,16 +157,18 @@
               type="button"
               :aria-pressed="app.sourceFilter.length === 1 && app.sourceFilter[0] === 'uploader'"
               @click="app.sourceFilter = ['uploader']"
+              data-i18n="map.filter.uploader"
             >
               Uploader
             </button>
           </div>
-          <div class="filter-label">Discord</div>
+          <div class="filter-label" data-i18n="map.filter.discord">Discord</div>
           <div class="segmented">
             <button
               type="button"
               :aria-pressed="app.claimedFilter.length === 0 || (app.claimedFilter.includes('claimed') && app.claimedFilter.includes('unclaimed'))"
               @click="app.claimedFilter = ['claimed', 'unclaimed']"
+              data-i18n="map.filter.all"
             >
               All
             </button>
@@ -164,6 +176,7 @@
               type="button"
               :aria-pressed="app.claimedFilter.length === 1 && app.claimedFilter[0] === 'claimed'"
               @click="app.claimedFilter = ['claimed']"
+              data-i18n="map.filter.claimed"
             >
               Claimed
             </button>
@@ -171,31 +184,33 @@
               type="button"
               :aria-pressed="app.claimedFilter.length === 1 && app.claimedFilter[0] === 'unclaimed'"
               @click="app.claimedFilter = ['unclaimed']"
+              data-i18n="map.filter.unclaimed"
             >
               Unclaimed
             </button>
           </div>
           <details class="filter-more">
-            <summary>More</summary>
+            <summary data-i18n="map.filter.more">More</summary>
             <label class="filter-field"
-              ><span>Last updated</span>
+              ><span data-i18n="map.filter.lastUpdated">Last updated</span>
               <input type="date" class="input" v-model="app.fromDate"
             /></label>
             <label class="filter-field"
-              ><span>Inserted</span>
+              ><span data-i18n="map.filter.inserted">Inserted</span>
               <input type="date" class="input" v-model="app.fromInsertDate"
             /></label>
             <label class="filter-field"
-              ><span>City</span>
+              ><span data-i18n="map.filter.city">City</span>
               <input
                 type="text"
                 class="input"
                 v-model="app.cityFilter"
                 placeholder="Filter by city"
+                data-i18n-attr="placeholder:map.filter.cityPlaceholder"
                 id="city-filter-input"
             /></label>
             <div v-if="app.availableFreqs.length > 0">
-              <div class="filter-label">Frequency</div>
+              <div class="filter-label" data-i18n="map.filter.frequency">Frequency</div>
               <div class="filter-chips">
                 <label
                   class="chip toggle"
@@ -206,7 +221,7 @@
               </div>
             </div>
             <label class="filter-field"
-              ><span>Clustering zoom level</span>
+              ><span data-i18n="map.filter.clustering">Clustering zoom level</span>
               <input
                 id="clustering-zoom-slider"
                 min="8"
@@ -220,6 +235,7 @@
             type="button"
             class="btn small"
             @click="clearFilters"
+            data-i18n="map.filter.clear"
           >
             Clear filters
           </button>
@@ -229,17 +245,18 @@
           class="map-float totals-chip"
           v-if="totals && !searchResults?.length && !app.filterMenuOpen"
         >
-          <b>{{ totals.total }}</b> nodes · +{{ totals.week }} this week
+          <span v-html="t('map.totals', { count: totals.total, n: num(totals.total), week: num(totals.week) })"></span>
         </div>
 
         <a
           class="btn primary add-node"
           title="Add node to map"
+          data-i18n-attr="title:map.addNodeTitle"
           target="_blank"
           rel="noopener noreferrer"
           href="https://github.com/meshcore-dev/MeshCore/blob/main/docs/faq.md#512-q-how-do-i-add-a-node-to-the-meshcore-map"
-          ><span class="add-long">+ Add node</span
-          ><span class="add-short">+ Add</span></a
+          ><span class="add-long" data-i18n="map.addNode">+ Add node</span
+          ><span class="add-short" data-i18n="map.addShort">+ Add</span></a
         >
       </div>
     </div>

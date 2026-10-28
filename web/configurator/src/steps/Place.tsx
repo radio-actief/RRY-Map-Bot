@@ -13,7 +13,7 @@ const ADVERT_LOCS: AdvertLoc[] = ["none", "prefs", "share"];
 const provinceName = (code: string | null) => (code ? regionName(code) : "");
 
 /** What the search box shows for the chosen anchor (old selectCity / selectProvince / selectCountryBe labels). */
-function anchorLabel(a: Anchor | null): string {
+export function anchorLabel(a: Anchor | null): string {
   if (!a) return "";
   if (a.mode === "city") return a.place ? municipalityName(a.place.plaats) : "";
   if (a.mode === "province") return provinceName(a.province_code);
@@ -37,19 +37,34 @@ const CLICK_AFTER_LIFT_MS = 600;
 const canLocate = () =>
   typeof isSecureContext !== "undefined" && isSecureContext && typeof navigator !== "undefined" && "geolocation" in navigator;
 
-function LocationSearch() {
-  const anchor = store.plan.value.anchor;
+/**
+ * The place search: Belgium, a province or a place, picked from a list as you type. `shown` is what
+ * the box shows when nothing is being typed (the current choice); `onPick` takes a hit.
+ */
+export function LocationSearch({
+  shown,
+  onPick,
+  listId = "place-search-list",
+  label = t("place.search"),
+}: {
+  shown: string;
+  onPick: (c: LocationChoice) => void;
+  listId?: string;
+  label?: string;
+}) {
   const places = store.data.value.places ?? [];
-  const [query, setQuery] = useState(() => anchorLabel(anchor));
+  const [query, setQuery] = useState(shown);
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
+  // Counts the picks, so the box shows the choice again after a pick, even when its text is unchanged.
+  const [picks, setPicks] = useState(0);
   const choices = useMemo(() => (open ? locationChoices(query, places) : []), [open, query, places]);
 
-  // A location set elsewhere (map, Read) shows up in the box.
+  // A choice made here or elsewhere (map, Read) shows up in the box.
   useEffect(() => {
-    setQuery(anchorLabel(anchor));
+    setQuery(shown);
     setOpen(false);
-  }, [anchor]);
+  }, [shown, picks]);
 
   // Where the finger went down on a hit; lifting it on the same hit, without scrolling the list, picks it.
   const press = useRef<{ choice: LocationChoice; y: number } | null>(null);
@@ -58,7 +73,8 @@ function LocationSearch() {
 
   function pick(c: LocationChoice) {
     lastPick.current = Date.now();
-    chooseLocation(c);
+    onPick(c);
+    setPicks((n) => n + 1);
     setOpen(false);
   }
 
@@ -89,7 +105,6 @@ function LocationSearch() {
     }
   }
 
-  const listId = "place-search-list";
   const showList = open && query.trim().length >= 2;
   return (
     <div class="search">
@@ -97,12 +112,12 @@ function LocationSearch() {
         ref={input}
         type="text"
         role="combobox"
-        aria-label={t("place.search")}
+        aria-label={label}
         aria-expanded={showList}
         aria-controls={listId}
         aria-autocomplete="list"
         aria-activedescendant={showList && choices[active] ? `${listId}-${active}` : undefined}
-        placeholder={t("place.search")}
+        placeholder={label}
         autocomplete="off"
         value={query}
         onInput={(e) => {
@@ -113,12 +128,12 @@ function LocationSearch() {
         onFocus={() => setOpen(true)}
         onBlur={() => {
           setOpen(false);
-          setQuery(anchorLabel(anchor));
+          setQuery(shown);
         }}
         onKeyDown={onKey}
       />
       {showList ? (
-        <ul class="search-list" id={listId} role="listbox" aria-label={t("place.search")}>
+        <ul class="search-list" id={listId} role="listbox" aria-label={label}>
           {choices.length ? (
             choices.map((c, i) => (
               <li
@@ -270,7 +285,7 @@ export function Place() {
       <h2>{t("place.title")}</h2>
       <p class="sub">{t("place.sub")}</p>
 
-      <LocationSearch />
+      <LocationSearch shown={anchorLabel(anchor)} onPick={chooseLocation} />
       <div class="place-line">
         {anchor ? (
           <span class="coords">{`📍 ${anchorPlace(anchor)}`}</span>

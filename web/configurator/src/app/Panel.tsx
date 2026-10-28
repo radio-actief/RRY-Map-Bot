@@ -1,6 +1,6 @@
 import { useEffect, useState } from "preact/hooks";
 import { t } from "../i18n/t";
-import { busy, isWide, NUMBERED, store, type Step } from "../state/store";
+import { busy, isWide, NUMBERED, setTask, store, type Step, type Task } from "../state/store";
 import { disconnectUsb } from "../state/device";
 import { Connect } from "../steps/Connect";
 import { Name } from "../steps/Name";
@@ -8,6 +8,7 @@ import { Place } from "../steps/Place";
 import { Regions } from "../steps/Regions";
 import { Send } from "../steps/Send";
 import { SettingsStep } from "../steps/SettingsStep";
+import { useLazy } from "./lazy";
 import { Notice } from "./Notice";
 import { nextStep, Stepper, stepName } from "./Stepper";
 
@@ -39,11 +40,42 @@ function StepBody({ step }: { step: Step }) {
   return <Send />;
 }
 
+const TASKS: Task[] = ["repeater", "companion"];
+
+/** Repeater (the six steps) or Companion (one page for a phone); the address follows (#companion). */
+function TaskTabs() {
+  const task = store.task.value;
+  return (
+    <div class="task-tabs" role="tablist" aria-label={t("task.tablist")}>
+      {TASKS.map((k) => (
+        <button
+          type="button"
+          role="tab"
+          key={k}
+          aria-selected={task === k}
+          disabled={busy.value && task !== k}
+          onClick={() => setTask(k)}
+        >
+          {t(`task.${k}`)}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** The Companion page (and its QR encoder) loads when it is first opened. */
+function CompanionBody() {
+  const Page = useLazy(() => import("../companion/Companion").then((m) => m.Companion));
+  return Page ? <Page /> : <div class="panel-body" />;
+}
+
 export function Panel() {
   const step = store.step.value;
+  const companion = store.task.value === "companion";
   const sheet = useMediaQuery(NARROW);
-  const wide = isWide(step) && !sheet;
-  const height = isWide(step) ? "full" : store.sheet.value;
+  const stepWide = isWide(step) && !companion;
+  const wide = stepWide && !sheet;
+  const height = stepWide ? "full" : store.sheet.value;
   const mode = sheet ? `sheet ${height}` : wide ? "wide" : "docked";
   const back = NUMBERED[NUMBERED.indexOf(step) - 1];
   const next = nextStep(step);
@@ -60,7 +92,8 @@ export function Panel() {
         />
       ) : null}
       <header class="panel-head">
-        <Stepper wide={wide} />
+        <TaskTabs />
+        {companion ? null : <Stepper wide={wide} />}
       </header>
       {notice ? (
         <div class="panel-notice">
@@ -78,9 +111,9 @@ export function Panel() {
         </div>
       ) : null}
       {/* Keyed by step: each step opens at its top in a fresh scroll box. */}
-      <StepBody key={step} step={step} />
-      {/* Settings and Send carry their own Back / Next. */}
-      {isWide(step) ? null : (
+      {companion ? <CompanionBody /> : <StepBody key={step} step={step} />}
+      {/* Settings and Send carry their own Back / Next; the Companion page has none. */}
+      {companion || isWide(step) ? null : (
         <footer class="panel-foot">
           {back ? (
             <button type="button" class="btn" disabled={locked} onClick={() => (store.step.value = back)}>

@@ -19,6 +19,7 @@ import { I18N } from "../i18n/t";
 import type { SerialLink } from "../device/serial";
 import type { UsbInfo } from "../device/usb";
 import type { GeoJsonCollection } from "../core/data";
+import type { ChannelData, CompanionPick } from "../core/companion";
 import type { NoticeKind } from "../app/Notice";
 
 const memory = new Map<string, string>();
@@ -45,6 +46,15 @@ export const prefs = {
 };
 
 export type Step = "connect" | "place" | "name" | "regions" | "settings" | "send";
+
+/** What the configurator is doing: setting up a repeater (the six steps) or a phone's companion (one page). */
+export type Task = "repeater" | "companion";
+export const COMPANION_HASH = "#companion";
+
+/** The task an address asks for: /configurator#companion (also /join and /visit) opens the Companion page. */
+export function taskFromHash(hash: string): Task {
+  return hash === COMPANION_HASH ? "companion" : "repeater";
+}
 
 /** The guided order. */
 export const STEPS: Step[] = ["connect", "place", "name", "regions", "settings", "send"];
@@ -81,6 +91,7 @@ export type AppData = {
   gewesten?: GeoJsonCollection;
   countries?: GeoJsonCollection;
   nodes?: MeshNode[];
+  channels?: ChannelData;
   failed: Set<string>;
 };
 
@@ -160,6 +171,7 @@ export const store = {
   /** The session's command log (Apply, the console, and Read when "Show command log" is on). */
   log: signal<LogLine[]>([]),
   device: signal<DeviceState>({ status: "none", link: null, firmware: null }),
+  task: signal<Task>(typeof location === "undefined" ? "repeater" : taskFromHash(location.hash)),
   step: signal<Step>("connect"),
   sheet: signal<SheetHeight>("full"),
   layers: signal(storedLayers()),
@@ -168,7 +180,30 @@ export const store = {
   drawerOpen: signal(false),
   /** The region row shown on the map (Regions step): picked from its row or its area; null = none. */
   regionFocus: signal<string | null>(null),
+  /** Companion page: the place picked (null until then), whether the links carry a region, and the region shown on the map. */
+  companionPick: signal<CompanionPick | null>(null),
+  companionScope: signal(true),
+  companionFocus: signal<string | null>(null),
 };
+
+/** Switch task; the address follows (#companion), so Back returns to the previous task. */
+export function setTask(task: Task): void {
+  store.task.value = task;
+  if (typeof location === "undefined" || taskFromHash(location.hash) === task) return;
+  const url = location.pathname + location.search + (task === "companion" ? COMPANION_HASH : "");
+  history.pushState(null, "", url);
+}
+
+/** Follow the address when it changes (Back, Forward, a typed #companion). Returns a stop function. */
+export function listenToHash(): () => void {
+  const on = () => (store.task.value = taskFromHash(location.hash));
+  window.addEventListener("hashchange", on);
+  window.addEventListener("popstate", on);
+  return () => {
+    window.removeEventListener("hashchange", on);
+    window.removeEventListener("popstate", on);
+  };
+}
 
 export const visited = signal<ReadonlySet<Step>>(new Set<Step>([store.step.peek()]));
 
@@ -190,6 +225,15 @@ effect(() => {
   const step = store.step.value;
   store.sheet.value = SHEET_FOR[step];
   if (step !== "regions") store.regionFocus.value = null;
+});
+
+// The Companion page is text first: the phone sheet opens full; back on the steps, the step's own height.
+let lastTask = store.task.peek();
+effect(() => {
+  const task = store.task.value;
+  if (task === lastTask) return;
+  lastTask = task;
+  store.sheet.value = task === "companion" ? "full" : SHEET_FOR[store.step.peek()];
 });
 
 effect(() => {

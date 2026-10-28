@@ -13,6 +13,7 @@ function loaders(overrides: Partial<Loaders> = {}): Loaders {
     gewesten: vi.fn(async () => collection),
     countries: vi.fn(async () => collection),
     nodes: vi.fn(async () => []),
+    channels: vi.fn(async () => ({ checked: "", sources: {}, channels: [] })),
     ...overrides,
   };
 }
@@ -23,6 +24,7 @@ beforeEach(() => {
   resetLoaded();
   store.data.value = { failed: new Set() };
   store.step.value = "connect";
+  store.task.value = "repeater";
   store.plan.value = defaultPlan();
 });
 
@@ -79,6 +81,19 @@ describe("loadOnDemand", () => {
     await settle();
     expect(l.municipalities).toHaveBeenCalledTimes(1);
     expect(l.nodes).toHaveBeenCalledTimes(1);
+    stop();
+  });
+
+  it("the Companion task loads the channel list and the province outlines, not the node list", async () => {
+    const l = loaders();
+    const stop = loadOnDemand(l);
+    await settle();
+    expect(l.channels).not.toHaveBeenCalled();
+    store.task.value = "companion";
+    await settle();
+    expect(l.channels).toHaveBeenCalledTimes(1);
+    expect(l.provinces).toHaveBeenCalledTimes(1);
+    expect(l.nodes).not.toHaveBeenCalled();
     stop();
   });
 });

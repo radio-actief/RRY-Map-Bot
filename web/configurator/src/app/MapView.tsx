@@ -1,4 +1,7 @@
-/** The Leaflet map: location pin, 25 km ring, nearby nodes, borders and (Regions step) region colours. */
+/**
+ * The Leaflet map: location pin, 25 km ring, nearby nodes, borders and (Regions step) region colours.
+ * On the Companion page it shows no repeater pin or nodes, only the area of the region in focus.
+ */
 import * as L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { GeoJsonObject } from "geojson";
@@ -65,9 +68,11 @@ export function MapView() {
 
   const plan = store.plan.value;
   const step = store.step.value;
+  const companion = store.task.value === "companion";
+  const hidden = isWide(step) && !companion;
   const layers = store.layers.value;
   const data = store.data.value;
-  const location = plan.location;
+  const location = companion ? null : plan.location;
   const failed = data.failed;
 
   const nearby = useMemo(
@@ -75,7 +80,7 @@ export function MapView() {
     [location, data.nodes],
   );
   const municipalities = municipalityList.value;
-  const focus = store.regionFocus.value;
+  const focus = companion ? store.companionFocus.value : step === "regions" ? store.regionFocus.value : null;
 
   /** Each region code's areas: a municipality's polygons, or the country, province, gewest or EU outline. */
   const areas = useMemo(() => {
@@ -105,7 +110,7 @@ export function MapView() {
     };
     // Only Place moves the pin with a click: elsewhere a stray click would silently change the regions.
     map.on("click", (e: L.LeafletMouseEvent) => {
-      if (store.step.peek() === "place") pick(e.latlng.lat, e.latlng.lng);
+      if (store.step.peek() === "place" && store.task.peek() === "repeater") pick(e.latlng.lat, e.latlng.lng);
     });
     mapRef.current = map;
     return () => {
@@ -199,7 +204,7 @@ export function MapView() {
     const g = groups.current?.regions;
     if (!g) return;
     g.clearLayers();
-    if (step !== "regions" || !plan.regions) return;
+    if (companion || step !== "regions" || !plan.regions) return;
     const { allowed, denied } = regionsByState(plan.regions);
     // Largest area first (eu, country, gewest, province, municipality), so a smaller area stays visible on top.
     const countryCodes = new Set(featuresOf(data.countries).map((f) => String(f.properties?.code)));
@@ -217,32 +222,40 @@ export function MapView() {
           .addTo(g);
       }
     }
-  }, [step, plan.regions, municipalities, areas, data.countries]);
+  }, [companion, step, plan.regions, municipalities, areas, data.countries]);
 
-  // Regions step: the focused row's area, outlined, with the map zoomed to it.
+  // Regions step: the focused row's area; Companion page: the region of the place or channel. Outlined, with the map zoomed to it.
   useEffect(() => {
     const g = groups.current?.focus;
     if (!g) return;
     g.clearLayers();
-    if (step !== "regions" || !focus) return;
+    if (!focus) return;
     const fs = areas.get(focus);
     if (!fs?.length) return;
     const layers = fs.map((f) => L.geoJSON(f as GeoJsonObject, pathClass("map-region-focus")).addTo(g));
     const bounds = layers.slice(1).reduce((b, l) => b.extend(l.getBounds()), layers[0].getBounds());
-    mapRef.current?.fitBounds(bounds, { padding: [24, 24], maxZoom: 13 });
-  }, [step, focus, areas]);
+    const map = mapRef.current;
+    if (!map) return;
+    if (!companion) return void map.fitBounds(bounds, { padding: [24, 24], maxZoom: 13 });
+    // The Companion page's panel covers part of the map: the docked panel its left side, the phone
+    // sheet its lower part. Fit the area into what stays visible.
+    const panel = document.querySelector<HTMLElement>(".panel.docked");
+    const sheet = store.sheet.peek();
+    const below = !document.querySelector(".panel.sheet") ? 0 : sheet === "half" ? map.getSize().y / 2 : sheet === "peek" ? 96 : 0;
+    map.fitBounds(bounds, { paddingTopLeft: [24 + (panel?.offsetWidth ?? 0), 24], paddingBottomRight: [24, 24 + below], maxZoom: 13 });
+  }, [focus, areas, companion]);
 
   // The container is hidden on the wide steps (Advanced, Send); Leaflet must re-measure when it comes back.
   useEffect(() => {
-    if (!isWide(step)) mapRef.current?.invalidateSize();
-  }, [isWide(step)]);
+    if (!hidden) mapRef.current?.invalidateSize();
+  }, [hidden]);
 
   const nodesFailed = failed.has("nodes");
   const bordersFailed = ["countries", "provinces", "gewesten", "municipalities"].every((n) => failed.has(n));
   const toggle = (key: "nodes" | "borders") => (store.layers.value = { ...store.layers.peek(), [key]: !store.layers.peek()[key] });
 
   return (
-    <div class="map-container" hidden={isWide(step)}>
+    <div class="map-container" hidden={hidden}>
       <div class="map-canvas" ref={host} />
       <svg class="map-defs" width="0" height="0" aria-hidden="true">
         <defs>
@@ -252,10 +265,12 @@ export function MapView() {
         </defs>
       </svg>
       <fieldset class="map-layers" aria-label={t("map.layers")}>
-        <label class={nodesFailed ? "disabled" : ""}>
-          <input type="checkbox" checked={layers.nodes && !nodesFailed} disabled={nodesFailed} onChange={() => toggle("nodes")} />
-          {nodesFailed ? `${t("map.nodes")} ${t("map.unavailable")}` : t("map.nearbyNodes", { count: nearby.length })}
-        </label>
+        {companion ? null : (
+          <label class={nodesFailed ? "disabled" : ""}>
+            <input type="checkbox" checked={layers.nodes && !nodesFailed} disabled={nodesFailed} onChange={() => toggle("nodes")} />
+            {nodesFailed ? `${t("map.nodes")} ${t("map.unavailable")}` : t("map.nearbyNodes", { count: nearby.length })}
+          </label>
+        )}
         <label class={bordersFailed ? "disabled" : ""}>
           <input type="checkbox" checked={layers.borders && !bordersFailed} disabled={bordersFailed} onChange={() => toggle("borders")} />
           {bordersFailed ? `${t("map.borders")} ${t("map.unavailable")}` : t("map.borders")}

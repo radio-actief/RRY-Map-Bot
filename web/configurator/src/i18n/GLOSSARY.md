@@ -26,6 +26,9 @@ Dutch uses "je"; French uses "vous". Both stay short and plain, in the tone of t
 | region code | regiocode | code de région | |
 | home region | thuisregio | région d'attache | |
 | untagged (traffic without a region) | zonder regio | sans région | |
+| default region (a companion's) | standaardregio | région par défaut | the app's own label stays "Default Region Scope" |
+| channel (hashtag channel) | kanaal | canal | channel names (#bemesh) never change |
+| Open in app | Openen in app | Ouvrir dans l'app | |
 | uploader | uploader | uploader | |
 | claim / unclaim (a node) | claimen / vrijgeven | revendiquer / libérer | |
 | observer | observer | observateur | |
@@ -74,6 +77,7 @@ Dutch uses "je"; French uses "vous". Both stay short and plain, in the tone of t
 | Hilltop / Foothills / Suburban / Local / Custom | Heuveltop / Heuvelflank / Woonwijk / Lokaal / Eigen | Sommet / Coteau / Quartier / Local / Personnalisé |
 | Tight / Minimal / Average / Extended / Full (hop presets) | Krap / Minimaal / Gemiddeld / Ruim / Volledig | Serré / Minimal / Moyen / Étendu / Complet |
 | Allow / Deny / Not set | Toestaan / Weigeren / Niet ingesteld | Autoriser / Refuser / Non défini |
+| Repeater / Companion (the two tasks) | Repeater / Companion | Répéteur / Companion |
 
 ## Pages and top bar
 
@@ -118,4 +122,6 @@ facility municipalities included, keeps its one official name.
 ## Not translated
 
 MeshCore CLI commands (`region allowf *`, `set prv.key`, `get name`), node names and owner info,
-preset names from the API (EU/UK (Narrow), …), the Discord bot, the daily digest and backend logs.
+preset names from the API (EU/UK (Narrow), …), the MeshCore app's own labels on the Companion page
+(Discover Regions, Default Region Scope, Experimental Settings), the Discord bot, the daily digest
+and backend logs.

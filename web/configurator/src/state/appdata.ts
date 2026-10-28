@@ -1,10 +1,10 @@
 /**
  * Loads the runtime data into store.data when it is needed: the places at start, the outlines when
  * the map starts, the municipality borders and the node list once the user leaves Connect or the
- * plan has a location. Each set loads once; a failure is recorded by name and the rest still loads.
+ * plan has a location, the channel list on the Companion page. Each set loads once; a failure is recorded by name and the rest still loads.
  */
 import { effect } from "@preact/signals";
-import { loadCountries, loadGewesten, loadMunicipalities, loadNodes, loadPlaces, loadProvinces } from "../core/data";
+import { loadChannels, loadCountries, loadGewesten, loadMunicipalities, loadNodes, loadPlaces, loadProvinces } from "../core/data";
 import { store, type AppData } from "./store";
 
 export type Loaders = {
@@ -14,6 +14,7 @@ export type Loaders = {
   gewesten: typeof loadGewesten;
   countries: typeof loadCountries;
   nodes: typeof loadNodes;
+  channels: typeof loadChannels;
 };
 
 const defaultLoaders: Loaders = {
@@ -23,6 +24,7 @@ const defaultLoaders: Loaders = {
   gewesten: loadGewesten,
   countries: loadCountries,
   nodes: loadNodes,
+  channels: loadChannels,
 };
 
 export type DataName = keyof Loaders;
@@ -50,9 +52,16 @@ export function loadAppData(loaders: Loaders = defaultLoaders): Promise<void> {
   return ensureData(["places"], loaders);
 }
 
-/** The borders and the node list, once the user leaves Connect or the plan has a location. Returns a stop function. */
+/**
+ * The borders and the node list, once the user leaves Connect or the plan has a location; the
+ * channel list and the province outlines on the Companion page. Returns a stop function.
+ */
 export function loadOnDemand(loaders: Loaders = defaultLoaders): () => void {
   return effect(() => {
+    if (store.task.value === "companion") {
+      void ensureData(["channels", "provinces"], loaders);
+      return;
+    }
     if (store.step.value !== "connect" || store.plan.value.location) void ensureData(["municipalities", "nodes"], loaders);
   });
 }

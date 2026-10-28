@@ -1,7 +1,7 @@
 import { useEffect } from "preact/hooks";
 import { lang, t } from "../i18n/t";
 import { ensureData, loadAppData, loadOnDemand } from "../state/appdata";
-import { isWide, store } from "../state/store";
+import { isWide, listenToHash, store } from "../state/store";
 import { DeviceDrawer } from "./DeviceDrawer";
 import { useLazy } from "./lazy";
 import { Panel } from "./Panel";
@@ -16,13 +16,19 @@ function LazyMap() {
     void ensureData(["countries", "provinces", "gewesten"]);
     return import("./MapView").then((m) => m.MapView);
   });
-  return Map ? <Map /> : <div class="map-container map-waiting" hidden={isWide(store.step.value)} />;
+  const hidden = isWide(store.step.value) && store.task.value !== "companion";
+  return Map ? <Map /> : <div class="map-container map-waiting" hidden={hidden} />;
 }
 
 export function App() {
   useEffect(() => {
     void loadAppData();
-    return loadOnDemand();
+    const stopData = loadOnDemand();
+    const stopHash = listenToHash();
+    return () => {
+      stopData();
+      stopHash();
+    };
   }, []);
   const current = lang.value;
   useEffect(() => {

@@ -91,7 +91,7 @@ export function TopBar() {
   const place = anchorPlace();
   const name = planName(store.plan.value);
   const chip = [name, place].filter(Boolean).join(" · ");
-  const showPlace = isWide(step) && !!chip;
+  const showPlace = isWide(step) && store.task.value === "repeater" && !!chip;
   return (
     <header class="topbar">
       <span class="wordmark">

@@ -1,6 +1,7 @@
 /** Runtime data loaders. */
 import { decodeBorders, type WebBorders } from "./borders";
 import type { MeshNode, MunicipalityFeature } from "./geo";
+import type { ChannelData } from "./companion";
 import type { Place } from "./search";
 
 export type GeoJsonCollection = { type: "FeatureCollection"; features: unknown[] };
@@ -21,3 +22,5 @@ export const loadProvinces = () => getJson<GeoJsonCollection>("/data/be-province
 export const loadGewesten = () => getJson<GeoJsonCollection>("/data/be-gewesten.geojson");
 export const loadCountries = () => getJson<GeoJsonCollection>("/data/countries.geojson");
 export const loadNodes = () => getJson<MeshNode[]>("/api/v1/belgian-nodes");
+/** The public channels the Companion page lists (data/companion-channels.json). */
+export const loadChannels = () => getJson<ChannelData>("/data/companion-channels.json");

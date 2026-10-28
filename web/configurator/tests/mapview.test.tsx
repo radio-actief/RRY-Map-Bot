@@ -30,6 +30,7 @@ const bordersGroup = () => ofKind("group")[0];
 const highlightGroup = () => ofKind("group")[1];
 const regionsGroup = () => ofKind("group")[2];
 const nodesGroup = () => ofKind("group")[3];
+const focusGroup = () => ofKind("group")[4];
 
 beforeEach(() => {
   resetFake();
@@ -37,6 +38,7 @@ beforeEach(() => {
   store.step.value = "place";
   store.layers.value = { nodes: true, borders: true };
   store.data.value = { failed: new Set() };
+  store.regionFocus.value = null;
 });
 afterEach(cleanup);
 
@@ -253,6 +255,69 @@ describe("MapView", () => {
     const codes = kids.map((g) => String((g.args[0] as any).properties.code ?? (g.args[0] as any).properties.city_code));
     expect(codes.slice(0, 2).sort()).toEqual(["be", "fr"]);
     expect(codes.slice(2)).toEqual(["be-vov", "beaaa"]);
+  });
+
+  it("a focused region row outlines its area and zooms the map to it, on the Regions step", () => {
+    store.step.value = "regions";
+    store.plan.value = {
+      ...defaultPlan(),
+      regions: {
+        rows: [
+          { code: "beaaa", labelKey: "", label: "A", group: "municipality", allow: true, deny: false },
+          { code: "bebbb", labelKey: "", label: "B", group: "neighbourMunicipality", allow: false, deny: false },
+        ],
+        untaggedFlood: false,
+        homeOverride: null,
+        defaultScope: null,
+      },
+    };
+    store.data.value = {
+      failed: new Set(),
+      municipalities: { type: "FeatureCollection", features: [muni("beaaa", 3, 50), muni("bebbb", 4, 50)] } as never,
+    };
+    render(<MapView />);
+    const map = ofKind("map")[0];
+    expect(focusGroup().children).toHaveLength(0);
+    // Not set rows have an area too: focusing one outlines it.
+    act(() => {
+      store.regionFocus.value = "bebbb";
+    });
+    expect(focusGroup().children.map((g) => g.options.className)).toEqual(["map-region-focus"]);
+    expect((focusGroup().children[0].args[0] as any).properties.city_code).toBe("bebbb");
+    expect(map.fitted).not.toBeNull();
+    act(() => {
+      store.regionFocus.value = null;
+    });
+    expect(focusGroup().children).toHaveLength(0);
+    act(() => {
+      store.regionFocus.value = "beaaa";
+      store.step.value = "name";
+    });
+    expect(focusGroup().children).toHaveLength(0);
+  });
+
+  it("a click on a region area on the map focuses its row, and a second click lets go", () => {
+    store.step.value = "regions";
+    store.plan.value = {
+      ...defaultPlan(),
+      regions: {
+        rows: [{ code: "beaaa", labelKey: "", label: "A", group: "municipality", allow: true, deny: false }],
+        untaggedFlood: false,
+        homeOverride: null,
+        defaultScope: null,
+      },
+    };
+    store.data.value = {
+      failed: new Set(),
+      municipalities: { type: "FeatureCollection", features: [muni("beaaa", 3, 50)] } as never,
+    };
+    render(<MapView />);
+    const area = regionsGroup().children[0];
+    expect(area.options.interactive).toBe(true);
+    act(() => area.fire("click", {}));
+    expect(store.regionFocus.value).toBe("beaaa");
+    act(() => regionsGroup().children[0].fire("click", {}));
+    expect(store.regionFocus.value).toBeNull();
   });
 
   it("draws no border line for the European Union", () => {

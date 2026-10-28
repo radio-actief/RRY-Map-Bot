@@ -161,6 +161,8 @@ export const store = {
   theme: signal<Theme>(storedTheme()),
   data: signal<AppData>({ failed: new Set() }),
   drawerOpen: signal(false),
+  /** The region row shown on the map (Regions step): picked from its row or its area; null = none. */
+  regionFocus: signal<string | null>(null),
 };
 
 export const visited = signal<ReadonlySet<Step>>(new Set<Step>([store.step.peek()]));
@@ -178,8 +180,11 @@ export const SHEET_FOR: Record<Step, SheetHeight> = {
 };
 
 // Each step opens at its own height; the grab handle changes it until the next step.
+// Leaving Regions lets go of the region shown on the map.
 effect(() => {
-  store.sheet.value = SHEET_FOR[store.step.value];
+  const step = store.step.value;
+  store.sheet.value = SHEET_FOR[step];
+  if (step !== "regions") store.regionFocus.value = null;
 });
 
 effect(() => {

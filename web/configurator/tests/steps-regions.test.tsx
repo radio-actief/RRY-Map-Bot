@@ -16,6 +16,7 @@ beforeEach(() => {
   store.data.value = { failed: new Set(), places: PLACES };
   store.deviceRegions.value = undefined;
   store.step.value = "regions";
+  store.regionFocus.value = null;
 });
 afterEach(cleanup);
 
@@ -40,6 +41,30 @@ describe("Regions step", () => {
     expect(link.getAttribute("target")).toBe("_blank");
     expect(link.getAttribute("rel")).toContain("noopener");
     expect(within(rowFor("nl")).getByText("Netherlands (nl)")).toBeTruthy();
+  });
+
+  it("clicking a region's name shows it on the map; clicking again lets go", () => {
+    chooseLocation({ type: "city", label: "Ronse", place: RONSE } as never);
+    render(<Regions />);
+    const show = within(rowFor("be-vov")).getByRole("button", { name: /Show .* on the map/ });
+    expect(show.getAttribute("aria-pressed")).toBe("false");
+    fireEvent.click(show);
+    expect(store.regionFocus.value).toBe("be-vov");
+    expect(rowFor("be-vov").classList.contains("focused")).toBe(true);
+    expect(show.getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(show);
+    expect(store.regionFocus.value).toBeNull();
+    expect(rowFor("be-vov").classList.contains("focused")).toBe(false);
+  });
+
+  it("a region picked on the map lights its row", () => {
+    chooseLocation({ type: "city", label: "Ronse", place: RONSE } as never);
+    render(<Regions />);
+    act(() => {
+      store.regionFocus.value = "beron";
+    });
+    expect(rowFor("beron").classList.contains("focused")).toBe(true);
+    expect(rowFor("be").classList.contains("focused")).toBe(false);
   });
 
   it("lists neighbours in three groups: municipalities, provinces, countries", () => {

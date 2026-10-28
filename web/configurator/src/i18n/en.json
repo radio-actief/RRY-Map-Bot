@@ -240,6 +240,7 @@
   "regions.group.neighbourCountry": "Neighbouring countries",
   "regions.group.device": "Read from the device",
   "regions.group.free": "Your own regions",
+  "regions.showOnMap": "Show {label} on the map",
   "regions.free.top": "Top level",
   "regions.free.code": "Region code",
   "regions.free.parent": "Parent region",

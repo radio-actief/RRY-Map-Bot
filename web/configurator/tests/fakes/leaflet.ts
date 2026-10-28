@@ -64,6 +64,14 @@ export class FakeLayer {
   getContainer() {
     return this.args[0] as HTMLElement;
   }
+  fitted: unknown = null;
+  fitBounds(b: unknown) {
+    this.fitted = b;
+    return this;
+  }
+  getBounds() {
+    return { bounds: this.args[0] };
+  }
   eachLayer(fn: (l: FakeLayer) => void) {
     this.children.forEach(fn);
   }

@@ -431,6 +431,13 @@ path.map-municipality {
   fill-opacity: 0.2;
 }
 
+path.map-region-focus {
+  stroke: var(--gold);
+  stroke-width: 4;
+  fill: var(--gold);
+  fill-opacity: 0.15;
+}
+
 path.map-region-allowed {
   stroke: var(--ok);
   stroke-width: 2;
@@ -729,7 +736,29 @@ path.map-region-denied {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  padding: 2px 4px;
+  margin: -2px -4px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: inherit;
+  font: inherit;
   font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.region-name:hover {
+  text-decoration: underline;
+}
+
+.region-row.focused {
+  background: var(--gold-bg);
+  box-shadow: inset 3px 0 0 var(--gold);
+}
+
+.region-row.focused .region-name {
+  font-weight: 600;
 }
 
 .region-state {

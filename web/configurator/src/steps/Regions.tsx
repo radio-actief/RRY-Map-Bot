@@ -1,5 +1,5 @@
 /** Regions step: which regions the repeater floods (Allow / Deny per row), bulk buttons and the folded region CLI options. */
-import { useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import { Notice } from "../app/Notice";
 import {
   addFreeRegion,
@@ -79,15 +79,27 @@ function RegionRowView({ row, home, policy }: { row: RegionRow; home: boolean; p
   const inUse = isFreeParent(policy, row.code);
   const inUseId = `free-in-use-${row.code}`;
   const kind = kindLabel(row, policy);
+  const focused = store.regionFocus.value === row.code;
+  const item = useRef<HTMLLIElement>(null);
+  // Picked on the map: bring the row into view.
+  useEffect(() => {
+    if (focused) item.current?.scrollIntoView?.({ block: "nearest" });
+  }, [focused]);
   return (
-    <li class="region-row" data-code={row.code}>
-      <span class="region-name">
+    <li ref={item} class={`region-row${focused ? " focused" : ""}`} data-code={row.code}>
+      <button
+        type="button"
+        class="region-name"
+        aria-pressed={focused}
+        aria-label={t("regions.showOnMap", { label: row.label })}
+        onClick={() => (store.regionFocus.value = focused ? null : row.code)}
+      >
         <span>
           {row.label}
           {home ? <span class="badge home">{t("regions.home.badge")}</span> : null}
         </span>
         {kind ? <span class="sub">{kind}</span> : null}
-      </span>
+      </button>
       <div class="segmented region-state" role="group" aria-label={row.label} title={reason}>
         {STATES.map((s) => (
           <button

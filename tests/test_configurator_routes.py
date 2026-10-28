@@ -60,3 +60,15 @@ def test_short_links_drop_anything_else(client, query):
     assert r.headers['Location'].endswith('/configurator#companion') or r.headers['Location'].endswith(
         '/configurator?lang=nl#companion')
     assert 'evil' not in r.headers['Location'] and '&' not in r.headers['Location']
+
+
+@pytest.mark.parametrize('path', ['/configurator.html', '/configurator/'])
+def test_old_configurator_urls_redirect(client, path):
+    r = client.get(path)
+    assert r.status_code == 301
+    assert r.headers['Location'].endswith('/configurator')
+
+
+def test_old_configurator_url_keeps_its_query(client):
+    r = client.get('/configurator.html?lang=nl')
+    assert r.headers['Location'].endswith('/configurator?lang=nl')

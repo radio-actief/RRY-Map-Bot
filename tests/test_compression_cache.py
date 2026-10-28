@@ -106,3 +106,21 @@ def test_head_answers_with_the_same_headers_as_get(client):
     assert head.status_code == 200
     for name in ('Content-Encoding', 'Content-Length', 'ETag', 'Cache-Control'):
         assert head.headers.get(name) == get.headers.get(name), name
+
+
+
+def test_gzip_cache_entry_evicted_by_another_thread_does_not_break_the_response(client, monkeypatch):
+    """Threads share the cache: an entry another thread evicts right after this one finds it must not 500."""
+    from collections import OrderedDict
+
+    class EvictedOnLookup(OrderedDict):
+        def get(self, key, default=None):
+            value = super().get(key, default)
+            self.pop(key, None)  # another thread evicts it
+            return value
+
+    client.get('/configurator', headers=GZ)
+    monkeypatch.setattr(app_module, '_gzip_cache', EvictedOnLookup(app_module._gzip_cache))
+    r = client.get('/configurator', headers=GZ)
+    assert r.status_code == 200
+    assert r.headers['Content-Encoding'] == 'gzip'

@@ -7,6 +7,7 @@ import gzip
 import json
 import sys
 import os
+import threading
 from collections import OrderedDict
 from typing import Optional
 from flask import Flask, jsonify, request, send_from_directory, session, redirect, Response, make_response
@@ -93,6 +94,7 @@ GZIP_TYPES = {
 GZIP_CACHE_MAX = 32
 # (path, ETag) -> gzipped body, so a large file is compressed once per version
 _gzip_cache: "OrderedDict[tuple, bytes]" = OrderedDict()
+_gzip_cache_lock = threading.Lock()  # Flask serves requests on several threads
 
 
 def _cache_policy(path: str) -> Optional[str]:
@@ -137,18 +139,20 @@ def compress_and_cache(resp):
         return resp
     etag = resp.get_etag()[0]
     key = (request.path, etag)
-    body = _gzip_cache.get(key)
+    with _gzip_cache_lock:
+        body = _gzip_cache.pop(key, None)
+        if body is not None:
+            _gzip_cache[key] = body  # back in as the most recently used
     if body is None:
         resp.direct_passthrough = False
         data = resp.get_data()
         if len(data) < GZIP_MIN_BYTES:
             return resp
         body = gzip.compress(data, 6)
-        _gzip_cache[key] = body
-        while len(_gzip_cache) > GZIP_CACHE_MAX:
-            _gzip_cache.popitem(last=False)
-    else:
-        _gzip_cache.move_to_end(key)
+        with _gzip_cache_lock:
+            _gzip_cache[key] = body
+            while len(_gzip_cache) > GZIP_CACHE_MAX:
+                _gzip_cache.popitem(last=False)
     resp.direct_passthrough = False
     source = resp.response
     resp.set_data(body)
@@ -1529,6 +1533,20 @@ def stats_page():
 def configurator_page():
     """Serve the built configurator app."""
     return send_from_directory(CONFIGURATOR_DIST, 'index.html')
+
+
+@app.route('/configurator.html')
+def configurator_html_redirect():
+    """Old bookmarks of the previous configurator page; the query (e.g. ?lang=) is kept."""
+    query = request.query_string.decode('latin-1')
+    return redirect('/configurator' + (f'?{query}' if query else ''), code=301)
+
+
+@app.route('/configurator/')
+def configurator_slash_redirect():
+    """/configurator/ is the same page; one URL keeps the cache and the app's routes simple."""
+    query = request.query_string.decode('latin-1')
+    return redirect('/configurator' + (f'?{query}' if query else ''), code=301)
 
 
 @app.route('/configurator/<path:path>')

@@ -91,6 +91,22 @@ function CheckupNotice({ onOpen }: { onOpen: () => void }) {
   );
 }
 
+const NEW_BOARD_CHECKS = ["cable", "tabs", "driver", "firmware", "wake"] as const;
+
+/** Before the first connect: what a brand-new board needs. */
+function NewBoard() {
+  return (
+    <section class="new-board">
+      <h3>{t("connect.newBoard")}</h3>
+      <ul>
+        {NEW_BOARD_CHECKS.map((k) => (
+          <li key={k}>{t(`connect.check.${k}`)}</li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 export function Connect() {
   const [asking, setAsking] = useState(false);
   const [checkup, setCheckup] = useState(false);
@@ -115,6 +131,7 @@ export function Connect() {
           {status === "connecting" ? t("connect.connecting") : t("connect.button")}
         </button>
       ) : null}
+      {serial && status !== "connected" ? <NewBoard /> : null}
       {status === "connected" ? (
         <>
           <DeviceCard />

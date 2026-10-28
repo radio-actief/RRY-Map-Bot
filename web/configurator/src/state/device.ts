@@ -130,8 +130,11 @@ export async function connectUsb({ requestPort = requestUsbPort, timing }: Conne
   try {
     port = await requestPort();
   } catch (err) {
-    // The user closed the port picker: nothing to report.
-    if (err instanceof Error && err.name === "NotFoundError") return;
+    // The picker closed without a device: often an empty list (charge-only cable, flasher tab, driver).
+    if (err instanceof Error && err.name === "NotFoundError") {
+      store.notice.value = { kind: "warn", text: t("connect.noDevice") };
+      return;
+    }
     store.notice.value = { kind: "error", text: t("connect.failed", { reason: reasonOf(err) }) };
     return;
   }
@@ -145,7 +148,7 @@ export async function connectUsb({ requestPort = requestUsbPort, timing }: Conne
     await link.open();
   } catch (err) {
     store.device.value = NO_DEVICE;
-    store.notice.value = { kind: "error", text: t("connect.failed", { reason: reasonOf(err) }) };
+    store.notice.value = { kind: "error", text: portBusy(err) ? t("connect.busy") : t("connect.failed", { reason: reasonOf(err) }) };
     return;
   }
   // Unplugged while the port opened or the boot output drained.
@@ -156,7 +159,16 @@ export async function connectUsb({ requestPort = requestUsbPort, timing }: Conne
   }
   store.device.value = { status: "connected", link, firmware: null, usb: port.getInfo?.() ?? null };
   const fw = await checkFirmware(link);
-  if (store.device.peek().link === link) store.device.value = { ...store.device.peek(), firmware: fw.version };
+  if (store.device.peek().link !== link) return;
+  store.device.value = { ...store.device.peek(), firmware: fw.version };
+  // No version: other firmware (Companion, Meshtastic), or a board still starting or asleep.
+  if (fw.state === "unknown" && link.connected) store.notice.value = { kind: "warn", text: t("connect.noAnswer") };
+}
+
+/** Opening failed because the port is already open: in another tab (the flasher), another app, or here. */
+function portBusy(err: unknown): boolean {
+  const name = err instanceof Error ? err.name : "";
+  return name === "NetworkError" || name === "InvalidStateError" || /failed to open serial port/i.test(reasonOf(err));
 }
 
 /** Close on purpose (old disconnectSerialUsb): no unplug notice, and the device's Read is forgotten. */

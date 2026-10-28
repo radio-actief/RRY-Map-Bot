@@ -1767,3 +1767,26 @@ path.map-region-denied {
 .desk-check .clock-failed {
   color: var(--warn);
 }
+
+/* Connect: the New board? checklist */
+.new-board {
+  margin-top: 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.new-board h3 {
+  margin: 0 0 4px;
+  font-size: 13px;
+}
+
+.new-board ul {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+}
+
+.new-board li + li {
+  margin-top: 3px;
+}

@@ -71,6 +71,53 @@ describe("Connect step", () => {
     expect(store.step.value).toBe("place");
   });
 
+  it("offers a New board? checklist before connecting", () => {
+    store.step.value = "connect";
+    vi.stubGlobal("navigator", { ...navigator, serial: { requestPort: vi.fn() } });
+    render(<Connect />);
+    const box = screen.getByRole("heading", { name: "New board?" }).closest("section") as HTMLElement;
+    const items = [...box.querySelectorAll("li")].map((li) => li.textContent!);
+    expect(items).toHaveLength(5);
+    expect(items[0]).toMatch(/data/);
+    expect(items[1]).toMatch(/tab/);
+    expect(items[2]).toMatch(/driver/);
+    expect(items[3]).toMatch(/Repeater firmware/);
+    expect(items[4]).toMatch(/asleep|wake/i);
+  });
+
+  it("closing the port picker without a device says so, with what to try", async () => {
+    await connectUsb({ requestPort: async () => Promise.reject(Object.assign(new Error("No port selected by the user."), { name: "NotFoundError" })) });
+    expect(store.notice.value?.kind).toBe("warn");
+    expect(store.notice.value?.text).toMatch(/^No device was chosen\./);
+    expect(store.notice.value?.text).toMatch(/cable/);
+  });
+
+  it("a port that another tab or app holds is named as the cause", async () => {
+    const port = new FakePort(read);
+    port.open = () => Promise.reject(Object.assign(new Error("Failed to open serial port."), { name: "NetworkError" }));
+    await connectUsb({ requestPort: async () => port, timing: FAST });
+    expect(store.device.value.status).toBe("none");
+    expect(store.notice.value?.kind).toBe("error");
+    expect(store.notice.value?.text).toMatch(/^The port is busy/);
+  });
+
+  it("other open failures keep their own reason", async () => {
+    const port = new FakePort(read);
+    port.open = () => Promise.reject(new Error("weird"));
+    await connectUsb({ requestPort: async () => port, timing: FAST });
+    expect(store.notice.value?.text).toBe("Couldn't connect: weird");
+  });
+
+  it("when no MeshCore repeater answers, the notice names the likely firmware or sleep cause", async () => {
+    const port = new FakePort({ ver: "" });
+    await connectUsb({ requestPort: async () => port, timing: FAST });
+    expect(store.device.value.status).toBe("connected");
+    expect(store.notice.value?.kind).toBe("warn");
+    expect(store.notice.value?.text).toMatch(/no MeshCore repeater answered/);
+    expect(store.notice.value?.text).toMatch(/Repeater firmware/);
+    expect(store.notice.value?.text).toMatch(/reset/);
+  });
+
   it("connecting checks the firmware once and fills the device card", async () => {
     store.step.value = "connect";
     const port = new FakePort(read);

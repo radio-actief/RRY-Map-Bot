@@ -89,7 +89,7 @@ export function Name() {
         ))}
       </div>
 
-      <SettingField def={OWNER_INFO} />
+      <SettingField def={OWNER_INFO} recommended />
     </div>
   );
 }

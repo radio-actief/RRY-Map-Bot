@@ -112,8 +112,19 @@ function Control({ def, raw, invalid }: { def: SettingDef; raw: string; invalid:
   );
 }
 
-/** `control` swaps the input for a custom one (given whether the field is invalid); the label line, errors and help stay. */
-export function SettingField({ def, control }: { def: SettingDef; control?: (invalid: boolean) => ComponentChildren }) {
+/**
+ * `control` swaps the input for a custom one (given whether the field is invalid); the label line, errors and help stay.
+ * `recommended` adds a "recommended" tag after the label.
+ */
+export function SettingField({
+  def,
+  control,
+  recommended,
+}: {
+  def: SettingDef;
+  control?: (invalid: boolean) => ComponentChildren;
+  recommended?: boolean;
+}) {
   const plan = store.plan.value;
   const raw = rawOf(plan, def.key);
   const snapshot = store.snapshot.value;
@@ -134,6 +145,7 @@ export function SettingField({ def, control }: { def: SettingDef; control?: (inv
         <label class="field-label" for={`set-${def.key}`} id={`lbl-${def.key}`}>
           {label}
         </label>
+        {recommended ? <span class="badge ok">{t("setting.recommended")}</span> : null}
         {hasText(more) ? (
           <button
             type="button"

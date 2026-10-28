@@ -1,7 +1,7 @@
 {
   "help.repeat": "Forwards other nodes' packets.",
   "help.repeat.more": "On by default for repeaters, off for room servers.",
-  "help.ownerInfo": "Shown to people who connect. Up to 119 bytes.",
+  "help.ownerInfo": "Who to contact about this repeater: your name, an RRY or ham radio callsign, or an email address. Anyone can read it without logging in, so only give details you are happy to share in public.",
   "help.guestPassword": "Best left empty.",
   "help.guestPassword.more": "A guest password gives users access to owner info and neighbours. Empty by default.",
   "help.adminPassword": "Up to 15 characters.",
@@ -304,7 +304,8 @@
   "settings.allowance.extended": "Extended {pair}",
   "settings.allowance.full": "Full {pair}",
   "settings.adminPassword.placeholder": "Leave empty to keep the current one",
-  "settings.ownerInfo.placeholder": "Shown to anyone who asks the repeater",
+  "settings.ownerInfo.placeholder": "e.g. ON4XYZ, or Jan RRY999 on the #BEmesh Discord",
+  "setting.recommended": "recommended",
   "settings.ownerInfo.bytes": "{bytes} / {max} bytes",
   "settings.preset": "Preset",
   "settings.preset.custom": "Custom",

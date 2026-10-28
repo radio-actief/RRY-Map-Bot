@@ -560,6 +560,26 @@ describe("Name step", () => {
     expect(stepStatus("name")).toBe("attention");
   });
 
+  it("asks for owner info as recommended, with a public-contact hint and a Belgian example", () => {
+    render(<Name />);
+    const field = document.querySelector('.field[data-key="ownerInfo"]') as HTMLElement;
+    expect(within(field).getByText("recommended").classList.contains("badge")).toBe(true);
+    const help = field.querySelector(".help")!.textContent!;
+    expect(help).toMatch(/callsign/);
+    expect(help).toMatch(/email/);
+    expect(help).toMatch(/public/i);
+    expect(help).not.toMatch(/antenna|power|supply/i);
+    expect((screen.getByLabelText("Owner info") as HTMLTextAreaElement).placeholder).toMatch(/ON4XYZ/);
+  });
+
+  it("asks for owner info on a read repeater too", async () => {
+    await connectUsb({ requestPort: async () => new FakePort(read), timing: FAST });
+    await act(() => readDevice());
+    expect(store.snapshot.value).not.toBeNull();
+    render(<Name />);
+    expect(within(document.querySelector('.field[data-key="ownerInfo"]') as HTMLElement).getByText("recommended")).toBeTruthy();
+  });
+
   it("the owner info counter counts what is sent (trimmed), as the Apply gate does", () => {
     render(<Name />);
     type("Owner info", `  ${"x".repeat(119)}  `);

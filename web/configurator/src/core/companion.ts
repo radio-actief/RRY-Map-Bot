@@ -9,7 +9,7 @@
 import { sha256Hex } from "./sha256";
 import type { Place } from "./search";
 
-export type ChannelGroup = "national" | "local" | "tools";
+export type ChannelGroup = "national" | "flanders" | "local" | "tools";
 
 /** `scope` is a region code, or OWN_PROVINCE for a channel that takes the visitor's own province. */
 export type Channel = {
@@ -37,7 +37,7 @@ export type CompanionPick = { type: "country" } | { type: "province"; code: stri
 export type ShownChannel = { channel: Channel; scope: string | null; own: boolean };
 
 export const OWN_PROVINCE = "own-province";
-const GROUPS: ChannelGroup[] = ["national", "local", "tools"];
+const GROUPS: ChannelGroup[] = ["national", "flanders", "local", "tools"];
 
 /** Channels that stay off the page (decided 2026-10-28): busy, test, mapping or Thursday-only channels. */
 export const EXCLUDED_CHANNELS = ["#nerdland", "#ON0WV", "#test", "#mc-radar", "#wardriving", "#coredrive", "#burgernet", "#emergency"];
@@ -66,7 +66,8 @@ export function scopeFor(channel: Channel, pick: CompanionPick): string | null {
 }
 
 /**
- * The channels for a pick, per group: the national ones always; the local ones of the picked
+ * The channels for a pick, per group: the national ones and those active mostly in Flanders
+ * always (the wiki's grouping, for reference only: they keep region be); the local ones of the picked
  * province (a picked place's own channel first); the tools, with the picked province as region.
  */
 export function channelsFor(channels: Channel[], pick: CompanionPick): Record<ChannelGroup, ShownChannel[]> {
@@ -76,6 +77,7 @@ export function channelsFor(channels: Channel[], pick: CompanionPick): Record<Ch
   const local = channels.filter((c) => c.group === "local" && province && c.province === province).map(show);
   return {
     national: channels.filter((c) => c.group === "national").map(show),
+    flanders: channels.filter((c) => c.group === "flanders").map(show),
     local: [...local.filter((c) => c.own), ...local.filter((c) => !c.own)],
     tools: channels.filter((c) => c.group === "tools").map(show),
   };

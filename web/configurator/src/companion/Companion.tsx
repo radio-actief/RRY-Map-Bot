@@ -75,7 +75,7 @@ function Channels({ pick }: { pick: CompanionPick }) {
   const data = store.data.value.channels;
   if (store.data.value.failed.has("channels")) return <Notice kind="error">{t("companion.loadFailed")}</Notice>;
   if (!data) return <p class="sub">{t("companion.loading")}</p>;
-  const { national, local, tools } = channelsFor(data.channels, pick);
+  const { national, flanders, local, tools } = channelsFor(data.channels, pick);
   const province = pickProvince(pick);
   const withScope = store.companionScope.value;
   return (
@@ -93,6 +93,7 @@ function Channels({ pick }: { pick: CompanionPick }) {
       </div>
       <p class="sub">{t("companion.scope.hint")}</p>
       <ChannelGroup title={t("companion.list.national")} list={national} />
+      <ChannelGroup title={t("companion.list.flanders")} list={flanders} />
       {local.length ? (
         <ChannelGroup title={t("companion.list.local")} list={local} />
       ) : province ? (

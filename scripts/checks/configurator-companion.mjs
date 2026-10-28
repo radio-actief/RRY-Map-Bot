@@ -62,7 +62,9 @@ export default async function (ctx) {
     ctx.check(`${n}: ${name} uses region West-Vlaanderen`, text.includes("Region: West-Vlaanderen (be-vwv)"), text);
   }
   const national = await page.getByRole("list", { name: "For all of Belgium" }).locator("li.channel").count();
-  ctx.check(`${n}: the national channels are listed`, national === 6, String(national));
+  ctx.check(`${n}: the national channels are listed`, national === 2, String(national));
+  const flanders = await page.getByRole("list", { name: "Mostly in Flanders" }).locator("li.channel").evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")));
+  ctx.check(`${n}: the Flanders channels follow the wiki's order`, flanders.join(",") === "#73sbe,#b-stby,#hamradio,#radio-actief", flanders.join(","));
   const bot = (await rowText(page, "#bot")) || "";
   ctx.check(`${n}: #bot uses the province of the place`, bot.includes("West-Vlaanderen (be-vwv)"), bot);
 

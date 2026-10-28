@@ -78,8 +78,16 @@ describe("channels for a place", () => {
   it("the national channels always show, with region be, #bemesh first", () => {
     for (const pick of [all, oostende, namur]) {
       const { national } = channelsFor(data.channels, pick);
-      expect(names(national)).toEqual(["#bemesh", "#radio-actief", "#radionoodnet", "#b-stby", "#hamradio", "#73sbe"]);
+      expect(names(national)).toEqual(["#bemesh", "#radionoodnet"]);
       expect(new Set(national.map((c) => c.scope))).toEqual(new Set(["be"]));
+    }
+  });
+
+  it("the channels active mostly in Flanders always show, in the wiki's order, still with region be", () => {
+    for (const pick of [all, oostende, namur]) {
+      const { flanders } = channelsFor(data.channels, pick);
+      expect(names(flanders)).toEqual(["#73sbe", "#b-stby", "#hamradio", "#radio-actief"]);
+      expect(new Set(flanders.map((c) => c.scope))).toEqual(new Set(["be"]));
     }
   });
 
@@ -135,11 +143,11 @@ describe("data/companion-channels.json", () => {
   it("holds exactly the channels decided on 2026-10-28", () => {
     expect(data.channels.map((c) => c.name)).toEqual([
       "#bemesh",
-      "#radio-actief",
       "#radionoodnet",
+      "#73sbe",
       "#b-stby",
       "#hamradio",
-      "#73sbe",
+      "#radio-actief",
       "#oostende",
       "#brugge",
       "#gent",
@@ -191,6 +199,8 @@ describe("channelErrors", () => {
   it("flags an unknown source or group", () => {
     expect(errs([ch({ source: ["nope"] })])).not.toEqual([]);
     expect(errs([ch({ group: "other" as Channel["group"] })])).not.toEqual([]);
+    expect(errs([ch({ group: "flanders" })])).toEqual([]);
+    expect(errs([ch({ group: "flanders", province: "be-vwv" })])).not.toEqual([]);
   });
 });
 

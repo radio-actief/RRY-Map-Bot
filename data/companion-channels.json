@@ -27,13 +27,6 @@
       "source": ["wiki", "radio-actief", "team"]
     },
     {
-      "name": "#radio-actief",
-      "purpose": "For the RRY members of the Radio-Actief mesh network.",
-      "scope": "be",
-      "group": "national",
-      "source": ["wiki", "team"]
-    },
-    {
       "name": "#radionoodnet",
       "purpose": "RadioNoodNet, by Radio-Actief and Noodcommunicatie: reachable communication when it really matters.",
       "scope": "be",
@@ -42,29 +35,36 @@
       "source": ["team"]
     },
     {
-      "name": "#b-stby",
-      "purpose": "Test channel of noodcommunicatie.be.",
+      "name": "#73sbe",
+      "purpose": "Started by 73s.be, a group of radio amateur friends.",
       "scope": "be",
-      "group": "national",
+      "group": "flanders",
+      "source": ["wiki", "team"]
+    },
+    {
+      "name": "#b-stby",
+      "purpose": "Test channel of noodcommunicatie.be, every third Sunday of the month at 9 pm.",
+      "scope": "be",
+      "group": "flanders",
       "source": ["wiki", "team"]
     },
     {
       "name": "#hamradio",
-      "purpose": "For radio amateurs, also from the Netherlands.",
+      "purpose": "For radio amateurs.",
       "scope": "be",
-      "group": "national",
+      "group": "flanders",
       "source": ["wiki", "analyzer", "team"]
     },
     {
-      "name": "#73sbe",
-      "purpose": "Started by 73s.be, a group of radio amateur friends.",
+      "name": "#radio-actief",
+      "purpose": "For the RRY members of the Radio-Actief mesh network.",
       "scope": "be",
-      "group": "national",
+      "group": "flanders",
       "source": ["wiki", "team"]
     },
     {
       "name": "#oostende",
-      "purpose": "For Ostend and the rest of West Flanders.",
+      "purpose": "For Ostend and around.",
       "scope": "be-vwv",
       "province": "be-vwv",
       "city": "beost",
@@ -100,7 +100,7 @@
     },
     {
       "name": "#limburg",
-      "purpose": "For the province of Limburg.",
+      "purpose": "For Limburg and around.",
       "scope": "be-vli",
       "province": "be-vli",
       "group": "local",
@@ -117,7 +117,7 @@
     },
     {
       "name": "#brussels",
-      "purpose": "For Brussels, in English.",
+      "purpose": "For Brussels, in Dutch and other languages.",
       "scope": "be-bru",
       "province": "be-bru",
       "city": "bebru",

@@ -1537,6 +1537,21 @@ def configurator_asset(path):
     return send_from_directory(CONFIGURATOR_DIST, path)
 
 
+COMPANION_LANGS = ('en', 'nl', 'fr')
+
+
+@app.route('/join')
+@app.route('/visit')
+def companion_short_link():
+    """Short links for locals and visitors: the configurator's Companion page.
+
+    Only a known ?lang= is carried over; everything else in the query is dropped.
+    """
+    lang = request.args.get('lang')
+    query = f'?lang={lang}' if lang in COMPANION_LANGS else ''
+    return redirect(f'/configurator{query}#companion', code=302)
+
+
 @app.route('/region-configurator')
 def region_configurator_redirect():
     """Redirect legacy region-configurator URL to the new configurator path."""

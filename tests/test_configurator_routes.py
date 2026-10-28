@@ -38,3 +38,25 @@ def test_region_configurator_redirects(client):
     r = client.get('/region-configurator')
     assert r.status_code == 301
     assert r.headers['Location'].endswith('/configurator')
+
+
+@pytest.mark.parametrize('path', ['/join', '/visit'])
+def test_short_links_open_the_companion_page(client, path):
+    r = client.get(path)
+    assert r.status_code == 302
+    assert r.headers['Location'].endswith('/configurator#companion')
+
+
+@pytest.mark.parametrize('lang', ['en', 'nl', 'fr'])
+def test_short_links_keep_a_known_language(client, lang):
+    r = client.get(f'/join?lang={lang}')
+    assert r.headers['Location'].endswith(f'/configurator?lang={lang}#companion')
+
+
+@pytest.mark.parametrize('query', ['?lang=de', '?lang=nl%26x', '?next=https://evil.example', '?lang=nl&lang=fr'])
+def test_short_links_drop_anything_else(client, query):
+    r = client.get('/visit' + query)
+    assert r.status_code == 302
+    assert r.headers['Location'].endswith('/configurator#companion') or r.headers['Location'].endswith(
+        '/configurator?lang=nl#companion')
+    assert 'evil' not in r.headers['Location'] and '&' not in r.headers['Location']

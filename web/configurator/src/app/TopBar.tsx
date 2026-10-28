@@ -1,6 +1,5 @@
-import { t } from "../i18n/t";
+import { municipalityName, regionName, t } from "../i18n/t";
 import { AccountMenu } from "./AccountMenu";
-import { PROVINCE_NAMES } from "../core/be-regions";
 import { parseVersion } from "../core/firmware";
 import { planName } from "../core/plan";
 import { hasWebSerial } from "../device/serial";
@@ -33,8 +32,8 @@ const NEXT_THEME: Record<Theme, Theme> = { system: "light", light: "dark", dark:
 function anchorPlace(): string {
   const a = store.plan.value.anchor;
   if (!a) return "";
-  if (a.mode === "city") return a.place?.gemeente ?? "";
-  if (a.mode === "province") return (a.province_code && PROVINCE_NAMES[a.province_code]) || a.province_code || "";
+  if (a.mode === "city") return a.place ? municipalityName(a.place.gemeente) : "";
+  if (a.mode === "province") return a.province_code ? regionName(a.province_code) : "";
   return t("anchor.country");
 }
 

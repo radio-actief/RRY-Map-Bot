@@ -15,7 +15,7 @@ import {
   VANITY_PREFIX_MAX,
   type VanityKey,
 } from "../core/vanity";
-import { t } from "../i18n/t";
+import { formatNumber, t } from "../i18n/t";
 import {
   deviceCommand,
   readPrivateKey,
@@ -40,7 +40,8 @@ const VANITY_SLICE_MS = 25;
 const VANITY_BATCH = 32;
 
 const MINUTE = 60_000;
-const numbers = new Intl.NumberFormat("en");
+/** Counts in the page language. */
+const numbers = { format: (n: number) => formatNumber(n) };
 
 /** The firmware's `clock` reply, "HH:MM - D/M/YYYY UTC", as a time; null when it does not parse. */
 function parseClock(reply: string): number | null {

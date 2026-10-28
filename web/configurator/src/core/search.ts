@@ -1,5 +1,6 @@
 /** Location search ranking for be-locode rows, and the location choices offered for a query. */
 import { PROVINCE_NAMES } from "./be-regions";
+import { I18N, municipalityName, regionName, t } from "../i18n/t";
 
 export type Place = {
   nis5: string;
@@ -54,6 +55,12 @@ export type LocationChoice = (
 ) & { label: string };
 
 const COUNTRY_WORDS = ["belgium", "belgie", "belgië", "belgique"];
+
+/** A province's names in every language whose messages are loaded, so a search in any of them finds it. */
+function otherNames(code: string): string[] {
+  return I18N.LANGS.map((l) => I18N.textIn(l, `province.${code}`)).filter((n): n is string => !!n);
+}
+
 const MAX_CHOICES = 16;
 
 /**
@@ -65,11 +72,12 @@ export function locationChoices(query: string, places: Place[]): LocationChoice[
   const q = normalize(query);
   const out: LocationChoice[] = [];
   if (q === "be" || COUNTRY_WORDS.some((w) => normalize(w).includes(q))) {
-    out.push({ type: "country", label: "België (be)" });
+    out.push({ type: "country", label: `${t("region.name.be")} (be)` });
   }
-  for (const [code, name] of Object.entries(PROVINCE_NAMES)) {
+  for (const [code, defaultName] of Object.entries(PROVINCE_NAMES)) {
     if (out.length >= MAX_CHOICES) break;
-    if (normalize(code).includes(q) || normalize(name).includes(q)) {
+    const name = regionName(code);
+    if (normalize(code).includes(q) || [name, defaultName, ...otherNames(code)].some((n) => normalize(n).includes(q))) {
       out.push({ type: "province", code, label: `${name} (${code})` });
     }
   }
@@ -78,7 +86,7 @@ export function locationChoices(query: string, places: Place[]): LocationChoice[
     if (out.length >= MAX_CHOICES) break;
     if (seen.has(place.city_code)) continue;
     seen.add(place.city_code);
-    out.push({ type: "city", place, label: `${place.plaats} (${place.city_code})` });
+    out.push({ type: "city", place, label: `${municipalityName(place.plaats)} (${place.city_code})` });
   }
   return out;
 }

@@ -89,6 +89,8 @@ export function MapView() {
   }, [municipalities, data.countries, data.provinces, data.gewesten]);
 
   useEffect(() => {
+    const zoom = L.Control?.Zoom?.prototype.options;
+    if (zoom) Object.assign(zoom, { zoomInTitle: t("zoom.in"), zoomOutTitle: t("zoom.out") });
     const map = L.map(host.current!, { zoomControl: true });
     const start = store.plan.peek().location;
     map.setView(start ? asLatLng(start) : BELGIUM, start ? PIN_ZOOM : 8);

@@ -63,7 +63,7 @@ describe("locationChoices", () => {
 
   it("labels each choice with its name and code", () => {
     const [country] = locationChoices("be", PLACES);
-    expect(country).toEqual({ type: "country", label: "België (be)" });
+    expect(country).toEqual({ type: "country", label: "Belgium (be)" });
     expect(locationChoices("Ronse", PLACES)[0]).toMatchObject({ type: "city", label: "Ronse (beron)" });
     expect(locationChoices("Brussel", PLACES)[0]).toEqual({ type: "province", code: "be-bru", label: "Brussel (be-bru)" });
   });

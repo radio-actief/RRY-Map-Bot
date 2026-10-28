@@ -11,9 +11,11 @@ import {
   MAX_REGIONS,
   policyFor,
   regionCountAfterApply,
+  relabelPolicy,
   type Anchor,
   type DeviceRegions,
 } from "../core/regions";
+import { I18N } from "../i18n/t";
 import type { SerialLink } from "../device/serial";
 import type { UsbInfo } from "../device/usb";
 import type { GeoJsonCollection } from "../core/data";
@@ -343,6 +345,14 @@ export function setLocation(p: LatLon | null): void {
     regions: anchor ? carryFreeRows(policyFor(anchor, places, deviceCodes()), plan.regions) : null,
   };
 }
+
+/* A language switch relabels the region rows already built (their codes and states stay). */
+I18N.onChange(() => {
+  const plan = store.plan.peek();
+  if (!plan.regions) return;
+  const regions = relabelPolicy(plan.regions, store.data.peek().places ?? []);
+  if (regions !== plan.regions) store.plan.value = { ...plan, regions };
+});
 
 effect(() => {
   void store.data.value;

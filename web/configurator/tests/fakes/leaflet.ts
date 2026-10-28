@@ -122,3 +122,5 @@ export const control = (o: { position?: string } = {}) => {
   };
   return c;
 };
+/** The zoom control's default options, which MapView sets to the page language's titles. */
+export const Control = { Zoom: { prototype: { options: {} as Record<string, unknown> } } };

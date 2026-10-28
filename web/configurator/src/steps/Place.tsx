@@ -1,22 +1,21 @@
 /** Place step: where the repeater is (search, map, "Use my location", coordinates) and the advert location. */
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { Notice } from "../app/Notice";
-import { PROVINCE_NAMES } from "../core/be-regions";
 import { municipalityAt, roundCoord } from "../core/geo";
 import { hasValidCoords, type AdvertLoc } from "../core/plan";
 import type { Anchor } from "../core/regions";
 import { locationChoices, type LocationChoice } from "../core/search";
-import { t } from "../i18n/t";
+import { municipalityName, regionName, t } from "../i18n/t";
 import { chooseLocation, editPlan, municipalities, placeChosen, placeLeft, setLocation, store } from "../state/store";
 
 const ADVERT_LOCS: AdvertLoc[] = ["none", "prefs", "share"];
 
-const provinceName = (code: string | null) => (code && PROVINCE_NAMES[code]) || code || "";
+const provinceName = (code: string | null) => (code ? regionName(code) : "");
 
 /** What the search box shows for the chosen anchor (old selectCity / selectProvince / selectCountryBe labels). */
 function anchorLabel(a: Anchor | null): string {
   if (!a) return "";
-  if (a.mode === "city") return a.place?.plaats ?? "";
+  if (a.mode === "city") return a.place ? municipalityName(a.place.plaats) : "";
   if (a.mode === "province") return provinceName(a.province_code);
   return t("anchor.country");
 }
@@ -24,7 +23,9 @@ function anchorLabel(a: Anchor | null): string {
 /** The place line under the search: municipality and province, a province, or the country. */
 function anchorPlace(a: Anchor | null): string {
   if (!a) return "";
-  if (a.mode === "city") return [a.place?.gemeente, provinceName(a.province_code)].filter(Boolean).join(", ");
+  if (a.mode === "city") {
+    return [a.place && municipalityName(a.place.gemeente), provinceName(a.province_code)].filter(Boolean).join(", ");
+  }
   return anchorLabel(a);
 }
 

@@ -1,4 +1,5 @@
 import { useEffect } from "preact/hooks";
+import { lang, t } from "../i18n/t";
 import { ensureData, loadAppData, loadOnDemand } from "../state/appdata";
 import { isWide, store } from "../state/store";
 import { DeviceDrawer } from "./DeviceDrawer";
@@ -23,6 +24,10 @@ export function App() {
     void loadAppData();
     return loadOnDemand();
   }, []);
+  const current = lang.value;
+  useEffect(() => {
+    document.title = t("app.title");
+  }, [current]);
   return (
     <div class="app">
       <TopBar />

@@ -1,7 +1,7 @@
 import { signal } from "@preact/signals";
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import links from "../../../../src/shared/bemesh-links.json";
-import { t } from "../i18n/t";
+import { I18N, lang, t } from "../i18n/t";
 import { store } from "../state/store";
 
 const PAGE = "/configurator";
@@ -32,7 +32,35 @@ export function resetAccount() {
   account.value = undefined;
 }
 
-/** The sign-in chip (signed out only) and the ☰ menu: links, then sign in or the account. Page links stay in the device drawer. */
+/**
+ * EN · NL · FR, the same switch as on the tool pages: in the top bar on a wide screen, in the ☰ menu
+ * on a phone (bemesh-shell.css). A choice re-renders the configurator in place; the USB link stays.
+ */
+export function LangSwitch({ inMenu = false }: { inMenu?: boolean }) {
+  const current = lang.value;
+  return (
+    <span class={`lang-switch${inMenu ? " menu-lang" : ""}`} role="group" aria-label={t("lang.label")}>
+      {I18N.LANGS.map((l) => (
+        <button
+          key={l}
+          type="button"
+          lang={l}
+          title={I18N.NAMES[l]}
+          aria-label={I18N.NAMES[l]}
+          aria-pressed={l === current}
+          onClick={(e) => {
+            e.stopPropagation();
+            I18N.choose(l);
+          }}
+        >
+          {l.toUpperCase()}
+        </button>
+      ))}
+    </span>
+  );
+}
+
+/** The sign-in chip (signed out only), the language switch and the ☰ menu: links, then sign in or the account. Page links stay in the device drawer. */
 export function AccountMenu() {
   const [open, setOpen] = useState(false);
   const wrap = useRef<HTMLSpanElement>(null);
@@ -72,6 +100,7 @@ export function AccountMenu() {
           {t("menu.signIn")}
         </a>
       ) : null}
+      <LangSwitch />
       <span class="menu-wrap" ref={wrap}>
         <button
           type="button"
@@ -88,8 +117,8 @@ export function AccountMenu() {
         </button>
         <nav class="menu" id="page-menu" aria-label={t("menu.label")} hidden={!open}>
           {links.map((l) => (
-            <a key={l.href} href={l.href} title={l.title} target="_blank" rel="noopener">
-              {l.label} <span class="ext muted" aria-hidden="true">↗</span>
+            <a key={l.href} href={l.href} title={t(`${l.key}.title`)} target="_blank" rel="noopener">
+              {t(l.key)} <span class="ext muted" aria-hidden="true">↗</span>
             </a>
           ))}
           <hr />
@@ -103,6 +132,8 @@ export function AccountMenu() {
           ) : (
             <a href={`/auth/login?next=${PAGE}`}>{t("menu.signIn")}</a>
           )}
+          <hr class="menu-lang" />
+          <LangSwitch inMenu />
         </nav>
       </span>
     </>

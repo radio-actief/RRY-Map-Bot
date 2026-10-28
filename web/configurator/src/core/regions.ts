@@ -4,7 +4,7 @@
  * the UI grid reads and writes it.
  */
 import { GEWEST_NAMES, GEWEST_OF_PROVINCE, PROVINCE_ADJACENCY, PROVINCE_NAMES } from "./be-regions";
-import { t } from "../i18n/t";
+import { municipalityName, regionName, t } from "../i18n/t";
 import { findGeographicNeighbors, neighborsInRadius } from "./geo";
 import type { DeviceSnapshot } from "./plan";
 import type { LocationChoice, Place } from "./search";
@@ -99,11 +99,10 @@ function cityIndex(places: Place[]): Map<string, Place> {
 function expandedNameForRegionCode(code: string, cities: Map<string, Place>): string {
   if (code === "*") return t("region.name.wildcard");
   if (code === "eu") return t("region.name.eu");
-  if (isProvince(code)) return PROVINCE_NAMES[code];
-  if (isGewest(code)) return GEWEST_NAMES[code];
+  if (isProvince(code) || isGewest(code)) return regionName(code);
   if (has(COUNTRY_NAMES, code)) return t(COUNTRY_NAMES[code]);
   const row = cities.get(code);
-  if (row && row.plaats) return row.plaats;
+  if (row && row.plaats) return municipalityName(row.plaats);
   return code;
 }
 
@@ -196,14 +195,12 @@ function homeRows(anchor: Anchor): RegionRow[] {
         : null;
   if (!pc) return rows;
   const g = GEWEST_OF_PROVINCE[pc];
-  if (g) rows.push(row(g, named(GEWEST_NAMES[g] || g, g), "province", "region.kind.gewest", { home: true }));
-  rows.push(
-    row(pc, named(PROVINCE_NAMES[pc] || pc, pc), "province", "region.kind.province", { home: true, allow: true }),
-  );
+  if (g) rows.push(row(g, named(regionName(g), g), "province", "region.kind.gewest", { home: true }));
+  rows.push(row(pc, named(regionName(pc), pc), "province", "region.kind.province", { home: true, allow: true }));
   if (anchor.mode === "city" && anchor.place) {
     const city = anchor.place;
     rows.push(
-      row(city.city_code, named(city.plaats, city.city_code), "municipality", "region.kind.municipality", {
+      row(city.city_code, named(municipalityName(city.plaats), city.city_code), "municipality", "region.kind.municipality", {
         home: true,
       }),
     );
@@ -236,16 +233,16 @@ export function policyFor(anchor: Anchor, places: Place[], deviceCodes: string[]
     ...neighborsScope.map(({ place, km }) =>
       row(
         place.city_code,
-        t("region.label.neighbourKm", { name: place.plaats, km: Math.round(km), code: place.city_code }),
+        t("region.label.neighbourKm", { name: municipalityName(place.plaats), km: Math.round(km), code: place.city_code }),
         "neighbourMunicipality",
         "region.kind.neighbourMunicipality",
       ),
     ),
     ...neighborProvinces(neighborsRadius, homeProvinceOf(anchor)).map((pc) =>
-      row(pc, named(PROVINCE_NAMES[pc] || pc, pc), "neighbourProvince", "region.kind.neighbourProvince"),
+      row(pc, named(regionName(pc), pc), "neighbourProvince", "region.kind.neighbourProvince"),
     ),
     ...neighborGewesten(homeProvinceOf(anchor)).map((g) =>
-      row(g, named(GEWEST_NAMES[g] || g, g), "neighbourRegion", "region.kind.neighbourRegion"),
+      row(g, named(regionName(g), g), "neighbourRegion", "region.kind.neighbourRegion"),
     ),
     ...NEIGHBOR_COUNTRY_CODES.map((c) =>
       row(c, named(t(COUNTRY_NAMES[c]), c), "neighbourCountry", "region.kind.neighbourCountry"),
@@ -254,6 +251,33 @@ export function policyFor(anchor: Anchor, places: Place[], deviceCodes: string[]
   ];
   rows.push(...deviceRows(deviceCodes, rows, places));
   return finalize({ rows, untaggedFlood: true, homeOverride: null, defaultScope: null });
+}
+
+/** A row's label in the current page language; the user's own rows and unknown codes keep theirs. */
+function labelFor(r: RegionRow, cities: Map<string, Place>): string {
+  if (r.group === "free") return r.label;
+  const place = cities.get(r.code);
+  if (r.group === "neighbourMunicipality") {
+    const km = /\(~(\d+) km\)/.exec(r.label);
+    return place && km
+      ? t("region.label.neighbourKm", { name: municipalityName(place.plaats), km: km[1], code: r.code })
+      : r.label;
+  }
+  const name = expandedNameForRegionCode(r.code, cities);
+  return name !== r.code ? named(name, r.code) : r.label;
+}
+
+/** The same policy with every row labelled in the current page language (after a language switch). */
+export function relabelPolicy(policy: RegionPolicy, places: Place[]): RegionPolicy {
+  const cities = cityIndex(places);
+  let changed = false;
+  const rows = policy.rows.map((r) => {
+    const label = labelFor(r, cities);
+    if (label === r.label) return r;
+    changed = true;
+    return { ...r, label };
+  });
+  return changed ? { ...policy, rows } : policy;
 }
 
 // ---------------------------------------------------------------------------

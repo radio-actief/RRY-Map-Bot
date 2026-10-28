@@ -70,6 +70,9 @@ async function connect(replies: Record<string, string>, opts: { disconnectAfter?
   return { port, link };
 }
 
+/** The clock Apply sets after the script: `time <epoch seconds>`. */
+const CLOCK = expect.stringMatching(/^time \d+$/);
+
 const applyButton = () =>
   screen.getByRole("button", { name: /^(Apply( \d+ changes?)? to repeater|Nothing to send)$/ }) as HTMLButtonElement;
 const SEND_ALL = "Send every setting, also the unchanged ones";
@@ -223,11 +226,58 @@ describe("Send step: Apply", () => {
     const m = lines.length;
     expect(screen.getByRole("progressbar").getAttribute("aria-valuenow")).toBe(String(m));
     expect(screen.getByText(new RegExp(`${m} / ${m}`))).toBeTruthy();
-    expect(port.received).toEqual(["ver", ...lines, ...READ_BACK_COMMANDS]);
+    expect(port.received).toEqual(["ver", ...lines, CLOCK, ...READ_BACK_COMMANDS]);
 
     fireEvent.click(screen.getByRole("button", { name: "Later" }));
     expect(screen.queryByRole("button", { name: "Reboot now" })).toBeNull();
     expect(port.received).not.toContain("reboot");
+  });
+
+  it("Apply sets the repeater's clock to this computer's time after the script", async () => {
+    const now = vi.spyOn(Date, "now").mockReturnValue(1_800_000_000_000);
+    try {
+      const lines = applyLines();
+      const { port } = await connect({ ...okReplies(lines), "time 1800000000": "OK - clock set: 08:00 - 15/1/2027 UTC" });
+      render(<Send />);
+      fireEvent.click(applyButton());
+      expect(await screen.findByRole("button", { name: "Reboot now" })).toBeTruthy();
+      expect(port.received.slice(0, lines.length + 2)).toEqual(["ver", ...lines, "time 1800000000"]);
+      expect(store.clock.value?.reply).toBe("08:00 - 15/1/2027 UTC");
+      expect(screen.getByText("Its clock is set to this computer's time.")).toBeTruthy();
+    } finally {
+      now.mockRestore();
+    }
+  });
+
+  it("a clock that runs ahead can't be set back: Apply still ends and says so", async () => {
+    const now = vi.spyOn(Date, "now").mockReturnValue(1_800_000_000_000);
+    try {
+      const lines = applyLines();
+      await connect({ ...okReplies(lines), "time 1800000000": "(ERR: clock cannot go backwards)" });
+      render(<Send />);
+      fireEvent.click(applyButton());
+      expect(await screen.findByRole("button", { name: "Reboot now" })).toBeTruthy();
+      expect(store.apply.value).toMatchObject({ phase: "done", clock: "ahead" });
+      expect(screen.getByText(/Its clock runs ahead of this computer/)).toBeTruthy();
+    } finally {
+      now.mockRestore();
+    }
+  });
+
+  it("after Apply, the reboot choice stays and a check-it-on-the-desk list follows", async () => {
+    const lines = applyLines();
+    await connect(okReplies(lines));
+    render(<Send />);
+    fireEvent.click(applyButton());
+    expect(await screen.findByRole("button", { name: "Reboot now" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Later" }));
+    const desk = screen.getByRole("heading", { name: "Then check it on the desk" }).closest("section") as HTMLElement;
+    const items = [...desk.querySelectorAll("li")].map((li) => li.textContent);
+    expect(items).toHaveLength(3);
+    expect(items[0]).toMatch(/advert/);
+    expect(items[1]).toContain("BE-RON-Kluisberg");
+    expect(items[2]).toMatch(/region/);
+    expect(within(desk).getByText(/Couldn't set its clock/)).toBeTruthy();
   });
 
   it("Reboot now sends reboot and the expected disconnect shows no error", async () => {
@@ -358,7 +408,7 @@ describe("Send step: Apply", () => {
     fireEvent.click(applyButton());
     fireEvent.click(await screen.findByRole("button", { name: "Continue anyway" }));
     expect(await screen.findByRole("button", { name: "Reboot now" })).toBeTruthy();
-    expect(port.received).toEqual(["ver", "ver", ...lines, ...READ_BACK_COMMANDS]);
+    expect(port.received).toEqual(["ver", "ver", ...lines, CLOCK, ...READ_BACK_COMMANDS]);
   });
 
   it("after a successful Apply the device regions are what was sent, so nothing is removed twice", async () => {
@@ -392,7 +442,7 @@ describe("Send step: Apply", () => {
     render(<Send />);
     fireEvent.click(applyButton());
     await screen.findByRole("button", { name: "Reboot now" });
-    expect(port.received).toEqual(["ver", ...lines, ...READ_BACK_COMMANDS]);
+    expect(port.received).toEqual(["ver", ...lines, CLOCK, ...READ_BACK_COMMANDS]);
     const fresh = snapshotFromReplies(read);
     const snap = store.snapshot.value!;
     expect([snap.name, snap.settings, snap.radio, snap.regions]).toEqual([fresh.name, fresh.settings, fresh.radio, fresh.regions]);
@@ -494,7 +544,7 @@ describe("Send step: only the changes", () => {
     expect(scriptText()).toBe(`# Settings\n${CHANGE}`);
     fireEvent.click(screen.getByRole("button", { name: "Apply 1 change to repeater" }));
     await screen.findByRole("button", { name: "Reboot now" });
-    expect(port.received).toEqual(["ver", CHANGE, ...READ_BACK_COMMANDS]);
+    expect(port.received).toEqual(["ver", CHANGE, CLOCK, ...READ_BACK_COMMANDS]);
   });
 
   it("the switch sends every setting", async () => {
@@ -510,7 +560,7 @@ describe("Send step: only the changes", () => {
     expect(screen.getByRole("heading", { name: `${full.length} commands to send` })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Apply to repeater" }));
     await screen.findByRole("button", { name: "Reboot now" });
-    expect(port.received).toEqual(["ver", ...full, ...READ_BACK_COMMANDS]);
+    expect(port.received).toEqual(["ver", ...full, CLOCK, ...READ_BACK_COMMANDS]);
   });
 
   it("after the read-back there is nothing to send", async () => {
@@ -539,7 +589,7 @@ describe("Send step: only the changes", () => {
     expect(screen.getByRole("heading", { name: `${full.length + 1} commands to send` })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Apply to repeater" }));
     await screen.findByRole("button", { name: "Reboot now" });
-    expect(port.received).toEqual(["ver", ...full, setperm, ...READ_BACK_COMMANDS]);
+    expect(port.received).toEqual(["ver", ...full, setperm, CLOCK, ...READ_BACK_COMMANDS]);
   });
 
   it("the changes column lists an access list change", () => {
@@ -576,7 +626,7 @@ describe("Send step: only the changes", () => {
     expect(screen.queryByLabelText(SEND_ALL)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Apply to repeater" }));
     await screen.findByRole("button", { name: "Reboot now" });
-    expect(port.received).toEqual(["ver", ...full, ...READ_BACK_COMMANDS]);
+    expect(port.received).toEqual(["ver", ...full, CLOCK, ...READ_BACK_COMMANDS]);
   });
 
   it("a reboot right after setperm waits for the save", async () => {
@@ -597,7 +647,7 @@ describe("Send step: only the changes", () => {
       for (let i = 0; store.apply.value.phase !== "done" && i < 500; i++) await vi.advanceTimersByTimeAsync(10);
       // The dialog opens in an effect, after the next frame.
       await vi.advanceTimersByTimeAsync(200);
-      expect([...port.received]).toEqual(["ver", setperm, ...READ_BACK_COMMANDS]);
+      expect([...port.received]).toEqual(["ver", setperm, CLOCK, ...READ_BACK_COMMANDS]);
       fireEvent.click(screen.getByRole("button", { name: "Reboot now" }));
       await vi.advanceTimersByTimeAsync(0);
       expect(screen.getByText("Saving the access list…")).toBeTruthy();

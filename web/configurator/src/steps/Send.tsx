@@ -171,6 +171,29 @@ function Progress({ state }: { state: ApplyState }) {
   );
 }
 
+/** After Apply: how the clock went, then what to check on the desk before mounting it. */
+function DeskCheck({ state, name }: { state: Extract<ApplyState, { phase: "done" }>; name: string }) {
+  const clock = state.clock;
+  const clockText =
+    clock === "set"
+      ? t("apply.clockSet")
+      : clock === "ahead"
+        ? t("apply.clockAhead")
+        : t("apply.clockFailed", { reason: clock.failed });
+  return (
+    <section class="card desk-check">
+      <p class={`sub clock-${typeof clock === "string" ? clock : "failed"}`}>{clockText}</p>
+      <h3>{t("desk.title")}</h3>
+      <ol>
+        <li>{t("desk.advert")}</li>
+        <li>{name ? t("desk.name", { name }) : t("desk.nameNoName")}</li>
+        <li>{t("desk.regions")}</li>
+      </ol>
+      <p class="sub">{t("desk.mount")}</p>
+    </section>
+  );
+}
+
 async function copy(text: string, done: (kind: NoticeKind, text: string) => void) {
   try {
     await navigator.clipboard.writeText(text);
@@ -263,6 +286,7 @@ export function Send() {
           ) : null}
           <Script text={text} />
           <Progress state={state} />
+          {state.phase === "done" ? <DeskCheck state={state} name={name} /> : null}
           {state.phase === "old" ? (
             <Notice kind="error">{t("apply.firmwareOld", { version: state.version, min: REGION_DEF_MIN_TEXT })}</Notice>
           ) : null}

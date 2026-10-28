@@ -1741,3 +1741,29 @@ path.map-region-denied {
   margin-right: auto;
   align-self: center;
 }
+
+/* After Apply: the clock line and the check-on-the-desk list */
+.desk-check {
+  margin-top: 10px;
+  padding: 10px 12px;
+}
+
+.desk-check h3 {
+  margin: 6px 0 4px;
+  font-size: 13px;
+}
+
+.desk-check ol {
+  margin: 0 0 6px;
+  padding-left: 20px;
+  font-size: 13px;
+}
+
+.desk-check li + li {
+  margin-top: 3px;
+}
+
+.desk-check .clock-ahead,
+.desk-check .clock-failed {
+  color: var(--warn);
+}

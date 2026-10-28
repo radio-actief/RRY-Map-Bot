@@ -121,7 +121,10 @@ export type ApplyState =
   | { phase: "readBack"; total: number }
   | { phase: "failed"; failedAt: number; total: number; command: string; error: string; remaining: string[] }
   | { phase: "error"; reason: string }
-  | { phase: "done"; total: number; offerReboot: boolean; radioChanged: boolean };
+  | { phase: "done"; total: number; offerReboot: boolean; radioChanged: boolean; clock: ClockOutcome };
+
+/** Setting the clock at the end of Apply: set, refused because the repeater's clock runs ahead, or failed (with why). */
+export type ClockOutcome = "set" | "ahead" | { failed: string };
 
 /** One line of the command log: a command, a reply, a note, or the separator before an Apply. */
 export type LogLine = { text: string; kind: "cmd" | "ok" | "error" | "muted" | "sep" };

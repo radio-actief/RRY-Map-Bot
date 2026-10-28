@@ -20,7 +20,7 @@ import {
   type PortLike,
 } from "../device/serial";
 import { t } from "../i18n/t";
-import { busy, canApply, prefs, resetPlan, store, type LogLine } from "./store";
+import { busy, canApply, prefs, resetPlan, store, type ClockOutcome, type LogLine } from "./store";
 
 const reasonOf = (err: unknown) => (err instanceof Error && err.message ? err.message : String(err));
 
@@ -224,6 +224,25 @@ async function readBack(link: SerialLink): Promise<void> {
   }
 }
 
+/**
+ * Set the repeater's clock to this computer's time (`time <epoch>`). The firmware only moves a
+ * clock forward: a clock that runs ahead answers "clock cannot go backwards". A set clock's reply
+ * ("OK - clock set: 08:00 - 15/1/2027 UTC") also becomes the drawer's clock reading.
+ */
+async function setClock(link: SerialLink): Promise<ClockOutcome> {
+  let reply: string;
+  try {
+    reply = await run(link, `time ${Math.floor(Date.now() / 1000)}`);
+  } catch (err) {
+    return { failed: reasonOf(err) };
+  }
+  if (/cannot go backwards/i.test(reply)) return "ahead";
+  if (!reply || isErrorReply(reply)) return { failed: reply || t("tools.noReply") };
+  const shown = /clock set:\s*(.+)$/i.exec(reply)?.[1];
+  if (shown) store.clock.value = { reply: shown.trim(), at: Date.now() };
+  return "set";
+}
+
 /** Lines whose change only takes effect after a reboot (old offerRepeaterReboot hint). */
 const NEEDS_REBOOT = /^set (radio|freq|radio\.rxgain) /;
 
@@ -238,8 +257,8 @@ export const ACL_SAVE_WAIT_MS = 6000;
  * firmware stops here, unreadable firmware waits for "Continue anyway" (which calls this again with
  * skipFirmwareCheck). The lines go out in order, stopping at the first failure; once a `setperm`
  * line went out, a reboot waits for the access list save (see waitForAclSave). On success the plan
- * that was sent becomes the starting point, the repeater is read back (see readBack) and a reboot
- * is offered, never sent.
+ * that was sent becomes the starting point, the clock is set (see setClock), the repeater is read
+ * back (see readBack) and a reboot is offered, never sent.
  */
 export async function applyPlan(script: ScriptGroup[], { skipFirmwareCheck = false } = {}): Promise<void> {
   const link = store.device.peek().link;
@@ -297,6 +316,7 @@ export async function applyPlan(script: ScriptGroup[], { skipFirmwareCheck = fal
     // The repeater now holds the plan that was sent: it is the new starting point.
     store.planBase.value = plan;
     store.startPlan.value = plan;
+    const clock = await setClock(link);
     store.apply.value = { phase: "readBack", total };
     await readBack(link);
     appendLog({ text: t("log.applied"), kind: "ok" });
@@ -306,6 +326,7 @@ export async function applyPlan(script: ScriptGroup[], { skipFirmwareCheck = fal
       total,
       offerReboot: stillConnected,
       radioChanged: lines.some((l) => NEEDS_REBOOT.test(l)),
+      clock,
     };
   } catch (err) {
     store.apply.value = { phase: "error", reason: reasonOf(err) };

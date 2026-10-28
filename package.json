@@ -8,7 +8,8 @@
     "dev": "vite --config web/configurator/vite.config.ts",
     "build": "vite build --config web/configurator/vite.config.ts",
     "test": "vitest run --config web/configurator/vite.config.ts",
-    "typecheck": "tsc -p web/configurator --noEmit"
+    "typecheck": "tsc -p web/configurator --noEmit",
+    "i18n:missing": "node scripts/i18n-missing.mjs"
   },
   "dependencies": {
     "@liamcottle/meshcore.js": "^1.10.0",

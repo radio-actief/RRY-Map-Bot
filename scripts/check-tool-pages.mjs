@@ -15,9 +15,12 @@ let failed = 0;
 const ctx = {
   base,
   browser,
-  /** A new page at the given size and colour scheme; page errors and console errors count as failures. */
-  async open(path, { width = 1440, height = 900, scheme = "light", setup } = {}) {
-    const page = await browser.newPage({ viewport: { width, height }, colorScheme: scheme });
+  /**
+   * A new page at the given size, colour scheme and browser language (English unless asked, so the
+   * text checks read English); page errors and console errors count as failures.
+   */
+  async open(path, { width = 1440, height = 900, scheme = "light", locale = "en-US", setup } = {}) {
+    const page = await browser.newPage({ viewport: { width, height }, colorScheme: scheme, locale });
     page.errors = [];
     page.on("pageerror", (e) => page.errors.push(e.message));
     page.on("console", (m) => m.type() === "error" && page.errors.push(m.text()));

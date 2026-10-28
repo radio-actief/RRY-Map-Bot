@@ -1,0 +1,135 @@
+{
+  "checked": "2026-10-28",
+  "sources": {
+    "wiki": {
+      "title": "MeshCore/Kanalen (meshwiki.radio-actief.be)",
+      "url": "https://meshwiki.radio-actief.be/index.php?title=MeshCore/Kanalen"
+    },
+    "radio-actief": {
+      "title": "Belgisch BEmesh MeshCore-kanaal (meshcore.radio-actief.be)",
+      "url": "https://meshcore.radio-actief.be/belgisch-bemesh-meshcore-kanaal/"
+    },
+    "analyzer": {
+      "title": "Channel activity on analyzer.on8ar.eu",
+      "url": "https://analyzer.on8ar.eu/"
+    },
+    "team": {
+      "title": "#BEmesh channel list, decided 2026-10-28"
+    }
+  },
+  "channels": [
+    {
+      "name": "#bemesh",
+      "purpose": "The channel for every MeshCore user in Belgium.",
+      "scope": "be",
+      "group": "national",
+      "recommended": true,
+      "source": ["wiki", "radio-actief", "team"]
+    },
+    {
+      "name": "#radio-actief",
+      "purpose": "For the RRY members of the Radio-Actief mesh network.",
+      "scope": "be",
+      "group": "national",
+      "source": ["wiki", "team"]
+    },
+    {
+      "name": "#radionoodnet",
+      "purpose": "RadioNoodNet, by Radio-Actief and Noodcommunicatie: reachable communication when it really matters.",
+      "scope": "be",
+      "group": "national",
+      "link": "https://noodnet.radio-actief.be/",
+      "source": ["team"]
+    },
+    {
+      "name": "#b-stby",
+      "purpose": "Test channel of noodcommunicatie.be.",
+      "scope": "be",
+      "group": "national",
+      "source": ["wiki", "team"]
+    },
+    {
+      "name": "#hamradio",
+      "purpose": "For radio amateurs, also from the Netherlands.",
+      "scope": "be",
+      "group": "national",
+      "source": ["wiki", "analyzer", "team"]
+    },
+    {
+      "name": "#73sbe",
+      "purpose": "Started by 73s.be, a group of radio amateur friends.",
+      "scope": "be",
+      "group": "national",
+      "source": ["wiki", "team"]
+    },
+    {
+      "name": "#oostende",
+      "purpose": "For Ostend and the rest of West Flanders.",
+      "scope": "be-vwv",
+      "province": "be-vwv",
+      "city": "beost",
+      "group": "local",
+      "source": ["analyzer", "team"]
+    },
+    {
+      "name": "#brugge",
+      "purpose": "For Bruges and around.",
+      "scope": "be-vwv",
+      "province": "be-vwv",
+      "city": "bebgs",
+      "group": "local",
+      "source": ["analyzer", "team"]
+    },
+    {
+      "name": "#gent",
+      "purpose": "For Ghent and around.",
+      "scope": "be-vov",
+      "province": "be-vov",
+      "city": "begne",
+      "group": "local",
+      "source": ["analyzer", "team"]
+    },
+    {
+      "name": "#antwerpen",
+      "purpose": "For everyone in and around Antwerp.",
+      "scope": "be-van",
+      "province": "be-van",
+      "city": "beanr",
+      "group": "local",
+      "source": ["wiki", "team"]
+    },
+    {
+      "name": "#limburg",
+      "purpose": "For the province of Limburg.",
+      "scope": "be-vli",
+      "province": "be-vli",
+      "group": "local",
+      "source": ["analyzer", "team"]
+    },
+    {
+      "name": "#bruxelles",
+      "purpose": "For Brussels, in French.",
+      "scope": "be-bru",
+      "province": "be-bru",
+      "city": "bebru",
+      "group": "local",
+      "source": ["analyzer", "team"]
+    },
+    {
+      "name": "#brussels",
+      "purpose": "For Brussels, in English.",
+      "scope": "be-bru",
+      "province": "be-bru",
+      "city": "bebru",
+      "group": "local",
+      "source": ["analyzer", "team"]
+    },
+    {
+      "name": "#bot",
+      "purpose": "For talking to the bots on the mesh, in the province you are in.",
+      "scope": "own-province",
+      "group": "tools",
+      "source": ["analyzer", "team"]
+    }
+  ]
+}

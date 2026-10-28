@@ -84,7 +84,10 @@ export function MapView() {
       regions: L.layerGroup().addTo(map),
       nodes: L.layerGroup().addTo(map),
     };
-    map.on("click", (e: L.LeafletMouseEvent) => pick(e.latlng.lat, e.latlng.lng));
+    // Only Place moves the pin with a click: elsewhere a stray click would silently change the regions.
+    map.on("click", (e: L.LeafletMouseEvent) => {
+      if (store.step.peek() === "place") pick(e.latlng.lat, e.latlng.lng);
+    });
     mapRef.current = map;
     return () => {
       detachShade();

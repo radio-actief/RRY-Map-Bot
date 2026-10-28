@@ -48,6 +48,25 @@ describe("MapView", () => {
     expect(store.plan.value.location).toEqual({ lat: 50.7, lon: 3.6 });
   });
 
+  it("a map click moves the pin only on Place; elsewhere it leaves the pin and the regions alone", () => {
+    render(<MapView />);
+    const map = ofKind("map")[0];
+    act(() => map.fire("click", { latlng: { lat: 50.7, lng: 3.6 } }));
+    const before = store.plan.value;
+    for (const step of ["connect", "name", "regions"] as const) {
+      act(() => {
+        store.step.value = step;
+      });
+      act(() => map.fire("click", { latlng: { lat: 51.2, lng: 4.4 } }));
+      expect(store.plan.value).toBe(before);
+    }
+    act(() => {
+      store.step.value = "place";
+    });
+    act(() => map.fire("click", { latlng: { lat: 51.2, lng: 4.4 } }));
+    expect(store.plan.value.location).toEqual({ lat: 51.2, lon: 4.4 });
+  });
+
   it("a map click and a pin drag round the coordinates to 6 decimals, as the old page did", () => {
     render(<MapView />);
     act(() => ofKind("map")[0].fire("click", { latlng: { lat: 50.74755123456, lng: 3.602094999 } }));

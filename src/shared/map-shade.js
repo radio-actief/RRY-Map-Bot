@@ -35,6 +35,19 @@
     return stored() || themeShade();
   }
 
+  var ENGLISH = {
+    "mapShade.toDark": "Dark map",
+    "mapShade.toLight": "Light map",
+    "mapShade.toDarkFollows": "Dark map (follows the theme)",
+    "mapShade.toLightFollows": "Light map (follows the theme)",
+  };
+
+  /** The switch's label in the page language (src/shared/i18n.js), English without it. */
+  function text(key) {
+    var i18n = window.BEmeshI18n;
+    return i18n && i18n.has(key) ? i18n.t(key) : ENGLISH[key];
+  }
+
   function attach(L, map, tileLayer, opts) {
     opts = opts || {};
     var container = map.getContainer();
@@ -47,7 +60,7 @@
       container.classList.toggle("map-dark", now === "dark");
       if (!link) return;
       var follows = !override();
-      var label = (now === "dark" ? "Light map" : "Dark map") + (follows ? " (follows the theme)" : "");
+      var label = text((now === "dark" ? "mapShade.toLight" : "mapShade.toDark") + (follows ? "Follows" : ""));
       link.textContent = now === "dark" ? "☀" : "☾";
       link.setAttribute("aria-label", label);
       link.title = label;
@@ -75,7 +88,7 @@
       timer = setTimeout(render, 0);
     }
     var observer = new MutationObserver(changed);
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "lang"] });
     var mq = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)");
     if (mq && mq.addEventListener) mq.addEventListener("change", changed);
 

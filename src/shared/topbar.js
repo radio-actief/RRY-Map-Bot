@@ -1,13 +1,32 @@
-/* The top bar's account chip and ☰ menu, shared by the map, stats and region map pages.
- * Fills [data-account-chip] and [data-page-menu] (a wrapper holding the ☰ button and an empty .menu)
- * from bemesh-links.json and GET /auth/me. The configurator renders the same menu in AccountMenu.tsx. */
+/* The top bar's account chip, language switch and ☰ menu, shared by the map, stats and region map pages.
+ * Fills [data-account-chip], [data-lang-switch] and [data-page-menu] (a wrapper holding the ☰ button and
+ * an empty .menu) from bemesh-links.json and GET /auth/me, in the page language (src/shared/i18n.js).
+ * The configurator renders the same menu in AccountMenu.tsx. */
 (function () {
   var PAGES = [
-    ["/", "Map"],
-    ["/stats", "Stats"],
-    ["/region-map", "Region map"],
-    ["/configurator", "Configurator"],
+    ["/", "page.map"],
+    ["/stats", "page.stats"],
+    ["/region-map", "page.regionMap"],
+    ["/configurator", "page.configurator"],
   ];
+  var FALLBACK = {
+    "page.map": "Map",
+    "page.stats": "Stats",
+    "page.regionMap": "Region map",
+    "page.configurator": "Configurator",
+    "menu.signIn": "Sign in with Discord",
+    "menu.signInHint": "Sign in to claim your node. Having trouble? Reach Radio-Actief on Discord or open an issue on GitHub.",
+    "menu.logOut": "Log out",
+    "menu.myNodes": "My nodes",
+    "lang.label": "Language",
+  };
+
+  /** Text in the page language; English when the translation layer is not on the page. */
+  function t(key, fallback) {
+    var i18n = window.BEmeshI18n;
+    if (i18n && i18n.has(key)) return i18n.t(key);
+    return fallback != null ? fallback : FALLBACK[key] || key;
+  }
   var script = document.currentScript;
   var linksUrl = new URL("bemesh-links.json", script && script.src ? script.src : location.href).href;
   var myNodes = null;
@@ -48,8 +67,8 @@
   function fillChip(slot, user, here) {
     slot.textContent = "";
     if (user) return;
-    var a = link("/auth/login?next=" + here, "Sign in with Discord", "chip signin-chip");
-    a.title = "Sign in to claim your node. Having trouble? Reach Radio-Actief on Discord or open an issue on GitHub.";
+    var a = link("/auth/login?next=" + here, t("menu.signIn"), "chip signin-chip");
+    a.title = t("menu.signInHint");
     slot.appendChild(a);
   }
 
@@ -58,14 +77,14 @@
     if (!menu) return;
     menu.textContent = "";
     PAGES.forEach(function (p) {
-      var a = link(p[0], p[1], "menu-page");
+      var a = link(p[0], t(p[1]), "menu-page");
       if (p[0] === here) a.setAttribute("aria-current", "page");
       menu.appendChild(a);
     });
     menu.appendChild(el("hr", "menu-page"));
     links.forEach(function (l) {
-      var a = link(l.href, l.label + " ");
-      a.title = l.title || "";
+      var a = link(l.href, t(l.key, l.label) + " ");
+      a.title = t(l.key + ".title", l.title || "");
       a.target = "_blank";
       a.rel = "noopener";
       a.appendChild(el("span", "ext muted", "↗"));
@@ -80,11 +99,45 @@
       mine.hidden = true;
       row.appendChild(mine);
       menu.appendChild(row);
-      menu.appendChild(link("/auth/logout?next=" + here, "Log out"));
+      menu.appendChild(link("/auth/logout?next=" + here, t("menu.logOut")));
       showMyNodes();
     } else {
-      menu.appendChild(link("/auth/login?next=" + here, "Sign in with Discord"));
+      menu.appendChild(link("/auth/login?next=" + here, t("menu.signIn")));
     }
+    var langRow = langSwitch("lang-switch menu-lang");
+    if (langRow) {
+      menu.appendChild(el("hr", "menu-lang"));
+      menu.appendChild(langRow);
+    }
+  }
+
+  /** EN · NL · FR: the current language pressed; a click remembers the choice and reloads in it. */
+  function langSwitch(cls) {
+    var i18n = window.BEmeshI18n;
+    if (!i18n) return null;
+    var group = el("span", cls);
+    group.setAttribute("role", "group");
+    group.setAttribute("aria-label", t("lang.label"));
+    i18n.LANGS.forEach(function (l) {
+      var b = el("button", null, l.toUpperCase());
+      b.type = "button";
+      b.lang = l;
+      b.title = i18n.NAMES[l];
+      b.setAttribute("aria-label", i18n.NAMES[l]);
+      b.setAttribute("aria-pressed", l === i18n.lang ? "true" : "false");
+      b.addEventListener("click", function (e) {
+        e.stopPropagation();
+        i18n.choose(l);
+      });
+      group.appendChild(b);
+    });
+    return group;
+  }
+
+  function fillLangSwitch(slot) {
+    slot.textContent = "";
+    var group = langSwitch("lang-switch");
+    if (group) slot.appendChild(group);
   }
 
   function showMyNodes() {
@@ -92,7 +145,7 @@
       m.hidden = myNodes == null;
       m.textContent = "";
       if (myNodes == null) return;
-      m.appendChild(document.createTextNode("My nodes "));
+      m.appendChild(document.createTextNode(t("menu.myNodes") + " "));
       m.appendChild(el("b", null, String(myNodes)));
     });
   }
@@ -114,8 +167,10 @@
   }
 
   function wire(wrap) {
-    if (wrap.hasAttribute("data-wired")) return;
-    wrap.setAttribute("data-wired", "");
+    // A property, not an attribute: the map page's Vue template may be compiled from this DOM
+    // and its fresh elements must be wired again.
+    if (wrap.__bemeshWired) return;
+    wrap.__bemeshWired = true;
     var btn = wrap.querySelector("button");
     var menu = wrap.querySelector(".menu");
     btn.id = btn.id || "menu-toggle";
@@ -133,7 +188,11 @@
   function init() {
     var here = pagePath();
     document.querySelectorAll("[data-page-menu]").forEach(wire);
-    return load().then(function (res) {
+    var i18n = window.BEmeshI18n;
+    var ready = i18n && i18n.ready ? i18n.ready : Promise.resolve();
+    return Promise.all([load(), ready]).then(function (both) {
+      var res = both[0];
+      document.querySelectorAll("[data-lang-switch]").forEach(fillLangSwitch);
       document.querySelectorAll("[data-account-chip]").forEach(function (s) { fillChip(s, res[1], here); });
       document.querySelectorAll("[data-page-menu]").forEach(function (w) {
         wire(w);

@@ -1,7 +1,7 @@
 [
-  { "label": "Radio-Actief Website", "href": "https://radio-actief.be", "title": "Radio-Actief website" },
-  { "label": "#BEmesh Website", "href": "https://meshcore.radio-actief.be", "title": "MeshCore-website: instellingen & nieuws" },
-  { "label": "Documentation", "href": "https://meshwiki.radio-actief.be", "title": "Documentation" },
-  { "label": "Discord", "href": "https://discord.gg/kvybAgqnhD", "title": "Join our Discord server" },
-  { "label": "GitHub", "href": "https://github.com/radio-actief/RRY-Map-Bot", "title": "Go to Radio-Actief GitHub repo" }
+  {"key": "link.radioActief", "label": "Radio-Actief Website", "href": "https://radio-actief.be", "title": "Radio-Actief website"},
+  {"key": "link.bemesh", "label": "#BEmesh Website", "href": "https://meshcore.radio-actief.be", "title": "MeshCore website: settings & news"},
+  {"key": "link.docs", "label": "Documentation", "href": "https://meshwiki.radio-actief.be", "title": "Documentation"},
+  {"key": "link.discord", "label": "Discord", "href": "https://discord.gg/kvybAgqnhD", "title": "Join our Discord server"},
+  {"key": "link.github", "label": "GitHub", "href": "https://github.com/radio-actief/RRY-Map-Bot", "title": "Go to the Radio-Actief GitHub repo"}
 ]

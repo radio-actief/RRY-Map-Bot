@@ -16,11 +16,18 @@
 
   var current = read();
 
+  /** "Theme: light" in the page language once src/shared/i18n.js has its messages, English before that. */
+  function text() {
+    var i18n = window.BEmeshI18n;
+    if (i18n && i18n.has("top.theme")) return i18n.t("top.theme", { theme: i18n.t("theme." + current) });
+    return LABEL[current];
+  }
+
   function label() {
-    var text = LABEL[current];
+    var text_ = text();
     document.querySelectorAll("[data-theme-toggle]").forEach(function (b) {
-      b.setAttribute("aria-label", text);
-      b.title = text;
+      b.setAttribute("aria-label", text_);
+      b.title = text_;
     });
   }
 
@@ -55,10 +62,17 @@
 
   window.BEmeshTheme = { apply: apply, next: next, isDark: isDark };
   apply();
+  // One listener on the document: the map page's Vue template replaces its ◐ button after the
+  // page's translations have loaded, so a listener on the first button would be lost.
+  document.addEventListener("click", function (e) {
+    if (e.target && e.target.closest && e.target.closest("[data-theme-toggle]")) next();
+  });
   document.addEventListener("DOMContentLoaded", function () {
     label();
-    document.querySelectorAll("[data-theme-toggle]").forEach(function (b) {
-      b.addEventListener("click", next);
-    });
+    if (window.BEmeshI18n && window.BEmeshI18n.ready) {
+      window.BEmeshI18n.ready.then(function () {
+        setTimeout(label, 0);
+      });
+    }
   });
 })();

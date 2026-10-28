@@ -40,7 +40,7 @@ def test_region_configurator_redirects(client):
     assert r.headers['Location'].endswith('/configurator')
 
 
-@pytest.mark.parametrize('path', ['/join', '/visit'])
+@pytest.mark.parametrize('path', ['/join', '/visit', '/join/', '/visit/'])
 def test_short_links_open_the_companion_page(client, path):
     r = client.get(path)
     assert r.status_code == 302

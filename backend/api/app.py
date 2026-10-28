@@ -1540,8 +1540,8 @@ def configurator_asset(path):
 COMPANION_LANGS = ('en', 'nl', 'fr')
 
 
-@app.route('/join')
-@app.route('/visit')
+@app.route('/join', strict_slashes=False)
+@app.route('/visit', strict_slashes=False)
 def companion_short_link():
     """Short links for locals and visitors: the configurator's Companion page.
 

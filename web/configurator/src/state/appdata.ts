@@ -1,4 +1,9 @@
-/** Loads the runtime data into store.data; every failure is recorded by name and the rest still loads. */
+/**
+ * Loads the runtime data into store.data when it is needed: the places at start, the outlines when
+ * the map starts, the municipality borders and the node list once the user leaves Connect or the
+ * plan has a location. Each set loads once; a failure is recorded by name and the rest still loads.
+ */
+import { effect } from "@preact/signals";
 import { loadCountries, loadGewesten, loadMunicipalities, loadNodes, loadPlaces, loadProvinces } from "../core/data";
 import { store, type AppData } from "./store";
 
@@ -20,9 +25,11 @@ const defaultLoaders: Loaders = {
   nodes: loadNodes,
 };
 
-type Name = keyof Loaders;
+export type DataName = keyof Loaders;
 
-async function load(name: Name, loaders: Loaders): Promise<void> {
+const loading = new Map<DataName, Promise<void>>();
+
+async function load(name: DataName, loaders: Loaders): Promise<void> {
   try {
     const value = await loaders[name]();
     store.data.value = { ...store.data.value, [name]: value };
@@ -32,16 +39,25 @@ async function load(name: Name, loaders: Loaders): Promise<void> {
   }
 }
 
-/** Resolves when everything but the municipalities is loaded; those follow once the browser is idle. */
-export async function loadAppData(
-  loaders: Loaders = defaultLoaders,
-  defer: (run: () => void) => void = deferToIdle,
-): Promise<void> {
-  defer(() => void load("municipalities", loaders));
-  await Promise.all((["places", "provinces", "gewesten", "countries", "nodes"] as const).map((n) => load(n, loaders)));
+/** Start loading each named set that has not started yet; resolves once all of them are loaded or failed. */
+export function ensureData(names: DataName[], loaders: Loaders = defaultLoaders): Promise<void> {
+  for (const n of names) if (!loading.has(n)) loading.set(n, load(n, loaders));
+  return Promise.all(names.map((n) => loading.get(n))).then(() => undefined);
 }
 
-function deferToIdle(run: () => void): void {
-  if (typeof requestIdleCallback === "function") requestIdleCallback(run, { timeout: 2000 });
-  else setTimeout(run, 0);
+/** At start: the places (search, Read). */
+export function loadAppData(loaders: Loaders = defaultLoaders): Promise<void> {
+  return ensureData(["places"], loaders);
+}
+
+/** The borders and the node list, once the user leaves Connect or the plan has a location. Returns a stop function. */
+export function loadOnDemand(loaders: Loaders = defaultLoaders): () => void {
+  return effect(() => {
+    if (store.step.value !== "connect" || store.plan.value.location) void ensureData(["municipalities", "nodes"], loaders);
+  });
+}
+
+/** Forget what was loaded (tests). */
+export function resetLoaded(): void {
+  loading.clear();
 }

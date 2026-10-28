@@ -25,7 +25,7 @@ import { hasText, t } from "../i18n/t";
 import { busy, store, type Step } from "../state/store";
 import { AccessList } from "./settings/AccessList";
 import { ChangesBadge } from "./settings/ChangesBadge";
-import { MiniMap } from "./settings/MiniMap";
+import { useLazy } from "../app/lazy";
 import { RadioFields } from "./settings/RadioFields";
 import { RepeaterValue } from "./settings/RepeaterValue";
 import { TimingPreset } from "./settings/TimingPreset";
@@ -178,6 +178,12 @@ export function SettingField({
       ) : null}
     </div>
   );
+}
+
+/** The map preview loads with Leaflet, after the first paint; its place is kept until then. */
+function LazyMiniMap() {
+  const MiniMap = useLazy(() => import("./settings/MiniMap").then((m) => m.MiniMap));
+  return MiniMap ? <MiniMap /> : <div class="mini-map" aria-hidden="true" />;
 }
 
 /** Fine-tune fold: the fields behind a preset, with their values in the summary; open when no preset matches. */
@@ -375,7 +381,7 @@ export function SettingsStep() {
           <AccessList />
         </div>
         <aside class="settings-side">
-          <MiniMap />
+          <LazyMiniMap />
           <Summary />
           <div class="side-nav">
             <button type="button" class="btn" disabled={locked} onClick={() => goto("regions")}>

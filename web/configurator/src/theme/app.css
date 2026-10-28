@@ -342,6 +342,23 @@
   z-index: 0;
 }
 
+/* The map loads after the panel and fades in. */
+.map-canvas {
+  animation: map-fade-in 0.3s ease;
+}
+
+@keyframes map-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .map-canvas {
+    animation: none;
+  }
+}
+
 .map-defs {
   position: absolute;
 }

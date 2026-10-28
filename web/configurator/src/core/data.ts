@@ -1,4 +1,5 @@
 /** Runtime data loaders. */
+import { decodeBorders, type WebBorders } from "./borders";
 import type { MeshNode, MunicipalityFeature } from "./geo";
 import type { Place } from "./search";
 
@@ -11,8 +12,11 @@ async function getJson<T>(url: string): Promise<T> {
 }
 
 export const loadPlaces = () => getJson<Place[]>("/data/be-locode.json");
-export const loadMunicipalities = () =>
-  getJson<{ type: "FeatureCollection"; features: MunicipalityFeature[] }>("/data/be-municipalities.geojson");
+/** The simplified browser copy of the borders (see core/borders.ts), decoded to GeoJSON features. */
+export const loadMunicipalities = async (): Promise<{ type: "FeatureCollection"; features: MunicipalityFeature[] }> => ({
+  type: "FeatureCollection",
+  features: decodeBorders(await getJson<WebBorders>("/data/be-municipalities.web.json")),
+});
 export const loadProvinces = () => getJson<GeoJsonCollection>("/data/be-provinces.geojson");
 export const loadGewesten = () => getJson<GeoJsonCollection>("/data/be-gewesten.geojson");
 export const loadCountries = () => getJson<GeoJsonCollection>("/data/countries.geojson");

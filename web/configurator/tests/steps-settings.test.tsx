@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/preact";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/preact";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("leaflet", async () => await import("./fakes/leaflet"));
@@ -303,9 +303,11 @@ describe("Settings step", () => {
     expect(store.step.value).toBe("send");
   });
 
-  it("draws a static mini map with the pin", () => {
+  it("draws a static mini map with the pin once Leaflet has loaded", async () => {
     chooseLocation({ type: "city", label: "Ronse", place: RONSE } as never);
     render(<SettingsStep />);
+    expect(document.querySelector(".mini-map")).not.toBeNull();
+    await waitFor(() => expect(ofKind("map").length).toBe(1));
     const map = ofKind("map")[0];
     expect(map.options.dragging).toBe(false);
     expect(map.options.scrollWheelZoom).toBe(false);

@@ -95,6 +95,17 @@ Optional flags:
 
 **Output schema (per feature):** `properties.nis5`, `properties.plaats`, `properties.gemeente`, `properties.province_code`, `properties.city_code`; `geometry` is a `Polygon` or `MultiPolygon` in EPSG:4326.
 
+## `generate-be-municipalities-web.py`
+
+Builds [`data/be-municipalities.web.json`](../data/be-municipalities.web.json), the browser copy of the municipality borders that the configurator loads (about 0.5 MB instead of 5.2 MB). It reads `data/be-municipalities.geojson`, simplifies each polygon to about 20 m in EPSG:3812, and stores every ring as an encoded polyline (5 decimals); `web/configurator/src/core/borders.ts` decodes it. The backend geocoder keeps using the full GeoJSON.
+
+```bash
+cd RRY-Map-Bot
+.venv/bin/python3 scripts/generate-be-municipalities-web.py
+```
+
+Run it again whenever `be-municipalities.geojson` changes.
+
 ## `generate-be-gewesten-geojson.py`
 
 Builds [`data/be-gewesten.geojson`](../data/be-gewesten.geojson): the 2 Belgian gewesten with a province-level parent (Vlaams Gewest, Waals Gewest), dissolved from [`data/be-provinces.geojson`](../data/be-provinces.geojson) with `shapely.ops.unary_union`. Brussels Hoofdstedelijk Gewest has no separate polygon — `be-bru`'s own province boundary already **is** the region boundary.

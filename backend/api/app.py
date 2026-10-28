@@ -3,9 +3,11 @@ REST API for RRY-Map-Bot Web Map
 Provides API endpoints for the frontend web map to access Belgian node data.
 """
 
+import gzip
 import json
 import sys
 import os
+from collections import OrderedDict
 from typing import Optional
 from flask import Flask, jsonify, request, send_from_directory, session, redirect, Response, make_response
 from flask_cors import CORS
@@ -79,6 +81,83 @@ Session(app)
 # Enable CORS for all routes (needed if frontend is on different origin)
 # Allow credentials for session cookies
 CORS(app, supports_credentials=True)
+
+
+# Compression and cache lifetimes for the configurator, the data files and the node list
+# (stdlib gzip, no extra dependency). The rest of the site is left as it is.
+GZIP_MIN_BYTES = 1024
+GZIP_TYPES = {
+    'application/json', 'application/geo+json', 'application/javascript', 'text/javascript',
+    'text/css', 'text/html', 'image/svg+xml', 'text/plain',
+}
+GZIP_CACHE_MAX = 32
+# (path, ETag) -> gzipped body, so a large file is compressed once per version
+_gzip_cache: "OrderedDict[tuple, bytes]" = OrderedDict()
+
+
+def _cache_policy(path: str) -> Optional[str]:
+    """Cache-Control for the paths this layer looks after, or None to leave the response alone.
+
+    Vite's hashed assets never change under the same name; the configurator page and the node
+    list revalidate on every visit (ETag, so an unchanged one costs a 304); the data files are
+    reused for an hour, then revalidated.
+    """
+    if path.startswith('/configurator/assets/'):
+        return 'public, max-age=31536000, immutable'
+    if path in ('/configurator', '/configurator/', '/configurator/index.html'):
+        return 'no-cache'
+    if path.startswith('/data/'):
+        return 'public, max-age=3600'
+    if path == '/api/v1/belgian-nodes':
+        return 'no-cache'
+    return None
+
+
+@app.after_request
+def compress_and_cache(resp):
+    """Cache-Control and gzip (when the browser accepts it) for the paths of _cache_policy.
+
+    A dynamic response gets an ETag of its body and answers a matching If-None-Match with 304.
+    A gzipped body carries the weak form of the same ETag, so either variant revalidates.
+    """
+    policy = _cache_policy(request.path)
+    if policy is None or resp.status_code not in (200, 304):
+        return resp
+    resp.headers['Cache-Control'] = policy
+    resp.vary.add('Accept-Encoding')
+    if (resp.status_code != 200 or request.method != 'GET' or resp.mimetype not in GZIP_TYPES
+            or 'Content-Encoding' in resp.headers):
+        return resp
+    if not resp.get_etag()[0]:
+        resp.add_etag()
+        resp.make_conditional(request)
+        if resp.status_code == 304:
+            return resp
+    if request.accept_encodings['gzip'] <= 0:
+        return resp
+    etag = resp.get_etag()[0]
+    key = (request.path, etag)
+    body = _gzip_cache.get(key)
+    if body is None:
+        resp.direct_passthrough = False
+        data = resp.get_data()
+        if len(data) < GZIP_MIN_BYTES:
+            return resp
+        body = gzip.compress(data, 6)
+        _gzip_cache[key] = body
+        while len(_gzip_cache) > GZIP_CACHE_MAX:
+            _gzip_cache.popitem(last=False)
+    else:
+        _gzip_cache.move_to_end(key)
+    resp.direct_passthrough = False
+    source = resp.response
+    resp.set_data(body)
+    if hasattr(source, 'close'):
+        source.close()  # the file send_file opened
+    resp.headers['Content-Encoding'] = 'gzip'
+    resp.headers.pop('Accept-Ranges', None)
+    resp.set_etag(etag, weak=True)
+    return resp
 
 
 def get_all_belgian_nodes():

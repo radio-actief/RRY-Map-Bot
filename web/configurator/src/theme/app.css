@@ -2093,7 +2093,7 @@ path.map-region-denied {
 }
 
 .guide-phone {
-  width: 96px;
+  width: 106px;
 }
 
 .guide-phone .frame {
@@ -2107,7 +2107,7 @@ path.map-region-denied {
 }
 
 .guide-phone text {
-  font-size: 8px;
+  font-size: 9px;
   fill: var(--ink);
 }
 

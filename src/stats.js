@@ -1,4 +1,26 @@
-      (function () {
+      // Runs once src/shared/i18n.js has the page language's messages and has translated the static page.
+      window.BEmeshI18n.ready.then(function (I18N) {
+        /** Text in the page language (named tr: this file uses t for node types). */
+        var tr = I18N.t;
+        function num(n) {
+          return I18N.number(Number(n));
+        }
+        /** Chart series names; the y axes refer to the series by these names. */
+        var S = {
+          growth: tr("stats.series.growth"),
+          decline: tr("stats.series.decline"),
+          total: tr("stats.series.total"),
+          1: tr("stats.type.plural.1"),
+          2: tr("stats.type.plural.2"),
+          3: tr("stats.type.plural.3"),
+          4: tr("stats.type.plural.4"),
+        };
+        /** A preset's label: the API's catch-all buckets get the page language, preset names stay. */
+        function presetLabel(name) {
+          if (name === "Custom settings") return tr("stats.preset.customSettings");
+          if (name === "Unknown") return tr("stats.preset.unknown");
+          return name;
+        }
         const loadingEl = document.getElementById("stats-loading");
         const errorEl = document.getElementById("stats-error");
         const contentEl = document.getElementById("stats-content");
@@ -63,7 +85,7 @@
           function set(id, val) {
             var el = document.getElementById(id);
             if (el)
-              el.textContent = val != null ? Number(val).toLocaleString() : "—";
+              el.textContent = val != null ? num(val) : "—";
           }
           function setChip(id, val, hideWhenZero) {
             set(id, val);
@@ -93,7 +115,7 @@
           if (newEl)
             newEl.textContent = [active24h, active7d, active30d]
               .map(function (n) {
-                return n.toLocaleString();
+                return num(n);
               })
               .join(" · ");
           set("stats-chip-claimed", claimed);
@@ -212,7 +234,7 @@
         function formatDate(iso) {
           if (!iso) return "—";
           const d = new Date(iso);
-          return d.toLocaleString(undefined, {
+          return I18N.date(d, {
             dateStyle: "short",
             timeStyle: "short",
           });
@@ -228,7 +250,7 @@
 
         function formatDateOnly(dateStr) {
           var d = new Date(dateStr + "T12:00:00");
-          return d.toLocaleDateString(undefined, { dateStyle: "medium" });
+          return I18N.date(d, { dateStyle: "medium" });
         }
 
         function ensureApexCharts() {
@@ -245,7 +267,7 @@
               resolve();
             };
             s.onerror = function () {
-              reject(new Error("Failed to load chart library"));
+              reject(new Error(tr("stats.error.chartLibrary")));
             };
             document.head.appendChild(s);
           });
@@ -264,7 +286,7 @@
               resolve();
             };
             s.onerror = function () {
-              reject(new Error("Failed to load map library"));
+              reject(new Error(tr("stats.error.mapLibrary")));
             };
             document.head.appendChild(s);
           });
@@ -297,13 +319,14 @@
         function syncStatsPresetPanelActive() {
           var labelEl = document.getElementById("stats-preset-label");
           if (labelEl)
-            labelEl.textContent =
-              "Preset: " +
-              (currentPresetValue === "all"
-                ? "All"
-                : currentPresetValue === "__custom__"
-                  ? "Custom"
-                  : currentPresetValue);
+            labelEl.textContent = tr("stats.preset", {
+              name:
+                currentPresetValue === "all"
+                  ? tr("stats.preset.all")
+                  : currentPresetValue === "__custom__"
+                    ? tr("stats.preset.custom")
+                    : presetLabel(currentPresetValue),
+            });
           var listEl = document.getElementById("stats-preset-dropdown");
           if (listEl) {
             listEl.querySelectorAll("button[data-value]").forEach(function (b) {
@@ -380,10 +403,10 @@
             });
             container.appendChild(btn);
           }
-          addOption("all", "All frequencies");
+          addOption("all", tr("stats.preset.allFrequencies"));
           presetOrder.forEach(function (name) {
             if (presets[name] != null && presets[name] > 0)
-              addOption(name, name);
+              addOption(name, presetLabel(name));
           });
           Object.keys(presets).forEach(function (name) {
             if (
@@ -391,18 +414,18 @@
               presets[name] != null &&
               presets[name] > 0
             )
-              addOption(name, name);
+              addOption(name, presetLabel(name));
           });
           var customWrap = document.createElement("div");
           customWrap.className = "stats-preset-custom";
           customWrap.innerHTML =
             '<div class="stats-preset-custom-grid">' +
-            '<label>Freq (MHz)<input type="number" step="0.001" id="stats-custom-freq" placeholder="869.618" /></label>' +
-            '<label>SF<input type="number" step="1" min="5" max="13" id="stats-custom-sf" placeholder="8" /></label>' +
-            '<label>BW (kHz)<input type="number" step="0.1" id="stats-custom-bw" placeholder="62.5" /></label>' +
-            '<label>CR<input type="number" step="1" min="4" max="9" id="stats-custom-cr" placeholder="8" /></label>' +
+            "<label>" + tr("stats.custom.freq") + '<input type="number" step="0.001" id="stats-custom-freq" placeholder="869.618" /></label>' +
+            "<label>" + tr("stats.custom.sf") + '<input type="number" step="1" min="5" max="13" id="stats-custom-sf" placeholder="8" /></label>' +
+            "<label>" + tr("stats.custom.bw") + '<input type="number" step="0.1" id="stats-custom-bw" placeholder="62.5" /></label>' +
+            "<label>" + tr("stats.custom.cr") + '<input type="number" step="1" min="4" max="9" id="stats-custom-cr" placeholder="8" /></label>' +
             "</div>" +
-            '<button type="button" id="stats-preset-custom-apply">Apply</button>';
+            '<button type="button" id="stats-preset-custom-apply">' + tr("stats.custom.apply") + "</button>";
           customRoot.appendChild(customWrap);
           var applyBtn = document.getElementById("stats-preset-custom-apply");
           if (applyBtn) {
@@ -433,44 +456,40 @@
                 bw === false ||
                 cr === false
               ) {
-                window.alert(
-                  "Use numbers only. Freq 100–1000 MHz, SF 5–13, BW 30–1000 kHz, CR 4–9.",
-                );
+                window.alert(tr("stats.custom.numbersOnly"));
                 return;
               }
               var custom = {};
               if (freq != null) {
                 if (freq < 100 || freq > 1000) {
-                  window.alert("Freq must be between 100 and 1000 MHz.");
+                  window.alert(tr("stats.custom.freqRange"));
                   return;
                 }
                 custom.freq = freq;
               }
               if (sf != null) {
                 if (sf < 5 || sf > 13) {
-                  window.alert("SF must be between 5 and 13.");
+                  window.alert(tr("stats.custom.sfRange"));
                   return;
                 }
                 custom.sf = sf;
               }
               if (bw != null) {
                 if (bw < 30 || bw > 1000) {
-                  window.alert("BW must be between 30 and 1000 kHz.");
+                  window.alert(tr("stats.custom.bwRange"));
                   return;
                 }
                 custom.bw = bw;
               }
               if (cr != null) {
                 if (cr < 4 || cr > 9) {
-                  window.alert("CR must be between 4 and 9.");
+                  window.alert(tr("stats.custom.crRange"));
                   return;
                 }
                 custom.cr = cr;
               }
               if (Object.keys(custom).length === 0) {
-                window.alert(
-                  "Enter at least one of: Freq, SF, BW, or CR (others optional).",
-                );
+                window.alert(tr("stats.custom.atLeastOne"));
                 return;
               }
               window.__statsRadioCustom = custom;
@@ -515,7 +534,7 @@
           if (!valEl) return;
           var count = getNetworkCountForPreset(currentPresetValue);
           valEl.textContent =
-            count != null ? Number(count).toLocaleString() : "—";
+            count != null ? num(count) : "—";
         }
 
         function getTopCitiesForType(typeKey) {
@@ -543,7 +562,7 @@
           if (!tCities) return;
           tCities.innerHTML = "";
           if (citiesSelect) citiesSelect.value = typeKey;
-          if (titleEl) titleEl.textContent = "Top cities";
+          if (titleEl) titleEl.textContent = tr("stats.topCities");
           if (inlineWrap) {
             inlineWrap.classList.toggle("is-filtered", typeKey !== "all");
           }
@@ -561,7 +580,7 @@
           }
           if (list.length > 0)
             list.forEach(function (c) {
-              row(tCities, c.city, Number(c.count).toLocaleString());
+              row(tCities, I18N.municipalityName(c.city), num(c.count));
             });
           else row(tCities, "—", "—");
         }
@@ -633,7 +652,7 @@
             zoom: 7,
             zoomControl: false,
           });
-          L.control.zoom({ position: "topright" }).addTo(map);
+          L.control.zoom({ position: "topright", zoomInTitle: tr("zoom.in"), zoomOutTitle: tr("zoom.out") }).addTo(map);
           window.__statsPlaybackMap = map;
           var statsTiles = L.tileLayer(
             "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
@@ -701,14 +720,10 @@
               });
               var tip = n.adv_name || "";
               if (n.type) {
-                var typeNames = {
-                  1: "Client",
-                  2: "Repeater",
-                  3: "Room Server",
-                  4: "Sensor",
-                };
+                var typeKey = "stats.type." + n.type;
                 tip =
-                  (tip ? tip + " \u2014 " : "") + (typeNames[n.type] || "Node");
+                  (tip ? tip + " \u2014 " : "") +
+                  (I18N.has(typeKey) ? tr(typeKey) : tr("stats.node"));
               }
               if (tip) m.bindTooltip(tip, { permanent: false });
               markersLayer.addLayer(m);
@@ -724,15 +739,15 @@
               playInterval = null;
             }
             playBtn.textContent = "\u25B6";
-            playBtn.title = "Play";
-            playBtn.setAttribute("aria-label", "Play");
+            playBtn.title = tr("stats.play");
+            playBtn.setAttribute("aria-label", tr("stats.play"));
           }
           function startPlay() {
             var speed = currentSpeed();
             var ms = Math.max(200, 800 / speed);
             playBtn.textContent = "\u23F8";
-            playBtn.title = "Pause";
-            playBtn.setAttribute("aria-label", "Pause");
+            playBtn.title = tr("stats.pause");
+            playBtn.setAttribute("aria-label", tr("stats.pause"));
             playInterval = setInterval(function () {
               var next = parseInt(slider.value, 10) + 1;
               if (next >= frames.length) next = 0;
@@ -782,9 +797,9 @@
               btn.setAttribute("aria-pressed", on ? "true" : "false");
               btn.setAttribute(
                 "aria-label",
-                on ? "Exit fullscreen map" : "Fullscreen map",
+                on ? tr("stats.fullscreenExit") : tr("stats.fullscreen"),
               );
-              btn.title = on ? "Exit fullscreen (Esc)" : "Fullscreen map";
+              btn.title = on ? tr("stats.fullscreenExitEsc") : tr("stats.fullscreen");
             }
 
             function invalidate() {
@@ -855,7 +870,7 @@
           var syncP = fetch(
             "/api/v1/sync-history?limit=500" + presetParam,
           ).then(function (r) {
-            if (!r.ok) throw new Error("Failed to load sync history");
+            if (!r.ok) throw new Error(tr("stats.error.syncHistory"));
             return r.json();
           });
           if (!includeNodeChanges) {
@@ -908,7 +923,7 @@
           loadingEl.style.display = "none";
           if (!history || history.length === 0) {
             showError(
-              "No sync history yet. Syncs will appear here once the sync service has run.",
+              tr("stats.noHistory"),
             );
             return;
           }
@@ -942,7 +957,7 @@
 
           if (dailyRows.length === 0) {
             showError(
-              "No sync history yet. Syncs will appear here once the sync service has run.",
+              tr("stats.noHistory"),
             );
             return;
           }
@@ -1143,7 +1158,7 @@
             if (!rows || rows.length === 0) {
               var empty = document.createElement("div");
               empty.className = "stats-topday-empty muted";
-              empty.textContent = "No data";
+              empty.textContent = tr("stats.noData");
               container.appendChild(empty);
               return;
             }
@@ -1450,12 +1465,7 @@
             if (filteredBarMax === 0) filteredBarMax = 1;
             currentNetChangeByType = filteredNetChangeByType;
 
-            var typeNames = {
-              1: "Companions",
-              2: "Repeaters",
-              3: "Room servers",
-              4: "Sensors",
-            };
+            var typeNames = { 1: S[1], 2: S[2], 3: S[3], 4: S[4] };
             var typeColors = {
               1: colorType1,
               2: colorType2,
@@ -1482,17 +1492,17 @@
                 Math.max.apply(null, filteredCumulativeByType[t] || [0]) || 1;
               seriesConfig = [
                 {
-                  name: "Growth",
+                  name: S.growth,
                   type: "column",
                   data: typeNetPos,
                 },
                 {
-                  name: "Decline",
+                  name: S.decline,
                   type: "column",
                   data: typeNetNeg,
                 },
                 {
-                  name: typeNames[t] || "Type",
+                  name: typeNames[t] || tr("stats.type.fallback"),
                   type: "line",
                   data: filteredCumulativeByType[t] || [],
                   fill: { opacity: 0 },
@@ -1509,17 +1519,17 @@
               lineMaxVal = Math.max.apply(null, filteredCumulative) || 1;
               seriesConfig = [
                 {
-                  name: "Growth",
+                  name: S.growth,
                   type: "column",
                   data: filteredNetPositive,
                 },
                 {
-                  name: "Decline",
+                  name: S.decline,
                   type: "column",
                   data: filteredNetNegative,
                 },
                 {
-                  name: "Companions",
+                  name: S[1],
                   type: "line",
                   data: filteredCumulativeByType[1],
                   fill: {
@@ -1533,7 +1543,7 @@
                   },
                 },
                 {
-                  name: "Repeaters",
+                  name: S[2],
                   type: "line",
                   data: filteredCumulativeByType[2],
                   fill: {
@@ -1547,7 +1557,7 @@
                   },
                 },
                 {
-                  name: "Room servers",
+                  name: S[3],
                   type: "line",
                   data: filteredCumulativeByType[3],
                   fill: {
@@ -1561,7 +1571,7 @@
                   },
                 },
                 {
-                  name: "Sensors",
+                  name: S[4],
                   type: "line",
                   data: filteredCumulativeByType[4],
                   fill: {
@@ -1575,7 +1585,7 @@
                   },
                 },
                 {
-                  name: "Total",
+                  name: S.total,
                   type: "line",
                   data: filteredCumulative,
                   fill: { opacity: 0 },
@@ -1597,9 +1607,9 @@
             if (chartFilterType) {
               yaxisConfig = [
                 {
-                  seriesName: "Growth",
+                  seriesName: S.growth,
                   title: {
-                    text: "Change",
+                    text: tr("stats.axis.change"),
                     style: { color: statsInk().mut, fontSize: "12px" },
                   },
                   labels: { style: { colors: statsInk().mut } },
@@ -1610,7 +1620,7 @@
                   show: true,
                 },
                 {
-                  seriesName: "Decline",
+                  seriesName: S.decline,
                   min: 0,
                   max: barMaxVal,
                   tickAmount: 6,
@@ -1621,10 +1631,10 @@
                   axisTicks: { show: false },
                 },
                 {
-                  seriesName: typeNames[chartFilterType] || "Type",
+                  seriesName: typeNames[chartFilterType] || tr("stats.type.fallback"),
                   opposite: true,
                   title: {
-                    text: "Cumulative",
+                    text: tr("stats.axis.cumulative"),
                     style: { color: statsInk().mut, fontSize: "12px" },
                   },
                   labels: { style: { colors: statsInk().mut } },
@@ -1637,9 +1647,9 @@
             } else {
               yaxisConfig = [
                 {
-                  seriesName: "Growth",
+                  seriesName: S.growth,
                   title: {
-                    text: "Change",
+                    text: tr("stats.axis.change"),
                     style: { color: statsInk().mut, fontSize: "12px" },
                   },
                   labels: { style: { colors: statsInk().mut } },
@@ -1650,7 +1660,7 @@
                   show: true,
                 },
                 {
-                  seriesName: "Decline",
+                  seriesName: S.decline,
                   min: 0,
                   max: barMaxVal,
                   tickAmount: 6,
@@ -1661,7 +1671,7 @@
                   axisTicks: { show: false },
                 },
                 {
-                  seriesName: "Companions",
+                  seriesName: S[1],
                   opposite: true,
                   min: 0,
                   max: lineMaxVal,
@@ -1673,7 +1683,7 @@
                   axisTicks: { show: false },
                 },
                 {
-                  seriesName: "Repeaters",
+                  seriesName: S[2],
                   opposite: true,
                   min: 0,
                   max: lineMaxVal,
@@ -1685,7 +1695,7 @@
                   axisTicks: { show: false },
                 },
                 {
-                  seriesName: "Room servers",
+                  seriesName: S[3],
                   opposite: true,
                   min: 0,
                   max: lineMaxVal,
@@ -1697,7 +1707,7 @@
                   axisTicks: { show: false },
                 },
                 {
-                  seriesName: "Sensors",
+                  seriesName: S[4],
                   opposite: true,
                   min: 0,
                   max: lineMaxVal,
@@ -1709,10 +1719,10 @@
                   axisTicks: { show: false },
                 },
                 {
-                  seriesName: "Total",
+                  seriesName: S.total,
                   opposite: true,
                   title: {
-                    text: "Cumulative",
+                    text: tr("stats.axis.cumulative"),
                     style: { color: statsInk().mut, fontSize: "12px" },
                   },
                   labels: { style: { colors: statsInk().mut } },
@@ -1770,17 +1780,17 @@
               },
               series: [
                 {
-                  name: "Growth",
+                  name: S.growth,
                   type: "column",
                   data: chartNetPositive,
                 },
                 {
-                  name: "Decline",
+                  name: S.decline,
                   type: "column",
                   data: chartNetNegative,
                 },
                 {
-                  name: "Companions",
+                  name: S[1],
                   type: "line",
                   data: cumulativeByType[1],
                   fill: {
@@ -1794,7 +1804,7 @@
                   },
                 },
                 {
-                  name: "Repeaters",
+                  name: S[2],
                   type: "line",
                   data: cumulativeByType[2],
                   fill: {
@@ -1808,7 +1818,7 @@
                   },
                 },
                 {
-                  name: "Room servers",
+                  name: S[3],
                   type: "line",
                   data: cumulativeByType[3],
                   fill: {
@@ -1822,7 +1832,7 @@
                   },
                 },
                 {
-                  name: "Sensors",
+                  name: S[4],
                   type: "line",
                   data: cumulativeByType[4],
                   fill: {
@@ -1836,7 +1846,7 @@
                   },
                 },
                 {
-                  name: "Total",
+                  name: S.total,
                   type: "line",
                   data: cumulativeDisplay,
                   fill: { opacity: 0 },
@@ -1888,9 +1898,9 @@
               },
               yaxis: [
                 {
-                  seriesName: "Growth",
+                  seriesName: S.growth,
                   title: {
-                    text: "Change",
+                    text: tr("stats.axis.change"),
                     style: { color: statsInk().mut, fontSize: "12px" },
                   },
                   labels: { style: { colors: statsInk().mut } },
@@ -1901,7 +1911,7 @@
                   show: true,
                 },
                 {
-                  seriesName: "Growth",
+                  seriesName: S.growth,
                   min: 0,
                   max: barMax,
                   tickAmount: 6,
@@ -1912,7 +1922,7 @@
                   axisTicks: { show: false },
                 },
                 {
-                  seriesName: "Decline",
+                  seriesName: S.decline,
                   min: 0,
                   max: barMax,
                   tickAmount: 6,
@@ -1923,10 +1933,10 @@
                   axisTicks: { show: false },
                 },
                 {
-                  seriesName: "Total",
+                  seriesName: S.total,
                   opposite: true,
                   title: {
-                    text: "Total",
+                    text: S.total,
                     style: { color: statsInk().mut, fontSize: "12px" },
                   },
                   labels: { style: { colors: statsInk().mut } },
@@ -1936,28 +1946,28 @@
                   show: true,
                 },
                 {
-                  seriesName: "Companions",
+                  seriesName: S[1],
                   opposite: true,
                   min: 0,
                   max: Math.max.apply(null, cumulativeDisplay) || 1,
                   show: false,
                 },
                 {
-                  seriesName: "Repeaters",
+                  seriesName: S[2],
                   opposite: true,
                   min: 0,
                   max: Math.max.apply(null, cumulativeDisplay) || 1,
                   show: false,
                 },
                 {
-                  seriesName: "Room servers",
+                  seriesName: S[3],
                   opposite: true,
                   min: 0,
                   max: Math.max.apply(null, cumulativeDisplay) || 1,
                   show: false,
                 },
                 {
-                  seriesName: "Sensors",
+                  seriesName: S[4],
                   opposite: true,
                   min: 0,
                   max: Math.max.apply(null, cumulativeDisplay) || 1,
@@ -2005,24 +2015,16 @@
                   var decline =
                     series[1] && series[1][i] != null ? series[1][i] : 0;
                   var net = growth - decline;
-                  var typeNames = {
-                    1: "Companions",
-                    2: "Repeaters",
-                    3: "Room servers",
-                    4: "Sensors",
-                  };
                   var parts = [];
                   if (growth > 0 || decline > 0) {
                     parts.push(
-                      "<div style='font-size:11px;opacity:0.7;margin-bottom:4px'>Added+restored: +" +
-                        growth +
-                        " · Removed: -" +
-                        decline +
+                      "<div style='font-size:11px;opacity:0.7;margin-bottom:4px'>" +
+                        tr("stats.tip.addedRemoved", { added: num(growth), removed: num(decline) }) +
                         "</div>",
                     );
                   }
                   parts.push(
-                    "<div>Net: " + (net > 0 ? "+" : "") + net + "</div>",
+                    "<div>" + tr("stats.tip.net", { net: (net > 0 ? "+" : "") + num(net) }) + "</div>",
                   );
                   if (
                     chartFilterType &&
@@ -2041,10 +2043,7 @@
                       if (v !== 0) {
                         parts.push(
                           "<div style='padding-left:8px;font-size:11px'>" +
-                            typeNames[t] +
-                            " (day): " +
-                            (v > 0 ? "+" : "") +
-                            v +
+                            tr("stats.tip.day", { type: S[t], value: (v > 0 ? "+" : "") + num(v) }) +
                             "</div>",
                         );
                       }
@@ -2080,12 +2079,10 @@
                     if (val != null) {
                       var name =
                         (w.globals.seriesNames && w.globals.seriesNames[s]) ||
-                        "Series " + s;
+                        tr("stats.tip.series", { n: s });
                       parts.push(
                         "<div>" +
-                          name +
-                          ": " +
-                          Number(val).toLocaleString() +
+                          tr("stats.tip.value", { name: name, value: num(val) }) +
                           "</div>",
                       );
                     }
@@ -2241,18 +2238,18 @@
               initStatsContent(results[0], results[1] || []);
             })
             .catch(function (err) {
-              showError(err.message || "Could not load sync history.");
+              showError(err.message || tr("stats.error.history"));
             });
         };
         var presetParamBoot = statsFrequencyQuerySuffix();
         Promise.all([
           fetch("/api/v1/stats").then(function (r) {
-            if (!r.ok) throw new Error("Failed to load stats");
+            if (!r.ok) throw new Error(tr("stats.error.stats"));
             return r.json();
           }),
           fetch("/api/v1/sync-history?limit=500" + presetParamBoot).then(
             function (r) {
-              if (!r.ok) throw new Error("Failed to load sync history");
+              if (!r.ok) throw new Error(tr("stats.error.syncHistory"));
               return r.json();
             },
           ),
@@ -2286,8 +2283,8 @@
           })
           .catch(function (err) {
             loadingEl.style.display = "none";
-            showError(err.message || "Could not load stats page data.");
+            showError(err.message || tr("stats.error.page"));
             var main = document.querySelector(".stats-header-main");
             if (main) main.classList.remove("is-loading");
           });
-      })();
+      });

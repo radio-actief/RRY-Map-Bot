@@ -9,6 +9,7 @@
     <meta
       name="description"
       content="Map of #BEmesh region codes (eu, be, be-* and the neighbouring countries) — country, province and gewest boundaries and municipality location points"
+      data-i18n-attr="content:regionMap.description"
     />
     <link rel="icon" href="./favicon.ico" sizes="any" />
     <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png" />
@@ -26,8 +27,9 @@
     <link rel="stylesheet" href="./src/shared/bemesh-tokens.css" />
     <link rel="stylesheet" href="./src/shared/bemesh-shell.css" />
     <link rel="stylesheet" href="./css/region-map.css" />
+    <script src="./src/shared/i18n.js" data-i18n="region-map"></script>
     <script src="./src/shared/theme.js"></script>
-    <title>Region codes map – #BEmesh</title>
+    <title data-i18n="regionMap.title">Region codes map – #BEmesh</title>
   </head>
   <body class="region-map-body">
     <script>
@@ -47,17 +49,18 @@
       })();
     </script>
     <header class="topbar">
-      <span class="wordmark"><b>#BE</b>mesh region map</span>
-      <nav class="switcher" aria-label="Pages">
-        <a href="/">Map</a><a href="/stats">Stats</a
-        ><a href="/region-map" aria-current="page">Region map</a
-        ><a href="/configurator">Configurator</a>
+      <span class="wordmark"><b>#BE</b><span data-i18n="regionMap.wordmark">mesh region map</span></span>
+      <nav class="switcher" aria-label="Pages" data-i18n-attr="aria-label:top.pages">
+        <a href="/" data-i18n="page.map">Map</a><a href="/stats" data-i18n="page.stats">Stats</a
+        ><a href="/region-map" aria-current="page" data-i18n="page.regionMap">Region map</a
+        ><a href="/configurator" data-i18n="page.configurator">Configurator</a>
       </nav>
       <span class="spacer"></span>
       <span data-account-chip></span>
+      <span data-lang-switch></span>
       <span class="menu-wrap" data-page-menu>
-        <button type="button" class="icon" aria-label="Menu">☰</button>
-        <nav class="menu" aria-label="Menu" hidden></nav>
+        <button type="button" class="icon" aria-label="Menu" data-i18n-attr="aria-label:menu.label">☰</button>
+        <nav class="menu" aria-label="Menu" data-i18n-attr="aria-label:menu.label" hidden></nav>
       </span>
       <button type="button" class="icon" data-theme-toggle aria-label="Theme">
         ◐
@@ -73,6 +76,7 @@
               class="input"
               placeholder="Search city, province or region"
               aria-label="Search city, province or region"
+              data-i18n-attr="placeholder:regionMap.search; aria-label:regionMap.search"
               spellcheck="false"
               autocomplete="off"
             />
@@ -81,28 +85,28 @@
           <div id="counter" class="muted">
             <span id="counter-text"></span>
           </div>
-          <div class="field-label" id="borders-label">Borders</div>
+          <div class="field-label" id="borders-label" data-i18n="regionMap.borders">Borders</div>
           <div
             class="segmented"
             id="overlay-seg"
             role="group"
             aria-labelledby="borders-label"
           >
-            <button type="button" data-value="" aria-pressed="false">Off</button>
-            <button type="button" data-value="provinces" aria-pressed="true">
+            <button type="button" data-value="" aria-pressed="false" data-i18n="regionMap.borders.off">Off</button>
+            <button type="button" data-value="provinces" aria-pressed="true" data-i18n="regionMap.borders.provinces">
               Provinces
             </button>
-            <button type="button" data-value="gewesten" aria-pressed="false">
+            <button type="button" data-value="gewesten" aria-pressed="false" data-i18n="regionMap.borders.gewesten">
               Gewesten
             </button>
-            <button type="button" data-value="countries" aria-pressed="false">
+            <button type="button" data-value="countries" aria-pressed="false" data-i18n="regionMap.borders.countries">
               Countries
             </button>
           </div>
           <label class="region-map-places-check">
-            <input type="checkbox" id="show-places" checked /> Location points
+            <input type="checkbox" id="show-places" checked /> <span data-i18n="regionMap.places">Location points</span>
           </label>
-          <div class="field-label">Region codes</div>
+          <div class="field-label" data-i18n="regionMap.codes">Region codes</div>
           <div class="hierarchy-tree" id="hierarchy"></div>
         </div>
       </aside>
@@ -112,6 +116,7 @@
         id="toggle-controls"
         title="Toggle side panel"
         aria-label="Toggle side panel"
+        data-i18n-attr="title:regionMap.togglePanel; aria-label:regionMap.togglePanel"
         aria-expanded="true"
       >
         <span aria-hidden="true">‹</span>

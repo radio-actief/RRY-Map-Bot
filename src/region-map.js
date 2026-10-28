@@ -1,12 +1,26 @@
-      (function () {
+      // Runs once src/shared/i18n.js has the page language's messages and has translated the static page.
+      window.BEmeshI18n.ready.then(function (I18N) {
+        var tr = I18N.t;
         // Shared Belgian region data + data-path helper (src/shared/be-regions.js,
         // loaded before this file). Deduplicated from the former inline copies.
         var Regions = window.RRYRegions;
         var rryDataUrl = Regions.rryDataUrl;
-        var PROVINCE_NAMES = Regions.PROVINCE_NAMES;
+        /** Province and gewest names in the page language (codes never change). */
+        var PROVINCE_NAMES = {};
+        Object.keys(Regions.PROVINCE_NAMES).forEach(function (c) {
+          PROVINCE_NAMES[c] = I18N.regionName(c);
+        });
+        /** Names a search also matches: the page language's and the default (English page) names. */
+        var PROVINCE_SEARCH_NAMES = {};
+        Object.keys(Regions.PROVINCE_NAMES).forEach(function (c) {
+          PROVINCE_SEARCH_NAMES[c] = [PROVINCE_NAMES[c], Regions.PROVINCE_NAMES[c]];
+        });
         var PROVINCE_CODES = Regions.PROVINCE_CODES;
         var PROVINCE_CAPITAL_LATLNG = Regions.PROVINCE_CAPITAL_LATLNG;
-        var GEWEST_NAMES = Regions.GEWEST_NAMES;
+        var GEWEST_NAMES = {};
+        Object.keys(Regions.GEWEST_NAMES).forEach(function (c) {
+          GEWEST_NAMES[c] = I18N.regionName(c);
+        });
         var GEWEST_OF_PROVINCE = Regions.GEWEST_OF_PROVINCE;
 
         let locations = [];
@@ -48,9 +62,16 @@
           return null;
         }
 
+        /** Country (or eu) name in the page language; the geojson name for a code without a translation. */
         function countryName(code) {
+          if (I18N.has("region.name." + code)) return I18N.regionName(code);
           var f = countryFeature(code);
-          return f ? f.properties.name : code === "be" ? "Belgium" : code;
+          return f ? f.properties.name : code;
+        }
+
+        /** A municipality's name in the page language (Brussels' official French names on a French page). */
+        function placeName(loc) {
+          return I18N.municipalityName((loc.plaats || loc.gemeente || "").trim());
         }
 
         /** The countries under eu, Belgium first (the order of the region tree). */
@@ -81,7 +102,7 @@
         }
 
         function placeAutocompleteLabel(loc) {
-          var name = (loc.plaats || "").trim();
+          var name = I18N.municipalityName((loc.plaats || "").trim());
           return name + " — " + placeParentCodesLine(loc);
         }
 
@@ -100,7 +121,7 @@
 
         /** Click popup: 3 rows — place | city_code, province | be-*, Belgium | be. No title. */
         function locodePopupHtml(loc) {
-          var cityName = escapeHtml((loc.plaats || loc.gemeente || "").trim());
+          var cityName = escapeHtml(placeName(loc));
           var cityCodeRaw = (loc.city_code || "").trim();
           var cityCodeCell = cityCodeRaw
             ? "<code>" + escapeHtml(cityCodeRaw) + "</code>"
@@ -112,7 +133,7 @@
           var provCodeCell = provCodeRaw
             ? "<code>" + escapeHtml(provCodeRaw) + "</code>"
             : '<span class="node-popup__muted">—</span>';
-          var landName = escapeHtml("Belgium");
+          var landName = escapeHtml(countryName("be"));
           var landCodeCell = "<code>be</code>";
           var rows = [
             locodePopupPair(
@@ -141,7 +162,7 @@
           var provCodeCell = pc
             ? "<code>" + escapeHtml(pc) + "</code>"
             : '<span class="node-popup__muted">—</span>';
-          var landName = escapeHtml("Belgium");
+          var landName = escapeHtml(countryName("be"));
           var landCodeCell = "<code>be</code>";
           var rows = [
             locodePopupPair(
@@ -174,10 +195,10 @@
               gewestName || '<span class="node-popup__muted">—</span>',
               gewestCodeCell,
             ),
-            locodePopupPair(escapeHtml("Belgium"), "<code>be</code>"),
+            locodePopupPair(escapeHtml(countryName("be")), "<code>be</code>"),
           ];
           if (provinceCodes.length) {
-            rows.push('<div class="region-map-locode-popup__label node-popup__muted">Provinces</div>');
+            rows.push('<div class="region-map-locode-popup__label node-popup__muted">' + escapeHtml(tr("regionMap.popup.provinces")) + "</div>");
             provinceCodes.forEach(function (pc) {
               rows.push(
                 locodePopupPair(
@@ -207,14 +228,14 @@
           if (code === "eu") {
             rows.push(
               locodePopupPair(
-                escapeHtml("Countries under it"),
+                escapeHtml(tr("regionMap.popup.countriesUnder")),
                 escapeHtml(countryCodes().join(", ")),
               ),
             );
           } else if (countryFeature("eu")) {
             rows.push(
               locodePopupPair(
-                escapeHtml("Parent region: " + countryName("eu")),
+                escapeHtml(tr("regionMap.popup.parent", { name: countryName("eu") })),
                 "<code>eu</code>",
               ),
             );
@@ -496,7 +517,7 @@
             });
             circle.bindPopup(locodePopupHtml(loc), REGION_LOCODE_POPUP_OPTS);
             circle.bindTooltip(
-              (loc.plaats || loc.gemeente || "").trim() || "—",
+              placeName(loc) || "—",
               REGION_MAP_TOOLTIP_OPTS,
             );
             container.addLayer(circle);
@@ -598,7 +619,7 @@
                     attachProvinceHoverTooltip(
                       layer,
                       c,
-                      feat.properties.name + " (" + c + ")",
+                      countryName(c) + " (" + c + ")",
                     );
                     layer.bindPopup(
                       countryPopupHtml(c),
@@ -684,30 +705,35 @@
             items.push({
               type: "country",
               code: "be",
-              label: "Belgium (be) — country",
+              label: tr("regionMap.ac.country", { name: countryName("be"), code: "be" }),
             });
             seen.add("__be__");
           }
           ["eu"].concat(countryCodes()).forEach(function (c) {
             if (c === "be" || !countryFeature(c)) return;
-            if (normalize(c) === q || normalize(countryName(c)).includes(q)) {
+            var f = countryFeature(c);
+            if (
+              normalize(c) === q ||
+              normalize(countryName(c)).includes(q) ||
+              normalize(f.properties.name || "").includes(q)
+            ) {
               seen.add(c);
               items.push({
                 type: "country",
                 code: c,
-                label:
-                  countryName(c) +
-                  " (" +
-                  c +
-                  ")" +
-                  (c === "eu" ? " — wider region" : " — country"),
+                label: tr(c === "eu" ? "regionMap.ac.wider" : "regionMap.ac.country", {
+                  name: countryName(c),
+                  code: c,
+                }),
               });
             }
           });
           PROVINCE_CODES.forEach(function (c) {
             if (
               normalize(c).includes(q) ||
-              normalize(PROVINCE_NAMES[c] || "").includes(q)
+              PROVINCE_SEARCH_NAMES[c].some(function (n) {
+                return normalize(n || "").includes(q);
+              })
             ) {
               if (!seen.has(c)) {
                 seen.add(c);
@@ -806,21 +832,23 @@
               var bn = lastMatches ? lastMatches.length : 0;
               txt.textContent =
                 bn === 0
-                  ? "Belgium — no location points on the map"
-                  : bn + " location points in Belgium";
+                  ? tr("regionMap.count.beNone", { name: countryName("be") })
+                  : tr("regionMap.count.inBe", { count: bn, n: I18N.number(bn), name: countryName("be") });
             } else {
-              txt.textContent =
-                lastMatches.length + " location points in search result";
+              txt.textContent = tr("regionMap.count.inResult", {
+                count: lastMatches.length,
+                n: I18N.number(lastMatches.length),
+              });
             }
           } else {
             if (isForeignRegion(normQ)) {
               txt.textContent = countryName(normQ) + " (" + normQ + ")";
             } else if (normQ === "be" && count === 0) {
-              txt.textContent = "Belgium — no location points on the map";
+              txt.textContent = tr("regionMap.count.beNone", { name: countryName("be") });
             } else if (normQ === "be") {
-              txt.textContent = count + " location points shown in Belgium";
+              txt.textContent = tr("regionMap.count.shownInBe", { count: count, n: I18N.number(count), name: countryName("be") });
             } else {
-              txt.textContent = count + " location points shown";
+              txt.textContent = tr("regionMap.count.shown", { count: count, n: I18N.number(count) });
             }
           }
         }
@@ -885,17 +913,17 @@
               '"><span class="region-name"><span class="region-title">' +
               escapeHtml(name) +
               '</span><span class="region-meta muted">' +
-              escapeHtml(code + " · " + (label || type)) +
+              escapeHtml(code + " · " + (label || tr("regionMap.kind." + type))) +
               "</span></span>" +
               (count != null
-                ? '<span class="region-count">' + count + "</span>"
+                ? '<span class="region-count">' + I18N.number(count) + "</span>"
                 : "") +
               "</button>"
             );
           };
-          var html = hasEu ? node(0, "eu", "country", countryName("eu"), null, "wider region") : "";
+          var html = hasEu ? node(0, "eu", "country", countryName("eu"), null, tr("regionMap.kind.wider")) : "";
           var top = hasEu ? 1 : 0;
-          html += node(top, "be", "country", "Belgium", withCoords.length);
+          html += node(top, "be", "country", countryName("be"), withCoords.length);
           PROVINCE_CODES.forEach(function (p) {
             var locs = withCoords.filter(function (l) {
               return l.province_code === p;
@@ -925,6 +953,8 @@
         }
 
         function init() {
+          L.Control.Zoom.prototype.options.zoomInTitle = tr("zoom.in");
+          L.Control.Zoom.prototype.options.zoomOutTitle = tr("zoom.out");
           map = L.map("region-map-container").setView(
             belgiumCenter,
             belgiumZoom,
@@ -1109,9 +1139,9 @@
               gewestBoundariesFC = null;
               countryBoundariesFC = null;
               document.getElementById("counter-text").textContent =
-                "Could not load locations.";
+                tr("regionMap.loadFailed");
             });
         }
 
         init();
-      })();
+      });

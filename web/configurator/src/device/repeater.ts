@@ -111,6 +111,8 @@ export async function apply(
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
     }
+    // `gps advert` only exists on builds with GPS support; elsewhere the position lines already did the job.
+    if (error && command.startsWith("gps advert ") && /^Unknown command/i.test(error)) continue;
     if (error) return { ok: false, failedAt: i + 1, command, error, remaining: lines.slice(i + 1) };
   }
   return { ok: true };

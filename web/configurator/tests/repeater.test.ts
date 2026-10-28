@@ -155,6 +155,18 @@ describe("after a timeout", () => {
     expect(await apply(link, ["set nope 1"], () => {})).toMatchObject({ ok: false, failedAt: 1 });
   });
 
+  it("carries on past gps advert on firmware built without GPS", async () => {
+    const lines = ["set lat 0", "set lon 0", "gps advert none", "region home be"];
+    const { link, port } = await linkTo({ "set lat 0": "OK", "set lon 0": "OK", "gps advert none": "Unknown command", "region home be": "OK" });
+    expect(await apply(link, lines, () => {})).toEqual({ ok: true });
+    expect(port.received).toEqual(lines);
+  });
+
+  it("still stops at a gps advert Err reply", async () => {
+    const { link } = await linkTo({ "gps advert share": "Err - no GPS" });
+    expect(await apply(link, ["gps advert share", "set x 1"], () => {})).toMatchObject({ ok: false, failedAt: 1 });
+  });
+
   it("close wakes a pending command at once", async () => {
     const { link } = await linkTo({ silent: "" });
     const p = link.command("silent", 5000);

@@ -6,7 +6,7 @@ import { Notice, type NoticeKind } from "../app/Notice";
 import { rawOf } from "../core/blocks";
 import { buildScript, commandLines, scriptText, unchangedCount, type ScriptGroup } from "../core/cli";
 import { REGION_DEF_MIN_TEXT } from "../core/firmware";
-import { planName, summarize, type Change, type DeviceSnapshot, type Plan } from "../core/plan";
+import { planName, sendableLocation, summarize, type Change, type DeviceSnapshot, type Plan } from "../core/plan";
 import type { DeviceRegions } from "../core/regions";
 import type { Place } from "../core/search";
 import { presetForRadio } from "../core/presets";
@@ -57,6 +57,29 @@ function RadioLine() {
   );
 }
 
+/** Where the position goes: public on the map with Fixed position or Live GPS, cleared with No. */
+function PositionLine() {
+  const plan = store.plan.value;
+  const at = sendableLocation(plan);
+  const text =
+    plan.advertLoc === "none"
+      ? t("send.positionNone")
+      : plan.advertLoc === "share"
+        ? t("send.positionGps")
+        : at
+          ? t("send.positionPublic", { lat: at.lat, lon: at.lon })
+          : null;
+  if (!text) return null;
+  return (
+    <div class="ro-line pos-line">
+      <span>{text}</span>
+      <button type="button" class="btn small link" disabled={busy.value} onClick={() => (store.step.value = "place")}>
+        {t("send.change")}
+      </button>
+    </div>
+  );
+}
+
 function BeforeYouSend() {
   return (
     <section class="card card-before">
@@ -64,6 +87,7 @@ function BeforeYouSend() {
         <h3>{t("send.before")}</h3>
       </header>
       <RadioLine />
+      <PositionLine />
       <PasswordField />
       <SettingField def={GUEST} />
     </section>

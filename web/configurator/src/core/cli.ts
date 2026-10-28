@@ -112,9 +112,15 @@ export function buildScript(
   }
 
   const location: string[] = [];
-  const coords = sendableLocation(plan);
-  const coordsHeld = !!snap && !!coords && sameCoords(coords, snap.lat, snap.lon);
-  if (coords && !coordsHeld) location.push(`set lat ${coords.lat}`, `set lon ${coords.lon}`);
+  if (plan.advertLoc === "none") {
+    // No: the stored position is cleared (0,0 is the firmware's "none"), unless the Read shows none.
+    const noneStored = !!snap && snap.lat === 0 && snap.lon === 0;
+    if (!noneStored) location.push("set lat 0", "set lon 0");
+  } else {
+    const coords = sendableLocation(plan);
+    const coordsHeld = !!snap && !!coords && sameCoords(coords, snap.lat, snap.lon);
+    if (coords && !coordsHeld) location.push(`set lat ${coords.lat}`, `set lon ${coords.lon}`);
+  }
   if ((includeDefaults || plan.advertLoc !== "prefs") && plan.advertLoc !== snap?.advertLoc) {
     location.push(`gps advert ${plan.advertLoc}`);
   }

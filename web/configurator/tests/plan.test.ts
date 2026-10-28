@@ -251,6 +251,14 @@ describe("planErrors", () => {
 });
 
 describe("summarize", () => {
+  it("with No, a stored position is listed as cleared", () => {
+    const p = { ...defaultPlan(), location: { lat: 50.8, lon: 4.3 }, advertLoc: "none" as const };
+    const row = (snapshot?: Parameters<typeof summarize>[1]) => summarize(p, snapshot).changes.find((c) => c.labelKey === "location");
+    expect(row()).toEqual({ group: "location", labelKey: "location", to: "cleared" });
+    expect(row({ settings: {}, missing: [], lat: 50.9, lon: 4.1 })).toEqual({ group: "location", labelKey: "location", from: "50.9, 4.1", to: "cleared" });
+    expect(row({ settings: {}, missing: [], lat: 0, lon: 0 })).toBeUndefined();
+  });
+
   it("on a repeater that was not read, an empty admin password is missing until Don't set a password is ticked", () => {
     const p = defaultPlan();
     expect(summarize(p).adminPassword).toBe("missing");

@@ -131,6 +131,22 @@ describe("buildScript", () => {
     ).toBe(false);
   });
 
+  it("No (gps advert none) clears a stored position instead of writing the pin", () => {
+    const plan: Plan = { ...ronsePlan(), advertLoc: "none" };
+    const lines = commandLines(buildScript(plan, PLACES, { includeDefaults: false }));
+    expect(lines).toContain("set lat 0");
+    expect(lines).toContain("set lon 0");
+    expect(lines.some((l) => l.startsWith("set lat 50"))).toBe(false);
+    expect(lines).toContain("gps advert none");
+    // Against a Read: nothing to clear when no position is stored, a clear when one is.
+    const none = { settings: {}, missing: [], lat: 0, lon: 0, advertLoc: "none" as const };
+    expect(commandLines(buildScript(plan, PLACES, { includeDefaults: true, snapshot: none })).some((l) => /^set (lat|lon) /.test(l))).toBe(false);
+    const stored = { ...none, lat: 50.74755, lon: 3.60209 };
+    expect(commandLines(buildScript(plan, PLACES, { includeDefaults: true, snapshot: stored }))).toEqual(
+      expect.arrayContaining(["set lat 0", "set lon 0"]),
+    );
+  });
+
   it("removes device regions that are no longer needed", () => {
     const device = deviceRegionsFromRead(["be", "be-vov", "bemak"], [], "be-vov", "be");
     const lines = commandLines(buildScript(ronsePlan(), PLACES, { includeDefaults: false, device }));

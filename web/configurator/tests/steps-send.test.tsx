@@ -811,7 +811,7 @@ describe("Send step: Before you send", () => {
     store.plan.value = { ...store.plan.value, settings: { ...store.plan.value.settings, txPower: 14 } };
     render(<Send />);
     expect(screen.getByText("Radio: EU/UK (Narrow) · 10 % · 14 dBm")).toBeTruthy();
-    const links = screen.getAllByRole("button", { name: "Change" });
+    const links = within(document.querySelector(".ro-line:not(.pos-line)") as HTMLElement).getAllByRole("button", { name: "Change" });
     expect(links.length).toBe(1);
     fireEvent.click(links[0]);
     expect(store.step.value).toBe("settings");
@@ -822,6 +822,24 @@ describe("Send step: Before you send", () => {
     render(<Send />);
     fireEvent.input(admin(), { target: { value: "secret" } });
     expect(within(admin().closest(".field") as HTMLElement).queryByText("On repeater:")).toBeNull();
+  });
+
+  it("says plainly that the position becomes public, or that No clears it", () => {
+    store.plan.value = { ...store.plan.value, location: { lat: 50.74755, lon: 3.60209 }, advertLoc: "prefs" };
+    render(<Send />);
+    const card = document.querySelector(".card-before") as HTMLElement;
+    expect(within(card).getByText("Its position (50.74755, 3.60209) becomes public: anyone who hears its adverts sees it, and the #BEmesh map shows it.")).toBeTruthy();
+    cleanup();
+    store.plan.value = { ...store.plan.value, advertLoc: "share" };
+    render(<Send />);
+    expect(screen.getByText(/Its GPS position becomes public/)).toBeTruthy();
+    cleanup();
+    store.plan.value = { ...store.plan.value, advertLoc: "none" };
+    render(<Send />);
+    expect(screen.getByText("It shares no position, and a position stored on it is cleared.")).toBeTruthy();
+    expect(scriptText()).toContain("set lat 0\nset lon 0");
+    fireEvent.click(within(document.querySelector(".pos-line") as HTMLElement).getByRole("button", { name: "Change" }));
+    expect(store.step.value).toBe("place");
   });
 
   it("says TX power is unchanged when none is set", () => {

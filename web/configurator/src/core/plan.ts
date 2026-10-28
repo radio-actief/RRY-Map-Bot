@@ -600,10 +600,15 @@ export function summarize(
   }
 
   const location = sendableLocation(plan);
-  if (location && !(snapshot && sameCoords(location, snapshot.lat, snapshot.lon))) {
-    const from =
-      snapshot && hasValidCoords(snapshot.lat, snapshot.lon) ? coords(snapshot.lat!, snapshot.lon!) : undefined;
-    add("location", "location", coords(location.lat, location.lon), from, true);
+  const storedOnDevice = snapshot && hasValidCoords(snapshot.lat, snapshot.lon) ? coords(snapshot.lat!, snapshot.lon!) : undefined;
+  if (plan.advertLoc === "none") {
+    // No clears a stored position: listed unless the Read shows none stored.
+    if (!snapshot || !(snapshot.lat === 0 && snapshot.lon === 0)) {
+      const to = t("review.positionCleared");
+      changes.push(storedOnDevice ? { group: "location", labelKey: "location", from: storedOnDevice, to } : { group: "location", labelKey: "location", to });
+    }
+  } else if (location && !(snapshot && sameCoords(location, snapshot.lat, snapshot.lon))) {
+    add("location", "location", coords(location.lat, location.lon), storedOnDevice, true);
   }
   add("location", "advertLoc", plan.advertLoc, snapshot?.advertLoc, plan.advertLoc !== "prefs");
 

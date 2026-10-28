@@ -3,13 +3,21 @@ import { useState } from "preact/hooks";
 import { SETTINGS } from "../../core/settings";
 import { rawOf } from "../../core/blocks";
 import { t } from "../../i18n/t";
-import { store } from "../../state/store";
+import { editPlan, store } from "../../state/store";
 import { SettingField } from "../SettingsStep";
 
 const DEF = SETTINGS.find((d) => d.key === "adminPassword")!;
 
+/**
+ * On a repeater that was not read (a new board) an empty field would leave the factory password:
+ * the user sets one or ticks "Don't set a password", which warns. A read repeater keeps its
+ * password when the field is empty.
+ */
 export function PasswordField() {
   const [shown, setShown] = useState(false);
+  const plan = store.plan.value;
+  const read = !!store.snapshot.value;
+  const empty = !rawOf(plan, "adminPassword").trim();
   const show = () => setShown(true);
   const hide = () => setShown(false);
   const holdKey = (e: KeyboardEvent) => e.key === " " || e.key === "Enter";
@@ -17,6 +25,7 @@ export function PasswordField() {
     <SettingField
       def={DEF}
       control={(invalid) => (
+        <>
         <div class="pw-row">
           <input
             id="set-adminPassword"
@@ -24,7 +33,7 @@ export function PasswordField() {
             {...(shown ? { type: "text" as const } : { type: "password" as const })}
             autocomplete="new-password"
             value={rawOf(store.plan.value, "adminPassword")}
-            placeholder={t("settings.adminPassword.placeholder")}
+            placeholder={t(read ? "settings.adminPassword.placeholder" : "settings.adminPassword.placeholderNew")}
             onInput={(e) => {
               const plan = store.plan.peek();
               store.plan.value = {
@@ -55,6 +64,18 @@ export function PasswordField() {
             <span aria-hidden="true">👁</span>
           </button>
         </div>
+        {!read && empty ? (
+          <label class="check-line pw-skip">
+            <input
+              type="checkbox"
+              checked={!!plan.adminPasswordSkip}
+              onChange={(e) => editPlan({ adminPasswordSkip: (e.currentTarget as HTMLInputElement).checked })}
+            />
+            <span>{t("settings.adminPassword.skip")}</span>
+          </label>
+        ) : null}
+        {!read && empty && plan.adminPasswordSkip ? <p class="field-error pw-warn">{t("settings.adminPassword.skipWarn")}</p> : null}
+        </>
       )}
     />
   );

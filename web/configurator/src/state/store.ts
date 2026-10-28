@@ -3,7 +3,7 @@ import { computed, effect, signal } from "@preact/signals";
 import { municipalityAt, type LatLon, type MeshNode, type MunicipalityFeature } from "../core/geo";
 import type { LocationChoice, Place } from "../core/search";
 import { parseVersion, supportsRegionDef } from "../core/firmware";
-import { newPlan, planErrors, type DeviceSnapshot, type Plan } from "../core/plan";
+import { adminPasswordState, newPlan, planErrors, type DeviceSnapshot, type Plan } from "../core/plan";
 import {
   anchorCenter,
   anchorFromChoice,
@@ -236,12 +236,15 @@ export function stepStatus(s: Step): StepStatus {
   if (s === "place") attention = has("location");
   else if (s === "name") attention = has("name", "ownerInfo");
   else if (s === "regions") attention = plan.anchor === null || has("regions") || regionCount.value > MAX_REGIONS;
-  else if (s === "send") attention = has("adminPassword", "guestPassword");
+  else if (s === "send") attention = has("adminPassword", "guestPassword") || passwordMissing.value;
   if (store.step.value === s) return "current";
   const seen = visited.value;
   if (attention) return seen.has(s) || seen.has("send") ? "attention" : "todo";
   return seen.has(s) ? "done" : "todo";
 }
+
+/** A repeater that was not read (a new board) has no admin password chosen, nor "Don't set a password". */
+export const passwordMissing = computed(() => adminPasswordState(store.plan.value, !!store.snapshot.value) === "missing");
 
 /** Why Apply is blocked: a translation key, with its parameters when the message needs them. */
 export type ApplyReason = { key: string; params?: Record<string, string | number> };
@@ -252,6 +255,7 @@ export const canApply = computed(() => {
   if (status !== "connected") reasons.push({ key: "apply.noDevice" });
   if (!store.plan.value.anchor) reasons.push({ key: "apply.noLocation" });
   for (const e of planErrors(store.plan.value)) reasons.push({ key: `error.${e.errorKey}` });
+  if (passwordMissing.value) reasons.push({ key: "apply.adminPasswordMissing" });
   const count = regionCount.value;
   if (count > MAX_REGIONS) reasons.push({ key: "error.regionCount", params: { count, max: MAX_REGIONS } });
   const version = parseVersion(firmware);

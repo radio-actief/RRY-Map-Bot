@@ -372,7 +372,7 @@ describe("Place step", () => {
 
   it("with Fixed position, Clear location flags Place and blocks Apply until a position is set", async () => {
     act(() => setLocation({ lat: 50.745, lon: 3.6 }));
-    store.plan.value = { ...store.plan.value, nameSuffix: "Kluisberg", advertLoc: "prefs" };
+    store.plan.value = { ...store.plan.value, nameSuffix: "Kluisberg", advertLoc: "prefs", adminPasswordSkip: true };
     const { link } = await connectedLink();
     store.device.value = { status: "connected", link, firmware: "v1.17.1" };
     expect(canApply.value.ok).toBe(true);

@@ -1597,6 +1597,22 @@ path.map-region-denied {
   color: var(--warn);
 }
 
+.rv-admin.factory {
+  color: var(--warn);
+}
+
+.rv-admin.missing {
+  color: var(--bad);
+}
+
+.pw-skip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 13px;
+}
+
 .ro-line {
   display: flex;
   justify-content: space-between;

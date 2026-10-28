@@ -39,6 +39,7 @@ describe("stepStatus", () => {
     expect(stepStatus("name")).toBe("todo");
   });
   it("marks a visited, problem-free step done", () => {
+    store.plan.value = { ...store.plan.value, adminPasswordSkip: true };
     store.step.value = "send";
     store.step.value = "connect";
     expect(stepStatus("send")).toBe("done");
@@ -141,19 +142,36 @@ describe("canApply", () => {
     expect(c.reasons).toContainEqual({ key: "apply.noLocation" });
   });
   it("blocks old firmware", () => {
-    store.plan.value = { ...defaultPlan(), nameSuffix: "Gent", anchor: BELGIUM, location: GENT };
+    store.plan.value = { ...defaultPlan(), nameSuffix: "Gent", anchor: BELGIUM, location: GENT, adminPasswordSkip: true };
     store.device.value = { status: "connected", link: null, firmware: "v1.14.0" };
     expect(canApply.value.reasons).toEqual([{ key: "apply.firmwareTooOld" }]);
   });
   it("is ok for a connected device with a valid plan", () => {
-    store.plan.value = { ...defaultPlan(), nameSuffix: "Gent", anchor: BELGIUM, location: GENT };
+    store.plan.value = { ...defaultPlan(), nameSuffix: "Gent", anchor: BELGIUM, location: GENT, adminPasswordSkip: true };
     store.device.value = { status: "connected", link: null, firmware: "v1.17.1 (Build: 14 Aug 2026)" };
     expect(canApply.value).toEqual({ ok: true, reasons: [] });
+  });
+  it("a repeater that was not read needs an admin password, or Don't set a password", () => {
+    const plan = { ...defaultPlan(), nameSuffix: "Gent", anchor: BELGIUM, location: GENT };
+    store.device.value = { status: "connected", link: null, firmware: "v1.17.1 (Build: 14 Aug 2026)" };
+    store.snapshot.value = null;
+    store.plan.value = plan;
+    expect(canApply.value.reasons).toEqual([{ key: "apply.adminPasswordMissing" }]);
+    expect(stepStatus("send")).toBe("todo");
+    store.plan.value = { ...plan, adminPasswordSkip: true };
+    expect(canApply.value).toEqual({ ok: true, reasons: [] });
+    store.plan.value = { ...plan, settings: { ...plan.settings, adminPassword: "s3cret" } };
+    expect(canApply.value).toEqual({ ok: true, reasons: [] });
+    // A read repeater keeps its password when the field is empty.
+    store.plan.value = plan;
+    store.snapshot.value = { settings: {}, missing: [] };
+    expect(canApply.value).toEqual({ ok: true, reasons: [] });
+    store.snapshot.value = null;
   });
   it("lists error.regionCount with the count when 33 regions are needed", () => {
     store.data.value = { failed: new Set(), places: PLACES };
     store.device.value = { status: "connected", link: null, firmware: "v1.17.1 (Build: 14 Aug 2026)" };
-    const plan = { ...defaultPlan(), nameSuffix: "Kluisberg", anchor: RONSE_ANCHOR, location: { lat: RONSE.lat, lon: RONSE.lon } };
+    const plan = { ...defaultPlan(), nameSuffix: "Kluisberg", anchor: RONSE_ANCHOR, location: { lat: RONSE.lat, lon: RONSE.lon }, adminPasswordSkip: true };
     store.plan.value = { ...plan, regions: ronseNeeding(32) };
     expect(canApply.value).toEqual({ ok: true, reasons: [] });
     store.plan.value = { ...plan, regions: ronseNeeding(33) };

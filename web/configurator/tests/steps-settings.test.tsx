@@ -46,7 +46,7 @@ describe("Settings step", () => {
 
   it("lists the admin password line in the summary and no longer shows the password fields", async () => {
     render(<SettingsStep />);
-    expect(screen.getByText("Admin password stays as it is")).toBeTruthy();
+    expect(screen.getByText("Admin password not chosen yet")).toBeTruthy();
     expect(screen.queryByLabelText("Admin password")).toBeNull();
     expect(screen.queryByLabelText("Guest password")).toBeNull();
     store.plan.value = { ...store.plan.value, settings: { ...store.plan.value.settings, adminPassword: "secret" } };

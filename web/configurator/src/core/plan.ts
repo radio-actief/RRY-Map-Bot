@@ -59,7 +59,22 @@ export type Plan = {
   acl?: AclEntry[];
   /** Max flood hops follows the hop preset (FLOOD_MAX); not a repeater setting. */
   floodMaxFollow?: boolean;
+  /** "Don't set a password" is ticked: a repeater that was not read keeps the factory admin password. */
+  adminPasswordSkip?: boolean;
 };
+
+/**
+ * What happens to the admin password: a typed one is changed; on a read repeater an empty field
+ * keeps the current one; on one that was not read (a new board) it stays the factory "password"
+ * only when "Don't set a password" is ticked, and is missing until then.
+ */
+export type AdminPasswordState = "changed" | "kept" | "factory" | "missing";
+
+export function adminPasswordState(plan: Plan, read: boolean): AdminPasswordState {
+  if (String(plan.settings.adminPassword ?? "").trim()) return "changed";
+  if (read) return "kept";
+  return plan.adminPasswordSkip ? "factory" : "missing";
+}
 
 export type DeviceSnapshot = {
   name?: string;
@@ -550,13 +565,13 @@ const coords = (lat: number, lon: number) => `${lat}, ${lon}`;
 /**
  * What the plan changes. Against a snapshot: each value that differs from the device (a value
  * the device did not report counts as a change when the script sets it). Without one: what the
- * script sets. The admin password is never listed; it is reported as kept or changed. The
+ * script sets. The admin password is never listed; its state is reported (see adminPasswordState). The
  * access list changes against the Read are one line with their count.
  */
 export function summarize(
   plan: Plan,
   snapshot?: DeviceSnapshot,
-): { changes: Change[]; adminPassword: "kept" | "changed" } {
+): { changes: Change[]; adminPassword: AdminPasswordState } {
   const changes: Change[] = [];
   const add = (group: Change["group"], labelKey: string, to: string, from: string | undefined, sent: boolean) => {
     if (from !== undefined ? from === to : !sent) return;
@@ -612,6 +627,5 @@ export function summarize(
   const aclCount = plan.acl ? aclChanges(snapshot?.acl ?? [], plan.acl) : 0;
   if (aclCount) changes.push({ group: "acl", labelKey: "acl", to: t("changes", { count: aclCount }) });
 
-  const pw = String(plan.settings.adminPassword ?? "").trim();
-  return { changes, adminPassword: pw ? "changed" : "kept" };
+  return { changes, adminPassword: adminPasswordState(plan, !!snapshot) };
 }

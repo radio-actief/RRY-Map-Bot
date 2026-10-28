@@ -251,8 +251,15 @@ describe("planErrors", () => {
 });
 
 describe("summarize", () => {
-  it("reports the admin password as kept unless one is entered", () => {
-    expect(summarize(defaultPlan()).adminPassword).toBe("kept");
+  it("on a repeater that was not read, an empty admin password is missing until Don't set a password is ticked", () => {
+    const p = defaultPlan();
+    expect(summarize(p).adminPassword).toBe("missing");
+    expect(summarize({ ...p, adminPasswordSkip: true }).adminPassword).toBe("factory");
+    expect(summarize({ ...p, adminPasswordSkip: true, settings: { ...p.settings, adminPassword: "x" } }).adminPassword).toBe("changed");
+  });
+
+  it("reports the admin password as kept on a read repeater unless one is entered", () => {
+    expect(summarize(defaultPlan(), { settings: {}, missing: [] }).adminPassword).toBe("kept");
     const p = defaultPlan();
     expect(summarize({ ...p, settings: { ...p.settings, adminPassword: "x" } }).adminPassword).toBe("changed");
     expect(

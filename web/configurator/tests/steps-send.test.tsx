@@ -104,7 +104,8 @@ beforeEach(() => {
   store.data.value = { failed: new Set(), places: PLACES, municipalities: MUNIS };
   prefs.set("configurator.includeDefaults", "0");
   chooseLocation({ type: "city", label: "Ronse", place: RONSE } as never);
-  store.plan.value = { ...store.plan.value, nameSuffix: "Kluisberg" };
+  // These boards were not read: "Don't set a password" is ticked unless a test says otherwise.
+  store.plan.value = { ...store.plan.value, nameSuffix: "Kluisberg", adminPasswordSkip: true };
   writeText = vi.fn(async () => undefined);
   Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
 });
@@ -190,7 +191,7 @@ describe("Send step: script", () => {
     render(<Send />);
     expect(screen.getByText("Name & location")).toBeTruthy();
     expect(screen.getByText("BE-RON-Kluisberg", { selector: ".rv-to" })).toBeTruthy();
-    const kept = screen.getByText(/Admin password stays as it is/);
+    const kept = screen.getByText(/No admin password set: the factory password stays/);
     expect(kept.closest(".review-table")).not.toBeNull();
     const column = document.querySelector(".review-changes") as HTMLElement;
     const cards = [...column.children].map((c) => c.className);
@@ -771,7 +772,39 @@ describe("Send step: Before you send", () => {
     fireEvent.input(screen.getByLabelText("Guest password"), { target: { value: "hello" } });
     expect(store.plan.value.settings.adminPassword).toBe("secret");
     expect(store.plan.value.settings.guestPassword).toBe("hello");
-    expect(screen.getByPlaceholderText("Leave empty to keep the current one")).toBeTruthy();
+  });
+
+  it("a new board (not read) asks for an admin password, or Don't set a password with a warning", async () => {
+    await connect({ ver: VER });
+    store.plan.value = { ...store.plan.value, adminPasswordSkip: false };
+    render(<Send />);
+    expect(admin().placeholder).toBe("Set one for this new board");
+    expect(applyButton().disabled).toBe(true);
+    expect(screen.getByText("Set an admin password, or tick Don't set a password.", { selector: "li" })).toBeTruthy();
+    expect(screen.getByText(/Admin password not chosen yet/)).toBeTruthy();
+    const skip = screen.getByRole("checkbox", { name: "Don't set a password" }) as HTMLInputElement;
+    expect(skip.checked).toBe(false);
+    expect(screen.queryByText(/factory password/)).toBeNull();
+    fireEvent.click(skip);
+    expect(store.plan.value.adminPasswordSkip).toBe(true);
+    expect(screen.getByText(/Anyone who reaches it can log in with the factory password "password"/)).toBeTruthy();
+    expect(applyButton().disabled).toBe(false);
+    expect(screen.getByText(/No admin password set: the factory password stays/)).toBeTruthy();
+    fireEvent.click(skip);
+    fireEvent.input(admin(), { target: { value: "s3cret" } });
+    expect(applyButton().disabled).toBe(false);
+    expect(screen.queryByRole("checkbox", { name: "Don't set a password" })).toBeNull();
+    expect(screen.getByText(/Admin password will be changed/)).toBeTruthy();
+  });
+
+  it("a read repeater keeps its admin password when the field is empty", () => {
+    store.snapshot.value = { settings: {}, missing: [] };
+    store.plan.value = { ...store.plan.value, adminPasswordSkip: false };
+    render(<Send />);
+    expect(admin().placeholder).toBe("Leave empty to keep the current one");
+    expect(screen.queryByRole("checkbox", { name: "Don't set a password" })).toBeNull();
+    expect(screen.queryByText("Set an admin password, or tick Don't set a password.")).toBeNull();
+    expect(screen.getByText(/Admin password stays as it is/)).toBeTruthy();
   });
 
   it("shows the radio, duty cycle and TX power on one read-only line that links to Settings", () => {

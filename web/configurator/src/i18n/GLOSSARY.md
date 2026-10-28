@@ -22,10 +22,10 @@ Dutch uses "je"; French uses "vous". Both stay short and plain, in the tone of t
 | zero-hop advert | zero-hop advert | advert zero-hop | |
 | flood advert | flood advert | advert en flood | |
 | hop | hop | saut | |
-| region (MeshCore scope) | region, regions | région, régions | kept as "region" in Dutch on purpose; "regio" would be the plain word |
-| region code | regioncode | code de région | |
-| home region | thuisregion | région d'attache | |
-| untagged (traffic without a region) | zonder region | sans région | |
+| region (MeshCore scope) | regio, regio's | région, régions | the Belgian community wiki says "regio", "regio's" and "regio-scope" |
+| region code | regiocode | code de région | |
+| home region | thuisregio | région d'attache | |
+| untagged (traffic without a region) | zonder regio | sans région | |
 | uploader | uploader | uploader | |
 | claim / unclaim (a node) | claimen / vrijgeven | revendiquer / libérer | |
 | observer | observer | observateur | |
@@ -68,7 +68,7 @@ Dutch uses "je"; French uses "vous". Both stay short and plain, in the tone of t
 | Connect | Verbinden | Connexion |
 | Place | Plaats | Lieu |
 | Name | Naam | Nom |
-| Regions | Regions | Régions |
+| Regions | Regio's | Régions |
 | Settings | Instellingen | Réglages |
 | Send | Versturen | Envoi |
 | Hilltop / Foothills / Suburban / Local / Custom | Heuveltop / Heuvelflank / Woonwijk / Lokaal / Eigen | Sommet / Coteau / Quartier / Local / Personnalisé |

@@ -156,7 +156,7 @@ export const store = {
   log: signal<LogLine[]>([]),
   device: signal<DeviceState>({ status: "none", link: null, firmware: null }),
   step: signal<Step>("connect"),
-  sheet: signal<"peek" | "half" | "full">("half"),
+  sheet: signal<SheetHeight>("full"),
   layers: signal(storedLayers()),
   theme: signal<Theme>(storedTheme()),
   data: signal<AppData>({ failed: new Set() }),
@@ -164,6 +164,23 @@ export const store = {
 };
 
 export const visited = signal<ReadonlySet<Step>>(new Set<Step>([store.step.peek()]));
+
+export type SheetHeight = "peek" | "half" | "full";
+
+/** The phone sheet's height as each step opens: high on the text steps, half where the map matters. */
+export const SHEET_FOR: Record<Step, SheetHeight> = {
+  connect: "full",
+  place: "half",
+  name: "full",
+  regions: "half",
+  settings: "full",
+  send: "full",
+};
+
+// Each step opens at its own height; the grab handle changes it until the next step.
+effect(() => {
+  store.sheet.value = SHEET_FOR[store.step.value];
+});
 
 effect(() => {
   const s = store.step.value;

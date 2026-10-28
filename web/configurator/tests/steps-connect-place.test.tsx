@@ -290,6 +290,37 @@ describe("Place step", () => {
     expect(screen.getByText("BE-RON-")).toBeTruthy();
   });
 
+  it("a search hit is picked when the finger lifts, before any click (iPhone keyboard)", () => {
+    render(<Place />);
+    fireEvent.input(screen.getByRole("combobox", { name: "Search a place" }), { target: { value: "Ronse" } });
+    const hit = screen.getAllByRole("option")[0];
+    fireEvent.pointerDown(hit, { clientY: 100, pointerType: "touch" });
+    expect(store.plan.value.anchor).toBeNull();
+    fireEvent.pointerUp(hit, { clientY: 104, pointerType: "touch" });
+    expect(store.plan.value.anchor?.place?.city_code).toBe("beron");
+    expect(screen.queryByRole("option")).toBeNull();
+  });
+
+  it("a finger that scrolls the list (moves 10 px or more) picks nothing", () => {
+    render(<Place />);
+    fireEvent.input(screen.getByRole("combobox", { name: "Search a place" }), { target: { value: "Ronse" } });
+    const hit = screen.getAllByRole("option")[0];
+    fireEvent.pointerDown(hit, { clientY: 100, pointerType: "touch" });
+    fireEvent.pointerUp(hit, { clientY: 130, pointerType: "touch" });
+    expect(store.plan.value.anchor).toBeNull();
+  });
+
+  it("a pick on lift is not repeated by the click that follows", () => {
+    render(<Place />);
+    fireEvent.input(screen.getByRole("combobox", { name: "Search a place" }), { target: { value: "Ronse" } });
+    const hit = screen.getAllByRole("option")[0];
+    fireEvent.pointerDown(hit, { clientY: 100 });
+    fireEvent.pointerUp(hit, { clientY: 100 });
+    const picked = store.plan.value;
+    fireEvent.click(hit);
+    expect(store.plan.value).toBe(picked);
+  });
+
   it("picking the municipality the pin is already in keeps the precise location", () => {
     store.plan.value = { ...store.plan.value, location: { lat: 50.745, lon: 3.6 } };
     render(<Place />);

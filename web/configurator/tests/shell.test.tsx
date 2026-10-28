@@ -6,7 +6,7 @@ import { App } from "../src/app/App";
 import { Dialog } from "../src/app/Dialog";
 import { Notice } from "../src/app/Notice";
 import { defaultPlan } from "../src/core/plan";
-import { store, visited } from "../src/state/store";
+import { store, visited, type Step } from "../src/state/store";
 
 function stubWidth(px: number) {
   vi.stubGlobal("matchMedia", (q: string) => ({
@@ -150,29 +150,56 @@ describe("app shell", () => {
     expect(store.sheet.value).toBe("full");
   });
 
-  it("forces the sheet to full height on Settings and Send and restores the user's height after", () => {
+  it("opens the sheet high on text steps, half on map steps, full on Settings and Send", () => {
     stubWidth(500);
-    store.sheet.value = "peek";
     const { container } = render(<App />);
     const panel = () => container.querySelector(".panel")!;
-    expect(panel().classList.contains("peek")).toBe(true);
-    act(() => {
-      store.step.value = "settings";
-    });
+    const go = (step: Step) =>
+      act(() => {
+        store.step.value = step;
+      });
+    go("place");
+    expect(panel().classList.contains("half")).toBe(true);
+    go("name");
     expect(panel().classList.contains("full")).toBe(true);
+    go("regions");
+    expect(panel().classList.contains("half")).toBe(true);
+    go("settings");
+    expect(panel().classList.contains("full")).toBe(true);
+    go("send");
+    expect(panel().classList.contains("full")).toBe(true);
+    go("connect");
+    expect(panel().classList.contains("full")).toBe(true);
+  });
+
+  it("keeps the height the user chose until the next step", () => {
+    stubWidth(500);
+    const { container } = render(<App />);
     act(() => {
       store.step.value = "place";
     });
-    expect(panel().classList.contains("peek")).toBe(true);
+    fireEvent.click(container.querySelector(".grab")!);
+    expect(store.sheet.value).toBe("full");
+    fireEvent.click(container.querySelector(".grab")!);
+    expect(container.querySelector(".panel")!.classList.contains("peek")).toBe(true);
     act(() => {
-      store.step.value = "send";
+      store.step.value = "name";
     });
-    expect(panel().classList.contains("full")).toBe(true);
+    expect(store.sheet.value).toBe("full");
+  });
+
+  it("each step opens at its top: the step body is a fresh scroll box", () => {
+    const { container } = render(<App />);
     act(() => {
-      store.step.value = "regions";
+      store.step.value = "place";
     });
-    expect(panel().classList.contains("peek")).toBe(true);
-    store.sheet.value = "half";
+    const first = container.querySelector(".panel-body")!;
+    act(() => {
+      store.step.value = "name";
+    });
+    const second = container.querySelector(".panel-body")!;
+    expect(second).not.toBe(first);
+    expect(second.scrollTop).toBe(0);
   });
 
   it("lets the top bar chips shrink at 360 px", () => {

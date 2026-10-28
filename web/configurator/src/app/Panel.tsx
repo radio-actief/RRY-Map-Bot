@@ -77,7 +77,8 @@ export function Panel() {
           </Notice>
         </div>
       ) : null}
-      <StepBody step={step} />
+      {/* Keyed by step: each step opens at its top in a fresh scroll box. */}
+      <StepBody key={step} step={step} />
       {/* Settings and Send carry their own Back / Next. */}
       {isWide(step) ? null : (
         <footer class="panel-foot">

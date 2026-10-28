@@ -28,6 +28,11 @@ function anchorPlace(a: Anchor | null): string {
   return anchorLabel(a);
 }
 
+/** A finger that moved this far between down and up was scrolling the list, not picking. */
+const MOVE_PX = 10;
+/** The click that follows a pick on lift is the same tap. */
+const CLICK_AFTER_LIFT_MS = 600;
+
 const canLocate = () =>
   typeof isSecureContext !== "undefined" && isSecureContext && typeof navigator !== "undefined" && "geolocation" in navigator;
 
@@ -45,9 +50,27 @@ function LocationSearch() {
     setOpen(false);
   }, [anchor]);
 
+  // Where the finger went down on a hit; lifting it on the same hit, without scrolling the list, picks it.
+  const press = useRef<{ choice: LocationChoice; y: number } | null>(null);
+  const lastPick = useRef(0);
+  const input = useRef<HTMLInputElement>(null);
+
   function pick(c: LocationChoice) {
+    lastPick.current = Date.now();
     chooseLocation(c);
     setOpen(false);
+  }
+
+  /**
+   * Picked when the finger lifts: on an iPhone the keyboard closing (and the blur with it) moves
+   * the list and swallows the click. The click still picks for a mouse or keyboard, once.
+   */
+  function release(c: LocationChoice, e: PointerEvent) {
+    const down = press.current;
+    press.current = null;
+    if (!down || down.choice !== c || Math.abs(e.clientY - down.y) >= MOVE_PX) return;
+    pick(c);
+    input.current?.blur();
   }
 
   function onKey(e: KeyboardEvent) {
@@ -70,6 +93,7 @@ function LocationSearch() {
   return (
     <div class="search">
       <input
+        ref={input}
         type="text"
         role="combobox"
         aria-label={t("place.search")}
@@ -103,7 +127,12 @@ function LocationSearch() {
                 aria-selected={i === active}
                 class={i === active ? "active" : ""}
                 onMouseDown={(e) => e.preventDefault()}
-                onClick={() => pick(c)}
+                onPointerDown={(e) => (press.current = { choice: c, y: e.clientY })}
+                onPointerUp={(e) => release(c, e)}
+                onPointerCancel={() => (press.current = null)}
+                onClick={() => {
+                  if (Date.now() - lastPick.current > CLICK_AFTER_LIFT_MS) pick(c);
+                }}
               >
                 {c.label}
               </li>

@@ -89,6 +89,13 @@
   border-top: 1px solid var(--line);
   border-radius: 14px 14px 0 0;
   box-shadow: 0 -4px 16px var(--shadow);
+  transition: height 0.25s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel.sheet {
+    transition: none;
+  }
 }
 
 .panel.sheet.peek {

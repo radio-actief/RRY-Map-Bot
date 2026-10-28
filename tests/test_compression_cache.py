@@ -87,3 +87,22 @@ def test_small_and_other_responses_are_left_alone(client):
     assert 'Content-Encoding' not in r.headers
     img = client.get('/favicon-32.png', headers=GZ)
     assert 'Content-Encoding' not in img.headers
+
+
+def test_geojson_is_served_as_geo_json_and_gzipped(client, monkeypatch):
+    import mimetypes
+    mimetypes.init()
+    monkeypatch.delitem(mimetypes.types_map, '.geojson', raising=False)  # not every image knows it
+    raw = open(os.path.join(ROOT, 'data', 'countries.geojson'), 'rb').read()
+    r = client.get('/data/countries.geojson', headers=GZ)
+    assert r.mimetype == 'application/geo+json'
+    assert r.headers['Content-Encoding'] == 'gzip'
+    assert gzip.decompress(r.data) == raw
+
+
+def test_head_answers_with_the_same_headers_as_get(client):
+    get = client.get('/data/be-locode.json', headers=GZ)
+    head = client.head('/data/be-locode.json', headers=GZ)
+    assert head.status_code == 200
+    for name in ('Content-Encoding', 'Content-Length', 'ETag', 'Cache-Control'):
+        assert head.headers.get(name) == get.headers.get(name), name

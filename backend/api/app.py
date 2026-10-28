@@ -125,7 +125,7 @@ def compress_and_cache(resp):
         return resp
     resp.headers['Cache-Control'] = policy
     resp.vary.add('Accept-Encoding')
-    if (resp.status_code != 200 or request.method != 'GET' or resp.mimetype not in GZIP_TYPES
+    if (resp.status_code != 200 or request.method not in ('GET', 'HEAD') or resp.mimetype not in GZIP_TYPES
             or 'Content-Encoding' in resp.headers):
         return resp
     if not resp.get_etag()[0]:
@@ -1579,6 +1579,8 @@ def serve_static(path):
         mimetype = 'application/javascript'
     elif path.endswith('.json'):
         mimetype = 'application/json'
+    elif path.endswith('.geojson'):
+        mimetype = 'application/geo+json'
     elif path.endswith('.ico'):
         mimetype = 'image/x-icon'
     return send_from_directory(PROJECT_ROOT, path, mimetype=mimetype)

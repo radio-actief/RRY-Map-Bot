@@ -12,6 +12,7 @@ import re
 import threading
 from collections import OrderedDict
 from typing import Optional
+from urllib.parse import urlparse
 from flask import Flask, jsonify, request, send_from_directory, session, redirect, Response, make_response
 from flask_cors import CORS
 from flask_session import Session
@@ -68,8 +69,36 @@ STATIC_ROOT_FILES = {
 STATIC_DIRS = ('css/', 'img/', 'lib/', 'src/')
 DATA_SUFFIXES = ('.json', '.geojson')
 
-# Configure session
-app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', secrets.token_hex(32))
+def _secret_key(data_dir: str) -> str:
+    """The key that signs session cookies: FLASK_SECRET_KEY, or one made once and kept in the data
+    directory, so a restart or deploy doesn't sign everyone out."""
+    key = os.getenv('FLASK_SECRET_KEY')
+    if key:
+        return key
+    path = os.path.join(data_dir, '.flask_secret_key')
+    try:
+        with open(path, encoding='utf-8') as f:
+            kept = f.read().strip()
+        if len(kept) >= 64:
+            return kept
+    except OSError:
+        pass
+    key = secrets.token_hex(32)
+    try:
+        os.makedirs(data_dir, exist_ok=True)
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, 'w', encoding='utf-8') as f:
+            f.write(key)
+        os.chmod(path, 0o600)
+    except OSError as e:
+        print(f"Warning: could not keep the session key in {data_dir} ({e}); sign-ins end at restart")
+    return key
+
+
+# Configure session: key and session files in the data directory, which outlives deploys.
+_DATA_DIR = os.path.dirname(os.path.abspath(os.getenv('DATABASE_PATH', 'data/belgian_nodes.db')))
+app.config['SECRET_KEY'] = _secret_key(_DATA_DIR)
+app.config['SESSION_FILE_DIR'] = os.path.join(_DATA_DIR, 'sessions')
 app.config['SESSION_TYPE'] = 'filesystem'
 app.config['SESSION_PERMANENT'] = False
 app.config['SESSION_USE_SIGNER'] = True
@@ -81,9 +110,21 @@ app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 # Initialize session
 Session(app)
 
-# Enable CORS for all routes (needed if frontend is on different origin)
-# Allow credentials for session cookies
-CORS(app, supports_credentials=True)
+# Other sites may read the public API, never with the visitor's cookies: the map's own pages are
+# on the same origin and need no CORS. Sign-in and claim endpoints are not shared at all.
+CORS(app, resources={r"/api/v1/*": {"origins": "*"}}, supports_credentials=False, send_wildcard=True)
+
+
+@app.before_request
+def _same_site_only():
+    """Changes (claim, unclaim, logout) only from the map's own pages: the browser's Origin (or,
+    failing that, Referer) must be this site, so another site can't act with the visitor's cookie."""
+    if request.method in ('GET', 'HEAD', 'OPTIONS'):
+        return None
+    source = request.headers.get('Origin') or request.headers.get('Referer') or ''
+    if urlparse(source).netloc != request.host:
+        return jsonify({'error': 'cross_site_request'}), 403
+    return None
 
 
 # Compression and cache lifetimes for the configurator, the data files and the node list
@@ -1371,9 +1412,10 @@ def auth_callback():
     return redirect(_after_auth_target(next_page, 'login=success'))
 
 
-@app.route('/auth/logout')
+@app.route('/auth/logout', methods=['POST'])
 def auth_logout():
-    """Logout user and clear session."""
+    """Logout user and clear session. A POST from the map's own pages only, so a link elsewhere
+    can't sign someone out."""
     session.clear()
     return redirect(_after_auth_target(_safe_next(request.args.get('next')), 'logout=success'))
 
@@ -1680,14 +1722,18 @@ if __name__ == '__main__':
     print("Initializing database...")
     init_database()
     print("Database ready.\n")
-    # Run Flask development server
-    # In production, use a proper WSGI server like gunicorn
     port = int(os.getenv('FLASK_PORT', os.getenv('API_PORT', 8000)))
     host = os.getenv('FLASK_HOST', os.getenv('API_HOST', '0.0.0.0'))
     debug = os.getenv('FLASK_DEBUG', 'False').lower() == 'true'
     
     print(f"Starting RRY-Map-Bot API server on {host}:{port}")
     print(f"API endpoint: http://{host}:{port}/api/v1/belgian-nodes")
-    
-    app.run(host=host, port=port, debug=debug)
+
+    if debug:
+        # Flask's own server, with reloading and the debugger: for development only.
+        app.run(host=host, port=port, debug=True)
+    else:
+        # A production server (Waitress: pure Python, no extra system packages).
+        from waitress import serve
+        serve(app, host=host, port=port, threads=int(os.getenv('API_THREADS', '8')), ident='meshmap')
 

@@ -154,7 +154,10 @@ export function AccountMenu() {
               <div class="menu-user">
                 <span>@{user}</span>
               </div>
-              <a href={`/auth/logout?next=${PAGE}`}>{t("menu.logOut")}</a>
+              {/* A POST from this page: the server refuses a logout by link or from another site. */}
+              <form class="menu-logout" method="post" action={`/auth/logout?next=${PAGE}`}>
+                <button type="submit">{t("menu.logOut")}</button>
+              </form>
             </>
           ) : (
             <a href={`/auth/login?next=${PAGE}`}>{t("menu.signIn")}</a>

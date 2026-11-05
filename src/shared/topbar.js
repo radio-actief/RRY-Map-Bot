@@ -109,7 +109,14 @@
       mine.hidden = true;
       row.appendChild(mine);
       menu.appendChild(row);
-      menu.appendChild(link("/auth/logout?next=" + here, t("menu.logOut")));
+      // A POST from this page: the server refuses a logout by link or from another site.
+      var out = el("form", "menu-logout");
+      out.method = "post";
+      out.setAttribute("action", "/auth/logout?next=" + here);
+      var outBtn = el("button", null, t("menu.logOut"));
+      outBtn.type = "submit";
+      out.appendChild(outBtn);
+      menu.appendChild(out);
       showMyNodes();
     } else {
       menu.appendChild(link("/auth/login?next=" + here, t("menu.signIn")));

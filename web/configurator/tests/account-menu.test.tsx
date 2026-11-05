@@ -36,7 +36,10 @@ describe("account menu", () => {
     mockMe({ authenticated: true, user: { id: "1", username: "tester" } });
     render(<AccountMenu />);
     await screen.findByText("@tester");
-    expect(screen.getByRole("link", { name: "Log out", hidden: true }).getAttribute("href")).toBe("/auth/logout?next=/configurator");
+    // Log out is a POST (a link elsewhere can't sign someone out).
+    const out = screen.getByRole("button", { name: "Log out", hidden: true });
+    const form = out.closest("form")!;
+    expect([form.getAttribute("method"), form.getAttribute("action")]).toEqual(["post", "/auth/logout?next=/configurator"]);
     expect(document.querySelector(".signin-chip")).toBeNull();
   });
 

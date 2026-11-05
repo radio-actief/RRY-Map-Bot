@@ -31,8 +31,8 @@ def client(temp_db, monkeypatch):
 
 def test_web_claim_and_unclaim_are_logged_as_web(client, temp_db):
     pk = "c1" * 32
-    assert client.post(f"/api/v1/nodes/{pk}/claim").status_code == 200
-    assert client.post(f"/api/v1/nodes/{pk}/unclaim").status_code == 200
+    assert client.post(f"/api/v1/nodes/{pk}/claim", headers={"Origin": "http://localhost"}).status_code == 200
+    assert client.post(f"/api/v1/nodes/{pk}/unclaim", headers={"Origin": "http://localhost"}).status_code == 200
     conn = sqlite3.connect(temp_db)
     rows = conn.execute("SELECT action, discord_owner_id, source FROM node_claims ORDER BY id").fetchall()
     conn.close()

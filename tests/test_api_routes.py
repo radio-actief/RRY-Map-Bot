@@ -12,6 +12,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import backend.api.app as api  # noqa: E402
 import backend.auth as auth  # noqa: E402
 
+# What a browser sends with a POST from the map's own pages.
+SAME_SITE = {"Origin": "http://localhost"}
+
 
 class TestStaticFiles(unittest.TestCase):
     def setUp(self):
@@ -137,20 +140,20 @@ class TestAuthNext(unittest.TestCase):
         self.addCleanup(patcher.stop)
 
     def test_logout_returns_to_a_tool_page(self):
-        r = self.client.get("/auth/logout?next=/stats")
+        r = self.client.post("/auth/logout?next=/stats", headers=SAME_SITE)
         self.assertEqual(r.status_code, 302)
         self.assertEqual(r.headers["Location"], "/stats")
 
     def test_logout_home_keeps_the_success_flag(self):
         for query in ("?next=/", ""):
             with self.subTest(query=query):
-                r = self.client.get("/auth/logout" + query)
+                r = self.client.post("/auth/logout" + query, headers=SAME_SITE)
                 self.assertEqual(r.headers["Location"], "/?logout=success")
 
     def test_logout_ignores_other_targets(self):
         for target in ("https://evil.example", "//evil.example", "/foo"):
             with self.subTest(target=target):
-                r = self.client.get("/auth/logout", query_string={"next": target})
+                r = self.client.post("/auth/logout", query_string={"next": target}, headers=SAME_SITE)
                 self.assertEqual(r.headers["Location"], "/?logout=success")
 
     def test_login_stores_a_tool_page(self):

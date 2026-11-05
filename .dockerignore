@@ -16,8 +16,8 @@ ENV/
 
 # Environment
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
 
 # IDE
 .vscode/
@@ -62,3 +62,10 @@ Dockerfile
 # Build output and macOS resource forks
 **/._*
 dist/
+
+# Backups, sign-in sessions and the session key never go into the image
+backups/
+*.db.gz
+data/*.db*
+data/sessions/
+data/.flask_secret_key

@@ -131,3 +131,6 @@ rry-map-bot.env
 # Uncomment the line below if you want to commit package-lock.json
 # !package-lock.json
 
+# Sign-in sessions and the key that signs them (made by the API in the data directory)
+data/sessions/
+data/.flask_secret_key

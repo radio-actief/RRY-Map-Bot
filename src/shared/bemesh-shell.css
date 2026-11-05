@@ -299,6 +299,11 @@ button {
   background: var(--gold-bg);
 }
 
+/* Log out is a small form (a POST); it takes no room of its own. */
+.menu-logout {
+  margin: 0;
+}
+
 .menu hr {
   margin: 4px 0;
   border: 0;

@@ -84,8 +84,9 @@ export default async function (ctx) {
     await me.locator("#menu-toggle").click();
     const menu = text(await me.locator("#page-menu").textContent());
     ctx.check(`${name}: signed in ☰ shows @tester and Log out`, menu.includes("@tester") && menu.includes("Log out") && !menu.includes("Sign in"), menu);
-    const out = (await me.locator('#page-menu a:has-text("Log out")').getAttribute("href")) || "";
-    ctx.check(`${name}: Log out returns to this page`, out === `/auth/logout?next=${path}`, out);
+    // Log out is a form POST back to this page; a plain link can't sign anyone out.
+    const out = await me.locator('#page-menu form:has(button:has-text("Log out"))').evaluate((f) => `${f.getAttribute("method")} ${f.getAttribute("action")}`).catch(() => "none");
+    ctx.check(`${name}: Log out returns to this page`, out === `post /auth/logout?next=${path}`, out);
     if (path === "/") {
       ctx.check("topbar /: ☰ shows My nodes next to @tester", /@tester\s*My nodes \d+/.test(menu), menu);
     } else if (path !== "/configurator") {

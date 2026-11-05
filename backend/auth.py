@@ -25,6 +25,10 @@ from config.config import (
 )
 
 
+
+# Seconds to wait for Discord; without a limit a stalled call would hang the sign-in request.
+DISCORD_TIMEOUT = 10
+
 def get_authorization_url(state: Optional[str] = None) -> str:
     """
     Generate Discord OAuth2 authorization URL.
@@ -81,7 +85,8 @@ def exchange_code_for_token(code: str) -> Optional[Dict[str, Any]]:
         response = requests.post(
             f'{DISCORD_API_BASE_URL}/oauth2/token',
             data=data,
-            headers=headers
+            headers=headers,
+            timeout=DISCORD_TIMEOUT,
         )
         response.raise_for_status()
         return response.json()
@@ -107,7 +112,8 @@ def get_user_info(access_token: str) -> Optional[Dict[str, Any]]:
     try:
         response = requests.get(
             f'{DISCORD_API_BASE_URL}/users/@me',
-            headers=headers
+            headers=headers,
+            timeout=DISCORD_TIMEOUT,
         )
         response.raise_for_status()
         return response.json()
@@ -133,7 +139,8 @@ def get_user_guilds(access_token: str) -> Optional[list]:
     try:
         response = requests.get(
             f'{DISCORD_API_BASE_URL}/users/@me/guilds',
-            headers=headers
+            headers=headers,
+            timeout=DISCORD_TIMEOUT,
         )
         response.raise_for_status()
         return response.json()
@@ -248,7 +255,8 @@ def verify_guild_membership_bot(user_id: str, guild_id: Optional[str] = None) ->
     try:
         response = requests.get(
             f'{DISCORD_API_BASE_URL}/guilds/{guild_id}/members/{user_id}',
-            headers=headers
+            headers=headers,
+            timeout=DISCORD_TIMEOUT,
         )
         
         # 200 = user is a member

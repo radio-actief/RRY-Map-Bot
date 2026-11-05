@@ -41,6 +41,27 @@ export default async function (ctx) {
   ctx.check("stats legend: growth and decline are squares, the node-type lines are lines", legend.length >= 3 && !legend[0].line && !legend[1].line && lines === legend.length - 2, JSON.stringify(legend));
   await tab.close();
 
+  // Phone: the chart keeps a usable plot area under its legend and date labels.
+  const phoneChart = await ctx.open("/stats", { width: 390, height: 1500, setup: (pg) => mockStats(pg) });
+  await phoneChart.waitForSelector("#stats-chart .apexcharts-grid", { timeout: 15000 }).catch(() => {});
+  await phoneChart.waitForTimeout(800);
+  const plot = await phoneChart.evaluate(() => Math.round(document.querySelector("#stats-chart .apexcharts-grid")?.getBoundingClientRect().height || 0));
+  ctx.check("stats chart (390): the plot area is at least 200px tall", plot >= 200, `${plot}px`);
+  await phoneChart.close();
+
+  // Laptop widths, one row of eight tiles: every value fits its tile (Active has three numbers).
+  for (const width of [1024, 1100, 1200, 1280, 1366, 1440]) {
+    const p = await ctx.open("/stats", { width, height: 900, setup: (pg) => mockStats(pg) });
+    await p.waitForFunction(() => /\d/.test(document.getElementById("stats-chip-new")?.textContent || ""), null, { timeout: 15000 }).catch(() => {});
+    const cut = await p.locator(".stats-tiles .tile").evaluateAll((tiles) =>
+      tiles.flatMap((t) => [...t.querySelectorAll(".tile-value, .tile-label")])
+        .filter((el) => el.scrollWidth > el.clientWidth + 1)
+        .map((el) => `${el.textContent.trim()} ${el.clientWidth}/${el.scrollWidth}`),
+    );
+    ctx.check(`stats tiles (${width}): every tile's label and value fit`, !cut.length, cut.join("; "));
+    await p.close();
+  }
+
   for (const [scheme, ok, bad, rep] of [
     ["light", "#1a7f37", "#c62828", "#4caf50"],
     ["dark", "#3fb950", "#f85149", "#4caf50"],

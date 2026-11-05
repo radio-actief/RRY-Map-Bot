@@ -150,7 +150,9 @@ button.chip {
 /* Row 1: number tiles */
 .stats-tiles {
   display: grid;
-  grid-template-columns: repeat(8, minmax(0, 1fr));
+  /* One row of eight: Network, the four types, Active (three numbers, so a wider track with a
+   * minimum), Claimed, Discord users. */
+  grid-template-columns: minmax(0, 1.2fr) repeat(4, minmax(0, 1fr)) minmax(170px, 1.5fr) repeat(2, minmax(0, 1fr));
   gap: 8px;
 }
 

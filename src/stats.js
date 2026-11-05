@@ -60,7 +60,8 @@
             {
               breakpoint: 641,
               options: {
-                chart: { offsetX: 0, offsetY: -4 },
+                // A fixed height on a phone: sized from the width, the legend and dates left the plot cramped.
+                chart: { offsetX: 0, offsetY: -4, height: 360 },
                 grid: {
                   padding: { top: 2, right: 0, bottom: 2, left: 0 },
                 },

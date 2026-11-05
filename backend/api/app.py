@@ -118,7 +118,9 @@ CORS(app, resources={r"/api/v1/*": {"origins": "*"}}, supports_credentials=False
 @app.before_request
 def _same_site_only():
     """Changes (claim, unclaim, logout) only from the map's own pages: the browser's Origin (or,
-    failing that, Referer) must be this site, so another site can't act with the visitor's cookie."""
+    failing that, Referer) must be this site, so another site can't act with the visitor's cookie.
+    A proxy must keep the Host header and must not send Referrer-Policy: no-referrer (browsers then
+    send Origin: null), see DEPLOYMENT.md."""
     if request.method in ('GET', 'HEAD', 'OPTIONS'):
         return None
     source = request.headers.get('Origin') or request.headers.get('Referer') or ''

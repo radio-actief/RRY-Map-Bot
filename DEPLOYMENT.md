@@ -85,8 +85,9 @@ The bot will:
 ### API Server Service
 
 - **Container**: `rry-map-bot-api`
-- **Command**: `python3 backend/api/app.py`
-- **Port**: `8000` (exposed to host)
+- **Command**: `python3 backend/api/app.py` (Waitress; Flask's own server only with
+  `FLASK_DEBUG=true`)
+- **Port**: `8000`, on the machine only; put a reverse proxy with HTTPS in front
 - **Restart**: `unless-stopped`
 - **Health Check**: HTTP check on `/api/v1/health`
 
@@ -96,6 +97,14 @@ Endpoints:
 - `GET /api/v1/health` - Health check (API process only)
 - `GET /api/v1/health/sync` - Age of the last sync run: 200 `ok`, or 503 `stale` (older than twice the sync interval) / `no_history`; point uptime monitoring here
 - `GET /` - Web map interface
+
+Behind the reverse proxy:
+- Keep the browser's `Host` header (the default): claim, unclaim and log out are refused unless
+  the request's `Origin` (or `Referer`) is the site itself.
+- Don't send `Referrer-Policy: no-referrer`: browsers then send `Origin: null` on the site's own
+  POSTs, and claim, unclaim and log out stop working.
+- Set `SESSION_COOKIE_SECURE=true` when the site is on HTTPS. Sign-ins are kept in
+  `data/sessions/`, signed with `FLASK_SECRET_KEY` (or a key made once in `data/`).
 
 ### Sync Service
 

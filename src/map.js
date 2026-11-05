@@ -1419,6 +1419,16 @@ const API_ERRORS = {
   "Failed to claim node. Node may not exist, may already be claimed, or may be inactive.": "map.claim.failedDefault",
   "Failed to unclaim node.": "map.unclaim.failedDefault",
 };
+/** Only a Discord invite may be opened from an address or a reply: never another site. */
+function isDiscordInvite(url) {
+  try {
+    const u = new URL(url);
+    return u.protocol === "https:" && (u.hostname === "discord.gg" || ((u.hostname === "discord.com" || u.hostname === "www.discord.com") && u.pathname.startsWith("/invite/")));
+  } catch {
+    return false;
+  }
+}
+
 function apiErrorText(message, fallbackKey) {
   if (!message) return t(fallbackKey);
   return Object.prototype.hasOwnProperty.call(API_ERRORS, message) ? t(API_ERRORS[message]) : message;
@@ -1800,7 +1810,7 @@ createApp({
           refreshOpenPopups();
         } else {
           // Handle specific error cases
-          if (res.status === 403 && data.discord_invite_url) {
+          if (res.status === 403 && isDiscordInvite(data.discord_invite_url)) {
             const message = t("map.claim.membership");
             if (confirm(message + "\n\n" + t("map.claim.openInvite"))) {
               window.open(data.discord_invite_url, "_blank");
@@ -2666,7 +2676,7 @@ createApp({
       const error = loginReturnParams.get("error");
       const inviteUrl = loginReturnParams.get("invite_url");
 
-      if (error === "not_guild_member" && inviteUrl) {
+      if (error === "not_guild_member" && isDiscordInvite(inviteUrl)) {
         const message = t("map.claim.membership");
         if (confirm(message + "\n\n" + t("map.claim.openInvite"))) {
           window.open(inviteUrl, "_blank");

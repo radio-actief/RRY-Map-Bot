@@ -19,7 +19,7 @@ import {
 } from "../core/blocks";
 import { checkOwnerInfo, OWNER_INFO_MAX } from "../core/naming";
 import { summarize, type Plan } from "../core/plan";
-import { FLOOD_ALLOWANCE, SETTINGS, validateSetting, type SettingDef, type SettingKey } from "../core/settings";
+import { emptyValue, FLOOD_ALLOWANCE, SETTINGS, validateSetting, type SettingDef, type SettingKey } from "../core/settings";
 import { siteOf, timingOf } from "../core/site";
 import { hasText, t } from "../i18n/t";
 import { busy, store, type Step } from "../state/store";
@@ -106,7 +106,7 @@ function Control({ def, raw, invalid }: { def: SettingDef; raw: string; invalid:
       type="text"
       inputMode="decimal"
       value={raw}
-      placeholder={String(def.formDefault ?? "")}
+      placeholder={String(emptyValue(def.key, def) ?? "")}
       onInput={onInput}
     />
   );
@@ -256,6 +256,7 @@ function FloodMaxField({ def }: { def: SettingDef }) {
             aria-invalid={invalid || undefined}
             readOnly={follow}
             value={rawOf(plan, "floodMax")}
+            placeholder={String(emptyValue("floodMax", def) ?? "")}
             onInput={(e) => setSetting("floodMax", e.currentTarget.value)}
           />
           <label class="toggle">

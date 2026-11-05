@@ -165,8 +165,8 @@ export type HopLevel = keyof typeof FLOOD_ALLOWANCE;
 /** The #BEmesh hops: the preset closest to 5 hops (4 unscoped, 6 for adverts, 10 at most). */
 export const BEMESH_HOPS: HopLevel = "minimal";
 
-/** What a cleared field means: the #BEmesh value for the hop limits, else the form's own default. */
-function emptyValue(key: SettingKey, s: SettingDef): string | number | null {
+/** What a cleared field means (and what its hint shows): the #BEmesh value for the hop limits, else the form's own default. */
+export function emptyValue(key: SettingKey, s: SettingDef): string | number | null {
   if (key === "txPower") return null;
   if (key === "floodMaxUnscoped") return FLOOD_ALLOWANCE[BEMESH_HOPS][0];
   if (key === "floodMaxAdvert") return FLOOD_ALLOWANCE[BEMESH_HOPS][1];

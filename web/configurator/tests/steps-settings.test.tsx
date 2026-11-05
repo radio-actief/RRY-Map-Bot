@@ -245,6 +245,13 @@ describe("Settings step", () => {
     expect(fold.open).toBe(true);
   });
 
+  it("an empty hop field hints the value it will send: the #BEmesh 4/6/10", () => {
+    resetPlan(newPlan());
+    render(<SettingsStep />);
+    const hint = (label: string) => (screen.getByLabelText(label) as HTMLInputElement).placeholder;
+    expect([hint("Max hops without region"), hint("Max hops for adverts"), hint("Max flood hops")]).toEqual(["4", "6", "10"]);
+  });
+
   it("folds the two hop numbers under the hop preset; max flood hops stays in view", () => {
     resetPlan(newPlan());
     render(<SettingsStep />);

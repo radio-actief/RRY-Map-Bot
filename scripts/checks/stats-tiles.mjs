@@ -41,6 +41,26 @@ export default async function (ctx) {
   ctx.check("stats legend: growth and decline are squares, the node-type lines are lines", legend.length >= 3 && !legend[0].line && !legend[1].line && lines === legend.length - 2, JSON.stringify(legend));
   await tab.close();
 
+  // A theme switch recolours the growth and decline bars and their legend swatches.
+  const sw = await ctx.open("/stats", { scheme: "light", setup: (pg) => mockStats(pg) });
+  await sw.waitForSelector("#stats-chart .apexcharts-bar-area", { timeout: 15000 }).catch(() => {});
+  await sw.locator(".topbar [data-theme-toggle]").click(); // system → light
+  await sw.locator(".topbar [data-theme-toggle]").click(); // light → dark
+  await sw.waitForTimeout(1200);
+  const after = await sw.evaluate(() => ({
+    bars: [...new Set([...document.querySelectorAll("#stats-chart .apexcharts-series[seriesName] .apexcharts-bar-area")].map((b) => (b.getAttribute("fill") || "").toLowerCase()))],
+    swatches: [...document.querySelectorAll("#stats-chart .apexcharts-legend-marker")].slice(0, 2).map((m) => getComputedStyle(m).backgroundColor),
+  }));
+  ctx.check(
+    "stats chart: after switching to dark, the bars and swatches use the dark green and red",
+    after.bars.some((f) => f.includes("63,185,80") || f === "#3fb950") &&
+      after.bars.some((f) => f.includes("248,81,73") || f === "#f85149") &&
+      !after.bars.some((f) => f.includes("26,127,55")) &&
+      after.swatches.join() === "rgb(63, 185, 80),rgb(248, 81, 73)",
+    JSON.stringify(after),
+  );
+  await sw.close();
+
   // Phone: the chart keeps a usable plot area under its legend and date labels.
   const phoneChart = await ctx.open("/stats", { width: 390, height: 1500, setup: (pg) => mockStats(pg) });
   await phoneChart.waitForSelector("#stats-chart .apexcharts-grid", { timeout: 15000 }).catch(() => {});

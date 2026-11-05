@@ -1332,28 +1332,22 @@
           };
           var currentNetChangeByType = netChangeByType;
           var chartEl = document.getElementById("stats-chart");
-          var style = chartEl && getComputedStyle(document.documentElement);
-          var colorAdded =
-            (style && style.getPropertyValue("--stats-chart-added").trim()) ||
-            "#2ecc71";
-          var colorRemoved =
-            (style && style.getPropertyValue("--stats-chart-removed").trim()) ||
-            "#e74c3c";
-          var colorTotal =
-            (style && style.getPropertyValue("--stats-chart-total").trim()) ||
-            "#d4a017";
-          var colorType1 =
-            (style && style.getPropertyValue("--stats-chart-type-1").trim()) ||
-            "#2196f3";
-          var colorType2 =
-            (style && style.getPropertyValue("--stats-chart-type-2").trim()) ||
-            "#4caf50";
-          var colorType3 =
-            (style && style.getPropertyValue("--stats-chart-type-3").trim()) ||
-            "#9c27b0";
-          var colorType4 =
-            (style && style.getPropertyValue("--stats-chart-type-4").trim()) ||
-            "#0891b2";
+          var colorAdded, colorRemoved, colorTotal, colorType1, colorType2, colorType3, colorType4;
+          /** The chart's colours from the page tokens; read again on a theme switch. */
+          function readChartColors() {
+            var style = getComputedStyle(document.documentElement);
+            var v = function (name, fallback) {
+              return style.getPropertyValue(name).trim() || fallback;
+            };
+            colorAdded = v("--stats-chart-added", "#2ecc71");
+            colorRemoved = v("--stats-chart-removed", "#e74c3c");
+            colorTotal = v("--stats-chart-total", "#d4a017");
+            colorType1 = v("--stats-chart-type-1", "#2196f3");
+            colorType2 = v("--stats-chart-type-2", "#4caf50");
+            colorType3 = v("--stats-chart-type-3", "#9c27b0");
+            colorType4 = v("--stats-chart-type-4", "#0891b2");
+          }
+          readChartColors();
 
           var chartFilterType = null;
           var currentChartRange = "month";
@@ -2166,6 +2160,8 @@
             };
             window.__statsApplyTheme = function () {
               if (!statsChartInstance) return;
+              // Growth and decline are theme colours (status green and red): read them again.
+              readChartColors();
               var ink = statsInk();
               statsChartInstance.updateOptions(
                 {

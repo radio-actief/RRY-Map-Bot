@@ -586,3 +586,14 @@ def test_instructions_mention_the_admin_from_the_environment(monkeypatch):
     monkeypatch.delenv("DISCORD_ADMIN_USER_ID")
     text = bot_mod.render_instructions(source)
     assert "{ADMIN}" not in text and "<@" not in text and "een beheerder" in text
+
+
+def test_instructions_tag_the_admin_role_before_the_admin_user(monkeypatch):
+    # A team role is tagged when set; the single admin is the fallback.
+    source = (ROOT / "DISCORDBOT_INSTRUCTIONS.md").read_text(encoding="utf-8")
+    monkeypatch.setenv("DISCORD_ADMIN_USER_ID", "1234567890")
+    monkeypatch.setenv("DISCORD_ADMIN_ROLE_ID", "9876543210")
+    text = bot_mod.render_instructions(source)
+    assert "<@&9876543210>" in text and "<@1234567890>" not in text
+    monkeypatch.setenv("DISCORD_ADMIN_ROLE_ID", "not-a-number")
+    assert "<@1234567890>" in bot_mod.render_instructions(source)

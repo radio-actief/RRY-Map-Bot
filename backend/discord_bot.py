@@ -426,9 +426,16 @@ def resolve_custom_emojis_in_text(text: str, guild: Optional[discord.Guild]) -> 
 def render_instructions(content: str) -> str:
     """Instructions markdown as an embed description (sections bold, map URL and admin filled in)."""
     content = content.replace("{MAP_URL}", get_map_base_url())
-    # The admin to tag: a setting of the live bot (DISCORD_ADMIN_USER_ID), not in the repository.
+    # Who to tag: settings of the live bot, not in the repository. A team role wins over one admin.
+    role_id = (os.getenv("DISCORD_ADMIN_ROLE_ID") or "").strip()
     admin_id = (os.getenv("DISCORD_ADMIN_USER_ID") or "").strip()
-    content = content.replace("{ADMIN}", f"<@{admin_id}>" if admin_id.isdigit() else "een beheerder")
+    if role_id.isdigit():
+        admin = f"<@&{role_id}>"
+    elif admin_id.isdigit():
+        admin = f"<@{admin_id}>"
+    else:
+        admin = "een beheerder"
+    content = content.replace("{ADMIN}", admin)
     lines = content.split('\n')
     formatted_lines = []
     skip_next_blank = False

@@ -1003,7 +1003,7 @@ def get_node_changes_since(
                 SELECT public_key, change_type, sync_date, old_data, new_data
                 FROM node_changes
                 WHERE sync_date >= ? AND change_type = 'updated'
-                ORDER BY sync_date ASC
+                ORDER BY sync_date DESC  -- the newest within the limit; sorted by date below
                 LIMIT ?
                 """,
                 (since_date, limit),
@@ -1014,7 +1014,7 @@ def get_node_changes_since(
                 SELECT public_key, change_type, sync_date, old_data, new_data
                 FROM node_changes
                 WHERE change_type = 'updated'
-                ORDER BY sync_date ASC
+                ORDER BY sync_date DESC  -- the newest within the limit; sorted by date below
                 LIMIT ?
                 """,
                 (limit,),
@@ -1301,6 +1301,13 @@ def not_found(error):
             'message': 'The requested API endpoint does not exist'
         }), 404
     
+    # A path that leaves the site folder is a plain 404, before anything looks at the disk:
+    # otherwise the answer would show whether a file exists elsewhere on the server.
+    root = os.path.realpath(PROJECT_ROOT)
+    target = os.path.realpath(os.path.join(root, request.path.lstrip('/')))
+    if target != root and not target.startswith(root + os.sep):
+        return NotFound()
+
     # Anything that looks like a file, or is one that isn't public, gets a
     # real 404 instead of the map page
     if (request.path.startswith('/configurator/')

@@ -2,6 +2,32 @@
 
 What changed in each release of the #BEmesh map, bot and configurator.
 
+## 1.0.6 (2026-11-05)
+
+### New
+
+- On a phone, the configurator's ☰ menu lists the other pages, like the other pages do
+- The ☰ menu's rows are big enough to tap on a phone, and the menu closes as soon as you start dragging the map
+- The stats chart's legend shows a square for growth and decline and a line for each node type, and the tiles fill their rows on phones and tablets
+- Signing in now lasts through updates of the site
+
+### Fixed
+
+- A node without a name no longer stops the map from showing any nodes
+- Node names are always shown as text, also in the stats map's labels
+- The stats radio filter finds every matching node: a bandwidth of 250 found none, and 869.6 MHz also counted 869.618
+- Stats playback shows the newest changes again, so moved or renamed nodes show where they are now
+- The stats "Active" tile shows all three numbers on laptop screens, and the chart keeps its colours readable after switching between light and dark
+- Claiming, unclaiming and signing out only work from the map's own pages, so no other site can do it for you
+- The map only offers to open the Discord invite after a sign-in, never another link
+- The Discord bot stays responsive while it posts the daily digest
+- In the configurator, an emptied hop field sends and shows the #BEmesh 4, 6 and 10
+
+### Other
+
+- The site runs on a production web server
+- MapMe.SH is no longer listed on the stats page: the app no longer exists
+
 ## 1.0.5 (2026-11-05)
 
 ### New

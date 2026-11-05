@@ -648,61 +648,76 @@ async def post_daily_digest(
             return False
 
     async with _post_lock():
-        conn = get_connection()
+        now = now_utc or datetime.now(timezone.utc)
+        # The database work runs in a worker thread (each with its own connection, as SQLite
+        # requires): in the bot's event loop it would freeze every command while the sync writes.
+        prepared = await asyncio.to_thread(_prepare_digest, now, only_if_due, force, str(channel_id))
+        if prepared is None:
+            return False
+        window, embed, total_nodes = prepared
+
+        msg = await channel.send(embed=embed)
+        print(f"[daily_digest] Posted digest to channel {channel_id} (msg id={getattr(msg, 'id', None)}).")
+
+        msg_id = str(getattr(msg, 'id', '') or '') or None
+        await asyncio.to_thread(_record_digest, now, window, total_nodes, str(channel_id), msg_id)
+        return True
+
+
+def _prepare_digest(now: datetime, only_if_due: bool, force: bool, channel_id: str):
+    """The digest embed for ``now``, or None when nothing is due or there is nothing to post
+    (an empty window is recorded so the next digest starts after it). Runs in a worker thread."""
+    conn = get_connection()
+    try:
+        if only_if_due and not digest_is_due(conn, now):
+            return None
+
+        window = digest_window(conn, now)
+        previous_total = _get_digest_state(conn).get('last_total_nodes')
+        agg = collect_changes_since(
+            conn, window.start_utc, after_id=window.after_id, upto_id=window.upto_id,
+        )
+        held = held_back_removals(conn, window.start_utc, window.end_utc)
+        total = len(agg['added']) + len(agg['removed']) + len(agg['restored'])
+
+        if total == 0 and not held and not force:
+            print(
+                f"[daily_digest] No net changes {window.start_utc.isoformat()} -> "
+                f"{window.end_utc.isoformat()}; skipping post."
+            )
+            _update_digest_state(conn, now, window, _active_total(conn), channel_id, None)
+            return None
+
         try:
-            now = now_utc or datetime.now(timezone.utc)
-            if only_if_due and not digest_is_due(conn, now):
-                return False
+            from backend.discord_queries import get_statistics  # local import: avoid cycles
+            stats = get_statistics()
+        except Exception as e:
+            print(f"[daily_digest] get_statistics failed: {e}; continuing with zeros.")
+            stats = {}
+        if not stats.get('total_nodes'):
+            stats = {**stats, 'total_nodes': _active_total(conn)}
 
-            window = digest_window(conn, now)
-            previous_total = _get_digest_state(conn).get('last_total_nodes')
-            agg = collect_changes_since(
-                conn, window.start_utc, after_id=window.after_id, upto_id=window.upto_id,
-            )
-            held = held_back_removals(conn, window.start_utc, window.end_utc)
-            total = len(agg['added']) + len(agg['removed']) + len(agg['restored'])
+        embed = build_digest_embed(
+            agg,
+            window.start_utc,
+            window.end_utc,
+            stats,
+            added_nodes=_get_node_details_by_keys(agg['added'], conn),
+            restored_nodes=_get_node_details_by_keys(agg['restored'], conn),
+            removed_nodes=_get_node_details_by_keys(agg['removed'], conn),
+            previous_total=previous_total,
+            held_back=held,
+            next_digest_label=_next_digest_label(now + timedelta(minutes=1)),
+        )
+        return window, embed, int(stats.get('total_nodes') or 0)
+    finally:
+        conn.close()
 
-            if total == 0 and not held and not force:
-                print(
-                    f"[daily_digest] No net changes {window.start_utc.isoformat()} -> "
-                    f"{window.end_utc.isoformat()}; skipping post."
-                )
-                _update_digest_state(conn, now, window, _active_total(conn), str(channel_id), None)
-                return False
 
-            try:
-                from backend.discord_queries import get_statistics  # local import: avoid cycles
-                stats = get_statistics()
-            except Exception as e:
-                print(f"[daily_digest] get_statistics failed: {e}; continuing with zeros.")
-                stats = {}
-            if not stats.get('total_nodes'):
-                stats = {**stats, 'total_nodes': _active_total(conn)}
-
-            embed = build_digest_embed(
-                agg,
-                window.start_utc,
-                window.end_utc,
-                stats,
-                added_nodes=_get_node_details_by_keys(agg['added'], conn),
-                restored_nodes=_get_node_details_by_keys(agg['restored'], conn),
-                removed_nodes=_get_node_details_by_keys(agg['removed'], conn),
-                previous_total=previous_total,
-                held_back=held,
-                next_digest_label=_next_digest_label(now + timedelta(minutes=1)),
-            )
-
-            msg = await channel.send(embed=embed)
-            print(f"[daily_digest] Posted digest to channel {channel_id} (msg id={getattr(msg, 'id', None)}).")
-
-            _update_digest_state(
-                conn,
-                now,
-                window,
-                int(stats.get('total_nodes') or 0),
-                str(channel_id),
-                str(getattr(msg, 'id', '') or '') or None,
-            )
-            return True
-        finally:
-            conn.close()
+def _record_digest(now: datetime, window, total_nodes: int, channel_id: str, msg_id: Optional[str]) -> None:
+    """Remember the posted digest (window, total, message). Runs in a worker thread."""
+    conn = get_connection()
+    try:
+        _update_digest_state(conn, now, window, total_nodes, channel_id, msg_id)
+    finally:
+        conn.close()

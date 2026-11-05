@@ -992,3 +992,20 @@ def test_first_digest_post_has_no_since_yesterday(digest_env) -> None:
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+def test_the_digest_reads_the_database_off_the_bot_loop(digest_env, monkeypatch) -> None:
+    # Database work in the bot's event loop would freeze every command while the sync writes.
+    import threading
+
+    conn, bot = digest_env
+    seen = []
+    real = dd.digest_window
+
+    def spy(c, now):
+        seen.append(threading.current_thread() is threading.main_thread())
+        return real(c, now)
+
+    monkeypatch.setattr(dd, "digest_window", spy)
+    _post(bot, datetime(2026, 11, 10, 9, 0, tzinfo=timezone.utc), force=True)
+    assert seen == [False]

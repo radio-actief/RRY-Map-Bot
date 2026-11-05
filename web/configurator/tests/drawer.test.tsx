@@ -142,6 +142,26 @@ describe("Device tools drawer: backup", () => {
     expect(json).toMatchObject({ app: "bemesh-configurator", version: 2, plan: defaultPlan() });
   });
 
+  it("Export asks first when a password is set, and leaves them out or keeps them as chosen", async () => {
+    const created = vi.fn((_blob: Blob) => "blob:x");
+    Object.assign(URL, { createObjectURL: created, revokeObjectURL: vi.fn() });
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    store.plan.value = { ...defaultPlan(), settings: { ...defaultPlan().settings, adminPassword: "s3cret", guestPassword: "guest1" } };
+    render(<DeviceDrawer />);
+    fireEvent.click(button("Export JSON"));
+    expect(click).not.toHaveBeenCalled();
+    expect(screen.getByText(t("tools.exportPasswordsTitle"))).toBeTruthy();
+    fireEvent.click(button(t("tools.exportWithout")));
+    let json = JSON.parse(await created.mock.calls[0][0].text());
+    expect(json.plan.settings).toMatchObject({ adminPassword: "", guestPassword: "" });
+    expect(screen.queryByText(t("tools.exportPasswordsTitle"))).toBeNull();
+    fireEvent.click(button("Export JSON"));
+    fireEvent.click(button(t("tools.exportWith")));
+    json = JSON.parse(await created.mock.calls[1][0].text());
+    expect(json.plan.settings).toMatchObject({ adminPassword: "s3cret", guestPassword: "guest1" });
+    expect(click).toHaveBeenCalledTimes(2);
+  });
+
   it("Import of a v1 parity backup sets the plan and closes the drawer", async () => {
     const text = readFileSync(resolve(__dirname, "fixtures/parity/ronse-solar.backup.json"), "utf8");
     const { container } = render(<DeviceDrawer />);

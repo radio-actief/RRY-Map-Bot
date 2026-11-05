@@ -6,7 +6,7 @@
  */
 import nacl from "tweetnacl";
 import { useEffect, useRef, useState } from "preact/hooks";
-import { BackupError, exportBackup, importBackup } from "../core/backup";
+import { BackupError, exportBackup, hasPasswords, importBackup } from "../core/backup";
 import {
   isAllowedPrefix,
   searchVanity,
@@ -73,7 +73,7 @@ export function clockOffset(reply: string, at: number): string | null {
 const reasonOf = (err: unknown) => (err instanceof Error && err.message ? err.message : String(err));
 
 type Note = { kind: NoticeKind; text: string } | null;
-type Modal = null | "reboot" | "ota" | "reset" | KeyMode;
+type Modal = null | "reboot" | "ota" | "reset" | "export" | KeyMode;
 
 export function DeviceDrawer() {
   return store.drawerOpen.value ? <Drawer /> : null;
@@ -203,8 +203,14 @@ function Drawer() {
     return null;
   }
 
-  function exportJson() {
-    const blob = new Blob([JSON.stringify(exportBackup(store.plan.peek()), null, 2)], { type: "application/json" });
+  /** Export; with a password in the plan, the dialog first asks whether the file keeps them. */
+  function exportJson(passwords?: boolean) {
+    const plan = store.plan.peek();
+    if (passwords === undefined && hasPasswords(plan)) return setModal("export");
+    setModal(null);
+    const blob = new Blob([JSON.stringify(exportBackup(plan, { passwords: passwords ?? true }), null, 2)], {
+      type: "application/json",
+    });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -331,7 +337,7 @@ function Drawer() {
         <section class="drawer-section">
           <h3>{t("tools.backup")}</h3>
           <div class="drawer-actions">
-            <button type="button" class="btn small" onClick={exportJson}>
+            <button type="button" class="btn small" onClick={() => exportJson()}>
               {t("tools.export")}
             </button>
             <button type="button" class="btn small" disabled={busy.value} onClick={() => fileRef.current?.click()}>
@@ -393,6 +399,25 @@ function Drawer() {
         >
           <p>{modal === "reboot" ? t("tools.rebootConfirm") : t("tools.otaConfirm")}</p>
           {store.savingAcl.value ? <p class="sub">{t("reboot.savingAcl")}</p> : null}
+        </Dialog>
+      ) : null}
+      {modal === "export" ? (
+        <Dialog
+          open
+          title={t("tools.exportPasswordsTitle")}
+          onClose={() => setModal(null)}
+          actions={
+            <>
+              <button type="button" class="btn" onClick={() => exportJson(true)}>
+                {t("tools.exportWith")}
+              </button>
+              <button type="button" class="btn primary" onClick={() => exportJson(false)}>
+                {t("tools.exportWithout")}
+              </button>
+            </>
+          }
+        >
+          <p>{t("tools.exportPasswordsText")}</p>
         </Dialog>
       ) : null}
       {modal === "reset" ? <ResetDialog disabled={off} onClose={() => setModal(null)} onReset={() => void restart("erase")} /> : null}

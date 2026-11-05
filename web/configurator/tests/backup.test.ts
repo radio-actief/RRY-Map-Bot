@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { BackupError, exportBackup, importBackup } from "../src/core/backup";
+import { BackupError, exportBackup, hasPasswords, importBackup } from "../src/core/backup";
 import { defaultPlan } from "../src/core/plan";
 import { presetForRadio } from "../src/core/presets";
 import { addFreeRegion, setRowState } from "../src/core/regions";
@@ -170,6 +170,21 @@ describe("v2 export and import", () => {
     expect(plan.acl).toHaveLength(1);
     const file = JSON.parse(JSON.stringify({ ...exported, plan }));
     expect(importBackup(file, PLACES)).not.toHaveProperty("acl");
+  });
+
+  it("leaves the passwords out when asked; an import then keeps the repeater's own", () => {
+    const plan = { ...defaultPlan(), settings: { ...defaultPlan().settings, adminPassword: "s3cret", guestPassword: "guest1" } };
+    expect(exportBackup(plan).plan.settings).toMatchObject({ adminPassword: "s3cret", guestPassword: "guest1" });
+    const without = exportBackup(plan, { passwords: false });
+    expect(without.plan.settings).toMatchObject({ adminPassword: "", guestPassword: "" });
+    expect(plan.settings.adminPassword).toBe("s3cret");
+    expect(importBackup(JSON.parse(JSON.stringify(without)), PLACES).settings.adminPassword).toBe("");
+  });
+
+  it("knows whether a plan holds a password", () => {
+    expect(hasPasswords(defaultPlan())).toBe(false);
+    expect(hasPasswords({ ...defaultPlan(), settings: { ...defaultPlan().settings, guestPassword: " x " } })).toBe(true);
+    expect(hasPasswords({ ...defaultPlan(), settings: { ...defaultPlan().settings, adminPassword: "   " } })).toBe(false);
   });
 
   it("round-trips the default plan", () => {

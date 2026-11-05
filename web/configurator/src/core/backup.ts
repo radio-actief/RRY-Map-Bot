@@ -20,10 +20,19 @@ export class BackupError extends Error {
   }
 }
 
-/** The backup file for a plan; the access list is left out, as it belongs to one repeater. */
-export function exportBackup(plan: Plan): { app: string; version: number; plan: Plan } {
-  const { acl: _acl, ...rest } = plan;
-  return { app: APP, version: VERSION, plan: structuredClone(rest) };
+/** Whether the plan holds an admin or guest password (the export then asks whether to keep them). */
+export function hasPasswords(plan: Plan): boolean {
+  return ["adminPassword", "guestPassword"].some((k) => String(plan.settings[k as SettingKey] ?? "").trim() !== "");
+}
+
+/**
+ * The backup file for a plan; the access list is left out, as it belongs to one repeater.
+ * `passwords: false` empties the admin and guest password: an import then keeps the repeater's own.
+ */
+export function exportBackup(plan: Plan, { passwords = true } = {}): { app: string; version: number; plan: Plan } {
+  const { acl: _acl, ...rest } = structuredClone(plan);
+  if (!passwords) rest.settings = { ...rest.settings, adminPassword: "", guestPassword: "" };
+  return { app: APP, version: VERSION, plan: rest };
 }
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);

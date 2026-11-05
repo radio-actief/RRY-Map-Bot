@@ -102,20 +102,7 @@ def _node_passes_filters(
                 params = params_raw
             else:
                 return False
-            freq = preset['freq']
-            sf = preset['sf']
-            bw = preset['bw']
-            cr = preset['cr']
-            params_str = str(params)
-            if not all(
-                frag in params_str
-                for frag in (
-                    f'"freq": {freq}',
-                    f'"sf": {sf}',
-                    f'"bw": {bw}',
-                    f'"cr": {cr}',
-                )
-            ):
+            if not _radio_matches(params, preset):
                 return False
 
     return True
@@ -195,13 +182,9 @@ def _search_conditions(
             None,
         )
         if preset:
-            conditions.append("(params LIKE ? AND params LIKE ? AND params LIKE ? AND params LIKE ?)")
-            params.extend([
-                f'%"freq": {preset["freq"]}%',
-                f'%"sf": {preset["sf"]}%',
-                f'%"bw": {preset["bw"]}%',
-                f'%"cr": {preset["cr"]}%',
-            ])
+            sql, values = _partial_radio_filter_clause({k: preset[k] for k in ("freq", "sf", "bw", "cr")})
+            conditions.append(sql[len(" AND "):])
+            params.extend(values)
 
     if owner_id:
         conditions.append("discord_owner_id = ?")
@@ -419,27 +402,44 @@ def get_user_nodes(user_id: str, include_inactive: bool = True) -> List[Dict[str
         conn.close()
 
 
+def _radio_matches(params: Dict[str, Any], want: Dict[str, Any]) -> bool:
+    """A node's params against a preset, as numbers: freq and bw within 0.001, sf and cr equal."""
+    try:
+        return (
+            abs(float(params.get("freq")) - float(want["freq"])) < 0.001
+            and abs(float(params.get("bw")) - float(want["bw"])) < 0.001
+            and int(params.get("sf")) == int(want["sf"])
+            and int(params.get("cr")) == int(want["cr"])
+        )
+    except (TypeError, ValueError):
+        return False
+
+
+def _radio_value_sql(key: str) -> str:
+    """One radio value from the node's params JSON, or NULL when params is empty or not JSON
+    (json_extract on bad JSON would fail the whole query)."""
+    return f"(CASE WHEN json_valid(params) THEN json_extract(params, '$.{key}') END)"
+
+
 def _partial_radio_filter_clause(parts: Dict[str, Any]) -> tuple:
     """
-    SQL AND of LIKE fragments for each provided key (freq, sf, bw, cr).
-    Same substring strategy as named presets. Empty or unknown keys → no clause.
+    SQL AND of number comparisons for each provided key (freq, sf, bw, cr), the same rule as the
+    chart's _params_match_radio_partial: freq and bw within 0.001, sf and cr equal. A stored
+    "bw": 250 matches 250 or 250.0, and 869.6 no longer matches 869.618. Empty or unknown keys
+    give no clause.
     """
     if not parts:
         return ("", [])
     fragments: List[str] = []
     params: List[Any] = []
-    if "freq" in parts:
-        fragments.append("params LIKE ?")
-        params.append(f'%"freq": {float(parts["freq"])}%')
-    if "sf" in parts:
-        fragments.append("params LIKE ?")
-        params.append(f'%"sf": {int(parts["sf"])}%')
-    if "bw" in parts:
-        fragments.append("params LIKE ?")
-        params.append(f'%"bw": {float(parts["bw"])}%')
-    if "cr" in parts:
-        fragments.append("params LIKE ?")
-        params.append(f'%"cr": {int(parts["cr"])}%')
+    for key in ("freq", "bw"):
+        if key in parts:
+            fragments.append(f"abs(CAST({_radio_value_sql(key)} AS REAL) - ?) < 0.001")
+            params.append(float(parts[key]))
+    for key in ("sf", "cr"):
+        if key in parts:
+            fragments.append(f"CAST({_radio_value_sql(key)} AS INTEGER) = ?")
+            params.append(int(parts[key]))
     if not fragments:
         return ("", [])
     sql = " AND (" + " AND ".join(fragments) + ")"
@@ -493,15 +493,8 @@ def _preset_filter_clause(preset_name: Optional[str]) -> tuple:
             break
     if not preset:
         return ("", [])
-    # Match JSON params: {"freq": X, "sf": Y, "bw": Z, "cr": W}
-    sql = " AND (params LIKE ? AND params LIKE ? AND params LIKE ? AND params LIKE ?)"
-    params = [
-        f'%"freq": {preset["freq"]}%',
-        f'%"sf": {preset["sf"]}%',
-        f'%"bw": {preset["bw"]}%',
-        f'%"cr": {preset["cr"]}%',
-    ]
-    return (sql, params)
+    # All four values, compared as numbers like a custom filter.
+    return _partial_radio_filter_clause({k: preset[k] for k in ("freq", "sf", "bw", "cr")})
 
 
 def get_statistics(

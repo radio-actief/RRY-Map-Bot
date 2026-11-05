@@ -728,7 +728,12 @@
                   (tip ? tip + " \u2014 " : "") +
                   (I18N.has(typeKey) ? tr(typeKey) : tr("stats.node"));
               }
-              if (tip) m.bindTooltip(tip, { permanent: false });
+              if (tip) {
+                // As text: a node's name is whatever was advertised, so never parse it as HTML.
+                var label = document.createElement("span");
+                label.textContent = tip;
+                m.bindTooltip(label, { permanent: false });
+              }
               markersLayer.addLayer(m);
             });
           }

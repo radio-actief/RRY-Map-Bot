@@ -1223,7 +1223,7 @@ function getTable(node, authState = null, nodes = []) {
   };
 
   const analyzerType = typeMap[node.type] || "companions";
-  const analyzerUrl = `https://analyzer.letsmesh.net/nodes/${analyzerType}?public_key=${node.public_key}`;
+  const analyzerUrl = `https://analyzer.letsmesh.net/nodes/${analyzerType}?public_key=${encodeURIComponent(node.public_key || "")}`;
 
   const qrUri = meshcoreQrUri(node);
   /** Packed `meshcore://…` blob for clipboard; QR still uses add-contact URI when possible. */
@@ -1317,12 +1317,13 @@ function getTable(node, authState = null, nodes = []) {
     (() => {
       const isUnclaimed =
         !node.discord_owner_name || node.discord_owner_name.trim() === "";
-      const publicKey = node.public_key || "";
+      // Only a hex key goes into the claim buttons' click code (the server checks it too).
+      const publicKey = /^[0-9a-f]{1,64}$/i.test(node.public_key || "") ? node.public_key : "";
 
       const footerStart = buildAnalyzerFooterMenu(node, analyzerUrl);
 
       let footerCenter = "";
-      if (authState && authState.authenticated) {
+      if (authState && authState.authenticated && publicKey) {
         if (isUnclaimed) {
           footerCenter = `<a href="javascript:void(0)" class="node-popup-action node-popup-action--claim" onclick="window.claimNode('${publicKey}')">${escapeAttrHtml(t("map.claim"))}</a>`;
         } else {
@@ -2109,22 +2110,14 @@ createApp({
       setTimeout(openPopup, 400);
     }
 
+    /** The source as safe HTML, with the first match of toHighlight in bold. */
     function highlightString(source, toHighlight) {
-      const escapedSource = source
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;");
-      const matchIndex = source
-        .toLowerCase()
-        .indexOf(toHighlight.toLowerCase());
-      const highlightString =
-        matchIndex >= 0
-          ? source.substring(matchIndex, matchIndex + toHighlight.length)
-          : toHighlight;
-      return escapedSource.replace(
-        highlightString,
-        `<b>${highlightString}</b>`,
-      );
+      const text = String(source ?? "");
+      const esc = (t) => t.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+      const at = toHighlight ? text.toLowerCase().indexOf(String(toHighlight).toLowerCase()) : -1;
+      if (at < 0) return esc(text);
+      const end = at + String(toHighlight).length;
+      return `${esc(text.slice(0, at))}<b>${esc(text.slice(at, end))}</b>${esc(text.slice(end))}`;
     }
 
     function clearFilters() {
@@ -2162,6 +2155,8 @@ createApp({
           }),
         ]);
         app.nodes = await nodesReq.json();
+        // A node without a name (it happens in the feed) would break the markers and the search.
+        for (const n of app.nodes) if (typeof n.adv_name !== "string") n.adv_name = "";
 
         const byType = {};
         const freqSet = new Set();

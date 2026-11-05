@@ -9,6 +9,7 @@ or ``USE_GEOPY_FALLBACK=1`` (and auto-used when the municipalities GeoJSON
 is missing).
 """
 
+import re
 import requests
 import time
 import sys
@@ -98,6 +99,15 @@ GEOCODE_LOG_LEGACY_FACTOR = 10
 
 GEOCODE_MISSES_STATE_KEY = 'geocode_misses'
 
+
+
+_PUBLIC_KEY = re.compile(r'^[0-9a-f]{1,64}$')
+
+
+def is_valid_public_key(key) -> bool:
+    """True for a normalised MeshCore public key: lowercase hex, at most 64 characters (a real
+    key has 64; the point is that nothing else, such as a quote, can get into the map's links)."""
+    return isinstance(key, str) and bool(_PUBLIC_KEY.match(key))
 
 def _geocode_failures_log_path() -> Path:
     """Path for the verification-failures log (same directory as DB).
@@ -816,6 +826,11 @@ def merge_node_update(node: Dict[str, Any],
         'updated_date': node.get('updated_date'),
         'inserted_date': node.get('inserted_date'),
     }
+    # When and by whom a node was first seen never becomes unknown: a feed entry without them
+    # keeps the stored values (writing None would wipe them and log a change at every sync).
+    for first_seen in ('inserted_date', 'inserted_by'):
+        if immutable_updates[first_seen] is None:
+            del immutable_updates[first_seen]
     
     # Always update source from official map (e.g. if a Discord-registered node
     # is later detected by an uploader, API will have source=uploader and we sync that).
@@ -1487,6 +1502,12 @@ def _sync_belgian_nodes_locked(
         for node in all_nodes:
             if 'public_key' in node:
                 node['public_key'] = node['public_key'].replace(' ', '').replace('-', '').lower()
+        # A MeshCore key is hex; anything else is not a node (and would end up in the map's links
+        # and buttons), so it is left out.
+        valid_nodes = [n for n in all_nodes if is_valid_public_key(n.get('public_key'))]
+        if len(valid_nodes) != len(all_nodes):
+            print(f"Skipped {len(all_nodes) - len(valid_nodes)} node(s) without a valid public key")
+        all_nodes = valid_nodes
         
         # 2. Filter by Belgian geographic bounds
         bounded_nodes = filter_by_bounds(all_nodes)

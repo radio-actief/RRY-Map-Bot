@@ -163,3 +163,31 @@ def test_statistics(conn):
     stats = get_statistics()
     assert 'by_type' in stats
     assert stats['total_nodes'] >= 5
+
+
+def test_a_feed_without_inserted_date_keeps_the_stored_one(conn):
+    from backend.sync_belgian_nodes import merge_node_update
+
+    node = make_node('test_key_keep', adv_name='Keep me')
+    integrate_added_node(node, conn)
+    conn.commit()
+    before = fetch(conn, 'test_key_keep')
+    assert before['inserted_date']
+
+    feed = dict(node)
+    feed.pop('inserted_date')
+    feed.pop('inserted_by')
+    merge_node_update(feed, before, conn)
+    conn.commit()
+    after = fetch(conn, 'test_key_keep')
+    assert after['inserted_date'] == before['inserted_date']
+    assert after['inserted_by'] == before['inserted_by']
+
+
+def test_only_real_public_keys_count_as_nodes():
+    from backend.sync_belgian_nodes import is_valid_public_key
+
+    assert is_valid_public_key("ab" * 32)
+    assert is_valid_public_key("be01")
+    for bad in (None, "", "zz" * 32, "ab" * 32 + "'", "AB" * 32, "ab" * 33, "ab'onerror", "<b>"):
+        assert not is_valid_public_key(bad), bad

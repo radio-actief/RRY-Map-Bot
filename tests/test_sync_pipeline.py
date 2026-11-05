@@ -238,7 +238,7 @@ def test_geocode_log_lists_each_foreign_node_once(run, temp_db):
     feed = base_feed() + [
         feed_node('de01', *GERMANY),
         feed_node('de02', GERMANY[0] + 0.01, GERMANY[1]),
-        feed_node('nl01', 51.45, 5.48),  # Eindhoven
+        feed_node('ee01', 51.45, 5.48),  # Eindhoven (NL); keys are hex like real ones
     ]
     for _ in range(3):
         run(feed)
@@ -246,7 +246,7 @@ def test_geocode_log_lists_each_foreign_node_once(run, temp_db):
     lines = geocode_log_lines(temp_db)
     node_lines = [l for l in lines if l[4] != 'summary']
     summaries = [l for l in lines if l[4] == 'summary']
-    assert sorted(l[1] for l in node_lines) == ['de01', 'de02', 'nl01']
+    assert sorted(l[1] for l in node_lines) == ['de01', 'de02', 'ee01']
     assert all(l[4] == 'dropped' for l in node_lines)
     assert len(summaries) == 3
     assert summaries[0][6].startswith('3 outside Belgium, 3 new')
@@ -290,7 +290,8 @@ def test_oversized_old_geocode_log_is_set_aside_not_deleted(tmp_path, monkeypatc
 
 def padding(count=20):
     """Nodes far outside the Belgian box (Paris area): they only make the feed bigger."""
-    return [feed_node(f'fr{i:02d}', 48.80 + i * 0.001, 2.30) for i in range(count)]
+    # Keys are hex like real ones (fa = France); sync skips anything else.
+    return [feed_node(f'fa{i:02d}', 48.80 + i * 0.001, 2.30) for i in range(count)]
 
 
 def test_safety_cap_skip_is_recorded_in_sync_history(run):

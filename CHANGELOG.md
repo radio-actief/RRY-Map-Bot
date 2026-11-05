@@ -2,6 +2,13 @@
 
 What changed in each release of the #BEmesh map, bot and configurator.
 
+## 1.0.7 (2026-11-05)
+
+### New
+
+- When you export a configurator backup with a password filled in, it asks whether the file should include the admin and guest passwords. Left out, importing the file keeps the repeater's own passwords
+- The bot's help post tags the admin team instead of one person
+
 ## 1.0.6 (2026-11-05)
 
 ### New

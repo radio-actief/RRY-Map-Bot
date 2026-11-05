@@ -361,6 +361,19 @@ button {
     display: flex;
   }
 
+  /* Every row is a 44px tap target on a phone; a long menu scrolls instead of running off screen. */
+  .menu a,
+  .menu button {
+    min-height: 44px;
+  }
+
+  .menu {
+    max-height: calc(100dvh - 56px);
+    overflow-y: auto;
+    /* A swipe that reaches the end of the menu stops there instead of scrolling the page. */
+    overscroll-behavior: contain;
+  }
+
   .menu hr.menu-page {
     display: block;
   }

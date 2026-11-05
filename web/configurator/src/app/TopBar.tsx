@@ -1,5 +1,6 @@
 import { municipalityName, regionName, t } from "../i18n/t";
 import { AccountMenu } from "./AccountMenu";
+import { HERE, PAGES } from "./pages";
 import { parseVersion } from "../core/firmware";
 import { planName } from "../core/plan";
 import { hasWebSerial } from "../device/serial";
@@ -7,19 +8,12 @@ import { usbBoard, usbLabel } from "../device/usb";
 import { connectUsb } from "../state/device";
 import { busy, isWide, store, type Theme } from "../state/store";
 
-const PAGES = [
-  ["/", "page.map"],
-  ["/stats", "page.stats"],
-  ["/region-map", "page.regionMap"],
-  ["/configurator", "page.configurator"],
-] as const;
-
-/** Links to the four tool pages; on a phone the device drawer shows them instead of the top bar. */
-export function PageSwitcher({ inDrawer = false }: { inDrawer?: boolean }) {
+/** Links to the four tool pages; on a phone the ☰ menu shows them instead of the top bar. */
+export function PageSwitcher() {
   return (
-    <nav class={`switcher${inDrawer ? " drawer-pages" : ""}`} aria-label={t("top.pages")}>
+    <nav class="switcher" aria-label={t("top.pages")}>
       {PAGES.map(([href, key]) => (
-        <a key={href} href={href} aria-current={href === "/configurator" ? "page" : undefined}>
+        <a key={href} href={href} aria-current={href === HERE ? "page" : undefined}>
           {t(key)}
         </a>
       ))}

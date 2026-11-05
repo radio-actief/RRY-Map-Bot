@@ -211,6 +211,18 @@
     });
   }
 
+  // A press outside the open menu closes it right away, also when it starts a map drag (a drag
+  // gives no click, so the menu would stay open over the panning map). The click below still puts
+  // the focus back on ☰.
+  document.addEventListener(
+    "pointerdown",
+    function (e) {
+      var menu = openWrap();
+      if (menu && !menu.parentNode.contains(e.target)) closeMenus();
+    },
+    true,
+  );
+
   document.addEventListener(
     "click",
     function (e) {

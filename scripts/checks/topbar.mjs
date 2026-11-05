@@ -98,19 +98,28 @@ export default async function (ctx) {
     await phone.waitForSelector(".menu a", { state: "attached" });
     await phone.locator("#menu-toggle").click();
     const first = (await phone.locator("#page-menu a:visible").allTextContents()).map(text);
-    if (path === "/configurator") {
-      ctx.check(`${name}: ☰ at 390 leaves the page links to the tools drawer`, !first.includes("Stats") && first[0].startsWith("Radio-Actief"), first.join("|"));
-    } else {
-      ctx.check(`${name}: ☰ at 390 starts with the four page links`, first.slice(0, 4).join("|") === "Map|Stats|Region map|Configurator", first.join("|"));
-      const cur = await phone.locator('#page-menu a[aria-current="page"]').getAttribute("href");
-      ctx.check(`${name}: the current page is marked`, cur === path, String(cur));
-    }
+    ctx.check(`${name}: ☰ at 390 starts with the four page links`, first.slice(0, 4).join("|") === "Map|Stats|Region map|Configurator", first.join("|"));
+    const cur = await phone.locator('#page-menu a[aria-current="page"]').getAttribute("href");
+    ctx.check(`${name}: the current page is marked`, cur === path, String(cur));
     ctx.check(`${name}: the bar chip is hidden at 390`, !(await phone.locator(".topbar a.signin-chip").isVisible().catch(() => false)));
     const rect = await phone.locator("#page-menu").evaluate((el) => {
       const r = el.getBoundingClientRect();
       return { left: r.left, right: r.right };
     });
     ctx.check(`${name}: ☰ stays on screen at 390`, rect.left >= 0 && rect.right <= 390, JSON.stringify(rect));
+    // Every row in the open ☰ is a 44px tap target on a phone, and the menu fits or scrolls.
+    const rows = await phone.locator("#page-menu").evaluate((menu) =>
+      [...menu.querySelectorAll("a, button")]
+        .filter((el) => el.getClientRects().length)
+        .map((el) => ({ t: el.textContent.trim().slice(0, 14), h: Math.round(el.getBoundingClientRect().height) })),
+    );
+    const short = rows.filter((r) => r.h < 44);
+    ctx.check(`${name}: ☰ rows are 44px tall at 390`, rows.length > 4 && !short.length, JSON.stringify(short));
+    const fits = await phone.locator("#page-menu").evaluate((m) => {
+      const r = m.getBoundingClientRect();
+      return r.bottom <= window.innerHeight || m.scrollHeight > m.clientHeight;
+    });
+    ctx.check(`${name}: ☰ fits the screen or scrolls`, fits);
     // Nothing (map markers, tiles, panels) may cover the open menu: probe a grid of points across it.
     await phone.waitForTimeout(500);
     const covered = await phone.locator("#page-menu").evaluate((menu) => {

@@ -122,10 +122,14 @@ describe("app shell", () => {
       ["Region map", "/region-map"],
       ["Configurator", "/configurator"],
     ]);
-    expect(screen.getByRole("link", { name: "Configurator" }).getAttribute("aria-current")).toBe("page");
+    expect(within(nav).getByRole("link", { name: "Configurator" }).getAttribute("aria-current")).toBe("page");
+    // The ☰ menu holds them too (shown on a phone only); the device drawer no longer does.
+    const menu = document.getElementById("page-menu")!;
+    expect([...menu.querySelectorAll("a.menu-page")].map((a) => a.getAttribute("href"))).toEqual(["/", "/stats", "/region-map", "/configurator"]);
+    expect(menu.querySelector('a.menu-page[aria-current="page"]')?.getAttribute("href")).toBe("/configurator");
     fireEvent.click(screen.getByRole("button", { name: "Device tools" }));
     const drawer = screen.getByRole("dialog", { name: "Device tools" });
-    expect(within(drawer).getByRole("navigation", { name: "Pages" }).querySelectorAll("a")).toHaveLength(4);
+    expect(within(drawer).queryByRole("navigation", { name: "Pages" })).toBeNull();
   });
 
   it("the wordmark's tail can hide on a phone", () => {

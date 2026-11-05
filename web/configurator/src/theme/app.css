@@ -1442,16 +1442,6 @@ path.map-region-denied {
   box-shadow: -4px 0 16px var(--shadow);
 }
 
-.drawer-pages {
-  display: none;
-  margin: 0 16px 12px;
-}
-
-.drawer-pages a {
-  flex: 1;
-  text-align: center;
-}
-
 .drawer-head {
   display: flex;
   align-items: center;
@@ -1575,10 +1565,6 @@ path.map-region-denied {
   /* Sign in is in the ☰ menu here. */
   .topbar .signin-chip {
     display: none;
-  }
-
-  .drawer .drawer-pages {
-    display: flex;
   }
 
   .topbar .chip.trunc {

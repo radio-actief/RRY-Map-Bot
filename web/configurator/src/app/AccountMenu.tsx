@@ -5,6 +5,7 @@ import links from "../../../../src/shared/bemesh-links.json";
 import "../../../../src/shared/about.js";
 import { I18N, lang, t } from "../i18n/t";
 import { store } from "../state/store";
+import { HERE, PAGES } from "./pages";
 
 const PAGE = "/configurator";
 
@@ -62,7 +63,7 @@ export function LangSwitch({ inMenu = false }: { inMenu?: boolean }) {
   );
 }
 
-/** The sign-in chip (signed out only), the language switch and the ☰ menu: links, then sign in or the account. Page links stay in the device drawer. */
+/** The sign-in chip (signed out only), the language switch and the ☰ menu: on a phone the page links, then links, then sign in or the account. */
 export function AccountMenu() {
   const [open, setOpen] = useState(false);
   const wrap = useRef<HTMLSpanElement>(null);
@@ -82,9 +83,15 @@ export function AccountMenu() {
       setOpen(false);
       button.current?.focus();
     };
+    // A press outside closes it at once, also when it starts a map drag (a drag gives no click).
+    const press = (e: PointerEvent) => {
+      if (!wrap.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("pointerdown", press, true);
     document.addEventListener("click", outside, true);
     document.addEventListener("keydown", escape);
     return () => {
+      document.removeEventListener("pointerdown", press, true);
       document.removeEventListener("click", outside, true);
       document.removeEventListener("keydown", escape);
     };
@@ -118,6 +125,13 @@ export function AccountMenu() {
           ☰
         </button>
         <nav class="menu" id="page-menu" aria-label={t("menu.label")} hidden={!open}>
+          {/* The tool pages: shown on a phone only (bemesh-shell.css), where the top bar has no room for them. */}
+          {PAGES.map(([href, key]) => (
+            <a key={href} class="menu-page" href={href} aria-current={href === HERE ? "page" : undefined}>
+              {t(key)}
+            </a>
+          ))}
+          <hr class="menu-page" />
           {links.map((l) => (
             <a key={l.href} href={l.href} title={t(`${l.key}.title`)} target="_blank" rel="noopener">
               {t(l.key)} <span class="ext muted" aria-hidden="true">↗</span>

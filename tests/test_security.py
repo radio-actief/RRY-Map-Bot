@@ -117,3 +117,16 @@ class TestTimeouts(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestPathsOutsideTheSite(unittest.TestCase):
+    def test_paths_outside_the_site_all_look_the_same(self):
+        client = api.app.test_client()
+        codes = {}
+        up = "/%2e%2e" * 12
+        for path in (up + "/etc/hostname", up + "/etc/no-such-file-here"):
+            r = client.get(path)
+            codes[path] = r.status_code
+            r.close()
+        # Whether a file exists outside the site must not show: both are a plain 404.
+        self.assertEqual(set(codes.values()), {404}, codes)

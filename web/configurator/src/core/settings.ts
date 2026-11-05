@@ -125,7 +125,7 @@ export function validateSetting(key: SettingKey, raw: string): ValidateResult {
     return s.options.includes(v) ? { ok: true, value: v } : fail("option");
   }
 
-  if (v === "") return { ok: true, value: key === "txPower" ? null : (s.formDefault ?? s.firmwareDefault) };
+  if (v === "") return { ok: true, value: emptyValue(key, s) };
   const isDecimal = key === "txdelay" || key === "directTxdelay" || key === "rxdelay";
   const n = Number(v);
   if (!Number.isFinite(n) || (!isDecimal && !Number.isInteger(n))) return fail("number");
@@ -164,6 +164,15 @@ export type HopLevel = keyof typeof FLOOD_ALLOWANCE;
 
 /** The #BEmesh hops: the preset closest to 5 hops (4 unscoped, 6 for adverts, 10 at most). */
 export const BEMESH_HOPS: HopLevel = "minimal";
+
+/** What a cleared field means: the #BEmesh value for the hop limits, else the form's own default. */
+function emptyValue(key: SettingKey, s: SettingDef): string | number | null {
+  if (key === "txPower") return null;
+  if (key === "floodMaxUnscoped") return FLOOD_ALLOWANCE[BEMESH_HOPS][0];
+  if (key === "floodMaxAdvert") return FLOOD_ALLOWANCE[BEMESH_HOPS][1];
+  if (key === "floodMax") return FLOOD_MAX[BEMESH_HOPS];
+  return s.formDefault ?? s.firmwareDefault;
+}
 
 /** Max flood hops per hop preset, for a plan that follows the preset. */
 export const FLOOD_MAX: Record<HopLevel, number> = { tight: 5, minimal: 10, average: 18, extended: 32, full: 64 };

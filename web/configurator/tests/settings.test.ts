@@ -26,6 +26,12 @@ describe("hop presets", () => {
 });
 
 describe("validateSetting", () => {
+  it("a cleared hop field takes the #BEmesh value (Minimal 4/6/10), not the old page's", () => {
+    expect(validateSetting("floodMaxUnscoped", "")).toEqual({ ok: true, value: 4 });
+    expect(validateSetting("floodMaxAdvert", " ")).toEqual({ ok: true, value: 6 });
+    expect(validateSetting("floodMax", "")).toEqual({ ok: true, value: 10 });
+  });
+
   it("rounds the zero-hop advert interval to an even number", () => {
     expect(validateSetting("advertIntervalMinutes", "61")).toEqual({ ok: true, value: 62 });
     expect(validateSetting("advertIntervalMinutes", "0")).toEqual({ ok: true, value: 0 });
@@ -81,7 +87,7 @@ describe("validateSetting", () => {
   });
 
   it("uses the form default for empty numeric input, none for tx power", () => {
-    expect(validateSetting("floodMaxUnscoped", " ")).toEqual({ ok: true, value: 12 });
+    expect(validateSetting("floodMaxUnscoped", " ")).toEqual({ ok: true, value: 4 }); // hop limits: the #BEmesh value
     expect(validateSetting("txdelay", "")).toEqual({ ok: true, value: 0.5 });
     expect(validateSetting("txPower", "")).toEqual({ ok: true, value: null });
   });

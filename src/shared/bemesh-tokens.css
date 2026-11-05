@@ -1,0 +1,137 @@
+/* #BEmesh colours: shared by the configurator, the map, stats and region map pages. Radio-Actief house style. */
+:root {
+  --gold: #d4a017;
+  /* Gold as text: the dark shade on light backgrounds, where #d4a017 is too faint to read. */
+  --gold-text: #7a5c00;
+  --gold-bg: #fbf4dc;
+  --ink: #1a202c;
+  --mut: #64748b;
+  --line: #e2e8f0;
+  --ok: #1a7f37;
+  --warn: #9a5b00;
+  --bad: #c62828;
+  --node: #1159af;
+  --info-bg: #e8f0fe;
+  --panel: #ffffff;
+  --bar: #f7fafc;
+  --page: #ffffff;
+  --on-gold: #1f1600;
+  --on-bad: #ffffff;
+  --shadow: rgb(0 0 0 / 0.12);
+  --backdrop: rgb(15 20 25 / 0.4);
+  /* The command script and the console stay dark in both themes. */
+  --code-bg: #12161f;
+  --code-ink: #edf2f7;
+  --code-mut: #a0aec0;
+  --code-ok: #3fb950;
+  --code-bad: #f85149;
+  /* The top bar (Inktbalk) stays dark in both themes; its active tab is signal yellow. */
+  --topbar-bg: #1a202c;
+  --topbar-ink: #edf2f7;
+  --topbar-mut: #a0aec0;
+  --topbar-line: #2d3748;
+  --topbar-control: #4a5568;
+  --signal: #ffff00;
+  /* Selected button in a segmented control: ink with signal yellow text. */
+  --pressed-bg: #1a202c;
+  --pressed-ink: #ffff00;
+  --pressed-ring: transparent;
+  --font-ui: "Figtree", system-ui, sans-serif;
+  --font-display: "Orbitron", "Figtree", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  /* Glass: panels, popups and menus floating over the map. These opacities are the measured
+   * minimum for readable text over any map background: never lower them. */
+  --glass: rgb(255 255 255 / 0.82);
+  --glass-bar: rgb(26 32 44 / 0.86);
+  --glass-line: rgb(26 32 44 / 0.12);
+  --glass-shadow: 0 8px 24px rgb(26 32 44 / 0.12), inset 0 1px 0 rgb(255 255 255 / 0.6);
+  --glass-blur: blur(14px) saturate(140%);
+  /* On glass the usual muted and link colours are too faint. */
+  --glass-mut: #4a5568;
+  --glass-link: #0d3c74;
+  /* States: keyboard focus ring, primary button hover, field borders (--line is too faint for inputs). */
+  --focus: #1159af;
+  --gold-hover: #b8890f;
+  --field-line: #64748b;
+  /* The 2px rim around a single node on the map. */
+  --node-rim: #1a202c;
+  --dur: 150ms;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --gold-text: #d4a017;
+    --gold-bg: #3a2f10;
+    --ink: #edf2f7;
+    --mut: #a0aec0;
+    --line: #2d3748;
+    --ok: #3fb950;
+    --warn: #d29922;
+    --bad: #f85149;
+    --on-bad: #12161f;
+    --node: #63b3ed;
+    --info-bg: #132a46;
+    --panel: #1a202c;
+    --bar: #12161f;
+    --page: #12161f;
+    --shadow: rgb(0 0 0 / 0.5);
+    --backdrop: rgb(0 0 0 / 0.6);
+    /* The ink button sits on an ink panel here, so it gets a 1px gold ring; the 2px yellow ring is focus only. */
+    --pressed-ring: #d4a017;
+    --glass: rgb(26 32 44 / 0.82);
+    --glass-line: rgb(237 242 247 / 0.14);
+    --glass-shadow: 0 8px 24px rgb(0 0 0 / 0.45), inset 0 1px 0 rgb(237 242 247 / 0.08);
+    --glass-mut: #cbd5e0;
+    --glass-link: #90cdf4;
+    --focus: #ffff00;
+    --field-line: #a0aec0;
+    --node-rim: #edf2f7;
+  }
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --gold-text: #d4a017;
+  --gold-bg: #3a2f10;
+  --ink: #edf2f7;
+  --mut: #a0aec0;
+  --line: #2d3748;
+  --ok: #3fb950;
+  --warn: #d29922;
+  --bad: #f85149;
+  --on-bad: #12161f;
+  --node: #63b3ed;
+  --info-bg: #132a46;
+  --panel: #1a202c;
+  --bar: #12161f;
+  --page: #12161f;
+  --shadow: rgb(0 0 0 / 0.5);
+  --backdrop: rgb(0 0 0 / 0.6);
+  --pressed-ring: #d4a017;
+  --glass: rgb(26 32 44 / 0.82);
+  --glass-line: rgb(237 242 247 / 0.14);
+  --glass-shadow: 0 8px 24px rgb(0 0 0 / 0.45), inset 0 1px 0 rgb(237 242 247 / 0.08);
+  --glass-mut: #cbd5e0;
+  --glass-link: #90cdf4;
+  --focus: #ffff00;
+  --field-line: #a0aec0;
+  --node-rim: #edf2f7;
+}
+
+/* The theme's own surface colours, kept for the menus that open from the dark top bar. */
+:root {
+  --theme-panel: var(--panel);
+  --theme-ink: var(--ink);
+  --theme-mut: var(--mut);
+  --theme-line: var(--line);
+  --theme-bar: var(--bar);
+  --theme-gold-bg: var(--gold-bg);
+  --theme-gold-text: var(--gold-text);
+  --theme-focus: var(--focus);
+  --theme-field-line: var(--field-line);
+}

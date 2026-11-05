@@ -1,0 +1,82 @@
+import os
+import sys
+
+import pytest
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
+import backend.api.app as app_module
+
+
+@pytest.fixture
+def client(tmp_path, monkeypatch):
+    dist = tmp_path / 'dist'
+    (dist / 'assets').mkdir(parents=True)
+    (dist / 'index.html').write_text('<html>vite-index</html>')
+    (dist / 'assets' / 'x.js').write_text('console.log(1)')
+    monkeypatch.setattr(app_module, 'CONFIGURATOR_DIST', str(dist))
+    return app_module.app.test_client()
+
+
+def test_configurator_serves_built_index(client):
+    r = client.get('/configurator')
+    assert r.status_code == 200
+    assert b'vite-index' in r.data
+
+
+def test_configurator_serves_assets(client):
+    r = client.get('/configurator/assets/x.js')
+    assert r.status_code == 200
+    assert 'javascript' in r.mimetype
+
+
+def test_configurator_missing_asset_404(client):
+    assert client.get('/configurator/assets/nope.js').status_code == 404
+
+
+def test_region_configurator_redirects(client):
+    r = client.get('/region-configurator')
+    assert r.status_code == 301
+    assert r.headers['Location'].endswith('/configurator')
+
+
+@pytest.mark.parametrize('path', ['/join', '/visit', '/join/', '/visit/'])
+def test_short_links_open_the_companion_page(client, path):
+    r = client.get(path)
+    assert r.status_code == 302
+    assert r.headers['Location'].endswith('/configurator#companion')
+
+
+@pytest.mark.parametrize('lang', ['en', 'nl', 'fr'])
+def test_short_links_keep_a_known_language(client, lang):
+    r = client.get(f'/join?lang={lang}')
+    assert r.headers['Location'].endswith(f'/configurator?lang={lang}#companion')
+
+
+@pytest.mark.parametrize('query', ['?lang=de', '?lang=nl%26x', '?next=https://evil.example', '?lang=nl&lang=fr'])
+def test_short_links_drop_anything_else(client, query):
+    r = client.get('/visit' + query)
+    assert r.status_code == 302
+    assert r.headers['Location'].endswith('/configurator#companion') or r.headers['Location'].endswith(
+        '/configurator?lang=nl#companion')
+    assert 'evil' not in r.headers['Location'] and '&' not in r.headers['Location']
+
+
+@pytest.mark.parametrize('path', ['/configurator.html', '/configurator/'])
+def test_old_configurator_urls_redirect(client, path):
+    r = client.get(path)
+    assert r.status_code == 301
+    assert r.headers['Location'].endswith('/configurator')
+
+
+def test_old_configurator_url_keeps_its_query(client):
+    r = client.get('/configurator.html?lang=nl')
+    assert r.headers['Location'].endswith('/configurator?lang=nl')
+
+
+@pytest.mark.parametrize('path', ['/configurator.html', '/configurator/'])
+@pytest.mark.parametrize('query', ['?next=https://evil.example', '?lang=de', '?lang=nl&x=1', '?lang=%2F%2Fexample.com'])
+def test_old_configurator_urls_keep_only_a_known_language(client, path, query):
+    loc = client.get(path + query).headers['Location']
+    assert loc.endswith('/configurator') or loc.endswith('/configurator?lang=nl')
+    assert 'evil' not in loc and 'example' not in loc and 'x=1' not in loc

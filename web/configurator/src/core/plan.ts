@@ -1,0 +1,726 @@
+/**
+ * The plan (what the user wants on the repeater), the device snapshot a Read gives, the port of
+ * the old page's read parsing (applyReadResultsToForm and its helpers) and the change summary.
+ */
+import { t } from "../i18n/t";
+import { aclChanges, parseAcl, type AclEntry } from "./acl";
+import { GEWEST_NAMES, PROVINCE_NAMES } from "./be-regions";
+import {
+  buildName,
+  buildPrefix,
+  checkName,
+  checkOwnerInfo,
+  hasControlChars,
+  splitNameSuffixAndEmoji,
+  type PowerEmoji,
+  type PrefixFormat,
+} from "./naming";
+import {
+  BEMESH_PRESET_TITLE,
+  checkRadioValue,
+  FIRMWARE_DEFAULT_RADIO,
+  RADIO_PRESETS,
+  type RadioFieldId,
+} from "./presets";
+import {
+  defaultRegionCode,
+  deviceRegionsFromRead,
+  HOME_OVERRIDE_OMIT,
+  homeRegionCode,
+  parseRegionGet,
+  parseRegionTree,
+  parseRegionTreeEntries,
+  regionListMayBeCut,
+  regionTreeCut,
+  type RegionTreeEntry,
+  policyFor,
+  policyFromDevice,
+  regionsByState,
+  type Anchor,
+  type DeviceRegions,
+  type RegionPolicy,
+} from "./regions";
+import { parseNeighbours, type Neighbour } from "./neighbours";
+import type { Place } from "./search";
+import { BEMESH_HOPS, FLOOD_ALLOWANCE, FLOOD_MAX, hopLevel, SETTINGS, validateSetting, type SettingKey, type ValidateResult } from "./settings";
+
+export type Radio = { freq: number; sf: number; bw: number; cr: number };
+export type AdvertLoc = "none" | "prefs" | "share";
+
+export type Plan = {
+  location: { lat: number; lon: number } | null;
+  anchor: Anchor | null;
+  advertLoc: AdvertLoc;
+  prefixFormat: PrefixFormat;
+  nameSuffix: string;
+  power: PowerEmoji;
+  radio: Radio;
+  /** Raw text of radio fields the user typed that is not valid (the numeric radio keeps the last valid value). */
+  radioText?: Partial<Record<RadioFieldId, string>>;
+  /** The user chose "Custom" (or typed a field), so the preset select stays on Custom. */
+  radioCustom?: boolean;
+  settings: Partial<Record<SettingKey, string | number>>;
+  regions: RegionPolicy | null;
+  /** The repeater's access list as read; absent when it was not read. */
+  acl?: AclEntry[];
+  /** Max flood hops follows the hop preset (FLOOD_MAX); not a repeater setting. */
+  floodMaxFollow?: boolean;
+  /** "Don't set a password" is ticked: a repeater that was not read keeps the factory admin password. */
+  adminPasswordSkip?: boolean;
+  /** The repeater's public key from a Read, for recommendations that differ per repeater; not a setting. */
+  nodeKey?: string;
+};
+
+/**
+ * What happens to the admin password: a typed one is changed; on a read repeater an empty field
+ * keeps the current one; on one that was not read (a new board) it stays the factory "password"
+ * only when "Don't set a password" is ticked, and is missing until then.
+ */
+export type AdminPasswordState = "changed" | "kept" | "factory" | "missing";
+
+export function adminPasswordState(plan: Plan, read: boolean): AdminPasswordState {
+  if (String(plan.settings.adminPassword ?? "").trim()) return "changed";
+  if (read) return "kept";
+  return plan.adminPasswordSkip ? "factory" : "missing";
+}
+
+export type DeviceSnapshot = {
+  name?: string;
+  radio?: Plan["radio"];
+  settings: Partial<Record<SettingKey, string | number>>;
+  lat?: number;
+  lon?: number;
+  advertLoc?: Plan["advertLoc"];
+  /** The duty cycle as read (settings.dutycycle is snapped to the nearest option). */
+  dutycycleRaw?: number;
+  /** The access list from `get acl`; absent when the read failed. */
+  acl?: AclEntry[];
+  /** The repeaters it hears (`neighbors`), newest first; absent when the read failed. */
+  neighbours?: Neighbour[];
+  regions?: {
+    home?: string;
+    default?: string;
+    allowed: string[];
+    denied: string[];
+    /** Each region's parent from the bare `region` tree (null = under *); absent when it was not read. */
+    parents?: Record<string, string | null>;
+    /** The firmware cut the tree and a list: a region the configurator did not ask for by name may be missing. */
+    incomplete?: boolean;
+  };
+  version?: string;
+  role?: string;
+  publicKey?: string;
+  /** The public key was written with `set prv.key` (from its reply) and applies after a reboot. */
+  publicKeyPending?: boolean;
+  /** Every other public key the repeater had this session (old keys, and a written key the reply did not confirm). */
+  previousPublicKeys?: string[];
+  clock?: string;
+  missing: string[];
+};
+
+const BY_KEY = new Map(SETTINGS.map((s) => [s.key, s]));
+const BEMESH_RADIO = RADIO_PRESETS.find((p) => p.title === BEMESH_PRESET_TITLE)!;
+
+/** The untouched old page: #BEmesh form defaults on the EU/UK Narrow radio, no location yet. */
+export function defaultPlan(): Plan {
+  const settings: Plan["settings"] = {};
+  for (const s of SETTINGS) if (s.formDefault !== null) settings[s.key] = s.formDefault;
+  return {
+    location: null,
+    anchor: null,
+    advertLoc: "prefs",
+    prefixFormat: "city",
+    nameSuffix: "",
+    power: "",
+    radio: { freq: BEMESH_RADIO.freq, sf: BEMESH_RADIO.sf, bw: BEMESH_RADIO.bw, cr: BEMESH_RADIO.cr },
+    settings,
+    regions: null,
+  };
+}
+
+/** What the app starts with: the old defaults, on the Suburban timing and the #BEmesh hops (Minimal). */
+export function newPlan(): Plan {
+  const plan = defaultPlan();
+  const [floodMaxUnscoped, floodMaxAdvert] = FLOOD_ALLOWANCE[BEMESH_HOPS];
+  Object.assign(plan.settings, {
+    txdelay: 0.8,
+    directTxdelay: 0.4,
+    rxdelay: 0,
+    floodMaxUnscoped,
+    floodMaxAdvert,
+    floodMax: FLOOD_MAX[BEMESH_HOPS],
+  });
+  plan.floodMaxFollow = true;
+  return plan;
+}
+
+// ---------------------------------------------------------------------------
+// Derived values shared by the script builder and the summary
+
+const FORMATS_FOR: Record<Anchor["mode"], PrefixFormat[]> = {
+  city: ["city", "province", "country", "none"],
+  province: ["province", "country", "none"],
+  country: ["country", "none"],
+};
+
+/** The prefix formats an anchor offers (old availableLocationModes). */
+export function prefixFormatsFor(anchor: Anchor): PrefixFormat[] {
+  return FORMATS_FOR[anchor.mode];
+}
+
+/** The format in effect: the plan's, or the anchor's own level when the anchor lacks it. */
+export function effectivePrefixFormat(plan: Plan): PrefixFormat {
+  const a = plan.anchor;
+  if (!a) return plan.prefixFormat;
+  return FORMATS_FOR[a.mode].includes(plan.prefixFormat) ? plan.prefixFormat : a.mode;
+}
+
+/** Name prefix for the plan: empty without a location; a format the anchor lacks falls back to its own level. */
+export function planPrefix(plan: Plan): string {
+  const a = plan.anchor;
+  if (!a) return "";
+  return buildPrefix(effectivePrefixFormat(plan), a.place, a.province_code);
+}
+
+export function planName(plan: Plan): string {
+  return buildName(planPrefix(plan), plan.nameSuffix, plan.power);
+}
+
+/** The name `set name` sends, or null when there is no suffix or the name breaks a firmware limit. */
+export function sendableName(plan: Plan): string | null {
+  if (!plan.nameSuffix.trim()) return null;
+  const name = planName(plan);
+  return checkName(name, plan.advertLoc !== "none").ok ? name : null;
+}
+
+/** Valid repeater coordinates: finite, on the globe, and not the firmware's unset 0,0. */
+export function hasValidCoords(lat: unknown, lon: unknown): boolean {
+  return (
+    typeof lat === "number" &&
+    typeof lon === "number" &&
+    Number.isFinite(lat) &&
+    Number.isFinite(lon) &&
+    Math.abs(lat) <= 90 &&
+    Math.abs(lon) <= 180 &&
+    !(lat === 0 && lon === 0)
+  );
+}
+
+/**
+ * The firmware prints lat and lon as a float with 7 truncated decimals (51.412069 as 51.4120674):
+ * coordinates this close count as the same.
+ */
+const COORD_TOLERANCE = 1e-5;
+
+/** The plan's coordinates are the ones the repeater printed, within the firmware's float precision. */
+export function sameCoords(plan: { lat: number; lon: number }, lat: number | undefined, lon: number | undefined): boolean {
+  return (
+    lat !== undefined &&
+    lon !== undefined &&
+    Math.abs(plan.lat - lat) < COORD_TOLERANCE &&
+    Math.abs(plan.lon - lon) < COORD_TOLERANCE
+  );
+}
+
+/** The coordinates `set lat` / `set lon` send, or null when there are none or they are invalid. */
+export function sendableLocation(plan: Plan): { lat: number; lon: number } | null {
+  const l = plan.location;
+  return l && hasValidCoords(l.lat, l.lon) ? l : null;
+}
+
+/** validateSetting on the plan value (the form default when absent); null when there is no value (txPower). */
+function checkSetting(plan: Plan, key: SettingKey): ValidateResult | null {
+  const raw = plan.settings[key] ?? BY_KEY.get(key)!.formDefault;
+  if (raw === null || raw === undefined) return null;
+  return validateSetting(key, String(raw));
+}
+
+/**
+ * A setting as the script uses it: the plan value (the form default when absent) normalised by
+ * validateSetting. Null when there is no value (txPower) or the value cannot be sent (see
+ * planErrors), including owner info over 119 bytes.
+ */
+export function settingValue(plan: Plan, key: SettingKey): string | number | null {
+  const r = checkSetting(plan, key);
+  if (!r || !r.ok) return null;
+  if (key === "ownerInfo" && !checkOwnerInfo(String(r.value)).ok) return null;
+  return r.value;
+}
+
+export type PlanError = {
+  key: SettingKey | "name" | "ownerInfo" | "location" | "radio" | "regions";
+  errorKey: string;
+};
+
+/** The region codes the script can send: every row, the home and default choices, the anchor's own. */
+function regionCodes(plan: Plan): string[] {
+  const p = plan.regions;
+  const codes = p ? [...p.rows.map((r) => r.code), p.homeOverride ?? "", p.defaultScope ?? ""] : [];
+  const a = plan.anchor;
+  if (a) codes.push(a.province_code ?? "", a.place?.city_code ?? "", a.place?.province_code ?? "");
+  return codes.map(String);
+}
+
+/**
+ * Everything in the plan the script cannot send as entered: invalid settings (control characters
+ * included), a name that is empty or breaks a firmware limit, owner info over 119 bytes, invalid
+ * coordinates (or none while the advert sends the stored position, "Fixed position"), a region
+ * code with a control character. errorKey is the en.json key without its `error.` prefix.
+ */
+export function planErrors(plan: Plan): PlanError[] {
+  const errors: PlanError[] = [];
+  if (!plan.nameSuffix.trim()) errors.push({ key: "name", errorKey: "nameEmpty" });
+  else {
+    const c = checkName(planName(plan), plan.advertLoc !== "none");
+    if (c.badChars.some((ch) => !hasControlChars(ch))) errors.push({ key: "name", errorKey: "nameBadChars" });
+    if (c.controlChars) errors.push({ key: "name", errorKey: "nameControlChars" });
+    if (c.bytes > c.max) errors.push({ key: "name", errorKey: "nameTooLong" });
+  }
+  for (const def of SETTINGS) {
+    const r = checkSetting(plan, def.key);
+    if (r && !r.ok) errors.push({ key: def.key, errorKey: r.errorKey });
+  }
+  const owner = checkSetting(plan, "ownerInfo");
+  if (owner?.ok && !checkOwnerInfo(String(owner.value)).ok) {
+    errors.push({ key: "ownerInfo", errorKey: "ownerInfoTooLong" });
+  }
+  const radioIds: RadioFieldId[] = ["freq", "sf", "bw", "cr"];
+  if (Object.keys(plan.radioText ?? {}).length || radioIds.some((id) => checkRadioValue(id, plan.radio[id]) === null)) {
+    errors.push({ key: "radio", errorKey: "radioInvalid" });
+  }
+  if (plan.location && !sendableLocation(plan)) errors.push({ key: "location", errorKey: "coords" });
+  // Old coordsRequiredForApply: the advert sends the stored position, so there must be one.
+  else if (!plan.location && plan.advertLoc === "prefs") errors.push({ key: "location", errorKey: "coordsRequired" });
+  if (regionCodes(plan).some((c) => hasControlChars(c))) errors.push({ key: "regions", errorKey: "regionControlChars" });
+  return errors;
+}
+
+/** Equal to the old page's firmware default table (numbers compared as numbers). */
+export function isFirmwareDefault(key: SettingKey, value: string | number | null): boolean {
+  const fw = BY_KEY.get(key)!.firmwareDefault;
+  if (fw === null || value === null) return false;
+  if (typeof fw === "number") return Math.abs(Number(value) - fw) < 1e-9;
+  return String(value) === fw;
+}
+
+const round3 = (n: number) => Math.round(n * 1000) / 1000;
+
+export function radioIsFirmwareDefault(r: Radio): boolean {
+  const d = FIRMWARE_DEFAULT_RADIO;
+  return round3(r.freq) === round3(d.freq) && round3(r.bw) === round3(d.bw) && r.sf === d.sf && r.cr === d.cr;
+}
+
+/** `freq,bw,sf,cr` as `set radio` takes it (bw with at most 3 decimals). */
+export function formatRadio(r: Radio): string {
+  return `${r.freq},${round3(r.bw)},${r.sf},${r.cr}`;
+}
+
+// ---------------------------------------------------------------------------
+// Device read
+
+/** Old stripCliReply: drop the firmware's leading `> ` and surrounding space. */
+const strip = (reply: string) =>
+  String(reply || "")
+    .replace(/^\s*>\s*/, "")
+    .trim();
+
+const intOf = (s: string) => {
+  const n = parseInt(s, 10);
+  return Number.isFinite(n) ? n : undefined;
+};
+const floatOf = (s: string) => {
+  const n = parseFloat(s);
+  return Number.isFinite(n) ? n : undefined;
+};
+/** A float the firmware prints with 7 truncated decimals (0.4 as 0.3999999), rounded to 3 decimals. */
+const float3Of = (s: string) => {
+  const n = floatOf(s);
+  return n === undefined ? undefined : round3(n);
+};
+
+/** `get radio`; the firmware prints the frequency as a float (869.618 as 869.6179809), so it is rounded to 3 decimals. */
+function parseRadio(s: string): Radio | undefined {
+  const parts = s.split(",");
+  if (parts.length < 4) return undefined;
+  const r = {
+    freq: round3(parseFloat(parts[0])),
+    bw: parseFloat(parts[1]),
+    sf: parseInt(parts[2], 10),
+    cr: parseInt(parts[3], 10),
+  };
+  if (![r.freq, r.bw, r.sf, r.cr].every(Number.isFinite)) return undefined;
+  return { freq: r.freq, sf: r.sf, bw: r.bw, cr: r.cr };
+}
+
+/** Old snapDutycycleSelect: the nearest of the offered options. */
+function snapDutycycle(s: string): string | undefined {
+  const v = parseFloat(s.replace(/%$/, ""));
+  if (!Number.isFinite(v)) return undefined;
+  const options = [10, 50, 100];
+  return String(options.reduce((best, o) => (Math.abs(v - o) < Math.abs(v - best) ? o : best)));
+}
+
+function parseRegionList(s: string): string[] {
+  if (!s || s === "-none-") return [];
+  return s
+    .split(",")
+    .map((p) => p.trim())
+    .filter(Boolean);
+}
+
+/**
+ * The region replies the firmware cut off (see regionTreeCut, regionListMayBeCut) are made whole
+ * from what else was read: a whole tree carries every region and its flood flag; a cut tree is
+ * filled from the lists and the `region get <name>` replies (see regionNamesToAsk). Only when the
+ * tree and a list were both cut can a region whose name nobody asked for be missing: the read is
+ * marked incomplete. Nothing cut and nothing asked leaves the lists as they are.
+ */
+function completeRegions(
+  regions: NonNullable<DeviceSnapshot["regions"]>,
+  replies: Record<string, string>,
+  allowedReply: string | undefined,
+  deniedReply: string | undefined,
+): void {
+  const tree = Object.prototype.hasOwnProperty.call(replies, "region") ? replies.region : undefined;
+  const treeCut = tree !== undefined && regionTreeCut(tree);
+  const listCut = [allowedReply, deniedReply].some((r) => r !== undefined && regionListMayBeCut(r));
+  const gets = Object.keys(replies)
+    .filter((k) => k.startsWith("region get "))
+    .map((k) => parseRegionGet(replies[k]))
+    .filter((g): g is RegionTreeEntry => !!g);
+  if (!treeCut && !listCut && !gets.length) return;
+
+  const flood = new Map<string, boolean>();
+  const parents: Record<string, string | null> = {};
+  let wildcard = regions.allowed.includes("*") ? true : regions.denied.includes("*") ? false : null;
+  if (tree !== undefined) {
+    const t = parseRegionTreeEntries(tree);
+    if (t.wildcardFlood !== null) wildcard = t.wildcardFlood;
+    for (const e of t.entries) {
+      parents[e.name] = e.parent;
+      flood.set(e.name, e.flood);
+    }
+  }
+  for (const n of regions.allowed) if (n !== "*" && !flood.has(n)) flood.set(n, true);
+  for (const n of regions.denied) if (n !== "*" && !flood.has(n)) flood.set(n, false);
+  for (const g of gets) {
+    parents[g.name] = g.parent;
+    flood.set(g.name, g.flood);
+  }
+  const names = [...flood.keys()];
+  regions.allowed = [...(wildcard ? ["*"] : []), ...names.filter((n) => flood.get(n))];
+  regions.denied = [...(wildcard === false ? ["*"] : []), ...names.filter((n) => !flood.get(n))];
+  if (regions.parents) regions.parents = { ...regions.parents, ...parents };
+  if (treeCut && listCut) regions.incomplete = true;
+}
+
+/**
+ * The regions to ask for one by one with `region get <name>` after a Read: none when the tree came
+ * whole. Under a cut tree, the names in the lists, the home and the default that the tree did not
+ * show (for their parent); when a list may be cut as well, also every candidate (the regions the
+ * configurator knows for this place) that nothing showed.
+ */
+export function regionNamesToAsk(replies: Record<string, string>, candidates: string[]): string[] {
+  const tree = replies.region;
+  if (tree === undefined || !regionTreeCut(tree)) return [];
+  const shown = new Set(parseRegionTreeEntries(tree).entries.map((e) => e.name));
+  const lists = ["region list allowed", "region list denied"].map((c) => (c in replies ? strip(replies[c]) : undefined));
+  const home = "region home" in replies ? afterPrefix(strip(replies["region home"]), /^home is\s+(.+)$/i) : "";
+  const def = "region default" in replies ? afterPrefix(strip(replies["region default"]), /^default scope is\s+(.+)$/i) : "";
+  const named = [...lists.flatMap((l) => (l === undefined ? [] : parseRegionList(l))), home, def];
+  const listCut = lists.some((l) => l !== undefined && regionListMayBeCut(l));
+  const ask = new Set<string>();
+  for (const n of [...named, ...(listCut ? candidates : [])]) {
+    if (n && n !== "*" && n !== "<null>" && !shown.has(n) && !/\s/.test(n)) ask.add(n);
+  }
+  return [...ask];
+}
+
+/** The region codes a Read checks one by one when the replies were cut: the plan's rows, Belgium's levels, the neighbours and eu. */
+export function regionCandidates(plan: Plan): string[] {
+  const rows = plan.regions?.rows.map((r) => r.code) ?? [];
+  return [...new Set([...rows, "eu", "be", ...Object.keys(GEWEST_NAMES), ...Object.keys(PROVINCE_NAMES), "nl", "lu", "fr", "de", "gb"])];
+}
+
+/** `home is X` / `default scope is X`; an unexpected reply is kept as is (old parseRegion*Name || value). */
+const afterPrefix = (s: string, re: RegExp) => {
+  const m = s.match(re);
+  return m ? m[1].trim() || s : s;
+};
+
+type SettingParser = (s: string) => string | number | undefined;
+const oneOf =
+  (key: SettingKey): SettingParser =>
+  (s) =>
+    BY_KEY.get(key)!.options!.includes(s) ? s : undefined;
+
+/** How each `get …` reply becomes a setting value (port of the applyReadResultsToForm branches). */
+const SETTING_PARSERS: Partial<Record<SettingKey, SettingParser>> = {
+  repeat: oneOf("repeat"),
+  // The firmware sends newlines as '|'.
+  ownerInfo: (s) => s.replace(/\|/g, "\n"),
+  guestPassword: (s) => s,
+  dutycycle: snapDutycycle,
+  floodAdvertHours: intOf,
+  // `get advert.interval` replies in minutes, the unit `set advert.interval` takes.
+  advertIntervalMinutes: intOf,
+  floodMaxUnscoped: intOf,
+  floodMaxAdvert: intOf,
+  floodMax: intOf,
+  pathHashMode: oneOf("pathHashMode"),
+  loopDetect: oneOf("loopDetect"),
+  txdelay: float3Of,
+  directTxdelay: float3Of,
+  rxdelay: float3Of,
+  radioRxgain: oneOf("radioRxgain"),
+  txPower: intOf,
+  intThresh: intOf,
+  agcResetInterval: intOf,
+  multiAcks: oneOf("multiAcks"),
+};
+
+/**
+ * A snapshot from the replies to the read commands (command → raw reply). Pass only the
+ * successful replies: a command that failed, timed out or was never sent goes in `missing`
+ * instead (an error text passed as a reply would be parsed as a value). Replies that do not
+ * parse leave their field unset.
+ */
+export function snapshotFromReplies(replies: Record<string, string>, missing: string[] = []): DeviceSnapshot {
+  const get = (cmd: string) => (Object.prototype.hasOwnProperty.call(replies, cmd) ? strip(replies[cmd]) : undefined);
+  const s: DeviceSnapshot = { settings: {}, missing: [...missing] };
+
+  const name = get("get name");
+  if (name !== undefined) s.name = name;
+  const radio = get("get radio");
+  if (radio !== undefined) s.radio = parseRadio(radio);
+  if (!s.radio) delete s.radio;
+
+  for (const def of SETTINGS) {
+    const parse = SETTING_PARSERS[def.key];
+    const reply = def.readCmd ? get(def.readCmd) : undefined;
+    if (!parse || reply === undefined) continue;
+    const v = parse(reply);
+    if (v !== undefined) s.settings[def.key] = v;
+  }
+  const dutycycle = get("get dutycycle");
+  const dutycycleRaw = dutycycle === undefined ? NaN : parseFloat(dutycycle.replace(/%$/, ""));
+  if (Number.isFinite(dutycycleRaw)) s.dutycycleRaw = dutycycleRaw;
+
+  const lat = get("get lat");
+  const lon = get("get lon");
+  if (lat !== undefined) s.lat = parseFloat(lat);
+  if (lon !== undefined) s.lon = parseFloat(lon);
+  const gps = get("gps advert");
+  if (gps === "none" || gps === "prefs" || gps === "share") s.advertLoc = gps;
+
+  const home = get("region home");
+  const def = get("region default");
+  const allowed = get("region list allowed");
+  const denied = get("region list denied");
+  if ([home, def, allowed, denied].some((v) => v !== undefined)) {
+    s.regions = {
+      ...(home !== undefined ? { home: afterPrefix(home, /^home is\s+(.+)$/i) } : {}),
+      ...(def !== undefined ? { default: afterPrefix(def, /^default scope is\s+(.+)$/i) } : {}),
+      allowed: allowed !== undefined ? parseRegionList(allowed) : [],
+      denied: denied !== undefined ? parseRegionList(denied) : [],
+      ...(Object.prototype.hasOwnProperty.call(replies, "region") ? { parents: parseRegionTree(replies.region) } : {}),
+    };
+    completeRegions(s.regions, replies, allowed, denied);
+  }
+
+  const acl = Object.prototype.hasOwnProperty.call(replies, "get acl") ? parseAcl(replies["get acl"]) : null;
+  if (acl) s.acl = acl;
+  const neighbours = Object.prototype.hasOwnProperty.call(replies, "neighbors") ? parseNeighbours(strip(replies.neighbors)) : null;
+  if (neighbours) s.neighbours = neighbours;
+
+  const version = get("ver");
+  const role = get("get role");
+  const publicKey = get("get public.key");
+  const clock = get("clock");
+  if (version !== undefined) s.version = version;
+  if (role !== undefined) s.role = role;
+  if (publicKey !== undefined) s.publicKey = publicKey;
+  if (clock !== undefined) s.clock = clock;
+  return s;
+}
+
+/** The four region reads; without every one of them the device's regions are not known. */
+const REGION_READS = ["region home", "region default", "region list allowed", "region list denied"];
+
+/**
+ * The device's regions for the script's removals (pass as buildScript's `device`). Undefined when
+ * any region read is missing, so the script removes nothing it has not seen.
+ */
+export function deviceRegionsFromSnapshot(s: DeviceSnapshot): DeviceRegions | undefined {
+  const r = s.regions;
+  if (!r || REGION_READS.some((cmd) => s.missing.includes(cmd))) return undefined;
+  const regions = deviceRegionsFromRead(r.allowed, r.denied, r.home ?? null, r.default ?? null);
+  return r.parents && !s.missing.includes("region") ? { ...regions, parents: r.parents } : regions;
+}
+
+type Detection = { anchor: Anchor; format: PrefixFormat };
+
+const cityAnchor = (place: Place): Anchor => ({ mode: "city", province_code: place.province_code, place });
+const provinceAnchor = (code: string): Anchor => ({ mode: "province", province_code: code, place: null });
+const COUNTRY: Anchor = { mode: "country", province_code: null, place: null };
+
+/** Old detectLocationFromDeviceName: a BE-XXX- city prefix first, then a province, then BE-. */
+function detectFromName(name: string, places: Place[]): Detection | null {
+  const nameU = name.trim().toUpperCase();
+  if (!nameU.startsWith("BE-")) return null;
+  for (const place of places) {
+    const prefix = buildPrefix("city", place, null);
+    if (prefix && nameU.startsWith(prefix.toUpperCase())) return { anchor: cityAnchor(place), format: "city" };
+  }
+  for (const code of Object.keys(PROVINCE_NAMES)) {
+    const prefix = buildPrefix("province", null, code);
+    if (prefix && nameU.startsWith(prefix.toUpperCase())) return { anchor: provinceAnchor(code), format: "province" };
+  }
+  if (/^BE-[A-Z0-9]{2,5}-/i.test(name.trim())) return null;
+  return { anchor: COUNTRY, format: "country" };
+}
+
+/** Old detectLocationFromRegionHints: the region home, then the allow list — a city, a province, then be. */
+function detectFromRegions(home: string | undefined, allowed: string[], places: Place[]): Detection | null {
+  const ordered: string[] = [];
+  for (const raw of [home, ...allowed]) {
+    const c = String(raw || "").trim();
+    if (c && c !== "*" && !ordered.includes(c)) ordered.push(c);
+  }
+  for (const c of ordered) {
+    const place = places.find((p) => p.city_code === c);
+    if (place) return { anchor: cityAnchor(place), format: "city" };
+  }
+  const pc = ordered.find((c) => Object.prototype.hasOwnProperty.call(PROVINCE_NAMES, c));
+  if (pc) return { anchor: provinceAnchor(pc), format: "province" };
+  if (ordered.includes("be")) return { anchor: COUNTRY, format: "country" };
+  return null;
+}
+
+/**
+ * The plan a device read gives, starting from defaultPlan() (port of applyReadResultsToForm):
+ * location from the name prefix or else the region hints, the name suffix and power emoji,
+ * radio, settings, coordinates, advert location and the region policy. A name that does not
+ * start with the detected prefix is kept whole (prefix format "none").
+ */
+export function planFromSnapshot(s: DeviceSnapshot, places: Place[]): Plan {
+  const plan = defaultPlan();
+  if (s.publicKey) plan.nodeKey = s.publicKey;
+  const name = (s.name ?? "").trim();
+  const detection =
+    (name ? detectFromName(name, places) : null) ||
+    (s.regions ? detectFromRegions(s.regions.home, s.regions.allowed, places) : null);
+  if (detection) {
+    plan.anchor = detection.anchor;
+    plan.prefixFormat = detection.format;
+  }
+
+  if (name) {
+    const prefix = planPrefix(plan);
+    let rest = name;
+    if (prefix) {
+      if (name.toUpperCase().startsWith(prefix.toUpperCase())) rest = name.slice(prefix.length);
+      else plan.prefixFormat = "none";
+    }
+    const { suffix, power } = splitNameSuffixAndEmoji(rest);
+    plan.nameSuffix = suffix;
+    plan.power = power;
+  }
+
+  if (s.radio) plan.radio = { ...s.radio };
+  plan.settings = { ...plan.settings, ...s.settings };
+  const level = hopLevel(plan.settings.floodMaxUnscoped, plan.settings.floodMaxAdvert);
+  plan.floodMaxFollow = !!level && Number(plan.settings.floodMax) === FLOOD_MAX[level];
+  if (hasValidCoords(s.lat, s.lon)) plan.location = { lat: s.lat!, lon: s.lon! };
+  if (s.advertLoc) plan.advertLoc = s.advertLoc;
+  if (s.acl) plan.acl = s.acl.map((e) => ({ ...e }));
+  if (plan.anchor) {
+    plan.regions = s.regions ? policyFromDevice(plan.anchor, places, s.regions) : policyFor(plan.anchor, places);
+  }
+  return plan;
+}
+
+// ---------------------------------------------------------------------------
+// Summary
+
+export type Change = {
+  group: "name" | "settings" | "location" | "regions" | "acl";
+  labelKey: string;
+  to: string;
+  from?: string;
+};
+
+const coords = (lat: number, lon: number) => `${lat}, ${lon}`;
+
+/**
+ * What the plan changes. Against a snapshot: each value that differs from the device (a value
+ * the device did not report counts as a change when the script sets it). Without one: what the
+ * script sets. The admin password is never listed; its state is reported (see adminPasswordState). The
+ * access list changes against the Read are one line with their count.
+ */
+export function summarize(
+  plan: Plan,
+  snapshot?: DeviceSnapshot,
+): { changes: Change[]; adminPassword: AdminPasswordState } {
+  const changes: Change[] = [];
+  const add = (group: Change["group"], labelKey: string, to: string, from: string | undefined, sent: boolean) => {
+    if (from !== undefined ? from === to : !sent) return;
+    changes.push(from !== undefined ? { group, labelKey, from, to } : { group, labelKey, to });
+  };
+
+  const name = sendableName(plan);
+  if (name) add("name", "name", name, snapshot?.name, true);
+
+  add(
+    "settings",
+    "radio",
+    formatRadio(plan.radio),
+    snapshot?.radio && formatRadio(snapshot.radio),
+    !radioIsFirmwareDefault(plan.radio),
+  );
+  for (const def of SETTINGS) {
+    if (def.key === "adminPassword") continue;
+    const v = settingValue(plan, def.key);
+    // No value means the script leaves it alone (txPower).
+    if (v === null) continue;
+    const text = String(v).trim();
+    const sent = def.firmwareDefault === null ? text !== "" : !isFirmwareDefault(def.key, v);
+    const from = snapshot?.settings[def.key];
+    add("settings", def.key, text, from === undefined ? undefined : String(from).trim(), sent);
+  }
+
+  const location = sendableLocation(plan);
+  const storedOnDevice = snapshot && hasValidCoords(snapshot.lat, snapshot.lon) ? coords(snapshot.lat!, snapshot.lon!) : undefined;
+  if (plan.advertLoc === "none") {
+    // No clears a stored position: listed unless the Read shows none stored.
+    if (!snapshot || !(snapshot.lat === 0 && snapshot.lon === 0)) {
+      const to = t("review.positionCleared");
+      changes.push(storedOnDevice ? { group: "location", labelKey: "location", from: storedOnDevice, to } : { group: "location", labelKey: "location", to });
+    }
+  } else if (location && !(snapshot && sameCoords(location, snapshot.lat, snapshot.lon))) {
+    add("location", "location", coords(location.lat, location.lon), storedOnDevice, true);
+  }
+  add("location", "advertLoc", plan.advertLoc, snapshot?.advertLoc, plan.advertLoc !== "prefs");
+
+  if (plan.anchor && plan.regions) {
+    const p = plan.regions;
+    const dev = snapshot?.regions;
+    const { allowed, denied } = regionsByState(p);
+    const list = (codes: string[]) =>
+      codes
+        .filter((c) => c !== "*")
+        .sort()
+        .join(", ");
+    add("regions", "regionsAllowed", list(allowed), dev && list([...dev.allowed]), allowed.length > 0);
+    add("regions", "regionsDenied", list(denied), dev && list([...dev.denied]), denied.length > 0);
+    const flood = p.untaggedFlood ? "on" : "off";
+    add("regions", "untaggedFlood", flood, dev && (dev.allowed.includes("*") ? "on" : "off"), !p.untaggedFlood);
+    if (p.homeOverride !== HOME_OVERRIDE_OMIT) add("regions", "regionHome", homeRegionCode(p) ?? "*", dev?.home, true);
+    add("regions", "regionDefault", defaultRegionCode(p) ?? "<null>", dev?.default, true);
+  }
+
+  const aclCount = plan.acl ? aclChanges(snapshot?.acl ?? [], plan.acl) : 0;
+  if (aclCount) changes.push({ group: "acl", labelKey: "acl", to: t("changes", { count: aclCount }) });
+
+  return { changes, adminPassword: adminPasswordState(plan, !!snapshot) };
+}

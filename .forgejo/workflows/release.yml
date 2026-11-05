@@ -1,0 +1,97 @@
+# A vX.Y.Z tag on main is a release: test it, publish its notes as a Forgejo release, deploy it
+# through Komodo. Tags come from `npm run release:publish` (scripts/release.mjs); see DEPLOYMENT.md.
+# "Run workflow" with an existing tag deploys that release again (e.g. to roll back).
+name: release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to deploy, e.g. v1.0.2"
+        required: true
+
+concurrency:
+  group: release-deploy
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0
+          fetch-tags: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Check for private details
+        env:
+          PRIVATE_PATTERN: ${{ secrets.PRIVATE_PATTERN }}
+        run: |
+          # The pattern lives in a secret, so the list itself is never in the repository or the log.
+          if [ -z "$PRIVATE_PATTERN" ]; then echo "The PRIVATE_PATTERN secret is not set"; exit 1; fi
+          found=0
+          if git grep -I -l -i -E -e "$PRIVATE_PATTERN" -- . > /tmp/private-files; then
+            echo "Private details in these files:"; cat /tmp/private-files; found=1
+          fi
+          if git log --format=%B "$TAG" | grep -q -i -E -e "$PRIVATE_PATTERN"; then
+            echo "Private details in commit messages"; found=1
+          fi
+          exit $found
+
+      - name: Check the tag
+        run: |
+          git fetch --quiet origin main
+          node scripts/release.mjs verify "$TAG"
+          echo "COMMIT=$(git rev-parse "$TAG^{commit}")" >> "$GITHUB_ENV"
+
+      - name: Test the web app
+        run: |
+          npm ci
+          node --test scripts/*.test.mjs
+          npm run typecheck
+          npm run i18n:missing
+          npx vitest run --config web/configurator/vite.config.ts --maxWorkers=2
+          npm run build
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Test the server
+        run: |
+          pip install --quiet -r requirements.txt pytest
+          pytest -q tests
+
+      - name: Publish the release notes
+        env:
+          TOKEN: ${{ github.token }}
+          API: ${{ github.server_url }}/api/v1/repos/${{ github.repository }}
+        run: |
+          if curl -sf -H "Authorization: token $TOKEN" "$API/releases/tags/$TAG" >/dev/null; then
+            echo "Release $TAG already exists"
+          else
+            node scripts/release.mjs notes "$TAG" > notes.md
+            jq -n --arg tag "$TAG" --rawfile body notes.md '{tag_name: $tag, name: $tag, body: $body}' \
+              | curl -sf -X POST -H "Authorization: token $TOKEN" -H "Content-Type: application/json" \
+                  --data @- "$API/releases" >/dev/null
+            echo "Published release $TAG"
+          fi
+
+      - name: Deploy through Komodo
+        env:
+          KOMODO_URL: ${{ secrets.KOMODO_URL }}
+          KOMODO_API_KEY: ${{ secrets.KOMODO_API_KEY }}
+          KOMODO_API_SECRET: ${{ secrets.KOMODO_API_SECRET }}
+          KOMODO_REPO: ${{ secrets.KOMODO_REPO }}
+          KOMODO_BUILD: ${{ secrets.KOMODO_BUILD }}
+          KOMODO_PROCEDURE: ${{ secrets.KOMODO_PROCEDURE }}
+        run: node scripts/komodo-deploy.mjs "$TAG" "$COMMIT"

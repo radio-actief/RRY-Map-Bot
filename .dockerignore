@@ -1,0 +1,64 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+*.md
+!README.md
+!DISCORDBOT_INSTRUCTIONS.md
+!CHANGELOG.md
+
+# Tests (keep invariant checker for post-deploy verification in the api container)
+tests/*
+!tests/check_invariants.py
+test_*.py
+*_test.py
+
+# Logs
+logs/
+*.log
+
+# Node modules (if any)
+**/node_modules/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+docker-compose.yml
+Dockerfile
+.dockerignore
+
+
+# Build output and macOS resource forks
+**/._*
+dist/

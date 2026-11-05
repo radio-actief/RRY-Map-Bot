@@ -1,0 +1,117 @@
+# RRY-Map-Bot Configuration
+# Loads environment variables and provides configuration access
+
+import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Discord Bot Configuration
+DISCORD_BOT_TOKEN = os.getenv('DISCORD_BOT_TOKEN')
+DISCORD_GUILD_ID = os.getenv('DISCORD_GUILD_ID')
+STARTUP_CHANNEL_ID = os.getenv('STARTUP_CHANNEL_ID')
+STARTUP_MESSAGE_ID = os.getenv('STARTUP_MESSAGE_ID')
+
+# Database Configuration
+DATABASE_PATH = os.getenv('DATABASE_PATH', 'data/belgian_nodes.db')
+
+# Local Belgian Geocoder Configuration (default path; see backend/belgian_geocoder.py)
+# Produced by: scripts/generate-be-municipalities-geojson.py
+BE_MUNICIPALITIES_GEOJSON = os.getenv(
+    'BE_MUNICIPALITIES_GEOJSON',
+    'data/be-municipalities.geojson',
+)
+# Metres (in EPSG:3812) for optional nearest-gemeente fallback when a point is
+# not strictly inside any polygon. Default 0 = strict PIP only (avoids snapping
+# NL/DE/LU nodes just across the border into Belgium). Set e.g. 500 only if you
+# accept that trade-off for GPS jitter / coastal gaps.
+GEOCODE_BUFFER_METERS = float(os.getenv('GEOCODE_BUFFER_METERS', '0'))
+
+# Geopy Configuration (FALLBACK ONLY — used when --use-geopy / USE_GEOPY_FALLBACK=1
+# or when the be-municipalities GeoJSON is missing at runtime)
+GEOPY_USER_AGENT = os.getenv('GEOPY_USER_AGENT', 'belgian_meshcore_map')
+GEOPY_TIMEOUT = int(os.getenv('GEOPY_TIMEOUT', '10'))
+USE_GEOPY_FALLBACK = os.getenv('USE_GEOPY_FALLBACK', '').strip() in ('1', 'true', 'True', 'yes', 'YES')
+
+# API Configuration
+OFFICIAL_API_URL = os.getenv('OFFICIAL_API_URL', 'https://map.meshcore.io/api/v1/nodes')
+LOCAL_API_URL = os.getenv('LOCAL_API_URL', 'http://localhost:8000/api/v1')
+
+# Map Web UI (for direct node links)
+MAP_BASE_URL = os.getenv('MAP_BASE_URL', 'https://meshmap.radio-actief.be')
+BRAND_NAME = os.getenv('BRAND_NAME', 'Radio-Actief.be')
+BRAND_LOGO_URL = os.getenv(
+    'BRAND_LOGO_URL',
+    f'{MAP_BASE_URL.rstrip("/")}/img/radio-actief-logo-128.png',
+)
+
+# Sync Configuration
+# Preferred env: SYNC_INTERVAL_MINUTES. Legacy SYNC_INTERVAL_HOURS is still read
+# for backwards-compat (hours*60) when SYNC_INTERVAL_MINUTES is unset.
+SYNC_INTERVAL_HOURS = int(os.getenv('SYNC_INTERVAL_HOURS', '6'))  # deprecated, kept for compat
+_raw_sync_minutes = os.getenv('SYNC_INTERVAL_MINUTES')
+if _raw_sync_minutes is not None and _raw_sync_minutes.strip() != '':
+    SYNC_INTERVAL_MINUTES = int(_raw_sync_minutes)
+else:
+    SYNC_INTERVAL_MINUTES = SYNC_INTERVAL_HOURS * 60
+
+# Daily Digest Configuration (posted once per day by the Discord bot)
+DAILY_DIGEST_ENABLED = os.getenv('DAILY_DIGEST_ENABLED', '1').strip() in ('1', 'true', 'True', 'yes', 'YES')
+DAILY_DIGEST_HOUR = int(os.getenv('DAILY_DIGEST_HOUR', '9'))
+DAILY_DIGEST_MINUTE = int(os.getenv('DAILY_DIGEST_MINUTE', '0'))
+DAILY_DIGEST_TZ = os.getenv('DAILY_DIGEST_TZ', 'Europe/Brussels')
+# Channel override: falls back to STARTUP_CHANNEL_ID when unset.
+DAILY_DIGEST_CHANNEL_ID = os.getenv('DAILY_DIGEST_CHANNEL_ID') or STARTUP_CHANNEL_ID
+
+# Discord OAuth2 Configuration
+DISCORD_OAUTH2_CLIENT_ID = os.getenv('DISCORD_OAUTH2_CLIENT_ID')
+DISCORD_OAUTH2_CLIENT_SECRET = os.getenv('DISCORD_OAUTH2_CLIENT_SECRET')
+DISCORD_OAUTH2_REDIRECT_URI = os.getenv('DISCORD_OAUTH2_REDIRECT_URI', 'http://localhost:8000/auth/callback')
+DISCORD_OAUTH2_SCOPE = 'identify guilds'  # Need identify and guilds to check server membership
+DISCORD_API_BASE_URL = 'https://discord.com/api/v10'
+DISCORD_SERVER_INVITE_URL = os.getenv('DISCORD_SERVER_INVITE_URL', 'https://discord.gg/kvybAgqnhD')
+
+# Belgian Geographic Bounds
+BELGIUM_BOUNDS = {
+    'min_lat': 49.5,
+    'max_lat': 51.5,
+    'min_lon': 2.5,
+    'max_lon': 6.4
+}
+
+# Node Type Mapping
+NODE_TYPES = {
+    1: "companion",
+    2: "repeater",
+    3: "room server",
+    4: "sensor"
+}
+
+NODE_TYPES_REVERSE = {v.lower(): k for k, v in NODE_TYPES.items()}
+
+# Node Type Icons for Discord
+NODE_TYPE_ICONS = {
+    1: "📱",  # companion
+    2: "📡",  # repeater
+    3: "💾",  # room server
+    4: "🌡️"   # sensor
+}
+
+# Frequency Presets
+FREQUENCY_PRESETS = [
+    {"name": "Australia", "freq": 915.800, "sf": 10, "bw": 250, "cr": 5},
+    {"name": "Australia: Victoria", "freq": 916.675, "sf": 7, "bw": 62.5, "cr": 8},
+    {"name": "EU/UK (Narrow)", "freq": 869.618, "sf": 8, "bw": 62.5, "cr": 8},
+    {"name": "EU/UK (Long Range)", "freq": 869.525, "sf": 11, "bw": 250, "cr": 5},
+    {"name": "EU/UK (Medium Range)", "freq": 869.525, "sf": 10, "bw": 250, "cr": 5},
+    {"name": "Czech Republic (Narrow)", "freq": 869.525, "sf": 7, "bw": 62.5, "cr": 5},
+    {"name": "EU 433MHz (Long Range)", "freq": 433.650, "sf": 11, "bw": 250, "cr": 5},
+    {"name": "New Zealand", "freq": 917.375, "sf": 11, "bw": 250, "cr": 5},
+    {"name": "New Zealand (Narrow)", "freq": 917.375, "sf": 7, "bw": 62.5, "cr": 5},
+    {"name": "Portugal 433", "freq": 433.375, "sf": 9, "bw": 62.5, "cr": 6},
+    {"name": "Portugal 868", "freq": 869.618, "sf": 7, "bw": 62.5, "cr": 6},
+    {"name": "USA/Canada (Recommended)", "freq": 910.525, "sf": 7, "bw": 62.5, "cr": 5},
+    {"name": "Vietnam", "freq": 920.250, "sf": 11, "bw": 250, "cr": 5},
+]
+

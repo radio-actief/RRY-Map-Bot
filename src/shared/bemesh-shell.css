@@ -1,0 +1,798 @@
+/* #BEmesh shell: the top bar, page switcher, chips, buttons, cards and fields shared by the configurator and the tool pages. Colours come from bemesh-tokens.css. */
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 13px;
+}
+
+/* Keys, call signs and commands. */
+code,
+kbd,
+samp,
+.mono {
+  font-family: var(--font-mono);
+}
+
+button {
+  font: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: var(--topbar-bg);
+  color: var(--topbar-ink);
+  border-bottom: 1px solid var(--topbar-line);
+  flex-wrap: wrap;
+  /* Chips, icons and switches on the bar take the bar's dark colours in both themes. */
+  --panel: transparent;
+  --ink: var(--topbar-ink);
+  --mut: var(--topbar-mut);
+  --line: var(--topbar-control);
+  --bar: var(--topbar-line);
+  /* Open, hovered and "on" controls: the dark gold, so the light bar text stays readable. */
+  --gold-bg: #3a2f10;
+  --gold-text: var(--gold);
+  /* Focus ring and field borders on the bar. */
+  --focus: var(--signal);
+  --field-line: var(--topbar-mut);
+  /* Above every Leaflet pane (up to 1000), so the ☰ menu and other top bar dropdowns open over the map. */
+  position: relative;
+  z-index: 1100;
+}
+
+.wordmark {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.wordmark b {
+  color: var(--gold-text);
+}
+
+.topbar .wordmark b {
+  color: var(--signal);
+}
+
+/* Menus that open from the top bar keep the theme's own colours. */
+.topbar .menu {
+  --panel: var(--theme-panel);
+  --ink: var(--theme-ink);
+  --mut: var(--theme-mut);
+  --line: var(--theme-line);
+  --bar: var(--theme-bar);
+  --gold-bg: var(--theme-gold-bg);
+  --gold-text: var(--theme-gold-text);
+  --focus: var(--theme-focus);
+  --field-line: var(--theme-field-line);
+  color: var(--ink);
+}
+
+/* The switcher starts at the same x on every page. */
+@media (min-width: 601px) {
+  .topbar .wordmark {
+    min-width: 192px;
+  }
+}
+
+/* Phone: Orbitron runs wide, so the wordmark steps down to keep the bar on one line. */
+@media (max-width: 600px) {
+  .topbar .wordmark {
+    font-size: 12px;
+    letter-spacing: -0.02em;
+  }
+}
+
+.spacer {
+  flex: 1;
+}
+
+/* The account chip and language switch mount into these; the wrappers take no gap of their own. */
+.topbar > [data-account-chip],
+.topbar > [data-lang-switch] {
+  display: contents;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  font-size: 12px;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  cursor: pointer;
+}
+
+.icon.on {
+  background: var(--gold-bg);
+  border-color: var(--gold);
+}
+
+.btn {
+  white-space: nowrap;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  cursor: pointer;
+}
+
+.btn.primary {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: var(--on-gold);
+  font-weight: 700;
+}
+
+.btn:disabled,
+.btn[aria-disabled="true"] {
+  background: var(--bar);
+  border-color: var(--line);
+  color: var(--mut);
+  cursor: not-allowed;
+}
+
+.btn.small {
+  padding: 3px 8px;
+  font-size: 12px;
+}
+
+.segmented {
+  display: flex;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.segmented button {
+  flex: 1;
+  padding: 6px 4px;
+  border: 0;
+  border-left: 1px solid var(--line);
+  background: var(--panel);
+  cursor: pointer;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.segmented button:first-child {
+  border-left: 0;
+}
+
+.segmented button[aria-pressed="true"] {
+  /* Ink fill: the focus ring is yellow, in both themes. */
+  --focus: var(--signal);
+  background: var(--pressed-bg);
+  color: var(--pressed-ink);
+  font-weight: 700;
+  box-shadow: inset 0 0 0 1px var(--pressed-ring);
+}
+
+.switcher {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.switcher a {
+  padding: 4px 10px;
+  border-left: 1px solid var(--line);
+  background: var(--panel);
+  color: inherit;
+  font-size: 12px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.switcher a:first-child {
+  border-left: 0;
+}
+
+.switcher a:hover {
+  background: var(--gold-bg);
+}
+
+.switcher a[aria-current="page"],
+.switcher a[aria-current="page"]:hover {
+  background: var(--signal);
+  color: var(--topbar-bg);
+  font-weight: 700;
+}
+
+/* Phone: each page shows these links in its own menu instead. */
+@media (max-width: 600px) {
+  .switcher {
+    display: none;
+  }
+}
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.card h2 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+
+.muted {
+  color: var(--mut);
+}
+
+.input {
+  width: 100%;
+  padding: 7px 9px;
+  border: 1px solid var(--field-line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--ink);
+  font: inherit;
+}
+
+.input::placeholder {
+  color: var(--mut);
+}
+
+/* A dropdown opened from a top bar icon or chip (☰, download, filters). */
+.menu {
+  position: absolute;
+  z-index: 1000;
+  min-width: 200px;
+  padding: 6px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px var(--shadow);
+}
+
+.menu a,
+.menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.menu a:hover,
+.menu button:hover {
+  background: var(--gold-bg);
+}
+
+.menu hr {
+  margin: 4px 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+}
+
+.menu-wrap {
+  position: relative;
+}
+
+.menu-wrap .menu {
+  top: 34px;
+  right: 0;
+}
+
+.menu[hidden] {
+  display: none;
+}
+
+.menu a[aria-current="page"] {
+  background: var(--gold-bg);
+  font-weight: 700;
+}
+
+.menu a {
+  white-space: nowrap;
+}
+
+.menu .ext {
+  margin-left: auto;
+  padding-left: 12px;
+  font-size: 11px;
+}
+
+.menu-user {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 6px 8px;
+  font-weight: 600;
+}
+
+.menu-mynodes {
+  font-weight: 400;
+  color: var(--mut);
+}
+
+.menu-mynodes[hidden] {
+  display: none;
+}
+
+/* The page links are in the ☰ menu on a phone only. */
+.menu .menu-page {
+  display: none;
+}
+
+@media (max-width: 600px) {
+  .menu .menu-page {
+    display: flex;
+  }
+
+  .menu hr.menu-page {
+    display: block;
+  }
+
+  .signin-chip {
+    display: none;
+  }
+}
+
+/* EN · NL · FR in the top bar; on a phone it moves into the ☰ menu. */
+.lang-switch {
+  display: inline-flex;
+  flex-shrink: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.lang-switch button {
+  padding: 4px 7px;
+  border: 0;
+  border-left: 1px solid var(--line);
+  background: var(--panel);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.lang-switch button:first-child {
+  border-left: 0;
+}
+
+.lang-switch button:hover {
+  background: var(--gold-bg);
+}
+
+.lang-switch button[aria-pressed="true"],
+.lang-switch button[aria-pressed="true"]:hover {
+  background: var(--signal);
+  color: var(--topbar-bg);
+  font-weight: 700;
+}
+
+.menu .lang-switch,
+.menu hr.menu-lang {
+  display: none;
+}
+
+.menu .lang-switch {
+  margin: 2px 8px 4px;
+}
+
+.menu .lang-switch button {
+  flex: 1;
+  justify-content: center;
+  width: auto;
+  padding: 6px 8px;
+  border-radius: 0;
+  border-left: 1px solid var(--line);
+}
+
+.menu .lang-switch button:first-child {
+  border-left: 0;
+}
+
+.menu .lang-switch button[aria-pressed="true"],
+.menu .lang-switch button[aria-pressed="true"]:hover {
+  background: var(--signal);
+  color: var(--topbar-bg);
+}
+
+@media (max-width: 600px) {
+  .topbar .lang-switch:not(.menu-lang) {
+    display: none;
+  }
+
+  .menu .lang-switch {
+    display: flex;
+  }
+
+  .menu hr.menu-lang {
+    display: block;
+  }
+}
+
+.signin-chip {
+  color: inherit;
+  text-decoration: none;
+}
+
+.signin-chip:hover {
+  background: var(--gold-bg);
+  border-color: var(--gold);
+}
+
+/* A panel floating on a Leaflet map. */
+.map-float {
+  position: absolute;
+  z-index: 800;
+  background: var(--panel);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 2px 8px var(--shadow);
+}
+
+/* Leaflet chrome follows the theme (load leaflet.css before this file). */
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip,
+.leaflet-tooltip {
+  background: var(--panel);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  box-shadow: 0 2px 8px var(--shadow);
+}
+
+.leaflet-tooltip-top::before,
+.leaflet-tooltip-bottom::before,
+.leaflet-tooltip-left::before,
+.leaflet-tooltip-right::before {
+  border-color: transparent;
+}
+
+.leaflet-container a.leaflet-popup-close-button {
+  color: var(--mut);
+}
+
+.leaflet-bar {
+  border: 1px solid var(--line);
+  box-shadow: 0 2px 8px var(--shadow);
+}
+
+/* .leaflet-container: the configurator loads leaflet.css after this file, so plain .leaflet-bar a would lose. */
+.leaflet-container .leaflet-bar a,
+.leaflet-container .leaflet-bar a.leaflet-disabled {
+  background: var(--panel);
+  color: var(--ink);
+  border-bottom-color: var(--line);
+}
+
+.leaflet-container .leaflet-bar a:hover {
+  background: var(--gold-bg);
+}
+
+.leaflet-container .leaflet-bar a.leaflet-disabled {
+  opacity: 0.5;
+}
+
+/* The map's credit line: solid, so its text and focus ring read over any tile.
+ * .leaflet-control: the configurator loads leaflet.css after this file, so a tie would lose. */
+.leaflet-container .leaflet-control-attribution.leaflet-control {
+  background: var(--panel);
+  color: var(--ink);
+}
+
+.leaflet-container .leaflet-control-attribution a {
+  color: var(--node);
+}
+
+/* Dark map tiles: the OpenStreetMap layer only. Markers, polygons, popups and controls follow the tokens. */
+.map-dark .osm-tiles {
+  filter: invert(1) hue-rotate(180deg) brightness(0.95) contrast(0.9) saturate(0.7);
+}
+
+.leaflet-bar a.map-shade-button {
+  width: 36px;
+  height: 36px;
+  line-height: 36px;
+  font-size: 18px;
+  text-decoration: none;
+}
+
+/* The ☰ menu's About box (src/shared/about.js). */
+.about-dialog {
+  width: min(440px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  color: var(--ink);
+  box-shadow: 0 10px 30px var(--shadow);
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+}
+
+.about-dialog::backdrop {
+  background: rgb(0 0 0 / 0.35);
+}
+
+.about-dialog h2 {
+  margin: 0 0 4px;
+  font-size: 17px;
+}
+
+.about-dialog h3 {
+  margin: 14px 0 4px;
+  font-size: 14px;
+}
+
+.about-dialog h4 {
+  margin: 10px 0 2px;
+  font-size: 13px;
+  color: var(--mut);
+}
+
+.about-dialog p,
+.about-dialog li {
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.about-dialog p {
+  margin: 4px 0;
+}
+
+.about-dialog ul {
+  margin: 2px 0 0;
+  padding-left: 18px;
+}
+
+.about-dialog .sub {
+  color: var(--mut);
+}
+
+.about-facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 12px;
+  margin: 12px 0 0;
+  font-size: 13px;
+}
+
+.about-facts dt {
+  color: var(--mut);
+}
+
+.about-facts dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.about-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin-top: 14px !important;
+}
+
+.about-links a {
+  color: inherit;
+}
+
+.about-error {
+  color: var(--bad, #c0392b);
+}
+
+.about-foot {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 14px;
+}
+
+/* Close on the glass box: no fill of its own, a field border. */
+.about-dialog .about-foot .btn {
+  background: transparent;
+  border-color: var(--field-line);
+}
+
+/* Map clusters: gold with an ink rim, in both themes. */
+.marker-cluster-small,
+.marker-cluster-medium,
+.marker-cluster-large {
+  background-color: rgb(212 160 23 / 0.35);
+}
+
+.marker-cluster-small div,
+.marker-cluster-medium div,
+.marker-cluster-large div {
+  background-color: var(--gold);
+  box-shadow: 0 0 0 2px var(--topbar-bg);
+}
+
+.marker-cluster span {
+  color: var(--on-gold);
+}
+
+/* Glass: what floats over the map (search, filters, legends, popups, tooltips, dropdowns, menus and
+ * dialogs). Never on fields, tables, code, content cards or anything yellow, and never glass on glass.
+ * The top bar stays solid ink: nothing scrolls under it on these pages. */
+.glass,
+.map-float,
+.menu,
+.about-dialog,
+.leaflet-container .leaflet-popup-content-wrapper,
+.leaflet-container .leaflet-popup-tip,
+.leaflet-container .leaflet-tooltip {
+  background: var(--glass);
+  border-color: var(--glass-line);
+  box-shadow: var(--glass-shadow);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  color: var(--ink);
+  /* The usual muted and link colours are too faint on glass. */
+  --mut: var(--glass-mut);
+  --node: var(--glass-link);
+}
+
+.map-float,
+.menu,
+.about-dialog,
+.leaflet-container .leaflet-popup-content-wrapper {
+  border-radius: 8px;
+}
+
+/* Menus that open from the top bar: glass in the theme's colours. */
+.topbar .menu {
+  --mut: var(--glass-mut);
+}
+
+/* No backdrop-filter, or the visitor asked for less transparency: solid panels. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass,
+  .map-float,
+  .menu,
+  .about-dialog,
+  .leaflet-container .leaflet-popup-content-wrapper,
+  .leaflet-container .leaflet-popup-tip,
+  .leaflet-container .leaflet-tooltip {
+    background: var(--panel);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .glass,
+  .map-float,
+  .menu,
+  .about-dialog,
+  .leaflet-container .leaflet-popup-content-wrapper,
+  .leaflet-container .leaflet-popup-tip,
+  .leaflet-container .leaflet-tooltip {
+    background: var(--panel);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+/* Keyboard focus: always visible. Blue on light, yellow in dark and on the bar, ink on yellow. */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* Inside a clipped group the ring goes inside, or the group would cut it off. */
+.segmented button:focus-visible,
+.switcher a:focus-visible,
+.lang-switch button:focus-visible,
+.leaflet-container .leaflet-bar a:focus-visible {
+  outline-offset: -2px;
+}
+
+.switcher a[aria-current="page"]:focus-visible,
+.lang-switch button[aria-pressed="true"]:focus-visible {
+  outline-color: var(--topbar-bg);
+}
+
+/* Hover: pale gold with a gold rim in the work area; the dark gold on the bar (set on .topbar).
+ * Only with a real pointer: on a touch screen the hover look would stick after a tap. */
+@media (hover: hover) {
+  .btn:hover:not(:disabled, [aria-disabled="true"]),
+  .icon:hover,
+  .signin-chip:hover {
+    background: var(--gold-bg);
+    border-color: var(--gold);
+  }
+
+  .btn.primary:hover:not(:disabled, [aria-disabled="true"]) {
+    background: var(--gold-hover);
+    border-color: var(--gold-hover);
+    color: var(--on-gold);
+  }
+
+  .segmented button:hover:not([aria-pressed="true"]) {
+    background: var(--gold-bg);
+  }
+}
+
+/* Colour and border fade; the layout never moves. */
+.btn,
+.icon,
+.chip,
+.input,
+.switcher a,
+.lang-switch button,
+.segmented button,
+.menu a,
+.menu button,
+.leaflet-container .leaflet-bar a {
+  transition:
+    background-color var(--dur) ease-out,
+    border-color var(--dur) ease-out,
+    color var(--dur) ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn,
+  .icon,
+  .chip,
+  .input,
+  .switcher a,
+  .lang-switch button,
+  .segmented button,
+  .menu a,
+  .menu button,
+  .leaflet-container .leaflet-bar a {
+    transition: none;
+  }
+}
+
+/* Fields: 16px text on a phone, or iOS zooms in on the field and the page stays zoomed. A floor
+ * for every field on every page, so it outranks each page's own (smaller) field sizes. Pinch zoom
+ * stays allowed: the viewport tag has no maximum-scale. */
+@media (max-width: 600px) {
+  input:not([type="checkbox"], [type="radio"], [type="range"], [type="hidden"], [type="color"], [type="file"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* A single node on the map: a 2px rim, dark on light and light in dark, so it reads on any tile. */
+.node-icon {
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--node-rim);
+}

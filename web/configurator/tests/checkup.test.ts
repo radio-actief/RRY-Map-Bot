@@ -1,0 +1,198 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { describe, expect, it } from "vitest";
+import { floodAdvertHoursFor, recommendedForAll } from "../src/core/blocks";
+import { applyCheckup, checkupCounts, checkupLines, regionsGoingToo } from "../src/core/checkup";
+import { planFromSnapshot, planName, snapshotFromReplies, type Plan } from "../src/core/plan";
+import { policyFor, setRowState } from "../src/core/regions";
+import type { Place } from "../src/core/search";
+
+const PLACES: Place[] = JSON.parse(readFileSync(resolve(process.cwd(), "data/be-locode.json"), "utf8"));
+const RONSE: Record<string, string> = JSON.parse(readFileSync(resolve(__dirname, "fixtures/read-ronse.json"), "utf8"));
+
+const read = planFromSnapshot(snapshotFromReplies(RONSE), PLACES);
+/** The Ronse read (hop pair 12/8, no level) with its advert intervals on the recommendation and the rest off it. */
+const P: Plan = {
+  ...read,
+  prefixFormat: "none",
+  nameSuffix: "Proefberg",
+  settings: {
+    ...read.settings,
+    floodAdvertHours: floodAdvertHoursFor(read.nodeKey),
+    advertIntervalMinutes: 0,
+    dutycycle: "50",
+    floodMaxUnscoped: 12,
+    floodMaxAdvert: 8,
+    loopDetect: "off",
+    txdelay: 0.5,
+    directTxdelay: 0.2,
+    rxdelay: 0,
+  },
+};
+const ticked = (plan: Plan) => new Set(checkupLines(plan, PLACES).filter((l) => l.ticked).map((l) => l.id));
+
+describe("checkupLines", () => {
+  it("lists each difference once, in group order", () => {
+    const lines = checkupLines(P, PLACES);
+    expect(lines.map((l) => l.id)).toEqual(["name", "dutycycle", "hops", "floodMax", "loopDetect", "timing", "regions"]);
+    expect(lines.map((l) => l.group)).toEqual(["name", "radio", "advertising", "advertising", "repeating", "timing", "regions"]);
+    const byId = Object.fromEntries(lines.map((l) => [l.id, l]));
+    expect([byId.hops.from, byId.hops.to]).toEqual(["Custom (12 / 8)", "Minimal (4 / 6)"]);
+    expect([byId.timing.from, byId.timing.to]).toEqual(["Custom (0.5 / 0.2)", "Suburban (0.8 / 0.4)"]);
+    expect([byId.floodMax.from, byId.floodMax.to]).toEqual(["64", "10"]);
+    expect(byId.timing.noteKey).toBe("checkup.timingNote");
+    expect([byId.dutycycle.from, byId.dutycycle.to]).toEqual(["50 %", "10 %"]);
+    expect([byId.loopDetect.from, byId.loopDetect.to]).toEqual(["Off", "Minimal"]);
+    expect(byId.loopDetect.labelKey).toBe("setting.loopDetect");
+  });
+
+  it("a repeater read on the Suburban timing has no Timing line", () => {
+    const s = snapshotFromReplies({
+      ...RONSE,
+      "get txdelay": "> 0.8",
+      "get direct.txdelay": "> 0.3999999",
+      "get rxdelay": "> 3.0",
+    });
+    const plan = planFromSnapshot(s, PLACES);
+    expect([plan.settings.txdelay, plan.settings.directTxdelay, plan.settings.rxdelay]).toEqual([0.8, 0.4, 3]);
+    const lines = checkupLines(plan, PLACES);
+    expect(lines.map((l) => l.id)).not.toContain("timing");
+    // RX delay is a line of its own: #BEmesh leaves it off.
+    expect(lines.find((l) => l.id === "rxdelay")).toMatchObject({ group: "timing", from: "3", to: "0", ticked: true });
+  });
+
+  it("the name is listed, not ticked, with its note", () => {
+    const name = checkupLines(P, PLACES)[0];
+    expect(name).toMatchObject({ id: "name", ticked: false, noteKey: "checkup.nameNote" });
+    expect([name.from, name.to]).toEqual(["Proefberg🌞", "BE-RON-Proefberg🌞"]);
+  });
+
+  it("a repeater with under 4 hops without region (busy, at the coast) keeps its hops unless the owner ticks the line", () => {
+    for (const low of [0, 1, 3]) {
+      const coast = { ...P, settings: { ...P.settings, floodMaxUnscoped: low, floodMaxAdvert: 6 } };
+      const hops = checkupLines(coast, PLACES).find((l) => l.id === "hops")!;
+      expect([hops.ticked, hops.noteKey]).toEqual([false, "checkup.coastNote"]);
+    }
+    const wide = { ...P, settings: { ...P.settings, floodMaxUnscoped: 8, floodMaxAdvert: 12 } };
+    const hops = checkupLines(wide, PLACES).find((l) => l.id === "hops")!;
+    expect([hops.ticked, hops.noteKey]).toEqual([true, undefined]);
+  });
+
+  it("a hop allowance on another level is moved to Minimal", () => {
+    const full = { ...P, settings: { ...P.settings, floodMaxUnscoped: 64, floodMaxAdvert: 64 } };
+    const hops = checkupLines(full, PLACES).find((l) => l.id === "hops")!;
+    expect([hops.from, hops.to, hops.ticked]).toEqual(["Full (64 / 64)", "Minimal (4 / 6)", true]);
+  });
+
+  it("the regions line offers the repeater's own regions to keep and spells out what it adds and denies", () => {
+    const off = { ...P, regions: setRowState(P.regions!, "be-vov", "deny") };
+    const regions = checkupLines(off, PLACES).find((l) => l.id === "regions")!;
+    expect(regions).toMatchObject({ ticked: true, labelKey: "summary.regionHome", from: "beron", to: "beron" });
+    expect(regions.removable).toEqual(["beron", "bemak"]);
+    expect(regions.detail).toEqual({ adds: ["be-vov"], denies: [] });
+  });
+
+  it("with only the repeater's own regions on top of the recommendation, the regions line is shown but not ticked", () => {
+    const kept = applyCheckup(P, PLACES, new Set(["regions"]));
+    const regions = checkupLines(kept, PLACES).find((l) => l.id === "regions")!;
+    expect(regions).toMatchObject({ ticked: false, removable: ["beron", "bemak"] });
+    expect(checkupCounts(checkupLines(kept, PLACES)).perGroup.regions).toBeUndefined();
+  });
+
+  it("without an anchor", () => {
+    const lines = checkupLines({ ...P, anchor: null }, PLACES);
+    expect(lines.some((l) => l.id === "name")).toBe(false);
+    expect(lines.find((l) => l.id === "regions")).toMatchObject({
+      disabled: true,
+      ticked: false,
+      noteKey: "checkup.needLocation",
+    });
+    expect(lines.map((l) => l.id)).toEqual(["dutycycle", "hops", "floodMax", "loopDetect", "timing", "regions"]);
+    expect(checkupCounts(lines).total).toBe(5);
+  });
+
+  it("nothing differs: no lines", () => {
+    const plan = recommendedForAll({ ...P, prefixFormat: "city", regions: policyFor(P.anchor!, PLACES) });
+    expect(checkupLines(plan, PLACES)).toEqual([]);
+  });
+
+  it("an existing BE-…- prefix in the name is replaced", () => {
+    const name = checkupLines({ ...P, nameSuffix: "BE-XYZ-Proefberg" }, PLACES)[0];
+    expect([name.from, name.to]).toEqual(["BE-XYZ-Proefberg🌞", "BE-RON-Proefberg🌞"]);
+  });
+});
+
+describe("applyCheckup", () => {
+  it("applyCheckup with every ticked id and every region discarded equals the recommendation, and leaves the name alone", () => {
+    const next = applyCheckup(P, PLACES, new Set([...ticked(P), "regions"]), new Set(["beron", "bemak"]));
+    expect(next).toEqual({ ...recommendedForAll(P), regions: policyFor(P.anchor!, PLACES) });
+    expect([next.prefixFormat, next.nameSuffix]).toEqual(["none", "Proefberg"]);
+    expect(next.acl).toEqual(P.acl);
+    expect(next.location).toEqual(P.location);
+    expect(next.settings.ownerInfo).toBe(P.settings.ownerInfo);
+  });
+
+  it("applies only the ticked ids", () => {
+    const next = applyCheckup(P, PLACES, new Set(["dutycycle", "timing"]));
+    expect(next).toEqual({
+      ...P,
+      settings: { ...P.settings, dutycycle: "10", txdelay: 0.8, directTxdelay: 0.4 },
+    });
+    expect(next.regions).toBe(P.regions);
+  });
+
+  it("applying the name line sets the recommended prefix format", () => {
+    const next = applyCheckup(P, PLACES, new Set(["name"]));
+    expect(next.prefixFormat).toBe("city");
+    expect(planName(next)).toBe("BE-RON-Proefberg🌞");
+    expect(planName(applyCheckup({ ...P, nameSuffix: "BE-XYZ-Proefberg" }, PLACES, new Set(["name"])))).toBe(
+      "BE-RON-Proefberg🌞",
+    );
+  });
+
+  it("applying the radio line sets the #BEmesh radio", () => {
+    const off = { ...P, radio: { ...P.radio, freq: 869.525 }, radioCustom: true };
+    const line = checkupLines(off, PLACES).find((l) => l.id === "radio")!;
+    expect(line).toMatchObject({ group: "radio", from: "869.525,62.5,8,8", to: "869.618,62.5,8,8" });
+    const next = applyCheckup(off, PLACES, new Set(["radio"]));
+    expect(next.radio).toEqual(P.radio);
+    expect(next.radioCustom).toBeUndefined();
+  });
+});
+
+describe("keeping or discarding the repeater's own regions", () => {
+  const defined = (p: Plan) => p.regions!.rows.filter((r) => r.allow || r.deny).map((r) => r.code);
+
+  it("keeps them by default", () => {
+    const next = applyCheckup(P, PLACES, new Set(["regions"]));
+    expect(defined(next)).toEqual(expect.arrayContaining(["beron", "bemak"]));
+    expect(regionsGoingToo(P, PLACES, new Set())).toEqual([]);
+  });
+
+  it("discards the one asked for", () => {
+    const next = applyCheckup(P, PLACES, new Set(["regions"]), new Set(["bemak"]));
+    expect(defined(next)).toContain("beron");
+    expect(defined(next)).not.toContain("bemak");
+  });
+
+  it("a kept neighbour goes too when its town is discarded", () => {
+    const next = applyCheckup(P, PLACES, new Set(["regions"]), new Set(["beron"]));
+    expect(defined(next)).not.toContain("bemak");
+    expect(regionsGoingToo(P, PLACES, new Set(["beron"]))).toEqual(["bemak"]);
+  });
+
+  it("the discard list does nothing without the regions line", () => {
+    expect(applyCheckup(P, PLACES, new Set(["dutycycle"]), new Set(["beron"])).regions).toBe(P.regions);
+  });
+});
+
+describe("checkupCounts", () => {
+  it("checkupCounts", () => {
+    expect(checkupCounts(checkupLines(P, PLACES))).toEqual({
+      total: 5,
+      perGroup: { radio: 1, advertising: 2, repeating: 1, timing: 1 },
+      nameDiffers: true,
+    });
+    expect(checkupCounts([])).toEqual({ total: 0, perGroup: {}, nameDiffers: false });
+  });
+});

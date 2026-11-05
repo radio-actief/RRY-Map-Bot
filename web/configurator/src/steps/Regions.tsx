@@ -1,0 +1,292 @@
+/** Regions step: which regions the repeater floods (Allow / Deny per row), bulk buttons and the folded region CLI options. */
+import { useEffect, useRef, useState } from "preact/hooks";
+import { Notice } from "../app/Notice";
+import {
+  addFreeRegion,
+  bulk,
+  checkFreeCode,
+  defaultScopeOptions,
+  freeParentOptions,
+  DEFAULT_SCOPE_NONE,
+  HOME_OVERRIDE_OMIT,
+  homeOverrideOptions,
+  homeRegionCode,
+  isFreeParent,
+  MAX_REGIONS,
+  recommendedDefaultScopeCode,
+  removeFreeRegion,
+  setDefaultScope,
+  setHomeOverride,
+  setRowState,
+  setUntaggedFlood,
+  type Anchor,
+  type RegionPolicy,
+  type RegionRow,
+} from "../core/regions";
+import { t } from "../i18n/t";
+import { regionCount, store } from "../state/store";
+
+const WIKI_URL = "https://meshwiki.radio-actief.be/index.php/MeshCore/RegioScopes";
+const GROUPS: RegionRow["group"][] = [
+  "country",
+  "province",
+  "municipality",
+  "neighbourMunicipality",
+  "neighbourProvince",
+  "neighbourRegion",
+  "neighbourCountry",
+  "free",
+  "device",
+];
+const BULKS = ["recommended", "allowAll", "denyAll", "clear"] as const;
+const STATES = ["allow", "none", "deny"] as const;
+
+/** Why a neighbour row is locked: the home row whose state opens it. */
+function lockedReason(row: RegionRow): string {
+  if (row.group === "neighbourProvince" || row.group === "neighbourRegion") return t("regions.locked.province");
+  if (row.group === "neighbourCountry") return t("regions.locked.country");
+  return t("regions.locked.municipality");
+}
+
+const update = (f: (p: RegionPolicy) => RegionPolicy) => {
+  const plan = store.plan.peek();
+  if (plan.regions) store.plan.value = { ...plan, regions: f(plan.regions) };
+};
+
+/** Groups whose heading already names the kind of every row in them. */
+const KIND_IN_HEADING = new Set<RegionRow["group"]>([
+  "municipality",
+  "neighbourMunicipality",
+  "neighbourProvince",
+  "neighbourRegion",
+  "neighbourCountry",
+  "device",
+]);
+
+/** A row's sub-label (none where the group heading says it); a free row also says where it sits. */
+function kindLabel(row: RegionRow, policy: RegionPolicy): string | null {
+  if (KIND_IN_HEADING.has(row.group)) return null;
+  if (row.group !== "free") return t(row.labelKey);
+  if (!row.parent) return t("region.kind.freeTop");
+  const parent = policy.rows.find((r) => r.code === row.parent)?.label ?? row.parent;
+  return t("region.kind.freeUnder", { parent });
+}
+
+function RegionRowView({ row, home, policy }: { row: RegionRow; home: boolean; policy: RegionPolicy }) {
+  const locked = !!(row.disabled?.allow || row.disabled?.deny);
+  const state = row.allow ? "allow" : row.deny ? "deny" : "none";
+  const reason = locked ? lockedReason(row) : undefined;
+  const inUse = isFreeParent(policy, row.code);
+  const inUseId = `free-in-use-${row.code}`;
+  const kind = kindLabel(row, policy);
+  const focused = store.regionFocus.value === row.code;
+  const item = useRef<HTMLLIElement>(null);
+  // Picked on the map: bring the row into view.
+  useEffect(() => {
+    if (focused) item.current?.scrollIntoView?.({ block: "nearest" });
+  }, [focused]);
+  return (
+    <li ref={item} class={`region-row${focused ? " focused" : ""}`} data-code={row.code}>
+      <button
+        type="button"
+        class="region-name"
+        aria-pressed={focused}
+        aria-label={t("regions.showOnMap", { label: row.label })}
+        onClick={() => (store.regionFocus.value = focused ? null : row.code)}
+      >
+        <span>
+          {row.label}
+          {home ? <span class="badge home">{t("regions.home.badge")}</span> : null}
+        </span>
+        {kind ? <span class="sub">{kind}</span> : null}
+      </button>
+      <div class="segmented region-state" role="group" aria-label={row.label} title={reason}>
+        {STATES.map((s) => (
+          <button
+            type="button"
+            key={s}
+            data-state={s}
+            disabled={locked || (inUse && s === "none")}
+            aria-pressed={state === s}
+            aria-describedby={inUse && s === "none" ? inUseId : undefined}
+            title={inUse && s === "none" ? t("regions.free.parentInUse") : undefined}
+            aria-label={`${t(`regions.state.${s}`)}: ${row.label}`}
+            onClick={() => update((p) => setRowState(p, row.code, s))}
+          >
+            {t(`regions.state.${s}.short`)}
+          </button>
+        ))}
+      </div>
+      {row.group === "free" ? (
+        <button
+          type="button"
+          class="icon"
+          aria-label={t("regions.free.remove", { code: row.code })}
+          aria-describedby={inUse ? inUseId : undefined}
+          disabled={inUse}
+          title={inUse ? t("regions.free.parentInUse") : undefined}
+          onClick={() => update((p) => removeFreeRegion(p, row.code))}
+        >
+          ✕
+        </button>
+      ) : null}
+      {inUse ? (
+        <span id={inUseId} class="sr">
+          {t("regions.free.parentInUse")}
+        </span>
+      ) : null}
+    </li>
+  );
+}
+
+function FreeForm({ policy, anchor }: { policy: RegionPolicy; anchor: Anchor }) {
+  const [code, setCode] = useState("");
+  const [chosen, setParent] = useState("");
+  const options = freeParentOptions(policy);
+  // A choice that is no longer offered (removed, or the pin moved) means top level.
+  const parent = options.some((o) => o.code === chosen) ? chosen : "";
+  const result = checkFreeCode(policy, code);
+  const error = code && result !== "ok" ? t(`error.freeCode.${result}`) : null;
+  const add = () => {
+    if (result !== "ok") return;
+    update((p) => addFreeRegion(p, code, parent || null));
+    setCode("");
+  };
+  return (
+    <div class="free-form">
+      <label class="field">
+        <span class="sub">{t("regions.free.code")}</span>
+        <input
+          type="text"
+          value={code}
+          maxLength={60} // above the 30-character limit on purpose, so the tooLong error can show
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? "free-code-error" : undefined}
+          onInput={(e) => setCode(e.currentTarget.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              add();
+            }
+          }}
+        />
+      </label>
+      <label class="field">
+        <span class="sub">{t("regions.free.parent")}</span>
+        <select value={parent} onChange={(e) => setParent(e.currentTarget.value)}>
+          {options.map((o) => (
+            <option key={o.code} value={o.code}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <button type="button" class="btn small" disabled={result !== "ok"} onClick={add}>
+        {t("regions.free.add")}
+      </button>
+      {error ? (
+        <p id="free-code-error" class="sub free-error">
+          {error}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function Options({ policy }: { policy: RegionPolicy }) {
+  const auto = recommendedDefaultScopeCode(policy);
+  const homeValue = policy.homeOverride ?? "";
+  const homeDefault = homeRegionCode({ ...policy, homeOverride: null });
+  const defaultValue = policy.defaultScope ?? "";
+  return (
+    <details class="region-options">
+      <summary>{t("regions.options")}</summary>
+      <label class="check-line" title={t("regions.untagged.hint")}>
+        <input
+          type="checkbox"
+          checked={policy.untaggedFlood}
+          onChange={(e) => update((p) => setUntaggedFlood(p, e.currentTarget.checked))}
+        />
+        <span>{t("regions.untagged")}</span>
+      </label>
+
+      <label class="field">
+        <span class="sub">{t("regions.home")}</span>
+        <select value={homeValue} onChange={(e) => update((p) => setHomeOverride(p, e.currentTarget.value))}>
+          <option value="">
+            {homeDefault ? t("regions.home.defaultCode", { code: homeDefault }) : t("regions.home.default")}
+          </option>
+          <option value={HOME_OVERRIDE_OMIT}>{t("regions.home.none")}</option>
+          {homeOverrideOptions(policy).map((o) => (
+            <option key={o.code} value={o.code}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+        <span class="sub">{t("regions.home.inactive")}</span>
+      </label>
+
+      <label class="field">
+        <span class="sub">{t("regions.default")}</span>
+        <select value={defaultValue} onChange={(e) => update((p) => setDefaultScope(p, e.currentTarget.value))}>
+          <option value="">{auto ? t("regions.default.autoCode", { code: auto }) : t("regions.default.auto")}</option>
+          <option value={DEFAULT_SCOPE_NONE}>{t("regions.default.none")}</option>
+          {defaultScopeOptions(policy).map((o) => (
+            <option key={o.code} value={o.code}>
+              {o.notAllowed ? t("regions.default.notAllow", { label: o.label }) : o.label}
+            </option>
+          ))}
+        </select>
+        <span class="sub">{t("regions.default.hint")}</span>
+      </label>
+    </details>
+  );
+}
+
+export function Regions() {
+  const { anchor, regions } = store.plan.value;
+  const homeCode = regions ? homeRegionCode(regions) : null;
+  return (
+    <div class="panel-body step-regions">
+      <h2>{t("regions.title")}</h2>
+      <p class="sub">
+        {t("regions.sub")}{" "}
+        <a href={WIKI_URL} target="_blank" rel="noopener">
+          {t("regions.wiki")}
+        </a>
+      </p>
+      {!anchor || !regions ? (
+        <p class="sub regions-empty">{t("regions.empty")}</p>
+      ) : (
+        <>
+          {store.snapshot.value?.regions?.incomplete ? <Notice kind="warn">{t("read.regionsIncomplete")}</Notice> : null}
+          {regionCount.value > MAX_REGIONS ? (
+            <Notice kind="warn">{t("error.regionCount", { count: regionCount.value, max: MAX_REGIONS })}</Notice>
+          ) : null}
+          <div class="bulk" role="group" aria-label={t("regions.bulk")}>
+            {BULKS.map((b) => (
+              <button type="button" class="btn small" key={b} onClick={() => update((p) => bulk(p, b))}>
+                {t(`regions.bulk.${b}`)}
+              </button>
+            ))}
+          </div>
+          {GROUPS.map((g) => {
+            const rows = regions.rows.filter((r) => r.group === g);
+            return rows.length || g === "free" ? (
+              <section key={g} class="region-group">
+                <h3 class="field-label">{t(`regions.group.${g}`)}</h3>
+                <ul class="region-list">
+                  {rows.map((r) => (
+                    <RegionRowView key={r.code} row={r} home={r.code === homeCode} policy={regions} />
+                  ))}
+                </ul>
+                {g === "free" ? <FreeForm policy={regions} anchor={anchor} /> : null}
+              </section>
+            ) : null;
+          })}
+          <Options policy={regions} />
+        </>
+      )}
+    </div>
+  );
+}

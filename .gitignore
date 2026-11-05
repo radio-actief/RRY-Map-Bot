@@ -1,0 +1,133 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+*.min.js
+*.min.css
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.sublime-project
+*.sublime-workspace
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+logs/
+
+# Backups
+backups/
+*.db.gz
+
+# Environment variables and env switching
+.env
+.env.local
+.env.*.local
+.env.production
+.env.dev
+.env.prod
+.env.development
+.env.*
+ENV_SWITCHING.md
+switch-env.sh
+# Keep example files (safe to commit - contain only placeholders)
+!.env.example
+!.env.production.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+!lib/
+!lib/**
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+venv/
+env/
+ENV/
+.venv
+flask_session/
+
+# StatBel reference spreadsheets (download from StatBel; use data/inputs/ for local copies)
+data/statbel/*.xlsx
+
+# StatBel statistical sectors (large; download from StatBel / data.gov.be)
+data/statbel/sh_statbel_statistical_sectors*.geojson
+
+# Local build inputs (NIS6 / REFNIS xlsx, Geofabrik PBF, sector GeoJSON — not served by the web UI)
+data/inputs/**
+!data/inputs/README.md
+
+# Ephemeral verify/compare outputs (defaults in scripts point here)
+data/.cache/
+
+# Legacy verify artifact filenames (in case old paths are used)
+data/be-locode-verify-report.json
+data/be-locode-osm-verify.json
+data/be-locode-verify-summary.md
+
+# Database
+data/*.db
+data/*.sqlite
+data/*.sqlite3
+data/*.db.backup-*
+*.db
+*.db.backup-*
+*.sqlite
+*.sqlite3
+
+# Archive folder (all historical documentation and migration files)
+docs/archive/
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# Coverage reports
+coverage/
+.nyc_output/
+
+# Production configuration
+docker-compose.prod.yml
+rry-map-bot.env
+# Keep example file for reference
+!rry-map-bot.env.example
+
+# Optional: Keep package-lock.json if you want to lock dependency versions
+# Uncomment the line below if you want to commit package-lock.json
+# !package-lock.json
+

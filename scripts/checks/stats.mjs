@@ -1,0 +1,144 @@
+// Stats page: top bar, tiles, range buttons, chart colours, cards, and no horizontal scroll on a phone.
+// The stats endpoints come from small fixtures, so the check never needs the public site.
+import { mockStats } from "./fixtures/mock-stats.mjs";
+
+const open = (ctx, opts = {}) => ctx.open("/stats", { ...opts, setup: (p) => mockStats(p) });
+const ready = (page) => page.waitForSelector("#stats-chart .apexcharts-yaxis-label", { timeout: 15000 }).catch(() => {});
+const text = async (loc) => ((await loc.allTextContents()).map((s) => s.replace(/\s+/g, " ").trim()));
+const categories = (page) => page.evaluate(() => window.__statsChartInstance?.w.globals.labels.length ?? -1);
+
+export default async function (ctx) {
+  const page = await open(ctx);
+  await ready(page);
+
+  const wordmark = await page.locator(".topbar .wordmark").first().textContent().catch(() => "");
+  ctx.check("stats: wordmark", (wordmark || "").replace(/\s+/g, " ").trim() === "#BEmesh stats", wordmark);
+  const current = await text(page.locator('.switcher a[aria-current="page"]'));
+  ctx.check("stats: Stats is the current page", current.length === 1 && current[0] === "Stats", current.join("|"));
+
+  const chip = page.locator("#stats-filter-menu-trigger");
+  ctx.check("stats: preset chip reads Preset: All", /^Preset: All/.test((await text(chip))[0] || ""), (await text(chip)).join("|"));
+  ctx.check("stats: preset list starts closed", !(await page.locator("#stats-preset-dropdown").isVisible()));
+  await chip.click();
+  const presets = await page.locator("#stats-preset-dropdown button").count();
+  ctx.check("stats: Preset chip opens the preset list", (await page.locator("#stats-preset-dropdown").isVisible()) && presets > 1, String(presets));
+  ctx.check("stats: custom radio filter is inside", (await page.locator("#stats-preset-custom-root").count()) === 1);
+  await page.mouse.click(5, 400);
+  ctx.check("stats: a click outside closes the preset list", !(await page.locator("#stats-preset-dropdown").isVisible()));
+
+  await page.locator("#stats-download-btn").click();
+  const links = await page.locator("#stats-download-menu a").evaluateAll((as) => as.map((a) => a.getAttribute("href")));
+  ctx.check(
+    "stats: download menu has the 4 JSON links",
+    links.join(",") === "/api/v1/companions/contacts,/api/v1/repeaters/contacts,/api/v1/room-servers/contacts,/api/v1/sensors/contacts",
+    links.join(","),
+  );
+  await page.mouse.click(5, 400);
+
+  const labels = await text(page.locator(".stats-tiles .tile .tile-label"));
+  ctx.check("stats: tile labels in order", labels.join(",") === "Network,Companions,Repeaters,Rooms,Sensors,Active · 1d / 7d / 30d,Claimed,Discord users", labels.join(","));
+  const newTile = (await text(page.locator("#stats-chip-new")))[0] || "";
+  ctx.check("stats: Active tile reads a · b · c", /^[\d,]+ · [\d,]+ · [\d,]+$/.test(newTile), newTile);
+  ctx.check("stats: Network tile has the gold highlight", await page.locator(".tile.is-hero").count() === 1);
+  const total = (await text(page.locator("#stats-chip-total")))[0];
+  ctx.check("stats: Network number is filled", /\d/.test(total || ""), total);
+
+  const range = await text(page.locator("#stats-range button"));
+  ctx.check("stats: range buttons", range.join(",") === "7d,Month,3m,6m,YTD,1y,All", range.join(","));
+  const pressed = await text(page.locator('#stats-range button[aria-pressed="true"]'));
+  ctx.check("stats: Month is pressed", pressed.join(",") === "Month", pressed.join(","));
+  const before = await categories(page);
+  await page.locator("#stats-range button", { hasText: "7d" }).click();
+  await page.waitForTimeout(800);
+  const after = await categories(page);
+  const pressed2 = await text(page.locator('#stats-range button[aria-pressed="true"]'));
+  ctx.check("stats: clicking 7d presses it", pressed2.join(",") === "7d", pressed2.join(","));
+  ctx.check("stats: clicking 7d re-renders the chart", before > 0 && after > 0 && before !== after, `${before} -> ${after}`);
+  await page.locator("#stats-range button", { hasText: "Month" }).click();
+
+  for (const title of ["Changes", "Timeline playback", "Top cities", "Most repeaters added", "Links"]) {
+    const h = await text(page.locator(".card h2", { hasText: title }));
+    ctx.check(`stats: card "${title}" exists`, h.some((s) => s.startsWith(title)), h.join("|"));
+  }
+  ctx.check("stats: city rows are listed", (await page.locator("#stats-summary-cities li").count()) > 0);
+  ctx.check("stats: links card has the three groups", (await page.locator(".stats-links-group").count()) === 3);
+  ctx.check("stats: footnote is present", /synced from the official/.test((await page.locator(".stats-footer-note").textContent()) || ""));
+  ctx.check("stats: no page errors", !page.errors.length, page.errors.join("; "));
+  await page.close();
+
+  const dark = await open(ctx, { scheme: "dark" });
+  await ready(dark);
+  const axis = await dark.evaluate(() => {
+    const probe = document.createElement("span");
+    probe.style.color = "var(--mut)";
+    document.body.appendChild(probe);
+    const mut = getComputedStyle(probe).color;
+    probe.remove();
+    const label = document.querySelector("#stats-chart .apexcharts-yaxis-label");
+    return { mut, fill: label ? getComputedStyle(label).fill : null };
+  });
+  ctx.check("stats: dark chart axis label equals --mut", !!axis.fill && axis.fill === axis.mut, `${axis.fill} vs ${axis.mut}`);
+  // Switching the theme while the page is open re-renders the chart.
+  await dark.evaluate(() => document.documentElement.setAttribute("data-theme", "light"));
+  await dark.waitForTimeout(1200);
+  const light = await dark.evaluate(() => {
+    const label = document.querySelector("#stats-chart .apexcharts-yaxis-label");
+    const probe = document.createElement("span");
+    probe.style.color = "var(--mut)";
+    document.body.appendChild(probe);
+    const mut = getComputedStyle(probe).color;
+    probe.remove();
+    return { mut, fill: label ? getComputedStyle(label).fill : null };
+  });
+  ctx.check("stats: chart follows a theme switch", !!light.fill && light.fill === light.mut && light.mut !== axis.mut, `${light.fill} vs ${light.mut}`);
+  ctx.check("stats: no page errors in dark", !dark.errors.length, dark.errors.join("; "));
+  await dark.close();
+
+  for (const scheme of ["light", "dark"]) {
+    const p = await open(ctx, { width: 390, height: 800, scheme });
+    await ready(p);
+    const w = await p.evaluate(() => document.documentElement.scrollWidth);
+    ctx.check(`stats: no horizontal scroll at 390 (${scheme})`, w <= 390, String(w));
+    await p.close();
+  }
+
+  // Menus: stay on screen at 390, Escape closes them and returns focus, opening one closes the others.
+  const phone = await open(ctx, { width: 390, height: 800 });
+  await ready(phone);
+  const toggles = {
+    preset: ["#stats-filter-menu-trigger", "#stats-filter-menu-dropdown"],
+    download: ["#stats-download-btn", "#stats-download-menu"],
+    pages: ["#menu-toggle", "#page-menu"],
+  };
+  for (const [name, [toggle, menu]] of Object.entries(toggles)) {
+    await phone.locator(toggle).click();
+    const rect = await phone.locator(menu).evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      return { left: r.left, right: r.right, width: r.width };
+    });
+    ctx.check(`stats: ${name} menu stays on screen at 390`, rect.width > 0 && rect.left >= 0 && rect.right <= 390, JSON.stringify(rect));
+    ctx.check(`stats: ${name} toggle reports aria-expanded`, (await phone.locator(toggle).getAttribute("aria-expanded")) === "true");
+    await phone.keyboard.press("Escape");
+    ctx.check(`stats: Escape closes the ${name} menu`, !(await phone.locator(menu).isVisible()) && (await phone.locator(toggle).getAttribute("aria-expanded")) === "false");
+    ctx.check(`stats: Escape returns focus to the ${name} toggle`, await phone.locator(toggle).evaluate((el) => el === document.activeElement));
+  }
+  await phone.locator("#stats-filter-menu-trigger").click();
+  await phone.locator("#menu-toggle").click();
+  ctx.check("stats: opening ☰ closes the preset menu", !(await phone.locator("#stats-filter-menu-dropdown").isVisible()) && (await phone.locator("#page-menu").isVisible()));
+  await phone.locator("#stats-download-btn").click();
+  ctx.check("stats: opening download closes ☰", !(await phone.locator("#page-menu").isVisible()) && (await phone.locator("#stats-download-menu").isVisible()));
+  await phone.close();
+
+  // Type tiles are keyboard-usable buttons that report aria-pressed.
+  const tiles = await open(ctx);
+  await ready(tiles);
+  const tags = await tiles.locator(".tile[data-type]").evaluateAll((els) => els.map((e) => e.tagName + ":" + e.getAttribute("aria-pressed")));
+  ctx.check("stats: type tiles are buttons with aria-pressed", tags.length === 4 && tags.every((t) => t === "BUTTON:false"), tags.join());
+  const rep = tiles.locator("#stats-chip-repeaters-wrap");
+  await rep.focus();
+  await tiles.keyboard.press("Enter");
+  ctx.check("stats: Enter on a tile presses it", (await rep.getAttribute("aria-pressed")) === "true");
+  await tiles.keyboard.press("Space");
+  ctx.check("stats: Space on a pressed tile releases it", (await rep.getAttribute("aria-pressed")) === "false");
+  await tiles.close();
+}

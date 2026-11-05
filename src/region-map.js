@@ -1,0 +1,1147 @@
+      // Runs once src/shared/i18n.js has the page language's messages and has translated the static page.
+      window.BEmeshI18n.ready.then(function (I18N) {
+        var tr = I18N.t;
+        // Shared Belgian region data + data-path helper (src/shared/be-regions.js,
+        // loaded before this file). Deduplicated from the former inline copies.
+        var Regions = window.RRYRegions;
+        var rryDataUrl = Regions.rryDataUrl;
+        /** Province and gewest names in the page language (codes never change). */
+        var PROVINCE_NAMES = {};
+        Object.keys(Regions.PROVINCE_NAMES).forEach(function (c) {
+          PROVINCE_NAMES[c] = I18N.regionName(c);
+        });
+        /** Names a search also matches: the page language's and the default (English page) names. */
+        var PROVINCE_SEARCH_NAMES = {};
+        Object.keys(Regions.PROVINCE_NAMES).forEach(function (c) {
+          PROVINCE_SEARCH_NAMES[c] = [PROVINCE_NAMES[c], Regions.PROVINCE_NAMES[c]];
+        });
+        var PROVINCE_CODES = Regions.PROVINCE_CODES;
+        var PROVINCE_CAPITAL_LATLNG = Regions.PROVINCE_CAPITAL_LATLNG;
+        var GEWEST_NAMES = {};
+        Object.keys(Regions.GEWEST_NAMES).forEach(function (c) {
+          GEWEST_NAMES[c] = I18N.regionName(c);
+        });
+        var GEWEST_OF_PROVINCE = Regions.GEWEST_OF_PROVINCE;
+
+        let locations = [];
+        let provinceBoundariesFC = null;
+        let gewestBoundariesFC = null;
+        let countryBoundariesFC = null;
+        let map = null;
+        let markerCluster = null;
+        let provincesLayer = null;
+        let overlayMode = "provinces";
+        let showPlaces = true;
+        let currentSearch = "";
+        let lastMatches = [];
+        let autocompleteIndex = -1;
+        const belgiumCenter = [50.5, 4.35];
+        const belgiumZoom = 8;
+
+        function normalize(s) {
+          return (s || "")
+            .toLowerCase()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "");
+        }
+
+        function escapeHtml(s) {
+          if (s == null) return "";
+          var d = document.createElement("div");
+          d.textContent = String(s);
+          return d.innerHTML;
+        }
+
+        /** Country features by code (be, nl, lu, fr, de, gb and eu), from countries.geojson. */
+        function countryFeature(code) {
+          if (!countryBoundariesFC || !countryBoundariesFC.features) return null;
+          for (var i = 0; i < countryBoundariesFC.features.length; i++) {
+            var f = countryBoundariesFC.features[i];
+            if (f.properties && f.properties.code === code) return f;
+          }
+          return null;
+        }
+
+        /** Country (or eu) name in the page language; the geojson name for a code without a translation. */
+        function countryName(code) {
+          if (I18N.has("region.name." + code)) return I18N.regionName(code);
+          var f = countryFeature(code);
+          return f ? f.properties.name : code;
+        }
+
+        /** A municipality's name in the page language (Brussels' official French names on a French page). */
+        function placeName(loc) {
+          return I18N.municipalityName((loc.plaats || loc.gemeente || "").trim());
+        }
+
+        /** The countries under eu, Belgium first (the order of the region tree). */
+        function countryCodes() {
+          var codes = [];
+          if (!countryBoundariesFC || !countryBoundariesFC.features) return codes;
+          countryBoundariesFC.features.forEach(function (f) {
+            var c = f.properties && f.properties.code;
+            if (c && c !== "eu") codes.push(c);
+          });
+          return codes;
+        }
+
+        /** A country or eu other than be: no Belgian location points belong to it. */
+        function isForeignRegion(code) {
+          return code !== "be" && !!countryFeature(code);
+        }
+
+        /** City code + country + province name (no be-* province code). */
+        function placeParentCodesLine(loc) {
+          var city = (loc.city_code || "").trim();
+          var provName = (PROVINCE_NAMES[loc.province_code] || "").trim();
+          var parts = [];
+          if (city) parts.push(city);
+          parts.push("be");
+          if (provName) parts.push(provName);
+          return parts.join(" · ");
+        }
+
+        function placeAutocompleteLabel(loc) {
+          var name = I18N.municipalityName((loc.plaats || "").trim());
+          return name + " — " + placeParentCodesLine(loc);
+        }
+
+        /** One row: display name (col 1) + region code (col 2). */
+        function locodePopupPair(nameHtml, codeHtml) {
+          return (
+            '<div class="region-map-locode-popup__pair">' +
+            '<span class="region-map-locode-popup__name">' +
+            nameHtml +
+            "</span>" +
+            '<span class="region-map-locode-popup__code">' +
+            codeHtml +
+            "</span></div>"
+          );
+        }
+
+        /** Click popup: 3 rows — place | city_code, province | be-*, Belgium | be. No title. */
+        function locodePopupHtml(loc) {
+          var cityName = escapeHtml(placeName(loc));
+          var cityCodeRaw = (loc.city_code || "").trim();
+          var cityCodeCell = cityCodeRaw
+            ? "<code>" + escapeHtml(cityCodeRaw) + "</code>"
+            : '<span class="node-popup__muted">—</span>';
+          var provName = escapeHtml(
+            (PROVINCE_NAMES[loc.province_code] || "").trim(),
+          );
+          var provCodeRaw = (loc.province_code || "").trim();
+          var provCodeCell = provCodeRaw
+            ? "<code>" + escapeHtml(provCodeRaw) + "</code>"
+            : '<span class="node-popup__muted">—</span>';
+          var landName = escapeHtml(countryName("be"));
+          var landCodeCell = "<code>be</code>";
+          var rows = [
+            locodePopupPair(
+              cityName || '<span class="node-popup__muted">—</span>',
+              cityCodeCell,
+            ),
+            locodePopupPair(
+              provName || '<span class="node-popup__muted">—</span>',
+              provCodeCell,
+            ),
+            locodePopupPair(landName, landCodeCell),
+          ];
+          return (
+            '<div class="node-popup region-map-locode-popup--compact" data-status="none">' +
+            '<div class="node-popup__body">' +
+            '<div class="region-map-locode-popup__grid">' +
+            rows.join("") +
+            "</div></div></div>"
+          );
+        }
+
+        /** Same popup chrome as a city point, but province + country only (no city row). */
+        function provinceLocodePopupHtml(provinceCode) {
+          var pc = (provinceCode || "").trim();
+          var provName = escapeHtml((PROVINCE_NAMES[pc] || "").trim());
+          var provCodeCell = pc
+            ? "<code>" + escapeHtml(pc) + "</code>"
+            : '<span class="node-popup__muted">—</span>';
+          var landName = escapeHtml(countryName("be"));
+          var landCodeCell = "<code>be</code>";
+          var rows = [
+            locodePopupPair(
+              provName || '<span class="node-popup__muted">—</span>',
+              provCodeCell,
+            ),
+            locodePopupPair(landName, landCodeCell),
+          ];
+          return (
+            '<div class="node-popup region-map-locode-popup--compact" data-status="none">' +
+            '<div class="node-popup__body">' +
+            '<div class="region-map-locode-popup__grid">' +
+            rows.join("") +
+            "</div></div></div>"
+          );
+        }
+
+        /** Optional tier: gewest name/code + the provinces nested under it. */
+        function gewestPopupHtml(gewestCode) {
+          var gc = (gewestCode || "").trim();
+          var gewestName = escapeHtml((GEWEST_NAMES[gc] || "").trim());
+          var gewestCodeCell = gc
+            ? "<code>" + escapeHtml(gc) + "</code>"
+            : '<span class="node-popup__muted">—</span>';
+          var provinceCodes = PROVINCE_CODES.filter(function (pc) {
+            return GEWEST_OF_PROVINCE[pc] === gc;
+          });
+          var rows = [
+            locodePopupPair(
+              gewestName || '<span class="node-popup__muted">—</span>',
+              gewestCodeCell,
+            ),
+            locodePopupPair(escapeHtml(countryName("be")), "<code>be</code>"),
+          ];
+          if (provinceCodes.length) {
+            rows.push('<div class="region-map-locode-popup__label node-popup__muted">' + escapeHtml(tr("regionMap.popup.provinces")) + "</div>");
+            provinceCodes.forEach(function (pc) {
+              rows.push(
+                locodePopupPair(
+                  escapeHtml(PROVINCE_NAMES[pc] || pc),
+                  "<code>" + escapeHtml(pc) + "</code>",
+                ),
+              );
+            });
+          }
+          return (
+            '<div class="node-popup region-map-locode-popup--compact" data-status="none">' +
+            '<div class="node-popup__body">' +
+            '<div class="region-map-locode-popup__grid">' +
+            rows.join("") +
+            "</div></div></div>"
+          );
+        }
+
+        /** Country or eu: name/code, then eu as the parent region (or the countries under eu). */
+        function countryPopupHtml(code) {
+          var rows = [
+            locodePopupPair(
+              escapeHtml(countryName(code)),
+              "<code>" + escapeHtml(code) + "</code>",
+            ),
+          ];
+          if (code === "eu") {
+            rows.push(
+              locodePopupPair(
+                escapeHtml(tr("regionMap.popup.countriesUnder")),
+                escapeHtml(countryCodes().join(", ")),
+              ),
+            );
+          } else if (countryFeature("eu")) {
+            rows.push(
+              locodePopupPair(
+                escapeHtml(tr("regionMap.popup.parent", { name: countryName("eu") })),
+                "<code>eu</code>",
+              ),
+            );
+          }
+          return (
+            '<div class="node-popup region-map-locode-popup--compact" data-status="none">' +
+            '<div class="node-popup__body">' +
+            '<div class="region-map-locode-popup__grid">' +
+            rows.join("") +
+            "</div></div></div>"
+          );
+        }
+
+        var REGION_LOCODE_POPUP_OPTS = {
+          /* Leaflet measures content width with nowrap; minWidth avoids a 1-char-wide box */
+          minWidth: 280,
+          maxWidth: 400,
+          className: "region-locode-popup",
+        };
+
+        var REGION_MAP_TOOLTIP_OPTS = {
+          permanent: false,
+          direction: "auto",
+          className: "region-map-tooltip",
+        };
+
+        /**
+         * Show province name tooltip fixed above the provincial capital (not under the cursor),
+         * so it stays readable while moving over the polygon.
+         */
+        function attachProvinceHoverTooltip(layer, provinceCode, name) {
+          var code = provinceCode;
+          var label = name || PROVINCE_NAMES[code] || GEWEST_NAMES[code] || code;
+          var cap = PROVINCE_CAPITAL_LATLNG[code];
+          function clearTip() {
+            if (layer._rmProvinceHoverTip && map) {
+              try {
+                map.removeLayer(layer._rmProvinceHoverTip);
+              } catch (e) {
+                /* ignore */
+              }
+              layer._rmProvinceHoverTip = null;
+            }
+          }
+          layer.on("mouseover", function () {
+            if (layer._rmProvinceHoverTip || !map) return;
+            var latlng;
+            try {
+              if (cap && cap.length >= 2) {
+                latlng = L.latLng(cap[0], cap[1]);
+              } else if (layer.getBounds && layer.getBounds().isValid()) {
+                latlng = layer.getBounds().getCenter();
+              }
+            } catch (e2) {
+              latlng = null;
+            }
+            if (!latlng) return;
+            var tip = L.tooltip(
+              Object.assign({}, REGION_MAP_TOOLTIP_OPTS, {
+                direction: "top",
+                sticky: false,
+                offset: L.point(0, -10),
+              }),
+            )
+              .setContent(label)
+              .setLatLng(latlng)
+              .addTo(map);
+            layer._rmProvinceHoverTip = tip;
+          });
+          layer.on("mouseout", clearTip);
+          layer.on("remove", clearTip);
+        }
+
+        function locationMatchesQuery(loc, q) {
+          if (
+            normalize(loc.plaats).includes(q) ||
+            normalize(loc.gemeente).includes(q)
+          )
+            return true;
+          var al = loc.search_aliases;
+          if (!al || !al.length) return false;
+          for (var i = 0; i < al.length; i++) {
+            if (normalize(al[i]).includes(q)) return true;
+          }
+          return false;
+        }
+
+        function getLocationsWithCoords() {
+          return locations.filter(function (loc) {
+            return loc.lat && loc.lon;
+          });
+        }
+
+        function pointsToFeatureCollection(points) {
+          return {
+            type: "FeatureCollection",
+            features: points.map(function (p) {
+              return {
+                type: "Feature",
+                geometry: { type: "Point", coordinates: [p.lon, p.lat] },
+                properties: {},
+              };
+            }),
+          };
+        }
+
+        function buildHullFromPoints(points, maxEdgeKm) {
+          if (!points.length || typeof turf === "undefined") return null;
+          if (points.length < 3) return null;
+          var fc = pointsToFeatureCollection(points);
+          var hull = null;
+          try {
+            if (turf.concave) {
+              hull = turf.concave(fc, {
+                maxEdge: maxEdgeKm || 50,
+                units: "kilometers",
+              });
+            }
+          } catch (e) {}
+          if (!hull && turf.convex) {
+            try {
+              hull = turf.convex(fc);
+            } catch (e2) {}
+          }
+          return hull;
+        }
+
+        function buildProvinceAreas() {
+          var layers = {};
+          var withCoords = getLocationsWithCoords();
+          PROVINCE_CODES.forEach(function (code) {
+            var pts = withCoords.filter(function (l) {
+              return l.province_code === code;
+            });
+            var hull = buildHullFromPoints(pts, 50);
+            if (hull) layers[code] = hull;
+          });
+          return layers;
+        }
+
+        /** One distinct fill + outline per province, or per gewest in gewesten mode. */
+        function getOverlayStyle(code) {
+          var palette = {
+            "be-van": { fill: "#e63946", line: "rgba(157, 34, 53, 0.45)" },
+            "be-vbr": { fill: "#4361ee", line: "rgba(42, 63, 158, 0.45)" },
+            "be-vov": { fill: "#2a9d8f", line: "rgba(23, 107, 98, 0.45)" },
+            "be-vwv": { fill: "#219ebc", line: "rgba(20, 90, 110, 0.45)" },
+            "be-vli": { fill: "#8ac926", line: "rgba(74, 110, 20, 0.45)" },
+            "be-bru": { fill: "#9b5de5", line: "rgba(90, 45, 158, 0.45)" },
+            "be-wbr": { fill: "#f4a261", line: "rgba(166, 95, 24, 0.45)" },
+            "be-wht": { fill: "#e76f51", line: "rgba(154, 69, 46, 0.45)" },
+            "be-wlg": { fill: "#bc6c25", line: "rgba(107, 61, 21, 0.45)" },
+            "be-wna": { fill: "#7b2cbf", line: "rgba(74, 20, 140, 0.45)" },
+            "be-wlx": { fill: "#06d6a0", line: "rgba(4, 122, 92, 0.45)" },
+            "be-vlg": { fill: "#2a9d8f", line: "rgba(23, 107, 98, 0.5)" },
+            "be-wal": { fill: "#bc6c25", line: "rgba(107, 61, 21, 0.5)" },
+            be: { fill: "#d4a017", line: "rgba(120, 90, 13, 0.6)" },
+            nl: { fill: "#f77f00", line: "rgba(140, 72, 0, 0.5)" },
+            lu: { fill: "#e63946", line: "rgba(157, 34, 53, 0.5)" },
+            fr: { fill: "#4361ee", line: "rgba(42, 63, 158, 0.5)" },
+            de: { fill: "#6c757d", line: "rgba(52, 58, 64, 0.5)" },
+            gb: { fill: "#9b5de5", line: "rgba(90, 45, 158, 0.5)" },
+          };
+          if (code === "eu") {
+            return {
+              fillColor: "#1d3fbb",
+              fillOpacity: 0.06,
+              color: "rgba(29, 63, 187, 0.7)",
+              weight: 1.5,
+              dashArray: "6 4",
+            };
+          }
+          var p = palette[code];
+          if (!p) {
+            return {
+              fillColor: "#b0b0b0",
+              fillOpacity: 0.16,
+              color: "rgba(0, 0, 0, 0.32)",
+              weight: 1,
+            };
+          }
+          return {
+            fillColor: p.fill,
+            fillOpacity: 0.22,
+            color: p.line,
+            weight: 1.25,
+          };
+        }
+
+        function boundsFromProvinceGeoCode(pc) {
+          if (!provinceBoundariesFC || !provinceBoundariesFC.features)
+            return null;
+          var i;
+          for (i = 0; i < provinceBoundariesFC.features.length; i++) {
+            var f = provinceBoundariesFC.features[i];
+            if (f.properties && f.properties.code === pc) {
+              try {
+                var tmp = L.geoJSON(f);
+                var b = tmp.getBounds();
+                tmp.remove();
+                if (b && b.isValid()) return b;
+              } catch (e) {}
+            }
+          }
+          return null;
+        }
+
+        function fitAllProvincesBounds() {
+          if (!map) return;
+          if (
+            provinceBoundariesFC &&
+            provinceBoundariesFC.features &&
+            provinceBoundariesFC.features.length
+          ) {
+            try {
+              var ly = L.geoJSON(provinceBoundariesFC);
+              var bb = ly.getBounds();
+              ly.remove();
+              if (bb && bb.isValid()) {
+                map.fitBounds(bb, { padding: [24, 24] });
+                return;
+              }
+            } catch (e2) {}
+          }
+          map.setView(belgiumCenter, belgiumZoom);
+        }
+
+        function fitProvincePolygonBounds(pc) {
+          var b = boundsFromProvinceGeoCode(pc);
+          if (b && map && b.isValid()) map.fitBounds(b, { padding: [20, 20] });
+        }
+
+        function fitCountryBounds(code) {
+          var f = countryFeature(code);
+          if (!f || !map) return;
+          try {
+            var tmp = L.geoJSON(f);
+            var b = tmp.getBounds();
+            tmp.remove();
+            if (b && b.isValid()) map.fitBounds(b, { padding: [20, 20] });
+          } catch (e) {}
+        }
+
+        /** Press the borders button that matches overlayMode. */
+        function syncOverlayButtons() {
+          document
+            .querySelectorAll("#overlay-seg button")
+            .forEach(function (b) {
+              b.setAttribute(
+                "aria-pressed",
+                b.dataset.value === overlayMode ? "true" : "false",
+              );
+            });
+        }
+
+        /** Switch the borders control (and the map) to one mode. */
+        function setOverlayMode(mode) {
+          if (overlayMode === mode) return;
+          overlayMode = mode;
+          syncOverlayButtons();
+          updateOverlays();
+        }
+
+        /** Borders follow the search: a foreign country shows Countries; anything Belgian leaves Countries for Provinces. */
+        function followSearchBorders(code) {
+          if (!code) return;
+          if (isForeignRegion(code)) setOverlayMode("countries");
+          else if (overlayMode === "countries") setOverlayMode("provinces");
+        }
+
+        function addCircleMarkersToContainer(container, matched) {
+          matched.forEach(function (loc) {
+            var circle = L.circleMarker([loc.lat, loc.lon], {
+              radius: 6,
+              fillColor: "#2563eb",
+              color: "#1d4ed8",
+              weight: 1,
+              fillOpacity: 0.9,
+            });
+            circle.bindPopup(locodePopupHtml(loc), REGION_LOCODE_POPUP_OPTS);
+            circle.bindTooltip(
+              placeName(loc) || "—",
+              REGION_MAP_TOOLTIP_OPTS,
+            );
+            container.addLayer(circle);
+          });
+        }
+
+        function updateOverlays() {
+          if (markerCluster) {
+            map.removeLayer(markerCluster);
+            markerCluster = null;
+          }
+          if (provincesLayer) {
+            map.removeLayer(provincesLayer);
+            provincesLayer = null;
+          }
+          if (overlayMode === "provinces") {
+            if (
+              provinceBoundariesFC &&
+              provinceBoundariesFC.features &&
+              provinceBoundariesFC.features.length
+            ) {
+              provincesLayer = L.geoJSON(provinceBoundariesFC, {
+                style: function (feat) {
+                  return getOverlayStyle(feat.properties.code);
+                },
+                onEachFeature: function (feat, layer) {
+                  var c = feat.properties.code;
+                  attachProvinceHoverTooltip(layer, c);
+                  layer.bindPopup(
+                    provinceLocodePopupHtml(c),
+                    REGION_LOCODE_POPUP_OPTS,
+                  );
+                },
+              });
+              map.addLayer(provincesLayer);
+            } else if (typeof turf !== "undefined") {
+              var areas = buildProvinceAreas();
+              var features = [];
+              for (var code in areas) {
+                if (areas[code]) {
+                  var feat = areas[code];
+                  var geom = feat.geometry || feat;
+                  var props = feat.properties
+                    ? Object.assign({}, feat.properties, { code: code })
+                    : { code: code };
+                  var f =
+                    turf && turf.feature
+                      ? turf.feature(geom, props)
+                      : {
+                          type: "Feature",
+                          geometry: geom,
+                          properties: props,
+                        };
+                  features.push(f);
+                }
+              }
+              if (features.length) {
+                provincesLayer = L.geoJSON(
+                  { type: "FeatureCollection", features: features },
+                  {
+                    style: function (f) {
+                      return getOverlayStyle(f.properties.code);
+                    },
+                    onEachFeature: function (f, layer) {
+                      var pc = f.properties.code;
+                      attachProvinceHoverTooltip(layer, pc);
+                      layer.bindPopup(
+                        provinceLocodePopupHtml(pc),
+                        REGION_LOCODE_POPUP_OPTS,
+                      );
+                    },
+                  },
+                );
+                map.addLayer(provincesLayer);
+              }
+            }
+          } else if (overlayMode === "countries") {
+            if (
+              countryBoundariesFC &&
+              countryBoundariesFC.features &&
+              countryBoundariesFC.features.length
+            ) {
+              // eu first, so each country lies on top of it.
+              var countryFeatures = countryBoundariesFC.features
+                .slice()
+                .sort(function (a, b) {
+                  return (
+                    (b.properties.code === "eu") - (a.properties.code === "eu")
+                  );
+                });
+              provincesLayer = L.geoJSON(
+                { type: "FeatureCollection", features: countryFeatures },
+                {
+                  style: function (feat) {
+                    return getOverlayStyle(feat.properties.code);
+                  },
+                  onEachFeature: function (feat, layer) {
+                    var c = feat.properties.code;
+                    attachProvinceHoverTooltip(
+                      layer,
+                      c,
+                      countryName(c) + " (" + c + ")",
+                    );
+                    layer.bindPopup(
+                      countryPopupHtml(c),
+                      REGION_LOCODE_POPUP_OPTS,
+                    );
+                  },
+                },
+              );
+              map.addLayer(provincesLayer);
+            }
+          } else if (overlayMode === "gewesten") {
+            if (
+              gewestBoundariesFC &&
+              gewestBoundariesFC.features &&
+              gewestBoundariesFC.features.length
+            ) {
+              provincesLayer = L.geoJSON(gewestBoundariesFC, {
+                style: function (feat) {
+                  return getOverlayStyle(feat.properties.code);
+                },
+                onEachFeature: function (feat, layer) {
+                  var c = feat.properties.code;
+                  attachProvinceHoverTooltip(layer, c);
+                  layer.bindPopup(
+                    gewestPopupHtml(c),
+                    REGION_LOCODE_POPUP_OPTS,
+                  );
+                },
+              });
+              map.addLayer(provincesLayer);
+            }
+          }
+          if (showPlaces && lastMatches.length) {
+            var useCluster =
+              typeof L.markerClusterGroup === "function" &&
+              lastMatches.length > 50;
+            if (useCluster) {
+              markerCluster = L.markerClusterGroup({
+                maxClusterRadius: 55,
+                chunkedLoading: lastMatches.length > 400,
+              });
+              addCircleMarkersToContainer(markerCluster, lastMatches);
+            } else {
+              markerCluster = L.featureGroup();
+              addCircleMarkersToContainer(markerCluster, lastMatches);
+            }
+            map.addLayer(markerCluster);
+          }
+        }
+
+        function matchLocations(query) {
+          if (!query || !query.trim()) return getLocationsWithCoords();
+          var q = normalize(query.trim());
+          /* Country code be = all municipality points with coordinates */
+          if (q === "be") return getLocationsWithCoords();
+          if (isForeignRegion(q)) return [];
+          return locations.filter(function (loc) {
+            if (!loc.lat || !loc.lon) return false;
+            if (loc.city_code === q || normalize(loc.city_code).includes(q))
+              return true;
+            if (
+              loc.province_code === q ||
+              normalize(loc.province_code).includes(q)
+            )
+              return true;
+            if (locationMatchesQuery(loc, q)) return true;
+            return false;
+          });
+        }
+
+        function buildAutocompleteItems(query) {
+          if (!query || query.length < 2) return [];
+          var q = normalize(query);
+          var items = [];
+          var seen = new Set();
+          var belMatch =
+            q === "be" ||
+            normalize("belgium").includes(q) ||
+            normalize("belgie").includes(q) ||
+            normalize("belgië").includes(q) ||
+            normalize("belgique").includes(q);
+          if (belMatch) {
+            items.push({
+              type: "country",
+              code: "be",
+              label: tr("regionMap.ac.country", { name: countryName("be"), code: "be" }),
+            });
+            seen.add("__be__");
+          }
+          ["eu"].concat(countryCodes()).forEach(function (c) {
+            if (c === "be" || !countryFeature(c)) return;
+            var f = countryFeature(c);
+            if (
+              normalize(c) === q ||
+              normalize(countryName(c)).includes(q) ||
+              normalize(f.properties.name || "").includes(q)
+            ) {
+              seen.add(c);
+              items.push({
+                type: "country",
+                code: c,
+                label: tr(c === "eu" ? "regionMap.ac.wider" : "regionMap.ac.country", {
+                  name: countryName(c),
+                  code: c,
+                }),
+              });
+            }
+          });
+          PROVINCE_CODES.forEach(function (c) {
+            if (
+              normalize(c).includes(q) ||
+              PROVINCE_SEARCH_NAMES[c].some(function (n) {
+                return normalize(n || "").includes(q);
+              })
+            ) {
+              if (!seen.has(c)) {
+                seen.add(c);
+                items.push({
+                  type: "province",
+                  code: c,
+                  label: (PROVINCE_NAMES[c] || c) + " (" + c + ")",
+                });
+              }
+            }
+          });
+          locations.forEach(function (loc) {
+            if (items.length >= 15) return;
+            if (!loc.lat || !loc.lon) return;
+            if (
+              normalize(loc.city_code).includes(q) ||
+              locationMatchesQuery(loc, q)
+            ) {
+              var key = loc.city_code;
+              if (!seen.has(key)) {
+                seen.add(key);
+                items.push({
+                  type: "place",
+                  code: loc.city_code,
+                  label: placeAutocompleteLabel(loc),
+                });
+              }
+            }
+          });
+          return items.slice(0, 12);
+        }
+
+        function showAutocomplete(items) {
+          var ac = document.getElementById("autocomplete");
+          ac.innerHTML = "";
+          ac.style.display = "none";
+          if (!items.length) return;
+          items.forEach(function (item, i) {
+            var el = document.createElement("div");
+            el.className =
+              "autocomplete-item" + (i === autocompleteIndex ? " active" : "");
+            el.textContent = item.label;
+            el.dataset.index = i;
+            el.dataset.code = item.code;
+            el.dataset.type = item.type || "place";
+            el.addEventListener("click", function () {
+              runCodeSearch(item.code, item.type);
+              ac.innerHTML = "";
+              ac.style.display = "none";
+            });
+            ac.appendChild(el);
+          });
+          ac.style.display = "block";
+          autocompleteIndex = 0;
+          var firstAc = ac.querySelector(".autocomplete-item");
+          if (firstAc) firstAc.classList.add("active");
+        }
+
+        function runCodeSearch(code, type, keepInput) {
+          var input = document.getElementById("code-input");
+          if (input && !keepInput) input.value = code;
+          markActiveRow(code);
+          currentSearch = code;
+          var matched = matchLocations(code);
+          lastMatches = matched;
+          var normCode = (code || "").trim().toLowerCase();
+          var t = type || "";
+          followSearchBorders(normCode);
+          if (t === "province" || PROVINCE_CODES.indexOf(normCode) >= 0) {
+            fitProvincePolygonBounds(normCode);
+          } else if (isForeignRegion(normCode)) {
+            fitCountryBounds(normCode);
+          } else if (t === "country" || normCode === "be") {
+            fitAllProvincesBounds();
+          }
+          updateMap(matched);
+          updateCounter(matched.length);
+        }
+
+        function markActiveRow(code) {
+          var c = (code || "").trim().toLowerCase();
+          document.querySelectorAll(".hierarchy-node").forEach(function (n) {
+            n.classList.toggle("active", !!c && n.dataset.code === c);
+          });
+        }
+
+        function updateCounter(count) {
+          var txt = document.getElementById("counter-text");
+          var normQ = normalize((currentSearch || "").trim());
+          if (count === undefined) {
+            if (!currentSearch) {
+              txt.textContent = "";
+            } else if (isForeignRegion(normQ)) {
+              txt.textContent = countryName(normQ) + " (" + normQ + ")";
+            } else if (normQ === "be") {
+              var bn = lastMatches ? lastMatches.length : 0;
+              txt.textContent =
+                bn === 0
+                  ? tr("regionMap.count.beNone", { name: countryName("be") })
+                  : tr("regionMap.count.inBe", { count: bn, n: I18N.number(bn), name: countryName("be") });
+            } else {
+              txt.textContent = tr("regionMap.count.inResult", {
+                count: lastMatches.length,
+                n: I18N.number(lastMatches.length),
+              });
+            }
+          } else {
+            if (isForeignRegion(normQ)) {
+              txt.textContent = countryName(normQ) + " (" + normQ + ")";
+            } else if (normQ === "be" && count === 0) {
+              txt.textContent = tr("regionMap.count.beNone", { name: countryName("be") });
+            } else if (normQ === "be") {
+              txt.textContent = tr("regionMap.count.shownInBe", { count: count, n: I18N.number(count), name: countryName("be") });
+            } else {
+              txt.textContent = tr("regionMap.count.shown", { count: count, n: I18N.number(count) });
+            }
+          }
+        }
+
+        function updateMap(matched) {
+          if (!map) return;
+          if (markerCluster) {
+            map.removeLayer(markerCluster);
+            markerCluster = null;
+          }
+          if (!showPlaces || !matched.length) {
+            updateCounter(matched ? matched.length : 0);
+            if (matched && matched.length === 1) {
+              map.setView([matched[0].lat, matched[0].lon], 12);
+            } else if (matched && matched.length > 1 && matched.length < 30) {
+              var b = L.latLngBounds(
+                matched.map(function (l) {
+                  return [l.lat, l.lon];
+                }),
+              );
+              map.fitBounds(b, { padding: [30, 30] });
+            }
+            return;
+          }
+          var useCluster =
+            typeof L.markerClusterGroup === "function" && matched.length > 50;
+          if (useCluster) {
+            markerCluster = L.markerClusterGroup({
+              maxClusterRadius: 55,
+              chunkedLoading: matched.length > 400,
+            });
+            addCircleMarkersToContainer(markerCluster, matched);
+          } else {
+            markerCluster = L.featureGroup();
+            addCircleMarkersToContainer(markerCluster, matched);
+          }
+          map.addLayer(markerCluster);
+          updateCounter(matched.length);
+          if (matched.length === 1) {
+            map.setView([matched[0].lat, matched[0].lon], 12);
+          } else if (matched.length < 30) {
+            var bounds = L.latLngBounds(
+              matched.map(function (l) {
+                return [l.lat, l.lon];
+              }),
+            );
+            map.fitBounds(bounds, { padding: [30, 30] });
+          }
+        }
+
+        function buildHierarchy() {
+          var withCoords = getLocationsWithCoords();
+          var hasEu = !!countryFeature("eu");
+          var node = function (indent, code, type, name, count, label) {
+            return (
+              '<button type="button" class="hierarchy-node region-row indent-' +
+              indent +
+              '" data-code="' +
+              code +
+              '" data-type="' +
+              type +
+              '"><span class="region-name"><span class="region-title">' +
+              escapeHtml(name) +
+              '</span><span class="region-meta muted">' +
+              escapeHtml(code + " · " + (label || tr("regionMap.kind." + type))) +
+              "</span></span>" +
+              (count != null
+                ? '<span class="region-count">' + I18N.number(count) + "</span>"
+                : "") +
+              "</button>"
+            );
+          };
+          var html = hasEu ? node(0, "eu", "country", countryName("eu"), null, tr("regionMap.kind.wider")) : "";
+          var top = hasEu ? 1 : 0;
+          html += node(top, "be", "country", countryName("be"), withCoords.length);
+          PROVINCE_CODES.forEach(function (p) {
+            var locs = withCoords.filter(function (l) {
+              return l.province_code === p;
+            });
+            if (!locs.length) return;
+            html += node(
+              top + 1,
+              p,
+              "province",
+              PROVINCE_NAMES[p] || p,
+              locs.length,
+            );
+          });
+          countryCodes().forEach(function (c) {
+            if (c !== "be") html += node(top, c, "country", countryName(c));
+          });
+          var el = document.getElementById("hierarchy");
+          if (el) {
+            el.innerHTML = html;
+            el.querySelectorAll(".hierarchy-node").forEach(function (n) {
+              n.addEventListener("click", function () {
+                runCodeSearch(n.dataset.code, n.dataset.type);
+              });
+            });
+          }
+          markActiveRow(currentSearch);
+        }
+
+        function init() {
+          L.Control.Zoom.prototype.options.zoomInTitle = tr("zoom.in");
+          L.Control.Zoom.prototype.options.zoomOutTitle = tr("zoom.out");
+          map = L.map("region-map-container").setView(
+            belgiumCenter,
+            belgiumZoom,
+          );
+          var osmTiles = L.tileLayer(
+            "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+            {
+              className: "osm-tiles",
+              attribution:
+                '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+            },
+          ).addTo(map);
+          window.BEmeshMapShade.attach(L, map, osmTiles, {
+            position: "topleft",
+          });
+
+          document
+            .getElementById("toggle-controls")
+            .addEventListener("click", function () {
+              var panel = document.getElementById("controls");
+              panel.classList.toggle("collapsed");
+              panel.inert = panel.classList.contains("collapsed");
+              var expanded = !panel.classList.contains("collapsed");
+              this.setAttribute("aria-expanded", expanded ? "true" : "false");
+              window.setTimeout(function () {
+                if (map) map.invalidateSize({ animate: false });
+              }, 280);
+            });
+
+          window.addEventListener("resize", function () {
+            if (map) map.invalidateSize({ animate: false });
+          });
+          var rmVV = window.visualViewport;
+          if (rmVV) {
+            rmVV.addEventListener("resize", function () {
+              if (map) map.invalidateSize({ animate: false });
+            });
+          }
+          window.addEventListener("orientationchange", function () {
+            window.setTimeout(function () {
+              if (map) map.invalidateSize({ animate: false });
+            }, 400);
+          });
+
+          document
+            .querySelectorAll("#overlay-seg button")
+            .forEach(function (b) {
+              b.addEventListener("click", function () {
+                overlayMode = this.dataset.value;
+                syncOverlayButtons();
+                updateOverlays();
+              });
+            });
+
+          document
+            .getElementById("show-places")
+            .addEventListener("change", function () {
+              showPlaces = this.checked;
+              updateMap(
+                lastMatches.length
+                  ? lastMatches
+                  : matchLocations(currentSearch),
+              );
+            });
+
+          var input = document.getElementById("code-input");
+          input.addEventListener("input", function () {
+            markActiveRow(this.value);
+            var items = buildAutocompleteItems(this.value);
+            showAutocomplete(items);
+            if (!items.length && this.value.trim()) {
+              var raw = this.value.trim();
+              var m = matchLocations(raw);
+              lastMatches = m;
+              currentSearch = raw;
+              var nc = normalize(raw);
+              followSearchBorders(nc);
+              if (PROVINCE_CODES.indexOf(nc) >= 0) {
+                fitProvincePolygonBounds(nc);
+              } else if (isForeignRegion(nc)) {
+                fitCountryBounds(nc);
+              } else if (nc === "be") {
+                fitAllProvincesBounds();
+              }
+              updateMap(m);
+              updateCounter(m.length);
+            }
+          });
+
+          input.addEventListener("keydown", function (e) {
+            var ac = document.getElementById("autocomplete");
+            var items = ac.querySelectorAll(".autocomplete-item");
+            if (e.key === "ArrowDown") {
+              e.preventDefault();
+              autocompleteIndex = Math.min(
+                autocompleteIndex + 1,
+                items.length - 1,
+              );
+              items.forEach(function (el, i) {
+                el.classList.toggle("active", i === autocompleteIndex);
+              });
+            } else if (e.key === "ArrowUp") {
+              e.preventDefault();
+              autocompleteIndex = Math.max(autocompleteIndex - 1, 0);
+              items.forEach(function (el, i) {
+                el.classList.toggle("active", i === autocompleteIndex);
+              });
+            } else if (e.key === "Enter" && items[autocompleteIndex]) {
+              e.preventDefault();
+              var it = items[autocompleteIndex];
+              runCodeSearch(it.dataset.code, it.dataset.type || "place");
+              ac.innerHTML = "";
+              ac.style.display = "none";
+            } else if (e.key === "Escape") {
+              ac.innerHTML = "";
+              ac.style.display = "none";
+            }
+          });
+
+          input.addEventListener("focus", function () {
+            var items = buildAutocompleteItems(this.value);
+            if (items.length) showAutocomplete(items);
+          });
+
+          document.addEventListener("click", function (e) {
+            if (!e.target.closest(".region-map-search-wrap")) {
+              document.getElementById("autocomplete").innerHTML = "";
+              document.getElementById("autocomplete").style.display = "none";
+            }
+          });
+
+          Promise.all([
+            fetch(rryDataUrl("be-locode.json"))
+              .then(function (r) {
+                if (!r.ok) return [];
+                return r.json().catch(function () {
+                  return [];
+                });
+              })
+              .then(function (data) {
+                return Array.isArray(data) ? data : [];
+              }),
+            fetch(rryDataUrl("be-provinces.geojson")).then(function (r) {
+              if (!r.ok) return null;
+              return r.json().catch(function () {
+                return null;
+              });
+            }),
+            fetch(rryDataUrl("be-gewesten.geojson")).then(function (r) {
+              if (!r.ok) return null;
+              return r.json().catch(function () {
+                return null;
+              });
+            }),
+            fetch(rryDataUrl("countries.geojson"))
+              .then(function (r) {
+                if (!r.ok) return null;
+                return r.json().catch(function () {
+                  return null;
+                });
+              })
+              .catch(function () {
+                return null;
+              }),
+          ])
+            .then(function (results) {
+              locations = results[0] || [];
+              provinceBoundariesFC = results[1];
+              gewestBoundariesFC = results[2];
+              countryBoundariesFC = results[3];
+              overlayMode = "provinces";
+              syncOverlayButtons();
+              buildHierarchy();
+              updateOverlays();
+              /* Same as clicking hierarchy indent-0 Belgium (be) */
+              runCodeSearch("be", "country", true);
+              if (map) map.invalidateSize({ animate: false });
+            })
+            .catch(function () {
+              locations = [];
+              provinceBoundariesFC = null;
+              gewestBoundariesFC = null;
+              countryBoundariesFC = null;
+              document.getElementById("counter-text").textContent =
+                tr("regionMap.loadFailed");
+            });
+        }
+
+        init();
+      });

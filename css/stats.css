@@ -557,7 +557,10 @@ button.chip {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
-  .tile.is-hero {
+  /* Four columns: Active and the last two tiles span two, so every row is full. */
+  .tile.is-hero,
+  .tile.tile--wide,
+  .tile.tile--pair {
     grid-column: span 2;
   }
 }
@@ -578,10 +581,14 @@ button.chip {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  /* Two columns: Network and Active span the width, so every row is full. */
+  /* Two columns: Network and Active span the width, Claimed and Discord users share a row. */
   .tile.is-hero,
   .tile.tile--wide {
     grid-column: span 2;
+  }
+
+  .tile.tile--pair {
+    grid-column: span 1;
   }
 
   .stats-cards {
@@ -604,4 +611,13 @@ button.chip {
 /* The map container clips anything outside it, so the focus ring goes inside. */
 #stats-map:focus-visible {
   outline-offset: -2px;
+}
+
+/* A line series' legend swatch: a short line in its colour (bars keep a square). */
+.legend-line {
+  display: block;
+  width: 100%;
+  height: 3px;
+  margin-top: 4.5px;
+  border-radius: 2px;
 }

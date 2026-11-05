@@ -17,6 +17,30 @@ export default async function (ctx) {
   );
   await page.close();
 
+  // Tablet (4 columns): no tile sits alone either.
+  const tab = await ctx.open("/stats", { width: 820, height: 1000, setup: (p) => mockStats(p) });
+  const rows = await tab.locator(".stats-tiles .tile").evaluateAll((tiles) => {
+    const byRow = {};
+    for (const t of tiles) {
+      const r = t.getBoundingClientRect();
+      (byRow[Math.round(r.top)] ||= []).push(Math.round(r.width));
+    }
+    return Object.values(byRow);
+  });
+  const gridW = (await tab.locator(".stats-tiles").boundingBox()).width;
+  const full = rows.every((ws) => Math.abs(ws.reduce((a, b) => a + b, 0) + (ws.length - 1) * 8 - gridW) < 12);
+  ctx.check("stats tiles (820): every row of tiles is full", full, JSON.stringify({ gridW, rows }));
+
+  // Legend: bars show a square swatch, line series a short line, so same-colour series still differ.
+  await tab.waitForSelector("#stats-chart .apexcharts-legend-series", { timeout: 15000 }).catch(() => {});
+  await tab.waitForTimeout(800);
+  const legend = await tab.locator("#stats-chart .apexcharts-legend-series").evaluateAll((items) =>
+    items.map((it) => ({ text: it.textContent.trim(), line: !!it.querySelector(".legend-line") })),
+  );
+  const lines = legend.filter((l) => l.line).length;
+  ctx.check("stats legend: growth and decline are squares, the node-type lines are lines", legend.length >= 3 && !legend[0].line && !legend[1].line && lines === legend.length - 2, JSON.stringify(legend));
+  await tab.close();
+
   for (const [scheme, ok, bad, rep] of [
     ["light", "#1a7f37", "#c62828", "#4caf50"],
     ["dark", "#3fb950", "#f85149", "#4caf50"],

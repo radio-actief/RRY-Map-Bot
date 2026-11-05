@@ -34,6 +34,26 @@
           };
         }
 
+        /**
+         * Legend swatches that show the series' shape, not only its colour (growth and the
+         * repeater line are both green in dark): a square for bars, a short line for lines.
+         */
+        function legendMarkers(series, colors) {
+          return {
+            width: 12,
+            height: 12,
+            radius: 2,
+            fillColors: series.map(function (s, i) {
+              return s.type === "line" ? "transparent" : colors[i];
+            }),
+            customHTML: series.map(function (s, i) {
+              return function () {
+                return s.type === "line" ? '<span class="legend-line" style="background:' + colors[i] + '"></span>' : "";
+              };
+            }),
+          };
+        }
+
         /** Phone-only chart options; rebuilt on a theme switch so the colours stay current. */
         function statsResponsiveOptions() {
           return [
@@ -47,14 +67,13 @@
                 legend: {
                   position: "bottom",
                   horizontalAlign: "center",
-                  fontSize: "10px",
+                  fontSize: "11px",
                   itemMargin: { horizontal: 5, vertical: 2 },
-                  markers: { width: 9, height: 9, radius: 4 },
                 },
                 xaxis: {
                   tickAmount: 5,
                   labels: {
-                    style: { colors: statsInk().mut, fontSize: "9px" },
+                    style: { colors: statsInk().mut, fontSize: "11px" },
                     maxHeight: 56,
                   },
                 },
@@ -1745,6 +1764,7 @@
             statsChartInstance.updateOptions({
               series: seriesConfig,
               colors: colorsConfig,
+              legend: { markers: legendMarkers(seriesConfig, colorsConfig) },
               stroke: {
                 width: strokeConfig,
                 curve:
@@ -2105,7 +2125,10 @@
               responsive: statsResponsiveOptions(),
               dataLabels: { enabled: false },
             });
-            statsChartInstance.render();
+            statsChartInstance.render().then(function () {
+              var cfg = statsChartInstance.w.config;
+              statsChartInstance.updateOptions({ legend: { markers: legendMarkers(cfg.series, cfg.colors) } }, false, false);
+            });
             window.__statsChartInstance = statsChartInstance;
             if (!window.__statsViewportResizeHooked) {
               window.__statsViewportResizeHooked = true;

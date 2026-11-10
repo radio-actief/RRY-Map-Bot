@@ -120,6 +120,20 @@ describe("device convention in the configurator", () => {
     expect(reconnect.value).toBeNull();
   });
 
+  it("takes back a Reconnect offer once another tab says it holds that port", async () => {
+    const storage = mem();
+    const ch = fakeChannel();
+    const port = { getInfo: () => USB } as never;
+    stop = startDeviceBus({ channel: ch, storage, getPorts: async () => [port], disconnect: async () => {} });
+    connected();
+    deviceHeld();
+    store.device.value = { status: "none", link: null, firmware: null };
+    await refreshReconnect();
+    expect(reconnect.value).not.toBeNull();
+    await deliver(ch, from("nodebook", "held", USB));
+    await waitFor(() => expect(reconnect.value).toBeNull());
+  });
+
   it("names the device from what it said at connect, before any Read", async () => {
     const storage = mem();
     stop = startDeviceBus({ channel: fakeChannel(), storage, getPorts: async () => [], disconnect: async () => {} });

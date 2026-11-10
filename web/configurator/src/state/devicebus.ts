@@ -74,6 +74,8 @@ async function onMessage(data: unknown): Promise<void> {
   if (!isDeviceMessage(data) || data.tool === TOOL) return;
   if (data.type === "held") {
     heldElsewhere.value = { ...heldElsewhere.peek(), [data.tool]: data };
+    // An offer made before that tab said so is no one-click Reconnect any more.
+    void refreshReconnect();
     return;
   }
   if (data.type === "released") {

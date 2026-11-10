@@ -361,8 +361,8 @@ describe("Send step: Apply", () => {
 
   it("an unplug during Apply stops it and shows the unplug notice", async () => {
     const lines = applyLines();
-    // connect's `ver`, Apply's `ver`, then commands 1-3.
-    await connectApp(okReplies(lines), { disconnectAfter: 5 });
+    // connect's `ver`, `get name` and `board`, Apply's `ver`, then commands 1-3.
+    await connectApp(okReplies(lines), { disconnectAfter: 7 });
     render(<Send />);
     fireEvent.click(applyButton());
     expect(await screen.findByText(`Stopped at command 3 of ${lines.length}: ${lines[2]}`, { selector: ".notice p" })).toBeTruthy();

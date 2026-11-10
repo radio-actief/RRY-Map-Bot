@@ -42,16 +42,16 @@ function anchorPlace(): string {
  * board and the firmware version. The title adds the USB ids.
  */
 function connectionLabel(placeName: string | null): { text: string; title: string; on: boolean } {
-  const { status, firmware, usb } = store.device.value;
+  const { status, firmware, usb, name: saidName, board } = store.device.value;
   if (status === "connecting") return { text: t("top.connecting"), title: t("top.connecting"), on: false };
   if (status !== "connected") return { text: t("top.notConnected"), title: t("top.notConnected"), on: false };
   const v = parseVersion(firmware);
   const version = v ? t("top.version", { version: v.text.replace(/^v/i, "") }) : null;
-  const name = store.snapshot.value?.name;
+  const name = store.snapshot.value?.name ?? saidName ?? null;
   const join = (parts: (string | null | undefined)[]) => parts.filter(Boolean).join(" · ");
   return {
-    text: join([name === placeName ? null : name, usbBoard(usb) ?? t("top.usbNoVersion"), version]),
-    title: join([name, usbLabel(usb) ?? t("top.usbNoVersion"), version]),
+    text: join([name === placeName ? null : name, board ?? usbBoard(usb) ?? t("top.usbNoVersion"), version]),
+    title: join([name, board, usbLabel(usb) ?? t("top.usbNoVersion"), version]),
     on: true,
   };
 }

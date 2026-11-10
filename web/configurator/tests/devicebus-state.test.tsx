@@ -107,6 +107,33 @@ describe("device convention in the configurator", () => {
     expect(reconnect.value).toEqual({ name: "BE-GEN-Tower", port });
   });
 
+  it("offers no Reconnect for a port another tab says it holds", async () => {
+    const storage = mem();
+    const ch = fakeChannel();
+    const port = { getInfo: () => USB } as never;
+    stop = startDeviceBus({ channel: ch, storage, getPorts: async () => [port], disconnect: async () => {} });
+    connected();
+    deviceHeld();
+    store.device.value = { status: "none", link: null, firmware: null };
+    await deliver(ch, from("nodebook", "held", USB));
+    await refreshReconnect();
+    expect(reconnect.value).toBeNull();
+  });
+
+  it("names the device from what it said at connect, before any Read", async () => {
+    const storage = mem();
+    stop = startDeviceBus({ channel: fakeChannel(), storage, getPorts: async () => [], disconnect: async () => {} });
+    store.device.value = { status: "connected", link: null, firmware: "v1.17.1", usb: USB, name: "BE-GEN-Tower", board: "Heltec V3" };
+    deviceHeld();
+    expect(JSON.parse(storage.m.get(LAST_KEY)!)).toMatchObject({ name: "BE-GEN-Tower" });
+  });
+
+  it("the chip shows name · board · version from connect", () => {
+    store.device.value = { status: "connected", link: null, firmware: "v1.17.1", usb: USB, name: "BE-GEN-Tower", board: "Heltec V3" };
+    render(<TopBar />);
+    expect(screen.getByText("BE-GEN-Tower · Heltec V3 · v1.17.1")).toBeTruthy();
+  });
+
   it("the chip offers Reconnect <name> for a remembered, granted device", async () => {
     vi.stubGlobal("navigator", { ...navigator, serial: {} });
     try {

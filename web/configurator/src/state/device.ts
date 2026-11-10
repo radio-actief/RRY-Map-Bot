@@ -238,6 +238,21 @@ export async function connectUsb({ requestPort = requestUsbPort, timing }: Conne
   const fw = await checkFirmware(link);
   if (store.device.peek().link !== link) return;
   store.device.value = { ...store.device.peek(), firmware: fw.version };
+  // Its name and board right away, for the chip and the other tools (a Read gives the rest).
+  if (fw.state !== "unknown") {
+    const said = async (cmd: string) => {
+      try {
+        const r = (await link.command(cmd)).replace(/^\s*>\s*/, "").trim();
+        return r && !isErrorReply(r) ? r : null;
+      } catch {
+        return null;
+      }
+    };
+    const name = await said("get name");
+    const board = await said("board");
+    if (store.device.peek().link !== link) return;
+    store.device.value = { ...store.device.peek(), name, board };
+  }
   deviceHeld();
   // No version: other firmware (Companion, Meshtastic), or a board still starting or asleep.
   if (fw.state === "unknown" && link.connected) {

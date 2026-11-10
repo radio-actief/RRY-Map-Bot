@@ -82,6 +82,9 @@ export type DeviceState = {
   firmware: string | null;
   /** The USB vendor and product id of the open port. */
   usb?: UsbInfo | null;
+  /** What it said at connect (`get name`, `board`), before any Read. */
+  name?: string | null;
+  board?: string | null;
 };
 
 export type AppData = {

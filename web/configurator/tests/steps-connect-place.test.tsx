@@ -131,11 +131,11 @@ describe("Connect step", () => {
     expect(screen.queryByText(/The region list may be incomplete/)).toBeNull();
   });
 
-  it("connecting checks the firmware once and fills the device card", async () => {
+  it("connecting checks the firmware once, asks its name and board, and fills the device card", async () => {
     store.step.value = "connect";
     const port = new FakePort(read);
     await connectUsb({ requestPort: async () => port, timing: FAST });
-    expect(port.received).toEqual(["ver"]);
+    expect(port.received).toEqual(["ver", "get name", "board"]);
     expect(store.device.value.status).toBe("connected");
     expect(store.device.value.firmware).toBe("v1.17.1");
     render(<Connect />);
@@ -152,7 +152,7 @@ describe("Connect step", () => {
   });
 
   it("unplugging resets the device and shows a notice", async () => {
-    const port = new FakePort(read, { disconnectAfter: 2 });
+    const port = new FakePort(read, { disconnectAfter: 4 });
     await connectUsb({ requestPort: async () => port, timing: FAST });
     const link = store.device.value.link!;
     await link.command("get name").catch(() => undefined);
@@ -244,7 +244,7 @@ describe("Connect step", () => {
 
   it("a Read cut short by an unplug changes nothing and says it failed", async () => {
     // The 6th read command loses the link.
-    const port = new FakePort(read, { disconnectAfter: 6 });
+    const port = new FakePort(read, { disconnectAfter: 8 });
     const link = new SerialLink(port, FAST);
     await link.open();
     store.device.value = { status: "connected", link, firmware: "v1.17.1" };
@@ -277,7 +277,7 @@ describe("Connect step", () => {
 
     /** Device A connected through the app and read (36 commands after `ver`), the next command unplugs it. */
     async function readA() {
-      const port = new FakePort(read, { disconnectAfter: 38 });
+      const port = new FakePort(read, { disconnectAfter: 40 });
       await connectUsb({ requestPort: async () => port, timing: FAST });
       await readDevice();
       expect(store.snapshot.value?.publicKey).toBe(A_KEY);

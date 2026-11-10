@@ -56,7 +56,7 @@ function held(): Parameters<typeof message>[1] | null {
   const d = store.device.peek();
   if (d.status !== "connected") return null;
   const snap = store.snapshot.peek();
-  return { usb: d.usb ?? null, role: roleOf(snap?.role) ?? (d.firmware ? "repeater" : null), name: snap?.name ?? null, publicKey: snap?.publicKey ?? null };
+  return { usb: d.usb ?? null, role: roleOf(snap?.role) ?? (d.firmware ? "repeater" : null), name: snap?.name ?? d.name ?? null, publicKey: snap?.publicKey ?? null };
 }
 
 function post(type: MessageType, about: Parameters<typeof message>[1] = {}): void {
@@ -143,7 +143,9 @@ export async function refreshReconnect(): Promise<void> {
     ports = [];
   }
   const port = matchPort(ports, last);
-  reconnect.value = port && last && store.device.peek().status === "none" ? { name: last.name || "USB", port } : null;
+  // A port another tab says it holds is no one-click reconnect: Connect offers to take it over.
+  const heldThere = !!port && holderOf(port.getInfo?.()) !== null;
+  reconnect.value = port && last && !heldThere && store.device.peek().status === "none" ? { name: last.name || "USB", port } : null;
 }
 
 /** The tool in another tab that holds this USB device, if one said so. */

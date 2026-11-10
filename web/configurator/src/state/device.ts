@@ -369,10 +369,10 @@ export async function applyPlan(script: ScriptGroup[], { skipFirmwareCheck = fal
       store.aclSaveUntil.value = Date.now() + ACL_SAVE_WAIT_MS;
     }
     if (!result.ok) {
-      const { failedAt, command, error, remaining, silent } = result;
+      const { failedAt, command, error, remaining, silent, silentLines } = result;
       // Lines that got no reply may still have gone through: the silent stop counts them as sent.
       const stopped = silent
-        ? stoppedApply(lines, failedAt + 1, lines.slice(failedAt - silent, failedAt).map((l) => l.trim()))
+        ? stoppedApply(lines, failedAt + 1, silentLines ?? [])
         : stoppedApply(lines, failedAt);
       store.apply.value = { phase: "failed", failedAt, total, command, error, remaining, ...stopped, ...(silent ? { silent } : {}) };
       appendLog({ text: silent ? t("apply.silent", { lines: silent }) : t("apply.stopped", { n: failedAt, total, command }), kind: "error" });
@@ -566,10 +566,10 @@ export function cancelCount(): void {
   wakeCount?.();
 }
 
-/** Listen `ms` for the neighbours' answers, showing the seconds left; false when cancelled. */
 /** A neighbour heard up to this long before the count started still counts. */
 const RECENT_S = 600;
 
+/** Listen `ms` for the neighbours' answers, showing the seconds left; false when cancelled or unplugged. */
 async function listen(link: SerialLink, ms: number, tickMs: number, round: number): Promise<boolean> {
   const total = Math.ceil(ms / 1000);
   // Unplugged (or another device chosen): stop at once, and leave the state to whoever reset it.
@@ -628,7 +628,8 @@ export async function countNeighbours({ roundMs = COUNT_ROUND_MS, tickMs = 1000 
       // Only those heard during the count, or shortly before it: an old entry may be days old.
       const maxAgoS = (Date.now() - started) / 1000 + RECENT_S;
       for (const prefix of heardWell(list, maxAgoS)) heard.add(prefix);
-      if (heard.size === before) break;
+      // Nobody new: done, unless nobody answered yet (a first round can miss them all).
+      if (heard.size === before && heard.size > 0) break;
     }
     const snapshot = store.snapshot.peek();
     if (snapshot && latest) store.snapshot.value = { ...snapshot, neighbours: latest };

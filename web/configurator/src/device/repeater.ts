@@ -78,8 +78,9 @@ export async function readAll(
     }
     try {
       const reply = await link.command(cmd);
+      // A board without an optional setting answers an error; a timeout is still a missing read.
       if (reply === "" || isErrorReply(reply)) {
-        if (!OPTIONAL_READS.includes(cmd)) missing.push(cmd);
+        if (reply === "" || !OPTIONAL_READS.includes(cmd)) missing.push(cmd);
       } else replies[cmd] = reply;
     } catch {
       missing.push(cmd);
@@ -105,7 +106,7 @@ export async function readAll(
  */
 export type ApplyResult =
   | { ok: true; silent: string[] }
-  | { ok: false; failedAt: number; command: string; error: string; remaining: string[]; silent?: number };
+  | { ok: false; failedAt: number; command: string; error: string; remaining: string[]; silent?: number; silentLines?: string[] };
 
 /** A line that gets no reply is sent up to this many times in all. */
 export const APPLY_TRIES = 4;
@@ -139,10 +140,10 @@ export async function apply(
         // A line that drops the link on purpose answers nothing.
         if (expectsDeviceDisconnect(command)) break;
       }
-      // An error only on a retry may answer a first try that did run (a removed region is gone
-      // now): it counts as no reply, not as a failure.
+      // A removal that errors only on a retry may answer a first try that did run (the region is
+      // gone now): it counts as no reply. Any other error is a real one.
       if (isErrorReply(reply)) {
-        if (tries > 1) reply = "";
+        if (tries > 1 && /^region remove /.test(command)) reply = "";
         else error = reply;
       }
     } catch (err) {
@@ -157,7 +158,7 @@ export async function apply(
     }
     silent.push(command);
     if (++inRow === SILENT_STOP) {
-      return { ok: false, failedAt: i + 1, command, error: "", remaining: lines.slice(i + 1), silent: inRow };
+      return { ok: false, failedAt: i + 1, command, error: "", remaining: lines.slice(i + 1), silent: inRow, silentLines: silent };
     }
   }
   return { ok: true, silent };

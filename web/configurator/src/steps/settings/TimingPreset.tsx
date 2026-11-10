@@ -68,6 +68,36 @@ function Result({ heard, atLeast }: { heard: number; atLeast: boolean }) {
   );
 }
 
+/** The bands by neighbour count, for picking without a repeater on USB. */
+const BY_COUNT: { band: SiteProfile; count: string }[] = [
+  { band: "local", count: "0–2" },
+  { band: "suburban", count: "3–5" },
+  { band: "foothills", count: "6–10" },
+  { band: "hilltop", count: "11+" },
+];
+
+/** Without a device: the timing by how many repeaters it hears, as known from elsewhere. */
+function ByCount() {
+  const timing = timingOf(store.plan.value);
+  return (
+    <div class="tune-bycount" role="group" aria-label={t("tune.byCount")}>
+      <span class="sub">{t("tune.byCount")}</span>{" "}
+      {BY_COUNT.map(({ band, count }) => (
+        <button
+          key={band}
+          type="button"
+          class="btn tiny"
+          aria-pressed={siteOf(timing) === band && timing.rxdelay === 0}
+          title={t(`site.${band}`)}
+          onClick={() => (store.plan.value = withTiming(store.plan.peek(), bandTiming(band)))}
+        >
+          {count}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function TimingPreset() {
   const current = siteOf(timingOf(store.plan.value));
   const tune = store.tune.value;
@@ -91,6 +121,7 @@ export function TimingPreset() {
         </div>
       )}
       {tune.phase === "done" ? <Result heard={tune.heard} atLeast={tune.atLeast} /> : null}
+      {!connected && tune.phase !== "counting" ? <ByCount /> : null}
       {tune.phase === "failed" ? <span class="field-error">{t("tune.failed", { reason: tune.error })}</span> : null}
       <span class="sub help">{connected ? t("tune.hint") : `${t("tune.needDevice")} ${t("tune.hint")}`}</span>
       {nearby ? <span class="sub help">{nearby}</span> : null}

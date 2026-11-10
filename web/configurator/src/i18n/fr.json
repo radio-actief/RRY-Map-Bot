@@ -190,6 +190,7 @@
   "tune.resultAtLeast_many": "Entend au moins {count} répéteurs → timing {band}",
   "tune.resultAtLeast_other": "Entend au moins {count} répéteurs → timing {band}",
   "tune.use": "Utiliser ce timing",
+  "tune.byCount": "Ou choisissez selon le nombre de répéteurs qu'il entend :",
   "tune.mayBeMore": "En USB, il peut en lister 8 environ au maximum. Sur un site élevé avec beaucoup de répéteurs à portée, Sommet peut mieux convenir.",
   "tune.useBand": "Utiliser le timing {band}",
   "tune.failed": "Comptage impossible : {reason}",

@@ -21,8 +21,8 @@ const t = I18N.t;
 
 /** The site's other tools (NodeBook, MeshMate); [] on a site that only runs the map. */
 let siteTools = [];
-// The top bar fetches the list too: ask it, so the page asks the server once.
-const siteToolsLoaded = (window.BEmeshTopbar?.siteTools?.() ?? fetch("/api/v1/site-tools").then((r) => (r.ok ? r.json() : [])))
+// The top bar (loaded before this module) fetches and filters the list: the page asks the server once.
+const siteToolsLoaded = Promise.resolve(window.BEmeshTopbar?.siteTools?.() ?? [])
   .then((list) => {
     siteTools = Array.isArray(list) ? list : [];
   })
@@ -1767,6 +1767,9 @@ createApp({
       await Promise.all([siteToolsLoaded, authChecked]);
       if (!siteTools.length) return;
       const key = (node.public_key || "").toLowerCase();
+      const links = () =>
+        toolLinksHtml({ tools: siteTools, node, signedIn: Boolean(auth.authenticated), nodebook: nodebookStatus.get(key) ?? null, t, escape: escapeAttrHtml });
+      const shown = marker.getPopup?.()?.getElement?.()?.querySelector(".node-popup__tools")?.outerHTML ?? "";
       const url = nodebookApiUrl(siteTools, key);
       if (url && auth.authenticated && !nodebookStatus.has(key)) {
         nodebookStatus.set(key, null);
@@ -1777,11 +1780,9 @@ createApp({
           nodebookStatus.delete(key); // ask again at the next open
         }
       }
+      // Redraw only when the tool links changed: a redraw rebuilds the QR code and re-pans the map.
       const p = marker.getPopup?.();
-      if (p && p.isOpen()) {
-        p.setContent(() => getTable(node, auth, app.nodes));
-        p.update();
-      }
+      if (p && p.isOpen() && links() !== shown) p.setContent(() => getTable(node, auth, app.nodes));
     }
 
     function refreshOpenPopups() {

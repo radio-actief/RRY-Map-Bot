@@ -29,6 +29,14 @@ describe("settings hand-off", () => {
     },
   );
 
+  it("carries a setting only some boards have when the last Read had it", () => {
+    const p = plan("brussels");
+    p.settings = { ...p.settings, radioFemRxgain: "off" };
+    expect(handoffFromPlan(p, PLACES).settings["radio.fem.rxgain"]).toBeUndefined();
+    const board = { settings: { radioFemRxgain: "on" }, missing: [] } as never;
+    expect(handoffFromPlan(p, PLACES, "configurator", new Date(), board).settings["radio.fem.rxgain"]).toBe("off");
+  });
+
   it("never carries passwords, the private key or the clock", () => {
     const p = plan("admin-password");
     const msg = handoffFromPlan(p, PLACES);

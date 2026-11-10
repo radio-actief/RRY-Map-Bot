@@ -81,6 +81,12 @@ describe("readAll: radio.fem.rxgain, on a few boards only", () => {
     expect(readCount(s)).toBe(READ_COMMANDS.length - 1);
   });
 
+  it("a timeout is a missing read, not a board without it", async () => {
+    const { link } = await linkTo({ ...read, "get radio.fem.rxgain": "" });
+    const s = await readAll(link);
+    expect(s.missing).toEqual(["get radio.fem.rxgain"]);
+  });
+
   it("a board with it gives its value", async () => {
     const { link } = await linkTo({ ...read, "get radio.fem.rxgain": "off" });
     const s = await readAll(link);
@@ -185,13 +191,23 @@ describe("apply: lines that get no reply", () => {
   it("stops when 3 lines in a row get no reply", async () => {
     const { link, port } = await linkTo({ ...replies, "set k2 v": "", "set k3 v": "", "set k4 v": "" });
     const r = await apply(link, lines, () => {});
-    expect(r).toEqual({ ok: false, failedAt: 5, command: "set k4 v", error: "", remaining: lines.slice(5), silent: 3 });
+    expect(r).toEqual({ ok: false, failedAt: 5, command: "set k4 v", error: "", remaining: lines.slice(5), silent: 3, silentLines: ["set k2 v", "set k3 v", "set k4 v"] });
     expect(port.received).not.toContain("set k5 v");
   });
 
   it("a reply between them starts the count again", async () => {
     const { link } = await linkTo({ ...replies, "set k1 v": "", "set k2 v": "", "set k4 v": "", "set k5 v": "" });
     expect(await apply(link, lines, () => {})).toEqual({ ok: true, silent: ["set k1 v", "set k2 v", "set k4 v", "set k5 v"] });
+  });
+
+  it("a real error on a retry still stops Apply: only a removal can answer 'not found' for a first try that ran", async () => {
+    const { link } = await linkTo({ ...replies }, undefined, { sequence: { "set k2 v": ["", "Err - bad value"] } });
+    expect(await apply(link, lines, () => {})).toMatchObject({ ok: false, failedAt: 3, command: "set k2 v", error: "Err - bad value" });
+  });
+
+  it("a stop names every line that got no reply, also earlier ones", async () => {
+    const { link } = await linkTo({ ...replies, "set k0 v": "", "set k3 v": "", "set k4 v": "", "set k5 v": "" });
+    expect(await apply(link, lines, () => {})).toMatchObject({ ok: false, failedAt: 6, silent: 3, silentLines: ["set k0 v", "set k3 v", "set k4 v", "set k5 v"] });
   });
 
   it("an error that only comes on a retry counts as no reply: the first try may have run", async () => {

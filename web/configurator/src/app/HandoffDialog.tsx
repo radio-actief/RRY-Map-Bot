@@ -45,7 +45,7 @@ export function HandoffDialog() {
       <p>{t("handoff.text")}</p>
       <ul class="handoff-summary">
         {snapshot.name ? <li>{t("handoff.name", { name: snapshot.name })}</li> : null}
-        <li>{t("handoff.settings", { n: Object.keys(msg.settings).length - skipped.filter((l) => l.startsWith("set ")).length })}</li>
+        <li>{t("handoff.settings", { n: Object.keys(snapshot.settings).length })}</li>
         <li>{t("handoff.regions", { n: snapshot.regions ? Object.keys(snapshot.regions.parents ?? {}).length : 0 })}</li>
       </ul>
       {skipped.length ? (

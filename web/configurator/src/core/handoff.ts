@@ -46,8 +46,15 @@ export function isHandoffMessage(data: unknown): data is HandoffMessage {
 }
 
 /** The hand-off for a plan: every setting of the full script (also firmware defaults) and its region set. */
-export function handoffFromPlan(plan: Plan, places: Place[], source = "configurator", now = new Date()): HandoffMessage {
-  const lines = commandLines(buildScript(plan, places, { includeDefaults: true }));
+export function handoffFromPlan(
+  plan: Plan,
+  places: Place[],
+  source = "configurator",
+  now = new Date(),
+  board?: DeviceSnapshot | null,
+): HandoffMessage {
+  // `board` (the last Read) lets a setting only some boards have go along, as in the script.
+  const lines = commandLines(buildScript(plan, places, { includeDefaults: true, board: board ?? undefined }));
   const settings: Record<string, string> = {};
   const regions: string[] = [];
   for (const line of lines) {

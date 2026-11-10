@@ -2220,3 +2220,19 @@ path.map-region-denied {
 .task-tabs button[aria-selected="true"]:focus-visible {
   outline-offset: -2px;
 }
+
+/* Buttons and links under a notice's text (take over a device, open another tool). */
+.notice-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+/* Picking the timing by neighbour count, without a repeater on USB. */
+.tune-bycount {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}

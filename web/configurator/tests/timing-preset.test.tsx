@@ -105,6 +105,21 @@ describe("Timing", () => {
     expect(button("Use this timing").disabled).toBe(false);
   });
 
+  it("without a repeater on USB, the timing can be picked by neighbour count", () => {
+    render(<TimingPreset />);
+    fireEvent.click(button("11+"));
+    expect(timingOf(store.plan.value)).toEqual({ txdelay: 2, directTxdelay: 2, rxdelay: 0 });
+    expect(button("11+").getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(button("0–2"));
+    expect(timingOf(store.plan.value)).toEqual({ txdelay: 0.3, directTxdelay: 0.1, rxdelay: 0 });
+  });
+
+  it("with a repeater on USB, the count replaces picking by hand", async () => {
+    await connect({});
+    render(<TimingPreset />);
+    expect(screen.queryByRole("button", { name: "11+" })).toBeNull();
+  });
+
   it("one repeater is singular", () => {
     store.tune.value = { phase: "done", heard: 1, atLeast: false };
     render(<TimingPreset />);
@@ -169,6 +184,13 @@ describe("countNeighbours", () => {
     } finally {
       now.mockRestore();
     }
+  });
+
+  it("a first round that hears nobody does not stop the count", async () => {
+    const port = await connect({}, { sequence: { neighbors: ["-none-", table(nb("aaaaaaaa", 5)), table(nb("aaaaaaaa", 5))] } });
+    await countNeighbours(QUICK);
+    expect(port.received.filter((c) => c === "discover.neighbors")).toHaveLength(3);
+    expect(store.tune.value).toEqual({ phase: "done", heard: 1, atLeast: false });
   });
 
   it("stops early when a round adds nobody new", async () => {

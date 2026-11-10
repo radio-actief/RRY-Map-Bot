@@ -185,6 +185,7 @@
   "tune.resultAtLeast_one": "Hoort minstens {count} repeater → timing {band}",
   "tune.resultAtLeast_other": "Hoort minstens {count} repeaters → timing {band}",
   "tune.use": "Deze timing gebruiken",
+  "tune.byCount": "Of kies op hoeveel repeaters hij hoort:",
   "tune.mayBeMore": "Over USB kan hij er hoogstens ongeveer 8 tonen. Op een hoge plek met veel repeaters binnen bereik past Heuveltop misschien beter.",
   "tune.useBand": "{band}-timing gebruiken",
   "tune.failed": "Tellen lukte niet: {reason}",

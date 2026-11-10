@@ -20,7 +20,9 @@ import {
   type LinkTiming,
   type PortLike,
 } from "../device/serial";
-import { t } from "../i18n/t";
+import { I18N, t } from "../i18n/t";
+import { siteTools, toolText } from "../app/pages";
+import { askRelease, deviceHeld, deviceReleased, holderOf } from "./devicebus";
 import { busy, canApply, prefs, resetPlan, store, type ClockOutcome, type LogLine } from "./store";
 
 const reasonOf = (err: unknown) => (err instanceof Error && err.message ? err.message : String(err));
@@ -120,10 +122,36 @@ function forgetRead(): void {
 /** The device is gone: forget it and its Read, with the unplug notice unless it left on purpose. */
 function dropped(link: SerialLink): void {
   if (store.device.peek().link !== link) return;
+  const usb = store.device.peek().usb;
   store.device.value = NO_DEVICE;
+  deviceReleased(usb);
   forgetRead();
   if (leaving === link) leaving = null;
   else store.notice.value = { kind: "error", text: t("connect.unplugged") };
+}
+
+/** Ask the tab that holds this port to let go, then open it here. */
+async function takeOver(port: PortLike, timing?: ConnectDeps["timing"]): Promise<void> {
+  const usb = port.getInfo?.() ?? null;
+  const answer = await askRelease(usb);
+  if (answer === "busy") {
+    store.notice.value = { kind: "warn", text: t("device.busyElsewhere", { tool: toolName(holderOf(usb) ?? "") }) };
+    return;
+  }
+  await connectUsb({ requestPort: async () => port, timing });
+}
+
+/** A tool's name in the page language: its page name when known, else the key itself. */
+function toolName(key: string): string {
+  const pageKey = `page.${key}`;
+  return I18N.has(pageKey) ? t(pageKey) : key;
+}
+
+/** Links to the site's tools for a device the configurator can't use (a companion). */
+function otherTools(): { label: string; href: string }[] {
+  return siteTools.peek()
+    .filter((x) => x.key === "meshmate" || x.key === "nodebook")
+    .map((x) => ({ label: t("device.openIn", { tool: toolText(x) }), href: x.url }));
 }
 
 /** Ask for a port, open it and check the firmware once (old connectSerialUsb). */
@@ -150,7 +178,14 @@ export async function connectUsb({ requestPort = requestUsbPort, timing }: Conne
     await link.open();
   } catch (err) {
     store.device.value = NO_DEVICE;
-    store.notice.value = { kind: "error", text: portBusy(err) ? t("connect.busy") : t("connect.failed", { reason: reasonOf(err) }) };
+    const holder = portBusy(err) ? holderOf(port.getInfo?.()) : null;
+    store.notice.value = holder
+      ? {
+          kind: "warn",
+          text: t("device.heldElsewhere", { tool: toolName(holder) }),
+          actions: [{ label: t("device.takeOver"), run: () => void takeOver(port, timing) }],
+        }
+      : { kind: "error", text: portBusy(err) ? t("connect.busy") : t("connect.failed", { reason: reasonOf(err) }) };
     return;
   }
   // Unplugged while the port opened or the boot output drained.
@@ -163,8 +198,12 @@ export async function connectUsb({ requestPort = requestUsbPort, timing }: Conne
   const fw = await checkFirmware(link);
   if (store.device.peek().link !== link) return;
   store.device.value = { ...store.device.peek(), firmware: fw.version };
+  deviceHeld();
   // No version: other firmware (Companion, Meshtastic), or a board still starting or asleep.
-  if (fw.state === "unknown" && link.connected) store.notice.value = { kind: "warn", text: t("connect.noAnswer") };
+  if (fw.state === "unknown" && link.connected) {
+    const links = otherTools();
+    store.notice.value = { kind: "warn", text: links.length ? `${t("connect.noAnswer")} ${t("device.companionTools")}` : t("connect.noAnswer"), links };
+  }
 }
 
 /** Opening failed because the port is already open: in another tab (the flasher), another app, or here. */
@@ -175,10 +214,11 @@ function portBusy(err: unknown): boolean {
 
 /** Close on purpose (old disconnectSerialUsb): no unplug notice, and the device's Read is forgotten. */
 export async function disconnectUsb(): Promise<void> {
-  const link = store.device.peek().link;
+  const { link, usb } = store.device.peek();
   store.device.value = NO_DEVICE;
   forgetRead();
   await link?.close();
+  if (link) deviceReleased(usb);
 }
 
 /**
@@ -202,6 +242,7 @@ export async function readDevice(): Promise<void> {
     store.deviceRegions.value = deviceRegionsFromSnapshot(snapshot);
     resetPlan(planFromSnapshot(snapshot, store.data.peek().places ?? []));
     store.lastRead.value = { ok: true, count: readCount(snapshot), missing: snapshot.missing };
+    deviceHeld();
   } catch (err) {
     store.lastRead.value = { ok: false, reason: reasonOf(err) };
   } finally {

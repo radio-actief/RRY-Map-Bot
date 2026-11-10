@@ -6,6 +6,7 @@ import { planName } from "../core/plan";
 import { hasWebSerial } from "../device/serial";
 import { usbBoard, usbLabel } from "../device/usb";
 import { connectUsb } from "../state/device";
+import { reconnect } from "../state/devicebus";
 import { busy, isWide, store, type Theme } from "../state/store";
 
 /** Links to the four tool pages; on a phone the ☰ menu shows them instead of the top bar. */
@@ -63,6 +64,23 @@ function ConnectionChip({ placeName }: { placeName: string | null }) {
       <span class="chip-text">{conn.text}</span>
     </>
   );
+  const again = reconnect.value;
+  if (store.device.value.status === "none" && hasWebSerial() && again) {
+    const label = t("top.reconnect", { name: again.name });
+    return (
+      <button
+        type="button"
+        class="chip conn trunc action"
+        aria-label={label}
+        title={t("top.reconnectTitle", { name: again.name })}
+        disabled={busy.value}
+        onClick={() => void connectUsb({ requestPort: async () => again.port })}
+      >
+        <span class="dot off" />
+        <span class="chip-text">{label}</span>
+      </button>
+    );
+  }
   if (store.device.value.status === "none" && hasWebSerial()) {
     return (
       <button

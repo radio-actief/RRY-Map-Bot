@@ -113,7 +113,13 @@ function storedLayers(): { nodes: boolean; borders: boolean } {
 }
 
 /** A message shown above the step body, whatever the step (e.g. the repeater was unplugged). */
-export type AppNotice = { kind: NoticeKind; text: string };
+/** A notice; `actions` are buttons under its text, `links` go to another tool on this site. */
+export type AppNotice = {
+  kind: NoticeKind;
+  text: string;
+  actions?: { label: string; run: () => void }[];
+  links?: { label: string; href: string }[];
+};
 
 /** The last Read: how many commands answered and which did not, or why it failed. */
 export type LastRead = { ok: true; count: number; missing: string[] } | { ok: false; reason: string };

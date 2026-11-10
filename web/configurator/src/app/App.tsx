@@ -3,6 +3,8 @@ import { lang, t } from "../i18n/t";
 import { ensureData, loadAppData, loadOnDemand } from "../state/appdata";
 import { isWide, listenToHash, store } from "../state/store";
 import { receiveHandoff } from "../state/handoff";
+import { disconnectUsb } from "../state/device";
+import { refreshReconnect, startDeviceBus } from "../state/devicebus";
 import { DeviceDrawer } from "./DeviceDrawer";
 import { HandoffDialog } from "./HandoffDialog";
 import { useLazy } from "./lazy";
@@ -28,7 +30,16 @@ export function App() {
     const stopData = loadOnDemand();
     const stopHash = listenToHash();
     const stopHandoff = receiveHandoff();
+    const stopDevices = startDeviceBus({ disconnect: disconnectUsb });
+    // A board plugged in or out may be the remembered one.
+    const serial = (navigator as unknown as { serial?: EventTarget }).serial;
+    const replug = () => void refreshReconnect();
+    serial?.addEventListener?.("connect", replug);
+    serial?.addEventListener?.("disconnect", replug);
     return () => {
+      stopDevices();
+      serial?.removeEventListener?.("connect", replug);
+      serial?.removeEventListener?.("disconnect", replug);
       stopData();
       stopHash();
       stopHandoff();

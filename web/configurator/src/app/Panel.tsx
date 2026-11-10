@@ -99,6 +99,20 @@ export function Panel() {
         <div class="panel-notice">
           <Notice kind={notice.kind}>
             {notice.text}
+            {notice.actions?.length || notice.links?.length ? (
+              <span class="notice-actions">
+                {notice.actions?.map((a) => (
+                  <button key={a.label} type="button" class="btn tiny" onClick={a.run}>
+                    {a.label}
+                  </button>
+                ))}
+                {notice.links?.map((l) => (
+                  <a key={l.href} class="btn tiny" href={l.href}>
+                    {l.label}
+                  </a>
+                ))}
+              </span>
+            ) : null}
             <button
               type="button"
               class="icon small"

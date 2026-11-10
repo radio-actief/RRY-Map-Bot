@@ -272,12 +272,21 @@ describe("rejected input", () => {
       edit(b.plan);
       return b;
     };
-    for (const code of ["be-vbr x", "foo,be-vbr", "a|b", "Be-Vbr", "", "x".repeat(31)]) {
+    // A region a repeater already had may use what its firmware allows (#, $, _ and capitals);
+    // separators, spaces and over-long names never.
+    for (const code of ["#Gent", "$ops", "Zone_1"]) {
+      expect(importBackup(withPlan((p) => p.regions.rows.push(row(code))), PLACES).regions!.rows.at(-1)!.code).toBe(code);
+    }
+    for (const code of ["be-vbr x", "foo,be-vbr", "a|b", "", "x".repeat(31)]) {
       expect(key(withPlan((p) => p.regions.rows.push(row(code))))).toBe("backup.error.invalid");
       expect(key(withPlan((p) => (p.regions.rows[0].code = code)))).toBe("backup.error.invalid");
+    }
+    for (const code of ["be-vbr x", "foo,be-vbr", "a|b", "Be-Vbr", "", "x".repeat(31)]) {
       expect(key(withPlan((p) => (p.anchor.place.city_code = code)))).toBe("backup.error.invalid");
       expect(key(withPlan((p) => (p.anchor.place.province_code = code)))).toBe("backup.error.invalid");
       expect(key(withPlan((p) => (p.anchor.province_code = code)))).toBe("backup.error.invalid");
+    }
+    for (const code of ["be-vbr x", "foo,be-vbr", "a|b", "", "x".repeat(31)]) {
       expect(key(withPlan((p) => (p.regions.homeOverride = code)))).toBe("backup.error.invalid");
       expect(key(withPlan((p) => (p.regions.defaultScope = code)))).toBe("backup.error.invalid");
     }

@@ -73,6 +73,13 @@ const oneOf = (v: unknown, values: readonly unknown[]) => values.includes(v);
 const REGION_CODE = /^[a-z0-9-]{1,30}$/;
 const isCode = (v: unknown) => typeof v === "string" && REGION_CODE.test(v);
 const isCodeOrNull = (v: unknown) => v === null || isCode(v);
+/**
+ * A region a repeater already had: the firmware also allows '#', '$', '_' and capitals in names
+ * (RegionMap), never the separators above.
+ */
+const REGION_NAME = /^[A-Za-z0-9#$_-]{1,30}$/;
+const isName = (v: unknown) => typeof v === "string" && REGION_NAME.test(v);
+const isNameOrNull = (v: unknown) => v === null || isName(v);
 
 function validAnchor(a: unknown): boolean {
   if (a === null) return true;
@@ -92,9 +99,9 @@ function validRegionCodes(p: Record<string, unknown>): boolean {
   const home = p.homeOverride;
   const def = p.defaultScope;
   return (
-    rows.every((r) => isObject(r) && isCode(r.code) && (r.parent === undefined || isCodeOrNull(r.parent))) &&
-    (home === undefined || home === "*" || home === HOME_OVERRIDE_OMIT || isCodeOrNull(home)) &&
-    (def === undefined || def === "<null>" || def === DEFAULT_SCOPE_NONE || isCodeOrNull(def))
+    rows.every((r) => isObject(r) && isName(r.code) && (r.parent === undefined || isNameOrNull(r.parent))) &&
+    (home === undefined || home === "*" || home === HOME_OVERRIDE_OMIT || isNameOrNull(home)) &&
+    (def === undefined || def === "<null>" || def === DEFAULT_SCOPE_NONE || isNameOrNull(def))
   );
 }
 

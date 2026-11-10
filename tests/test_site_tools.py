@@ -304,3 +304,37 @@ def test_every_page_isolates_its_opener_to_this_site(client, path):
 
 def test_json_answers_carry_no_opener_policy(client):
     assert 'Cross-Origin-Opener-Policy' not in client.get('/api/v1/site-tools').headers
+
+
+def test_a_failed_sign_in_goes_to_its_own_page_with_the_way_back(client):
+    client.get('/auth/login?next=/configurator')
+    r = client.get('/auth/callback?error=access_denied')
+    assert r.headers['Location'] == '/auth/failed?reason=cancelled&next=%2Fconfigurator'
+    r = client.get('/auth/callback?error=server_error')
+    assert r.headers['Location'] == '/auth/failed?reason=failed'
+
+
+def test_the_failed_sign_in_page_explains_and_offers_try_again_and_back(full_client):
+    r = full_client.get('/auth/failed', query_string={'reason': 'cancelled', 'next': 'https://nodebook.example/'})
+    assert r.status_code == 200 and r.mimetype == 'text/html'
+    assert r.headers['Cache-Control'] == 'no-store'
+    body = r.get_data(as_text=True)
+    assert 'bemesh-shell.css' in body and 'class="card signout"' in body
+    assert 'cancelled' in body.lower()
+    assert 'href="/auth/login?next=https%3A%2F%2Fnodebook.example%2F"' in body
+    assert 'href="https://nodebook.example/"' in body
+    assert '<script' not in body.lower() and 'onclick' not in body.lower()
+
+
+def test_the_failed_sign_in_page_drops_unknown_reasons_and_unlisted_return_addresses(full_client):
+    body = full_client.get('/auth/failed', query_string={'reason': '<b>x', 'next': 'https://evil.example/'}).get_data(as_text=True)
+    assert '<b>x' not in body and 'evil' not in body
+    assert 'href="/auth/login"' in body and 'href="/"' in body
+
+
+def test_a_non_member_gets_the_invite_on_the_page_not_a_browser_box(full_client):
+    body = full_client.get('/auth/failed?reason=not_member').get_data(as_text=True)
+    from config.config import DISCORD_SERVER_INVITE_URL
+    assert f'href="{DISCORD_SERVER_INVITE_URL}"' in body
+    body_nl = full_client.get('/auth/failed?reason=not_member&lang=nl').get_data(as_text=True)
+    assert 'lang="nl"' in body_nl and 'Discord' in body_nl

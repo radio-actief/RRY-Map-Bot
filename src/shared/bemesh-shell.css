@@ -832,3 +832,21 @@ button {
   margin: 0 0 8px;
   font-size: 1.25rem;
 }
+.signout-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+.signout-actions form {
+  margin: 0;
+}
+.signout-actions a.btn {
+  color: var(--ink);
+  font: inherit;
+  text-decoration: none;
+}
+.signout-actions a.btn.primary {
+  font-weight: 700;
+  color: var(--on-gold);
+}

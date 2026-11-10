@@ -200,8 +200,17 @@ class TestAuthNext(unittest.TestCase):
     def test_callback_with_another_state_is_refused(self):
         self.client.get("/auth/login")
         r = self._callback("not-the-state")
-        self.assertEqual(r.headers["Location"], "/?error=invalid_state")
+        self.assertEqual(r.headers["Location"], "/auth/failed?reason=expired")
         self.assertFalse(self.client.get("/auth/me").get_json()["authenticated"])
+
+    def test_a_non_member_is_signed_in_and_sent_to_the_join_page(self):
+        self.client.get("/auth/login?next=/region-map")
+        state = self._pending()["state"]
+        with mock.patch.object(api, "exchange_code_for_token", return_value={"access_token": "t"}), \
+             mock.patch.object(api, "get_user_info", return_value={"id": "42", "username": "ann"}), \
+             mock.patch.object(auth, "is_guild_member", return_value=False):
+            r = self.client.get("/auth/callback", query_string={"code": "c", "state": state})
+        self.assertEqual(r.headers["Location"], "/auth/failed?reason=not_member&next=%2Fregion-map")
 
     def test_tampered_or_old_login_cookie_is_ignored(self):
         self.assertIsNone(api.read_oauth_pending("garbage"))

@@ -2750,24 +2750,6 @@ createApp({
         window.removeEventListener("orientationchange", onOrientationChange);
       };
 
-      // Check for URL parameters indicating errors
-      const loginReturnParams = new URLSearchParams(window.location.search);
-      const error = loginReturnParams.get("error");
-      const inviteUrl = loginReturnParams.get("invite_url");
-
-      if (error === "not_guild_member" && isDiscordInvite(inviteUrl)) {
-        const message = t("map.claim.membership");
-        if (confirm(message + "\n\n" + t("map.claim.openInvite"))) {
-          window.open(inviteUrl, "_blank");
-        }
-        // Clean up URL
-        window.history.replaceState(
-          {},
-          document.title,
-          window.location.pathname,
-        );
-      }
-
       // Check authentication status first
       authChecked = checkAuth();
       authChecked.then(() => {

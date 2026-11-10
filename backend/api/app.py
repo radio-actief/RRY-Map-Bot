@@ -1462,54 +1462,59 @@ def _auth_callback(pending):
     code = request.args.get('code')
     state = request.args.get('state')
     error = request.args.get('error')
-    
-    # Check for errors
+    next_page = _safe_next((pending or {}).get('next'))
+
+    # Discord says why it stopped: access_denied is the visitor pressing Cancel.
     if error:
-        return redirect('/?error=auth_failed')
-    
-    # Verify state
+        return _signin_failed('cancelled' if error == 'access_denied' else 'failed', next_page)
+
+    # Verify state: no started sign-in in this browser, or one from another tab or too old.
     if not state or not pending or state != pending.get('state'):
-        return redirect('/?error=invalid_state')
-    
-    next_page = _safe_next(pending.get('next'))
-    
+        return _signin_failed('expired', next_page)
+
     # Exchange code for token
     if not code:
-        return redirect('/?error=no_code')
-    
+        return _signin_failed('failed', next_page)
+
     token_response = exchange_code_for_token(code)
-    if not token_response:
-        return redirect('/?error=token_exchange_failed')
-    
-    access_token = token_response.get('access_token')
+    access_token = (token_response or {}).get('access_token')
     if not access_token:
-        return redirect('/?error=no_access_token')
-    
+        return _signin_failed('failed', next_page)
+
     # Get user info
     user_info = get_user_info(access_token)
     if not user_info:
-        return redirect('/?error=user_info_failed')
-    
+        return _signin_failed('failed', next_page)
+
     # Check if user is a member of the Discord server
-    from backend.auth import is_guild_member, DISCORD_SERVER_INVITE_URL
-    from config.config import DISCORD_OAUTH2_REDIRECT_URI
-    
+    from backend.auth import is_guild_member
+
     is_member = is_guild_member(access_token)
-    
+
     # Store user info in session
     session['user_id'] = str(user_info['id'])
     session['username'] = user_info.get('username', 'Unknown')
     session['discriminator'] = user_info.get('discriminator', '0000')
     session['avatar'] = user_info.get('avatar')
     session['is_guild_member'] = is_member
-    
-    # If not a member, redirect to Discord server invite with return URL
+
+    # Signed in, but not on the server yet: the page with the invite, then back.
     if not is_member:
-        invite_url = f"{DISCORD_SERVER_INVITE_URL}?redirect_uri={DISCORD_OAUTH2_REDIRECT_URI}"
-        return redirect(f'/?error=not_guild_member&invite_url={invite_url}')
-    
+        return _signin_failed('not_member', next_page)
+
     # Back to the page the sign in started on
     return redirect(_after_auth_target(next_page, 'login=success'))
+
+
+SIGNIN_FAILED_REASONS = ('cancelled', 'expired', 'failed', 'not_member')
+
+
+def _signin_failed(reason, next_page):
+    from urllib.parse import quote
+    target = f'/auth/failed?reason={reason}'
+    if next_page:
+        target += f'&next={quote(next_page, safe="")}'
+    return redirect(target)
 
 
 @app.route('/auth/logout', methods=['POST'])
@@ -1543,6 +1548,31 @@ def _page_lang():
     return request.accept_languages.best_match(SIGNOUT_LANGS) or 'en'
 
 
+def _card_page(lang, title, paragraphs, actions):
+    """A small page on the shared look: one card with a title, some text and its buttons.
+    `actions` is already-escaped HTML; no scripts, so the strict CSP holds."""
+    from html import escape
+    body = (
+        '<!doctype html>\n'
+        f'<html lang="{lang}">\n<head>\n<meta charset="utf-8">\n'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
+        f'<title>{escape(title)}</title>\n'
+        '<link rel="icon" href="/favicon.ico" sizes="any">\n'
+        '<link rel="stylesheet" href="/src/shared/bemesh-tokens.css">\n'
+        '<link rel="stylesheet" href="/src/shared/bemesh-shell.css">\n'
+        '</head>\n<body class="signout-page">\n<main class="card signout">\n'
+        f'<h1>{escape(title)}</h1>\n'
+        + ''.join(f'<p>{escape(p)}</p>\n' for p in paragraphs if p)
+        + f'<div class="signout-actions">{actions}</div>\n'
+        '</main>\n</body>\n</html>\n'
+    )
+    resp = make_response(body, 200)
+    resp.mimetype = 'text/html'
+    resp.headers['Cache-Control'] = 'no-store'
+    resp.vary.add('Accept-Language')
+    return resp
+
+
 @app.route('/auth/signout')
 def auth_signout():
     """A page on this site with one button that logs out (a POST from here, so the Origin check
@@ -1554,26 +1584,43 @@ def auth_signout():
     texts = _shared_messages(lang)
     next_page = _safe_next(request.args.get('next'))
     action = '/auth/logout' + (f'?next={quote(next_page, safe="")}' if next_page else '')
-    body = (
-        '<!doctype html>\n'
-        f'<html lang="{lang}">\n<head>\n<meta charset="utf-8">\n'
-        '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
-        f'<title>{escape(texts.get("signout.title", "Log out"))}</title>\n'
-        '<link rel="icon" href="/favicon.ico" sizes="any">\n'
-        '<link rel="stylesheet" href="/src/shared/bemesh-tokens.css">\n'
-        '<link rel="stylesheet" href="/src/shared/bemesh-shell.css">\n'
-        '</head>\n<body class="signout-page">\n<main class="card signout">\n'
-        f'<h1>{escape(texts.get("signout.title", "Log out"))}</h1>\n'
-        f'<p>{escape(texts.get("signout.text", ""))}</p>\n'
+    form = (
         f'<form method="post" action="{escape(action)}">'
-        f'<button type="submit" class="btn primary">{escape(texts.get("menu.logOut", "Log out"))}</button></form>\n'
-        '</main>\n</body>\n</html>\n'
+        f'<button type="submit" class="btn primary">{escape(texts.get("menu.logOut", "Log out"))}</button></form>'
     )
-    resp = make_response(body, 200)
-    resp.mimetype = 'text/html'
-    resp.headers['Cache-Control'] = 'no-store'
-    resp.vary.add('Accept-Language')
-    return resp
+    return _card_page(lang, texts.get('signout.title', 'Log out'), [texts.get('signout.text', '')], form)
+
+
+@app.route('/auth/failed')
+def auth_failed():
+    """Where a sign in that did not work ends: what happened in plain words, Try again, and the
+    way back to the page (or listed tool) it started on. A Discord account that is not on the
+    #BEmesh server is signed in and gets the invite here."""
+    from html import escape
+    from urllib.parse import quote
+    from config.config import DISCORD_SERVER_INVITE_URL
+    lang = _page_lang()
+    texts = _shared_messages(lang)
+    reason = request.args.get('reason')
+    if reason not in SIGNIN_FAILED_REASONS:
+        reason = 'failed'
+    next_page = _safe_next(request.args.get('next'))
+    retry = '/auth/login' + (f'?next={quote(next_page, safe="")}' if next_page else '')
+    back = next_page or '/'
+    key = 'signin.notMember' if reason == 'not_member' else 'signin.failed'
+    actions = ''
+    if reason == 'not_member' and DISCORD_SERVER_INVITE_URL.startswith('https://'):
+        actions += (
+            f'<a class="btn primary" href="{escape(DISCORD_SERVER_INVITE_URL)}" target="_blank" rel="noopener">'
+            f'{escape(texts.get("signin.join", "Join the Discord server"))}</a>'
+        )
+    actions += (
+        f'<a class="btn{"" if reason == "not_member" else " primary"}" href="{escape(retry)}">'
+        f'{escape(texts.get("signin.retry", "Try again"))}</a>'
+        f'<a class="btn" href="{escape(back)}">{escape(texts.get("signin.back", "Back"))}</a>'
+    )
+    text = texts.get(f'signin.{"notMember" if reason == "not_member" else reason}.text', '')
+    return _card_page(lang, texts.get(f'{key}.title', 'Sign in'), [text], actions)
 
 
 @app.route('/auth/me')

@@ -138,7 +138,7 @@ export function defaultPlan(): Plan {
   };
 }
 
-/** What the app starts with: the old defaults, on the Suburban timing and the #BEmesh hops (Minimal). */
+/** What the app starts with: the old defaults, on the Suburban timing, the #BEmesh hops (Minimal) and AGC reset. */
 export function newPlan(): Plan {
   const plan = defaultPlan();
   const [floodMaxUnscoped, floodMaxAdvert] = FLOOD_ALLOWANCE[BEMESH_HOPS];
@@ -146,6 +146,7 @@ export function newPlan(): Plan {
     txdelay: 0.8,
     directTxdelay: 0.4,
     rxdelay: 0,
+    agcResetInterval: 4,
     floodMaxUnscoped,
     floodMaxAdvert,
     floodMax: FLOOD_MAX[BEMESH_HOPS],
@@ -473,6 +474,7 @@ const SETTING_PARSERS: Partial<Record<SettingKey, SettingParser>> = {
   directTxdelay: float3Of,
   rxdelay: float3Of,
   radioRxgain: oneOf("radioRxgain"),
+  radioFemRxgain: oneOf("radioFemRxgain"),
   txPower: intOf,
   intThresh: intOf,
   agcResetInterval: intOf,
@@ -680,6 +682,8 @@ export function summarize(
   );
   for (const def of SETTINGS) {
     if (def.key === "adminPassword") continue;
+    // A board-only setting goes out only when the Read showed it.
+    if (def.onlyIfRead && snapshot?.settings[def.key] === undefined) continue;
     const v = settingValue(plan, def.key);
     // No value means the script leaves it alone (txPower).
     if (v === null) continue;

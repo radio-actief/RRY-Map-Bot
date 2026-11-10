@@ -98,7 +98,7 @@ export function recommendedFor(plan: Plan, block: Block): Plan {
   }
   if (block === "repeating") return withSettings(plan, { repeat: "on", loopDetect: "minimal" });
   if (block === "timing") return withTiming(plan, { ...SITE_PROFILES.suburban, rxdelay: 0 });
-  return withSettings(plan, { pathHashMode: "1", radioRxgain: "on", intThresh: 0, agcResetInterval: 0, multiAcks: "0" });
+  return withSettings(plan, { pathHashMode: "1", radioRxgain: "on", intThresh: 0, agcResetInterval: 4, multiAcks: "0" });
 }
 
 export function recommendedForAll(plan: Plan): Plan {

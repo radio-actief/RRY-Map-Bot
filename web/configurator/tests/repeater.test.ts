@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import read from "./fixtures/read-ronse.json";
 import { FakePort } from "./fakes/fake-port";
 import { SerialLink, isErrorReply } from "../src/device/serial";
-import { READ_BACK_COMMANDS, READ_COMMANDS, apply, checkFirmware, readAll, run, stoppedApply } from "../src/device/repeater";
+import { READ_BACK_COMMANDS, READ_COMMANDS, apply, checkFirmware, readAll, readCount, run, stoppedApply } from "../src/device/repeater";
 import { regionReplies, type FwRegion } from "./fakes/region-firmware";
 
 const FAST = { interCommandDelayMs: 0, bootDrainMs: 0, disconnectSettleMs: 0, replyTimeoutMs: 40 };
@@ -68,6 +68,24 @@ describe("readAll: regions longer than one reply", () => {
     const s = await readAll(link, READ_COMMANDS, () => ["be", "beron", "bexyz"]);
     expect(port.received.some((c) => c.startsWith("region get"))).toBe(false);
     expect(s.regions!.incomplete).toBeFalsy();
+  });
+});
+
+describe("readAll: radio.fem.rxgain, on a few boards only", () => {
+  it("is read; a board without it answers an error, which is not a missing read", async () => {
+    expect(READ_COMMANDS).toContain("get radio.fem.rxgain");
+    const { link } = await linkTo({ ...read, "get radio.fem.rxgain": "Error: unsupported" });
+    const s = await readAll(link);
+    expect(s.missing).toEqual([]);
+    expect(s.settings.radioFemRxgain).toBeUndefined();
+    expect(readCount(s)).toBe(READ_COMMANDS.length - 1);
+  });
+
+  it("a board with it gives its value", async () => {
+    const { link } = await linkTo({ ...read, "get radio.fem.rxgain": "off" });
+    const s = await readAll(link);
+    expect(s.settings.radioFemRxgain).toBe("off");
+    expect(readCount(s)).toBe(READ_COMMANDS.length);
   });
 });
 

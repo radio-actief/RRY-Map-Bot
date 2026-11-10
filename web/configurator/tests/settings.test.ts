@@ -138,7 +138,7 @@ describe("SETTINGS registry", () => {
 
   it("has unique keys and the old firmware defaults", () => {
     expect(new Set(SETTINGS.map((s) => s.key)).size).toBe(SETTINGS.length);
-    expect(SETTINGS).toHaveLength(20);
+    expect(SETTINGS).toHaveLength(21);
     const def = (k: string) => SETTINGS.find((s) => s.key === k)!;
     expect(def("floodMaxAdvert").firmwareDefault).toBe(8);
     expect(def("floodMaxAdvert").formDefault).toBe(8);
@@ -153,6 +153,16 @@ describe("SETTINGS registry", () => {
     expect(def("txPower").cliKey).toBe("tx");
   });
 
+  it("radio.fem.rxgain is an advanced on/off setting, on in the firmware, with nothing for the form to offer", () => {
+    const fem = SETTINGS.find((s) => s.key === "radioFemRxgain")!;
+    expect(fem).toMatchObject({ cliKey: "radio.fem.rxgain", readCmd: "get radio.fem.rxgain", card: "advanced", firmwareDefault: "on", formDefault: null, options: ["on", "off"] });
+  });
+
+  it("AGC reset stays off (0) in the firmware default, so the script still omits 0", () => {
+    const agc = SETTINGS.find((s) => s.key === "agcResetInterval")!;
+    expect(agc.firmwareDefault).toBe(0);
+  });
+
   it("the #BEmesh recommendations come from the blocks, with no second copy here", () => {
     expect("RECOMMENDED_SETTINGS" in settings).toBe(false);
     const plan = recommendedForAll(defaultPlan());
@@ -164,7 +174,9 @@ describe("SETTINGS registry", () => {
       floodMax: 10,
       pathHashMode: "1",
       loopDetect: "minimal",
+      agcResetInterval: 4,
     });
+    expect("radioFemRxgain" in plan.settings).toBe(false);
     expect(FLOOD_ALLOWANCE).toEqual({
       tight: [2, 3],
       minimal: [4, 6],

@@ -225,7 +225,7 @@ function sendScript(
 ): ScriptGroup[] {
   const changes = buildScript(plan, places, { includeDefaults: true, device, snapshot });
   if (!snapshot || !sendAll) return changes;
-  return [...buildScript(plan, places, { includeDefaults: true, device }), ...changes.filter((g) => g.titleKey === "acl")];
+  return [...buildScript(plan, places, { includeDefaults: true, device, board: snapshot }), ...changes.filter((g) => g.titleKey === "acl")];
 }
 
 function readSendAll(): boolean {

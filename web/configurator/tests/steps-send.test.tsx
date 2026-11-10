@@ -493,7 +493,8 @@ describe("Send step: Apply", () => {
     render(<Send />);
     fireEvent.click(applyButton());
     await screen.findByRole("button", { name: "Reboot now" });
-    expect(store.lastRead.value).toEqual({ ok: true, count: READ_COMMANDS.length, missing: [] });
+    // The Ronse board has no front-end gain: that read does not count.
+    expect(store.lastRead.value).toEqual({ ok: true, count: READ_COMMANDS.length - 1, missing: [] });
   });
 
   it("an unplug during the read-back offers no reboot", async () => {

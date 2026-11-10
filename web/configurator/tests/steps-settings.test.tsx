@@ -250,6 +250,17 @@ describe("Settings step", () => {
     expect(within(fieldOf("Flood advert (hours)")).getByText(/hour comes from the repeater's key/)).toBeTruthy();
   });
 
+  it("shows the front-end gain only when the Read found it on the board", async () => {
+    render(<SettingsStep />);
+    expect(screen.queryByRole("group", { name: "Front-end RX gain" })).toBeNull();
+    store.snapshot.value = { settings: { radioFemRxgain: "on" }, missing: [] };
+    resetPlan({ ...defaultPlan(), settings: { ...defaultPlan().settings, radioFemRxgain: "on" } });
+    const group = await screen.findByRole("group", { name: "Front-end RX gain" });
+    fireEvent.click(within(group).getByRole("button", { name: "Off" }));
+    expect(store.plan.value.settings.radioFemRxgain).toBe("off");
+    expect(within(fieldOf("Front-end RX gain")).getByText(/saves some power/)).toBeTruthy();
+  });
+
   it("an empty hop field hints the value it will send: the #BEmesh 4/6/10", () => {
     resetPlan(newPlan());
     render(<SettingsStep />);

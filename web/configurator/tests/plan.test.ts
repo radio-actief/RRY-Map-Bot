@@ -37,6 +37,15 @@ describe("defaultPlan", () => {
   });
 });
 
+describe("radio.fem.rxgain from a Read", () => {
+  it("is taken from an on/off reply only", () => {
+    expect(snapshotFromReplies({ "get radio.fem.rxgain": "> off" }).settings.radioFemRxgain).toBe("off");
+    expect(snapshotFromReplies({ "get radio.fem.rxgain": "on" }).settings.radioFemRxgain).toBe("on");
+    expect(snapshotFromReplies({ "get radio.fem.rxgain": "maybe" }).settings.radioFemRxgain).toBeUndefined();
+    expect(snapshotFromReplies({}).settings.radioFemRxgain).toBeUndefined();
+  });
+});
+
 describe("the region tree from a Read", () => {
   const replies = {
     "region home": "home is be-vov",

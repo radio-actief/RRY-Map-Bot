@@ -68,6 +68,23 @@ describe("the flood advert interval", () => {
   });
 });
 
+describe("gain control", () => {
+  it("advanced recommends an AGC reset every 4 seconds", () => {
+    expect(recommendedFor(defaultPlan(), "advanced").settings.agcResetInterval).toBe(4);
+  });
+
+  it("the recommendation never touches radio.fem.rxgain", () => {
+    expect("radioFemRxgain" in recommendedFor(defaultPlan(), "advanced").settings).toBe(false);
+    const off = withSettings(defaultPlan(), { radioFemRxgain: "off" });
+    expect(recommendedFor(off, "advanced").settings.radioFemRxgain).toBe("off");
+  });
+
+  it("a new plan starts on the AGC reset of 4", () => {
+    expect(newPlan().settings.agcResetInterval).toBe(4);
+    expect(isBlockRecommended(newPlan(), "advanced")).toBe(true);
+  });
+});
+
 describe("a new plan's hop allowance", () => {
   it("starts on Minimal, the #BEmesh hops, so a level is selected; the default plan keeps the old page's 12/8", () => {
     expect(allowanceOf(newPlan())).toBe("minimal");
@@ -92,7 +109,7 @@ describe("blocks", () => {
     ]);
     expect(blockKeys("repeating")).toEqual(["repeat", "loopDetect"]);
     expect(blockKeys("timing")).toEqual(["txdelay", "directTxdelay", "rxdelay"]);
-    expect(blockKeys("advanced")).toEqual(["pathHashMode", "radioRxgain", "intThresh", "agcResetInterval", "multiAcks"]);
+    expect(blockKeys("advanced")).toEqual(["pathHashMode", "radioRxgain", "radioFemRxgain", "intThresh", "agcResetInterval", "multiAcks"]);
   });
 
   it("FLOOD_ALLOWANCE has tight first", () => {

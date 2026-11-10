@@ -9,7 +9,7 @@ import { policyFor, regionsAfterApply } from "../core/regions";
 import { REGION_DEF_MIN_TEXT } from "../core/firmware";
 import { heardWell, neighboursCut, parseNeighbours, type Neighbour } from "../core/neighbours";
 import { pubkeyFromSetReply, type VanityKey } from "../core/vanity";
-import { apply, checkFirmware, IDENTITY_READS, readAll, READ_BACK_COMMANDS, READ_COMMANDS, run, stoppedApply } from "../device/repeater";
+import { apply, checkFirmware, IDENTITY_READS, readAll, readCount, READ_BACK_COMMANDS, READ_COMMANDS, run, stoppedApply } from "../device/repeater";
 import {
   expectsDeviceDisconnect,
   isErrorReply,
@@ -201,7 +201,7 @@ export async function readDevice(): Promise<void> {
     store.clock.value = snapshot.clock ? { reply: snapshot.clock, at: Date.now() } : null;
     store.deviceRegions.value = deviceRegionsFromSnapshot(snapshot);
     resetPlan(planFromSnapshot(snapshot, store.data.peek().places ?? []));
-    store.lastRead.value = { ok: true, count: READ_COMMANDS.length - snapshot.missing.length, missing: snapshot.missing };
+    store.lastRead.value = { ok: true, count: readCount(snapshot), missing: snapshot.missing };
   } catch (err) {
     store.lastRead.value = { ok: false, reason: reasonOf(err) };
   } finally {
@@ -230,7 +230,7 @@ async function readBack(link: SerialLink, sent: Plan): Promise<void> {
     const regions = deviceRegionsFromSnapshot(snapshot);
     if (regions) store.deviceRegions.value = regions;
     if (store.lastRead.peek()?.ok) {
-      store.lastRead.value = { ok: true, count: READ_COMMANDS.length - snapshot.missing.length, missing: snapshot.missing };
+      store.lastRead.value = { ok: true, count: readCount(snapshot), missing: snapshot.missing };
     }
   } catch {
     /* link lost: the unplug notice says it */

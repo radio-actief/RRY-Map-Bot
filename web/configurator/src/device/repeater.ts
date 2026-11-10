@@ -1,5 +1,6 @@
 import { parseVersion, supportsRegionDef } from "../core/firmware";
 import { regionNamesToAsk, snapshotFromReplies, type DeviceSnapshot } from "../core/plan";
+import { SETTINGS } from "../core/settings";
 import { isErrorReply, type SerialLink } from "./serial";
 
 /** What "Read from the device" asks, in this order (verbatim from the old page). */
@@ -21,6 +22,7 @@ export const READ_COMMANDS = [
   "get direct.txdelay",
   "get rxdelay",
   "get radio.rxgain",
+  "get radio.fem.rxgain",
   "get tx",
   "get int.thresh",
   "get agc.reset.interval",
@@ -40,6 +42,15 @@ export const READ_COMMANDS = [
   "get public.key",
   "clock",
 ];
+
+/** Reads of settings only some boards have: a board without one answers an error, which is no missing read. */
+export const OPTIONAL_READS = SETTINGS.filter((s) => s.onlyIfRead && s.readCmd).map((s) => s.readCmd!);
+
+/** How many of `commands` the Read got an answer to (an optional read the board lacks does not count). */
+export function readCount(snapshot: DeviceSnapshot, commands: string[] = READ_COMMANDS): number {
+  const lacking = SETTINGS.filter((s) => s.onlyIfRead && s.readCmd && commands.includes(s.readCmd) && snapshot.settings[s.key] === undefined);
+  return commands.length - snapshot.missing.length - lacking.filter((s) => !snapshot.missing.includes(s.readCmd!)).length;
+}
 
 /** The reads Apply never changes: the identity, firmware version, clock and the neighbour table. */
 export const IDENTITY_READS = ["neighbors", "ver", "get role", "get public.key", "clock"];
@@ -67,8 +78,9 @@ export async function readAll(
     }
     try {
       const reply = await link.command(cmd);
-      if (reply === "" || isErrorReply(reply)) missing.push(cmd);
-      else replies[cmd] = reply;
+      if (reply === "" || isErrorReply(reply)) {
+        if (!OPTIONAL_READS.includes(cmd)) missing.push(cmd);
+      } else replies[cmd] = reply;
     } catch {
       missing.push(cmd);
     }

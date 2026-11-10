@@ -1,6 +1,8 @@
 /* The top bar's account chip, language switch and ☰ menu, shared by the map, stats and region map pages.
  * Fills [data-account-chip], [data-lang-switch] and [data-page-menu] (a wrapper holding the ☰ button and
  * an empty .menu) from bemesh-links.json and GET /auth/me, in the page language (src/shared/i18n.js).
+ * Tools the site runs besides the map (GET /api/v1/site-tools, e.g. NodeBook) join the page links in
+ * the top bar's .switcher and the menu; a site that only runs the map lists none.
  * The configurator renders the same menu in AccountMenu.tsx. */
 (function () {
   var PAGES = [
@@ -14,6 +16,8 @@
     "page.stats": "Stats",
     "page.regionMap": "Region map",
     "page.configurator": "Configurator",
+    "page.nodebook": "NodeBook",
+    "page.meshmate": "MeshMate",
     "menu.signIn": "Sign in with Discord",
     "menu.signInHint": "Sign in to claim your node. Having trouble? Reach Radio-Actief on Discord or open an issue on GitHub.",
     "menu.logOut": "Log out",
@@ -46,7 +50,16 @@
         .then(function (d) {
           return d && d.authenticated && d.user ? d.user : null;
         });
-      loaded = Promise.all([links, me]);
+      var tools = fetch("/api/v1/site-tools")
+        .then(function (r) { return r.ok ? r.json() : []; })
+        .catch(function () { return []; })
+        .then(function (list) {
+          var own = PAGES.map(function (p) { return p[0]; });
+          return (Array.isArray(list) ? list : []).filter(function (x) {
+            return x && typeof x.url === "string" && x.url.charAt(0) === "/" && own.indexOf(x.url) < 0;
+          });
+        });
+      loaded = Promise.all([links, me, tools]);
     }
     return loaded;
   }
@@ -72,7 +85,22 @@
     slot.appendChild(a);
   }
 
-  function fillMenu(wrap, links, user, here) {
+  /** A listed tool's link text: its translated page.<key>, else the label the site gave. */
+  function toolText(tool) {
+    return t("page." + tool.key, tool.label);
+  }
+
+  /** The listed tools after the map's own links in the top bar; again on every call (the map page re-renders its bar). */
+  function fillSwitcher(nav, tools) {
+    nav.querySelectorAll("[data-site-tool]").forEach(function (a) { a.remove(); });
+    tools.forEach(function (tool) {
+      var a = link(tool.url, toolText(tool));
+      a.setAttribute("data-site-tool", tool.key);
+      nav.appendChild(a);
+    });
+  }
+
+  function fillMenu(wrap, links, user, here, tools) {
     var menu = wrap.querySelector(".menu");
     if (!menu) return;
     menu.textContent = "";
@@ -80,6 +108,9 @@
       var a = link(p[0], t(p[1]), "menu-page");
       if (p[0] === here) a.setAttribute("aria-current", "page");
       menu.appendChild(a);
+    });
+    (tools || []).forEach(function (tool) {
+      menu.appendChild(link(tool.url, toolText(tool), "menu-page"));
     });
     menu.appendChild(el("hr", "menu-page"));
     links.forEach(function (l) {
@@ -213,8 +244,9 @@
       document.querySelectorAll("[data-account-chip]").forEach(function (s) { fillChip(s, res[1], here); });
       document.querySelectorAll("[data-page-menu]").forEach(function (w) {
         wire(w);
-        fillMenu(w, res[0], res[1], here);
+        fillMenu(w, res[0], res[1], here, res[2]);
       });
+      document.querySelectorAll(".topbar .switcher").forEach(function (nav) { fillSwitcher(nav, res[2]); });
     });
   }
 

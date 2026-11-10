@@ -4,6 +4,8 @@
   "page.stats": "Stats",
   "page.regionMap": "Region map",
   "page.configurator": "Configurator",
+  "page.nodebook": "NodeBook",
+  "page.meshmate": "MeshMate",
   "menu.label": "Menu",
   "menu.signIn": "Sign in with Discord",
   "menu.signInHint": "Sign in to claim your node. Having trouble? Reach Radio-Actief on Discord or open an issue on GitHub.",

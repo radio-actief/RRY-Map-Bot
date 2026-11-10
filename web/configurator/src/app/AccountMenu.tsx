@@ -5,7 +5,7 @@ import links from "../../../../src/shared/bemesh-links.json";
 import "../../../../src/shared/about.js";
 import { I18N, lang, t } from "../i18n/t";
 import { store } from "../state/store";
-import { HERE, PAGES } from "./pages";
+import { HERE, PAGES, siteTools, toolText } from "./pages";
 
 const PAGE = "/configurator";
 
@@ -129,6 +129,11 @@ export function AccountMenu() {
           {PAGES.map(([href, key]) => (
             <a key={href} class="menu-page" href={href} aria-current={href === HERE ? "page" : undefined}>
               {t(key)}
+            </a>
+          ))}
+          {siteTools.value.map((tool) => (
+            <a key={tool.url} class="menu-page" href={tool.url}>
+              {toolText(tool)}
             </a>
           ))}
           <hr class="menu-page" />

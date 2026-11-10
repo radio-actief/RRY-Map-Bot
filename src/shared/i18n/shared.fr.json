@@ -4,6 +4,8 @@
   "page.stats": "Statistiques",
   "page.regionMap": "Carte des régions",
   "page.configurator": "Configurateur",
+  "page.nodebook": "NodeBook",
+  "page.meshmate": "MeshMate",
   "menu.label": "Menu",
   "menu.signIn": "Se connecter avec Discord",
   "menu.signInHint": "Connectez-vous pour revendiquer votre nœud. Un souci ? Contactez Radio-Actief sur Discord ou ouvrez une issue sur GitHub.",

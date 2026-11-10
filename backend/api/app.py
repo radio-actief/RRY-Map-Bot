@@ -27,6 +27,7 @@ from backend.database import (
     dict_from_row
 )
 from backend.datetime_utils import normalize_node_timestamps
+from config.site_tools import parse_site_tools
 from backend.auth import (
     get_authorization_url,
     exchange_code_for_token,
@@ -1335,11 +1336,21 @@ def internal_error(error):
 
 # OAuth2 Routes
 NEXT_PAGES = ('/', '/stats', '/region-map', '/configurator')
+# More tools on this site (SITE_TOOLS_JSON), e.g. NodeBook; none on a site that only runs the map.
+SITE_TOOLS = parse_site_tools(os.getenv('SITE_TOOLS_JSON'))
 
 
 def _safe_next(value):
-    """The page to return to after sign in or out: one of the four tool pages, else None."""
-    return value if value in NEXT_PAGES else None
+    """The page to return to after sign in or out: a map page or a listed tool, else None."""
+    if value in NEXT_PAGES or any(value == tool['url'] for tool in SITE_TOOLS):
+        return value
+    return None
+
+
+@app.route('/api/v1/site-tools', methods=['GET'])
+def site_tools():
+    """The tools this site runs besides the map, for the pages' tool switcher; [] when none."""
+    return jsonify(SITE_TOOLS), 200
 
 
 def _after_auth_target(next_page, home_query):

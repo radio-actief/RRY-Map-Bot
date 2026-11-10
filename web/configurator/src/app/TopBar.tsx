@@ -1,6 +1,6 @@
 import { municipalityName, regionName, t } from "../i18n/t";
 import { AccountMenu } from "./AccountMenu";
-import { HERE, PAGES } from "./pages";
+import { HERE, PAGES, siteTools, toolText } from "./pages";
 import { parseVersion } from "../core/firmware";
 import { planName } from "../core/plan";
 import { hasWebSerial } from "../device/serial";
@@ -15,6 +15,11 @@ export function PageSwitcher() {
       {PAGES.map(([href, key]) => (
         <a key={href} href={href} aria-current={href === HERE ? "page" : undefined}>
           {t(key)}
+        </a>
+      ))}
+      {siteTools.value.map((tool) => (
+        <a key={tool.url} href={tool.url} data-site-tool={tool.key}>
+          {toolText(tool)}
         </a>
       ))}
     </nav>

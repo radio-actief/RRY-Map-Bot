@@ -69,7 +69,8 @@ DISCORD_OAUTH2_CLIENT_ID = os.getenv('DISCORD_OAUTH2_CLIENT_ID')
 DISCORD_OAUTH2_CLIENT_SECRET = os.getenv('DISCORD_OAUTH2_CLIENT_SECRET')
 DISCORD_OAUTH2_REDIRECT_URI = os.getenv('DISCORD_OAUTH2_REDIRECT_URI', 'http://localhost:8000/auth/callback')
 DISCORD_OAUTH2_SCOPE = 'identify guilds'  # Need identify and guilds to check server membership
-DISCORD_API_BASE_URL = 'https://discord.com/api/v10'
+# A stand-in Discord on a test site; Discord itself when unset.
+DISCORD_API_BASE_URL = (os.getenv('DISCORD_API_BASE_URL') or 'https://discord.com/api/v10').rstrip('/')
 DISCORD_SERVER_INVITE_URL = os.getenv('DISCORD_SERVER_INVITE_URL', 'https://discord.gg/kvybAgqnhD')
 
 # Belgian Geographic Bounds

@@ -80,7 +80,7 @@ export const SETTINGS: SettingDef[] = [
   def("radioRxgain", "radio.rxgain", "advanced", "on", "on", { options: ["on", "off"] }),
   def("radioFemRxgain", "radio.fem.rxgain", "advanced", "on", null, { options: ["on", "off"], onlyIfRead: true }),
   def("intThresh", "int.thresh", "advanced", 0, 0, { range: { min: 0, max: 255 } }),
-  def("agcResetInterval", "agc.reset.interval", "advanced", 0, 0, { range: { min: 0, max: 255, step: 4 } }),
+  def("agcResetInterval", "agc.reset.interval", "advanced", 0, 0, { range: { min: 0, max: 1020, step: 4 } }),
   def("multiAcks", "multi.acks", "advanced", "0", "0", { options: ["0", "1"] }),
   def("txPower", "tx", "radio", null, null, { range: { min: 1, max: 22 } }, "get tx"),
 ];

@@ -50,7 +50,12 @@ describe("validateSetting", () => {
     expect(validateSetting("agcResetInterval", "10")).toEqual({ ok: true, value: 8 });
     expect(validateSetting("agcResetInterval", "255")).toEqual({ ok: true, value: 252 });
     expect(validateSetting("agcResetInterval", "2")).toEqual({ ok: true, value: 4 });
-    expect(err("agcResetInterval", "256")).toBe("range");
+  });
+
+  it("takes the AGC reset interval up to the firmware's 1020 seconds (255 × 4)", () => {
+    expect(validateSetting("agcResetInterval", "600")).toEqual({ ok: true, value: 600 });
+    expect(validateSetting("agcResetInterval", "1020")).toEqual({ ok: true, value: 1020 });
+    expect(err("agcResetInterval", "1021")).toBe("range");
   });
 
   it("limits the tx delay factors to 0-2", () => {

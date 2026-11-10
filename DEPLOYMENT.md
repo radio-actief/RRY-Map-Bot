@@ -106,6 +106,74 @@ Behind the reverse proxy:
 - Set `SESSION_COOKIE_SECURE=true` when the site is on HTTPS. Sign-ins are kept in
   `data/sessions/`, signed with `FLASK_SECRET_KEY` (or a key made once in `data/`).
 
+### The site's tools (map, NodeBook, MeshMate)
+
+`SITE_TOOLS_JSON` lists the tools every page's top bar and ☰ menu link to, as
+`[{"key", "label", "url"}]`. A `url` is a path on this site (`"/nodebook/"`) or the tool's own
+address: `https://host[:port]/path/`, ending in `/`, with no user name, query or fragment (plain
+`http` only for `localhost` and `127.0.0.1`, for tests). Entries that break these rules are left
+out. The list may name the map's own pages (`map`, `stats`, `regionMap`, `configurator`); the bars
+show those once. Unset: the map's pages only. `GET /api/v1/site-tools` serves the list to anyone.
+
+```
+SITE_TOOLS_JSON=[{"key":"map","label":"Map","url":"https://map.example/"},
+  {"key":"nodebook","label":"NodeBook","url":"https://nodebook.example/"},
+  {"key":"meshmate","label":"MeshMate","url":"https://app.example/"}]
+```
+
+Each tool on its own address keeps its own browser storage, so a fault in one tool can't read
+another's or act as the signed-in person there. What that needs:
+
+- Sign-in: `/auth/login?next=` and `/auth/logout?next=` return to a map page or to a listed `url`,
+  exactly. Other tools log out through `GET /auth/signout?next=<their url>`: a page on the map's
+  address with one button that posts to `/auth/logout`. `SESSION_COOKIE_DOMAIN` (e.g.
+  `.example.org`) shares the sign-in cookie with the other addresses under that domain; unset, it
+  stays on the map's host.
+- The map popup asks NodeBook `GET <nodebook url>api/nodes/<key>` with the visitor's cookies when
+  NodeBook is on another address: NodeBook answers with `Access-Control-Allow-Origin: <the map's
+  origin>` and `Access-Control-Allow-Credentials: true`. "In your NodeBook" and "Add to NodeBook"
+  link to `<nodebook url>node/<key>`, "Connect live" to `<meshmate url>#node=<key>`.
+- Settings hand-off, in the address fragment of a new tab (it never reaches a server), with
+  `<data>` = URL-safe base64 of the message's UTF-8 JSON, without padding: the configurator opens
+  `<nodebook url>#/handoff?d=<data>` and receives `<configurator url>#handoff=<data>`. It takes the
+  fragment out of the address at once and asks before using the settings. A link longer than
+  16 KB is not sent.
+- The device hub, `/device-hub.html` on the map's address: another tool loads it in a hidden frame
+  to share the device channel `bemesh-device` and the last device (`bemesh.device.last`) with the
+  configurator. Only the listed tools' origins and the map's may frame it (its own
+  `Content-Security-Policy: frame-ancestors`). Browsers keep a frame's storage and channels apart
+  per top-level site, so the hub joins the configurator only when the tools share a site (one
+  registrable domain, e.g. `map.example.org` and `nodebook.example.org`, or one host with a port
+  per tool); the popup's NodeBook cookies need the same.
+
+Device hub messages, all with `v: 1`. The tool's page posts them to the frame with
+`postMessage(message, "<the map's origin>")`; the hub takes them only from its parent window and
+only from a listed origin, and posts only to `window.parent`, with that origin as the target, once
+it has had one valid message:
+
+| From the tool | Hub does |
+| --- | --- |
+| `{kind: "bemesh.device", v: 1, type, tool, transport, role, usbVendorId, usbProductId, name, publicKey}`, `type` one of `who`, `held`, `release`, `released`, `busy` | passes it to the channel `bemesh-device`; a `held` one is also kept as the last device (as `setLast` would), so a tool needn't send `setLast` too |
+| `{kind: "bemesh.device.getLast", v: 1}` | answers within 2 s `{kind: "bemesh.device.last", v: 1, last}`: the remembered device (`{transport, usbVendorId, usbProductId, role, name, publicKey, at}`), or `null` when none or older than 12 hours |
+| `{kind: "bemesh.device.setLast", v: 1, last: {transport?, usbVendorId, usbProductId, role, name, publicKey}}` | remembers it, stamped with the current time (`transport` defaults to `usb`) |
+
+| From the channel | Hub does |
+| --- | --- |
+| every `bemesh.device` message | passes it to the tool's page |
+
+The device message rules (`src/shared/device-message.js`): `tool` 1–40 characters, `transport`
+`usb`/`ble`/`bridge`/null, `role` `repeater`/`room`/`sensor`/`companion`/null, USB ids 0–65535
+or null, `name` and `publicKey` up to 64 characters or null.
+
+### Content-Security-Policy
+
+Every page and the configurator get a Content-Security-Policy: scripts only from the site and the
+few files they load from the CDN by exact version, no inline scripts and no `eval`; data requests to
+the site and the listed tools; forms to the site and the listed tools (log out returns there).
+The map page's template is compiled ahead of time for this: after changing anything inside
+`#app` in `index.html`, run `npm run build:map` (a test fails while `src/map-app.render.js` is
+out of date). `CSP_ENABLED=false` turns the policy off, for local debugging only.
+
 ### Sync Service
 
 - **Container**: `rry-map-bot-sync`

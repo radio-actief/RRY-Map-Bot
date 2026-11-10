@@ -28,6 +28,7 @@ from backend.database import (
 )
 from backend.datetime_utils import normalize_node_timestamps
 from config.config import SITE_TOOLS as config_site_tools
+from config.site_tools import tool_origins
 from backend.auth import (
     get_authorization_url,
     exchange_code_for_token,
@@ -1786,6 +1787,19 @@ def region_configurator_redirect():
 def region_configurator_html_redirect():
     """Redirect legacy static filename to /configurator."""
     return redirect('/configurator', code=301)
+
+
+@app.route('/device-hub.html')
+def device_hub_page():
+    """The device hub: the site's tools on other addresses frame it to share the device convention
+    with the configurator (src/device-hub.js). Only the listed tools and the map may frame it."""
+    resp = send_from_directory(PROJECT_ROOT, 'device-hub.html')
+    ancestors = ' '.join(["'self'"] + tool_origins(SITE_TOOLS))
+    resp.headers['Content-Security-Policy'] = f"default-src 'self'; frame-ancestors {ancestors}"
+    # A tool that isolates itself (COEP require-corp, e.g. for threads in a web app) may still frame it.
+    resp.headers['Cross-Origin-Resource-Policy'] = 'cross-origin'
+    resp.headers['Cross-Origin-Embedder-Policy'] = 'require-corp'
+    return resp
 
 
 @app.route('/region-map')

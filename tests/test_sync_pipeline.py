@@ -345,6 +345,40 @@ def test_safety_cap_count_starts_over_when_nodes_return(run):
     assert history_rows()[-1]['details']['removal_safety']['held_count'] == 2
 
 
+def test_safety_cap_holds_while_belgian_nodes_drop_sharply(run):
+    """Verification that rejects (almost) every node must not empty the map, even with
+    an unchanged world feed (a broken municipalities file looks just like this)."""
+    run(base_feed())
+    rejected = [dict(n, adv_lat=GERMANY[0], adv_lon=GERMANY[1]) for n in base_feed()]
+    for _ in range(5):
+        result = run(rejected)
+        assert result['changes']['removed'] == []
+    assert node_row('be01')['is_active'] is True
+
+    safety = history_rows()[-1]['details']['removal_safety']
+    assert safety['held_count'] == 25
+    assert safety['belgian_normal'] is False
+    assert safety['verified_count'] == 0
+
+
+def test_malformed_records_are_skipped_not_fatal(run, capsys):
+    odd = [
+        feed_node('be90', *BRUSSELS, public_key=None),
+        feed_node('be91', *BRUSSELS, public_key=12345),
+        feed_node('be92', '50.8', 4.35),
+        feed_node('be93', 50.8, None, adv_lon=[4.35]),
+        feed_node('be94', True, 4.35),
+        'not a node',
+    ]
+    result = run(base_feed() + odd)
+    assert result['success']
+    assert result['changes']['added_count'] == 25
+    assert node_row('be92') is None
+    out = capsys.readouterr().out
+    assert 'without a valid public key' in out
+    assert 'invalid coordinates' in out
+
+
 # --- partial failures ------------------------------------------------------
 
 def test_failed_node_makes_the_run_partial(run, monkeypatch):

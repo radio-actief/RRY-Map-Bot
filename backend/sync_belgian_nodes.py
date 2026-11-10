@@ -83,6 +83,10 @@ REMOVAL_SAFETY_MAX_PERCENT_OF_ACTIVE = 0.05  # 5%
 # in a row, provided the feed is not shrunk compared with before the hold.
 REMOVAL_HOLD_RUNS = 3
 REMOVAL_HOLD_MIN_FEED_RATIO = 0.9
+# ... and provided the Belgian nodes that pass verification are at least this
+# share of the active nodes (a verification step that rejects everything, e.g.
+# a broken municipalities file, looks like a normal world feed).
+REMOVAL_HOLD_MIN_VERIFIED_RATIO = 0.8
 
 HELD_REMOVALS_STATE_KEY = 'held_removals'
 
@@ -238,6 +242,10 @@ def download_official_nodes() -> List[Dict[str, Any]]:
         raise
 
 
+def _is_number(value) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
 def filter_by_bounds(nodes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
     Filter nodes by Belgian geographic bounds.
@@ -250,6 +258,7 @@ def filter_by_bounds(nodes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
     filtered = []
     skipped_no_coords = 0
+    skipped_bad_coords = 0
     
     for node in nodes:
         lat = node.get('adv_lat')
@@ -259,6 +268,12 @@ def filter_by_bounds(nodes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         if lat is None or lon is None:
             skipped_no_coords += 1
             continue
+        # Skip nodes whose coordinates are not numbers (one odd record must not stop the run)
+        if not (_is_number(lat) and _is_number(lon)):
+            skipped_bad_coords += 1
+            print(f"Skipped node {node.get('public_key')} with invalid coordinates "
+                  f"({type(lat).__name__}, {type(lon).__name__})")
+            continue
         
         # Check if within Belgian bounds
         if (BELGIUM_BOUNDS['min_lat'] <= lat <= BELGIUM_BOUNDS['max_lat'] and
@@ -266,7 +281,8 @@ def filter_by_bounds(nodes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             filtered.append(node)
     
     print(f"Filtered by bounds: {len(filtered)} nodes within Belgian bounds "
-          f"(skipped {skipped_no_coords} nodes without coordinates)")
+          f"(skipped {skipped_no_coords} nodes without coordinates, "
+          f"{skipped_bad_coords} with invalid coordinates)")
     return filtered
 
 
@@ -968,6 +984,7 @@ def apply_removal_safety_cap(
     total_downloaded: int,
     previous_downloaded: Optional[int],
     held: Optional[Dict[str, Any]],
+    verified_count: Optional[int] = None,
 ) -> tuple:
     """Hold back a mass removal; let it through once it proves consistent.
 
@@ -976,8 +993,11 @@ def apply_removal_safety_cap(
     each due key's missing-run counter goes up. Keys missing for
     ``REMOVAL_HOLD_RUNS`` runs in a row are removed, but only while the feed
     is at least ``REMOVAL_HOLD_MIN_FEED_RATIO`` of its size before the hold
-    (the largest feed seen since, if bigger). A sudden feed drop is never
-    applied. A run under the cap removes as usual and ends the hold.
+    (the largest feed seen since, if bigger) and ``verified_count`` (the
+    Belgian nodes that passed verification) is at least
+    ``REMOVAL_HOLD_MIN_VERIFIED_RATIO`` of the active nodes. A sudden feed
+    or Belgian drop is never applied. A run under the cap removes as usual
+    and ends the hold.
 
     ``changes`` is edited in place (``removed`` and the unclaimed Discord
     subset keep only the keys applied this run). Returns
@@ -996,8 +1016,9 @@ def apply_removal_safety_cap(
 
     baseline = held.get('baseline_downloaded') or previous_downloaded or total_downloaded
     feed_normal = total_downloaded >= baseline * REMOVAL_HOLD_MIN_FEED_RATIO
+    belgian_normal = verified_count is None or verified_count >= active_count * REMOVAL_HOLD_MIN_VERIFIED_RATIO
 
-    apply = sorted(k for k, n in runs.items() if n >= REMOVAL_HOLD_RUNS) if feed_normal else []
+    apply = sorted(k for k, n in runs.items() if n >= REMOVAL_HOLD_RUNS) if feed_normal and belgian_normal else []
     apply_set = set(apply)
     still_held = sorted(k for k in runs if k not in apply_set)
 
@@ -1015,6 +1036,9 @@ def apply_removal_safety_cap(
         'applied_count': len(apply),
         'max_runs_missing': max(runs.values()),
         'feed_normal': feed_normal,
+        'belgian_normal': belgian_normal,
+        'verified_count': verified_count,
+        'active_count': active_count,
         'total_downloaded': total_downloaded,
         'baseline_downloaded': baseline,
     }
@@ -1499,8 +1523,9 @@ def _sync_belgian_nodes_locked(
         
         # Normalize public_key in all nodes to ensure consistency
         # Database stores normalized keys (lowercase, no spaces/dashes)
+        all_nodes = [n for n in all_nodes if isinstance(n, dict)]
         for node in all_nodes:
-            if 'public_key' in node:
+            if isinstance(node.get('public_key'), str):
                 node['public_key'] = node['public_key'].replace(' ', '').replace('-', '').lower()
         # A MeshCore key is hex; anything else is not a node (and would end up in the map's links
         # and buttons), so it is left out.
@@ -1585,6 +1610,7 @@ def _sync_belgian_nodes_locked(
             len(all_nodes),
             previous_download_count(conn),
             get_sync_state(conn, HELD_REMOVALS_STATE_KEY, {}),
+            verified_count=len(belgian_nodes),
         )
         set_sync_state(conn, HELD_REMOVALS_STATE_KEY, held_state)
         if safety_report:
@@ -1595,7 +1621,9 @@ def _sync_belgian_nodes_locked(
                 f"applied {safety_report['applied_count']} missing for "
                 f"{REMOVAL_HOLD_RUNS}+ runs; longest missing {safety_report['max_runs_missing']} run(s); "
                 f"feed {safety_report['total_downloaded']} vs {safety_report['baseline_downloaded']} "
-                f"before the hold ({'normal' if safety_report['feed_normal'] else 'SHRUNK'})."
+                f"before the hold ({'normal' if safety_report['feed_normal'] else 'SHRUNK'}); "
+                f"{safety_report['verified_count']} Belgian verified vs {active_count} active "
+                f"({'normal' if safety_report['belgian_normal'] else 'DROPPED'})."
             )
             print(f"\n⚠️  {msg}")
             print(msg, file=sys.stderr)

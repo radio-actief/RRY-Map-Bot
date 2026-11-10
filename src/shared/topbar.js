@@ -1,8 +1,9 @@
 /* The top bar's account chip, language switch and ☰ menu, shared by the map, stats and region map pages.
  * Fills [data-account-chip], [data-lang-switch] and [data-page-menu] (a wrapper holding the ☰ button and
  * an empty .menu) from bemesh-links.json and GET /auth/me, in the page language (src/shared/i18n.js).
- * Tools the site runs besides the map (GET /api/v1/site-tools, e.g. NodeBook) join the page links in
- * the top bar's .switcher and the menu; a site that only runs the map lists none.
+ * Tools the site runs besides the map (GET /api/v1/site-tools, e.g. NodeBook, on a path of this site
+ * or on its own address) join the page links in the top bar's .switcher and the menu; a site that
+ * only runs the map lists none. The map's own pages in that list are not shown twice.
  * The configurator renders the same menu in AccountMenu.tsx. */
 (function () {
   var PAGES = [
@@ -11,6 +12,17 @@
     ["/region-map", "page.regionMap"],
     ["/configurator", "page.configurator"],
   ];
+  var OWN_KEYS = ["map", "stats", "regionMap", "configurator"];
+  // A copy of isToolUrl in site-urls.js (this file is a classic script): a path on this site, or
+  // plain https ending in "/" (http only on this machine, for tests).
+  var TOOL_PATH = /^\/(?![/\\])[A-Za-z0-9._~\-/]*$/;
+  var TOOL_FULL = /^(?:https:\/\/[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?|http:\/\/(?:localhost|127\.0\.0\.1))(?::[1-9][0-9]{0,4})?\/(?:[A-Za-z0-9._~-]+\/)*$/;
+  var DOT_SEGMENT = /(^|\/)\.{1,2}(\/|$)/;
+  function isToolUrl(url) {
+    if (typeof url !== "string") return false;
+    if (TOOL_PATH.test(url)) return !DOT_SEGMENT.test(url);
+    return TOOL_FULL.test(url) && !DOT_SEGMENT.test(url.slice(url.indexOf("/", url.indexOf("//") + 2)));
+  }
   var FALLBACK = {
     "page.map": "Map",
     "page.stats": "Stats",
@@ -56,7 +68,7 @@
         .then(function (list) {
           var own = PAGES.map(function (p) { return p[0]; });
           return (Array.isArray(list) ? list : []).filter(function (x) {
-            return x && typeof x.url === "string" && x.url.charAt(0) === "/" && own.indexOf(x.url) < 0;
+            return x && typeof x.key === "string" && isToolUrl(x.url) && own.indexOf(x.url) < 0 && OWN_KEYS.indexOf(x.key) < 0;
           });
         });
       loaded = Promise.all([links, me, tools]);

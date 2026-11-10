@@ -62,13 +62,13 @@ export async function popupChecks(ctx) {
     const page = await ctx.open(`/?node=${KEY(0)}`, { setup: popupSetup(false, 2500) });
     await page.waitForSelector(".node-popup__tools a", { timeout: 10000 }).catch(() => {});
     const got = await toolLinks(page);
-    ctx.check("site tools popup: a late tool list still adds Connect live", got.join(" | ") === `Connect live=/app/?node=${KEY(0)}`, got.join(" | "));
+    ctx.check("site tools popup: a late tool list still adds Connect live", got.join(" | ") === `Connect live=/app/#node=${KEY(0)}`, got.join(" | "));
     await page.close();
   }
   for (const [signedIn, i, want] of [
-    [true, 0, [`In your NodeBook=/nodebook/node/${KEY(0)}`, `Connect live=/app/?node=${KEY(0)}`]],
+    [true, 0, [`In your NodeBook=/nodebook/node/${KEY(0)}`, `Connect live=/app/#node=${KEY(0)}`]],
     [true, 1, [`Add to NodeBook=/nodebook/node/${KEY(1)}`]],
-    [false, 0, [`Connect live=/app/?node=${KEY(0)}`]],
+    [false, 0, [`Connect live=/app/#node=${KEY(0)}`]],
     [false, 1, []],
   ]) {
     const name = `site tools popup (${signedIn ? "signed in" : "signed out"}, ${NODES[i].adv_name})`;

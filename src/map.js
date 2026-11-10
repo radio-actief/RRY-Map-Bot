@@ -12,7 +12,7 @@ import {
 import * as ntools from "./node-utils.js";
 import { copyText } from "./shared/clipboard.js";
 import { settleAfterKeyboard } from "./shared/viewport-settle.js";
-import { nodebookApiUrl, nodebookState, toolLinksHtml } from "./site-tools.js";
+import { nodebookApiUrl, nodebookFetchInit, nodebookState, toolLinksHtml } from "./site-tools.js";
 
 // Page language: src/shared/i18n.js (loaded in <head>) fetches the messages and translates the static page first.
 const I18N = window.BEmeshI18n;
@@ -1774,7 +1774,7 @@ createApp({
       if (url && auth.authenticated && !nodebookStatus.has(key)) {
         nodebookStatus.set(key, null);
         try {
-          const res = await fetch(url, { credentials: "same-origin" });
+          const res = await fetch(url, nodebookFetchInit(siteTools, location.origin));
           nodebookStatus.set(key, nodebookState(res.status, res.ok ? await res.json() : null));
         } catch {
           nodebookStatus.delete(key); // ask again at the next open

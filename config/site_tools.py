@@ -24,11 +24,11 @@ def parse_site_tools(raw):
         if not isinstance(entry, dict):
             continue
         key, label, url = entry.get('key'), entry.get('label'), entry.get('url')
-        if not (isinstance(key, str) and _KEY.match(key)):
+        if not (isinstance(key, str) and _KEY.fullmatch(key)):
             continue
         if not (isinstance(label, str) and 0 < len(label.strip()) <= 40):
             continue
-        if not (isinstance(url, str) and _URL.match(url)):
+        if not (isinstance(url, str) and _URL.fullmatch(url)):
             continue
         tools.append({'key': key, 'label': label.strip(), 'url': url})
     return tools

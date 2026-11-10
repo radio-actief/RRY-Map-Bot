@@ -288,6 +288,10 @@
   window.BEmeshTopbar = {
     init: init,
     closeMenus: closeMenus,
+    /** The site's other tools (not the four pages), as this bar loaded them; [] when none. */
+    siteTools: function () {
+      return load().then(function (res) { return res[2]; });
+    },
     setMyNodes: function (n) {
       myNodes = n;
       showMyNodes();

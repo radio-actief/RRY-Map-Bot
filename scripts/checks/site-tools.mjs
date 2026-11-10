@@ -42,8 +42,11 @@ const NODES = [
   { ...base, adv_name: "Companion one", public_key: KEY(0), type: 1, adv_lat: 51.05, adv_lon: 3.72 },
   { ...base, adv_name: "Repeater two", public_key: KEY(1), type: 2, adv_lat: 50.5, adv_lon: 4.5 },
 ];
-const popupSetup = (signedIn) => async (p) => {
-  await p.route("**/api/v1/site-tools", (r) => r.fulfill({ contentType: "application/json", body: JSON.stringify(TOOLS) }));
+const popupSetup = (signedIn, toolsDelayMs = 0) => async (p) => {
+  await p.route("**/api/v1/site-tools", async (r) => {
+    if (toolsDelayMs) await new Promise((res) => setTimeout(res, toolsDelayMs));
+    await r.fulfill({ contentType: "application/json", body: JSON.stringify(TOOLS) });
+  });
   await p.route("**/api/v1/belgian-nodes", (r) => r.fulfill({ contentType: "application/json", body: JSON.stringify(NODES) }));
   await p.route("**/auth/me", (r) => r.fulfill({ contentType: "application/json", body: JSON.stringify(signedIn ? { authenticated: true, user: { id: "1", username: "tester" } } : { authenticated: false }) }));
   await p.route("**/nodebook/api/nodes/*", (r) => {
@@ -54,6 +57,14 @@ const popupSetup = (signedIn) => async (p) => {
 const toolLinks = (page) => page.locator(".node-popup__tools a").evaluateAll((as) => as.map((a) => `${a.textContent}=${a.getAttribute("href")}`));
 
 export async function popupChecks(ctx) {
+  {
+    // The tool list arrives after the popup opened: the popup is drawn again with Connect live.
+    const page = await ctx.open(`/?node=${KEY(0)}`, { setup: popupSetup(false, 2500) });
+    await page.waitForSelector(".node-popup__tools a", { timeout: 10000 }).catch(() => {});
+    const got = await toolLinks(page);
+    ctx.check("site tools popup: a late tool list still adds Connect live", got.join(" | ") === `Connect live=/app/?node=${KEY(0)}`, got.join(" | "));
+    await page.close();
+  }
   for (const [signedIn, i, want] of [
     [true, 0, [`In your NodeBook=/nodebook/node/${KEY(0)}`, `Connect live=/app/?node=${KEY(0)}`]],
     [true, 1, [`Add to NodeBook=/nodebook/node/${KEY(1)}`]],

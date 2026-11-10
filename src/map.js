@@ -21,8 +21,8 @@ const t = I18N.t;
 
 /** The site's other tools (NodeBook, MeshMate); [] on a site that only runs the map. */
 let siteTools = [];
-const siteToolsLoaded = fetch("/api/v1/site-tools")
-  .then((r) => (r.ok ? r.json() : []))
+// The top bar fetches the list too: ask it, so the page asks the server once.
+const siteToolsLoaded = (window.BEmeshTopbar?.siteTools?.() ?? fetch("/api/v1/site-tools").then((r) => (r.ok ? r.json() : [])))
   .then((list) => {
     siteTools = Array.isArray(list) ? list : [];
   })
@@ -1758,18 +1758,24 @@ createApp({
       });
     }
 
-    /** Once per node and visit: ask NodeBook whether the node is in the visitor's fleets, then redraw its popup. */
+    /**
+     * Once the site's tools and the sign-in are known: ask NodeBook (once per node and visit)
+     * whether the node is in the visitor's fleets, then redraw the open popup, so links that
+     * depend on the tool list (Connect live) show even when the popup opened before it.
+     */
     async function askNodebook(node, marker) {
       await Promise.all([siteToolsLoaded, authChecked]);
+      if (!siteTools.length) return;
       const key = (node.public_key || "").toLowerCase();
       const url = nodebookApiUrl(siteTools, key);
-      if (!url || !auth.authenticated || nodebookStatus.has(key)) return;
-      nodebookStatus.set(key, null);
-      try {
-        const res = await fetch(url, { credentials: "same-origin" });
-        nodebookStatus.set(key, nodebookState(res.status, res.ok ? await res.json() : null));
-      } catch {
-        return;
+      if (url && auth.authenticated && !nodebookStatus.has(key)) {
+        nodebookStatus.set(key, null);
+        try {
+          const res = await fetch(url, { credentials: "same-origin" });
+          nodebookStatus.set(key, nodebookState(res.status, res.ok ? await res.json() : null));
+        } catch {
+          nodebookStatus.delete(key); // ask again at the next open
+        }
       }
       const p = marker.getPopup?.();
       if (p && p.isOpen()) {

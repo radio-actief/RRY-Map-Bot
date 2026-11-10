@@ -47,6 +47,8 @@ def test_a_list_that_cannot_be_read_gives_no_tools(bad):
     {'key': 'bad key!', 'label': 'X', 'url': '/x/'},
     {'key': 'nolabel', 'url': '/x/'},
     {'key': 'long', 'label': 'x' * 41, 'url': '/x/'},
+    {'key': 'nl', 'label': 'Newline', 'url': '/x/\n'},
+    {'key': 'nl\n', 'label': 'Newline', 'url': '/x/'},
 ])
 def test_only_paths_on_this_site_with_a_plain_key_and_label_are_kept(entry):
     good = {'key': 'nodebook', 'label': 'NodeBook', 'url': '/nodebook/'}
@@ -105,8 +107,14 @@ def test_discord_api_address_defaults_to_discord(monkeypatch):
     assert importlib.reload(cfg).DISCORD_API_BASE_URL == 'https://discord.com/api/v10'
 
 
-def test_the_configurator_page_isolates_its_opener_to_this_site(client):
-    r = client.get('/configurator')
+@pytest.mark.parametrize('path', ['/configurator', '/configurator/index.html', '/', '/stats', '/region-map'])
+def test_every_page_isolates_its_opener_to_this_site(client, path):
+    r = client.get(path)
     if r.status_code == 404:
-        pytest.skip('configurator not built')
+        pytest.skip('page not built')
+    assert r.mimetype == 'text/html'
     assert r.headers['Cross-Origin-Opener-Policy'] == 'same-origin'
+
+
+def test_json_answers_carry_no_opener_policy(client):
+    assert 'Cross-Origin-Opener-Policy' not in client.get('/api/v1/site-tools').headers

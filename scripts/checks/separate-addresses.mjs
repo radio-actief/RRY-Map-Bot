@@ -93,8 +93,10 @@ export default async function (ctx) {
 
     // The device hub: NodeBook's tab and the configurator share the channel and the last device.
     await wait(nb, () => window.hubLoaded === true);
+    const asked = Date.now();
     await nb.evaluate(() => window.toHub({ kind: "bemesh.device.getLast", v: 1 }));
     await wait(nb, () => window.hubMessages.some((m) => m.kind === "bemesh.device.last"));
+    ctx.check("separate addresses hub: getLast answers within 2 s", Date.now() - asked < 2000, `${Date.now() - asked} ms`);
     const first = await nb.evaluate(() => window.hubMessages.find((m) => m.kind === "bemesh.device.last") ?? null);
     ctx.check("separate addresses hub: getLast answers, nothing remembered yet", first?.v === 1 && first.last === null, JSON.stringify(first));
 
@@ -115,10 +117,13 @@ export default async function (ctx) {
     const relayed = await conf.evaluate(() => window.channelGot[0] ?? null);
     ctx.check("separate addresses hub: NodeBook's held reaches the configurator's channel", JSON.stringify(relayed) === JSON.stringify(HELD), JSON.stringify(relayed));
 
-    await nb.evaluate(() => window.toHub({ kind: "bemesh.device.setLast", v: 1, last: { usbVendorId: 0x303a, usbProductId: 0x1001, role: "repeater", name: "BE-GEN-Zoë", publicKey: null } }));
-    await wait(conf, () => (localStorage.getItem("bemesh.device.last") || "").includes("BE-GEN-Zoë"));
+    const heldLast = await conf.evaluate(() => JSON.parse(localStorage.getItem("bemesh.device.last") || "null"));
+    ctx.check("separate addresses hub: a relayed held device becomes the last device", heldLast?.transport === "usb" && heldLast.name === "BE-GEN-Zoë" && heldLast.usbVendorId === 0x303a && typeof heldLast.at === "number", JSON.stringify(heldLast));
+
+    await nb.evaluate(() => window.toHub({ kind: "bemesh.device.setLast", v: 1, last: { usbVendorId: 0x303a, usbProductId: 0x1001, role: "repeater", name: "BE-GEN-Set", publicKey: null } }));
+    await wait(conf, () => (localStorage.getItem("bemesh.device.last") || "").includes("BE-GEN-Set"));
     const stored = await conf.evaluate(() => JSON.parse(localStorage.getItem("bemesh.device.last") || "null"));
-    ctx.check("separate addresses hub: setLast is what the configurator reads", stored?.transport === "usb" && stored.name === "BE-GEN-Zoë" && typeof stored.at === "number", JSON.stringify(stored));
+    ctx.check("separate addresses hub: setLast is what the configurator reads", stored?.transport === "usb" && stored.name === "BE-GEN-Set" && typeof stored.at === "number", JSON.stringify(stored));
 
     await conf.evaluate(() => localStorage.setItem("bemesh.device.last", JSON.stringify({ transport: "usb", usbVendorId: 1, usbProductId: 2, role: null, name: "From the configurator", publicKey: null, at: Date.now() })));
     await nb.evaluate(() => {

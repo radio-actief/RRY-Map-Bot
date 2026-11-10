@@ -32,7 +32,7 @@ const mem = () => {
 };
 
 /** A hub in a frame of `parent`, with its channel, storage and window's message listener. */
-function hub(tools: unknown = TOOLS) {
+function hub(tools: unknown = TOOLS, waitMs?: number) {
   const parent = { postMessage: vi.fn() };
   let onMessage: ((e: unknown) => unknown) | null = null;
   const win = {
@@ -44,7 +44,8 @@ function hub(tools: unknown = TOOLS) {
   };
   const channel = { postMessage: vi.fn(), onmessage: null as ((e: { data: unknown }) => void) | null };
   const storage = mem();
-  const ready = startHub({ win, channel, storage, tools: Promise.resolve(tools), now: () => NOW });
+  const list = tools instanceof Promise ? tools : Promise.resolve(tools);
+  const ready = startHub({ win, channel, storage, tools: list, now: () => NOW, ...(waitMs ? { waitMs } : {}) });
   const send = async (data: unknown, origin = NODEBOOK, source: unknown = parent) => {
     await onMessage?.({ data, origin, source });
   };
@@ -121,6 +122,37 @@ describe("device hub", () => {
     await h.send({ kind: "bemesh.device.setLast", v: 2, last: { name: "v2" } });
     expect(JSON.parse(h.storage.getItem(LAST_KEY)!)).toMatchObject({ name: "Phone 2" });
     expect(h.channel.postMessage).not.toHaveBeenCalled();
+  });
+});
+
+describe("device hub, held devices", () => {
+  it("remembers a relayed held device as the last device, as writeLast would", async () => {
+    const h = hub();
+    await h.send(HELD);
+    expect(JSON.parse(h.storage.getItem(LAST_KEY)!)).toEqual({
+      transport: "usb", usbVendorId: 0x303a, usbProductId: 0x1001, role: "repeater", name: "BE-GEN-Zoë", publicKey: "ab".repeat(32), at: NOW,
+    });
+    await h.send({ ...HELD, type: "who", name: "Other" });
+    expect(JSON.parse(h.storage.getItem(LAST_KEY)!).name).toBe("BE-GEN-Zoë");
+  });
+
+  it("answers within its wait even when the tool list is slow, and takes the list once it arrives", async () => {
+    let arrive: (v: unknown) => void = () => {};
+    const slow = new Promise((r) => (arrive = r));
+    const h = hub(slow, 50);
+    const t0 = Date.now();
+    await h.send({ kind: "bemesh.device.getLast", v: 1 }, MAP);
+    expect(Date.now() - t0).toBeLessThan(1000);
+    expect(h.parent.postMessage).toHaveBeenLastCalledWith({ kind: "bemesh.device.last", v: 1, last: null }, MAP);
+    const t1 = Date.now();
+    await h.send({ kind: "bemesh.device.getLast", v: 1 }, NODEBOOK);
+    expect(Date.now() - t1).toBeLessThan(1000);
+    expect(h.parent.postMessage).toHaveBeenCalledTimes(1);
+    arrive(TOOLS);
+    await h.ready;
+    const h2 = hub();
+    await h2.send({ kind: "bemesh.device.getLast", v: 1 }, NODEBOOK);
+    expect(h2.parent.postMessage).toHaveBeenCalledTimes(1);
   });
 });
 

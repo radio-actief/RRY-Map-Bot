@@ -1,5 +1,5 @@
-/** Site profiles: the three timing settings a repeater gets from where it stands. */
-import { settingValue, type DeviceSnapshot, type Plan } from "./plan";
+/** Timing bands: the transmit delays a repeater gets from how many repeaters it hears. */
+import { settingValue, type Plan } from "./plan";
 
 export type SiteProfile = "hilltop" | "foothills" | "suburban" | "local";
 /** A profile, or any other timing ("custom"). */
@@ -14,6 +14,22 @@ export const SITE_PROFILES: Record<SiteProfile, Delays> = {
   suburban: { txdelay: 0.8, directTxdelay: 0.4 },
   local: { txdelay: 0.3, directTxdelay: 0.1 },
 };
+
+/**
+ * The band for how many repeaters it hears with an SNR above 0: 0-2 local, 3-5 suburban, 6-10
+ * foothills, 11 or more hilltop. The busier its neighbourhood, the longer it waits before repeating.
+ */
+export function bandFor(heard: number): SiteProfile {
+  if (heard >= 11) return "hilltop";
+  if (heard >= 6) return "foothills";
+  if (heard >= 3) return "suburban";
+  return "local";
+}
+
+/** What using a band sets: its two transmit delays, and RX delay 0. */
+export function bandTiming(band: SiteProfile): Timing {
+  return { ...SITE_PROFILES[band], rxdelay: 0 };
+}
 
 /** What the firmware ships with. */
 export const FIRMWARE_TIMING: Timing = { txdelay: 0.5, directTxdelay: 0.2, rxdelay: 0 };
@@ -47,13 +63,4 @@ export function siteOf(timing: Timing): SiteChoice {
 
 export function withTiming(plan: Plan, timing: Partial<Timing>): Plan {
   return { ...plan, settings: { ...plan.settings, ...timing } };
-}
-
-/** The transmit delays "custom" goes back to: the device's, where the Read gave a value, else the firmware's. */
-export function siteReference(snapshot: DeviceSnapshot | null): Delays {
-  const s = snapshot?.settings ?? {};
-  return {
-    txdelay: numberOr(s.txdelay ?? null, FIRMWARE_TIMING.txdelay),
-    directTxdelay: numberOr(s.directTxdelay ?? null, FIRMWARE_TIMING.directTxdelay),
-  };
 }

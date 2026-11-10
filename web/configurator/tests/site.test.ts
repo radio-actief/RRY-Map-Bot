@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { importBackup } from "../src/core/backup";
 import { defaultPlan, newPlan } from "../src/core/plan";
 import type { Place } from "../src/core/search";
-import { FIRMWARE_TIMING, SITE_PROFILES, siteOf, siteReference, timingOf, withTiming } from "../src/core/site";
+import { bandFor, bandTiming, FIRMWARE_TIMING, SITE_PROFILES, siteOf, timingOf, withTiming } from "../src/core/site";
 
 const PLACES: Place[] = JSON.parse(readFileSync(resolve(process.cwd(), "data/be-locode.json"), "utf8"));
 
@@ -47,9 +47,22 @@ describe("site profiles", () => {
     expect(timingOf(plan)).toEqual(FIRMWARE_TIMING);
   });
 
-  it("takes the reference from the snapshot, else the firmware", () => {
-    expect(siteReference({ settings: { txdelay: 1, rxdelay: 3 }, missing: [] })).toEqual({ txdelay: 1, directTxdelay: 0.2 });
-    expect(siteReference(null)).toEqual({ txdelay: 0.5, directTxdelay: 0.2 });
+  it("picks the band from how many repeaters it hears: 0-2 local, 3-5 suburban, 6-10 foothills, 11+ hilltop", () => {
+    const bands = Array.from({ length: 13 }, (_, n) => bandFor(n));
+    expect(bands).toEqual([
+      "local", "local", "local",
+      "suburban", "suburban", "suburban",
+      "foothills", "foothills", "foothills", "foothills", "foothills",
+      "hilltop", "hilltop",
+    ]);
+    expect(bandFor(40)).toBe("hilltop");
+  });
+
+  it("a band's timing is its two transmit delays with RX delay 0", () => {
+    expect(bandTiming("local")).toEqual({ txdelay: 0.3, directTxdelay: 0.1, rxdelay: 0 });
+    expect(bandTiming("suburban")).toEqual({ txdelay: 0.8, directTxdelay: 0.4, rxdelay: 0 });
+    expect(bandTiming("foothills")).toEqual({ txdelay: 1.5, directTxdelay: 1, rxdelay: 0 });
+    expect(bandTiming("hilltop")).toEqual({ txdelay: 2, directTxdelay: 2, rxdelay: 0 });
   });
 
   it("keeps the firmware timing on a v1 import without timing fields", () => {

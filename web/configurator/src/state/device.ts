@@ -7,6 +7,7 @@ import { commandLines, type ScriptGroup } from "../core/cli";
 import { deviceRegionsFromSnapshot, planFromSnapshot, regionCandidates, type DeviceSnapshot, type Plan } from "../core/plan";
 import { policyFor, regionsAfterApply } from "../core/regions";
 import { REGION_DEF_MIN_TEXT } from "../core/firmware";
+import { heardWell, neighboursCut, parseNeighbours, type Neighbour } from "../core/neighbours";
 import { pubkeyFromSetReply, type VanityKey } from "../core/vanity";
 import { apply, checkFirmware, IDENTITY_READS, readAll, READ_BACK_COMMANDS, READ_COMMANDS, run, stoppedApply } from "../device/repeater";
 import {
@@ -110,6 +111,7 @@ let leaving: SerialLink | null = null;
  */
 function forgetRead(): void {
   store.snapshot.value = null;
+  store.tune.value = { phase: "idle" };
   store.clock.value = null;
   store.deviceRegions.value = undefined;
   store.lastRead.value = null;
@@ -481,13 +483,91 @@ export function deviceCommand(cmd: string): Promise<CommandResult | null> {
 }
 
 /** Set the device clock to this computer's time (`time <epoch>`), then read `clock` again. */
+async function setClockNow(link: SerialLink): Promise<CommandResult> {
+  const set = await exchange(link, `time ${Math.floor(Date.now() / 1000)}`);
+  if (!set.ok) return set;
+  const clock = await exchange(link, "clock");
+  if (clock.ok) store.clock.value = { reply: clock.reply, at: Date.now() };
+  return set;
+}
+
+/** The drawer's clock button: setClockNow under the lock. */
 export function syncClock(): Promise<CommandResult | null> {
-  return withLock(async (link) => {
-    const set = await exchange(link, `time ${Math.floor(Date.now() / 1000)}`);
-    if (!set.ok) return set;
-    const clock = await exchange(link, "clock");
-    if (clock.ok) store.clock.value = { reply: clock.reply, at: Date.now() };
-    return set;
+  return withLock(setClockNow);
+}
+
+/** Counting neighbours asks them at most this many times, and listens this long after each ask. */
+export const COUNT_ROUNDS = 3;
+export const COUNT_ROUND_MS = 20_000;
+
+let countCancelled = false;
+/** Ends the current listening wait at once (Cancel). */
+let wakeCount: (() => void) | null = null;
+
+/** Stop counting neighbours: nothing more is sent and the result is dropped. */
+export function cancelCount(): void {
+  countCancelled = true;
+  wakeCount?.();
+}
+
+/** Listen `ms` for the neighbours' answers, showing the seconds left; false when cancelled. */
+async function listen(ms: number, tickMs: number, round: number): Promise<boolean> {
+  const total = Math.ceil(ms / 1000);
+  for (let waited = 0; waited < ms && !countCancelled; ) {
+    store.tune.value = { phase: "counting", round, rounds: COUNT_ROUNDS, left: Math.ceil((ms - waited) / 1000), total };
+    const step = Math.min(tickMs || ms, ms - waited);
+    await new Promise<void>((resolve) => {
+      const timer = setTimeout(resolve, step);
+      wakeCount = () => {
+        clearTimeout(timer);
+        resolve();
+      };
+    });
+    wakeCount = null;
+    waited += step;
+  }
+  return !countCancelled;
+}
+
+/**
+ * Count the repeaters it hears well, for its timing band (see bandFor). The clock is set first.
+ * Each round sends `discover.neighbors` (nearby repeaters answer over the air), listens, then reads
+ * `neighbors`; the count is every key prefix heard above SNR 0 in any round. It stops after
+ * COUNT_ROUNDS, or sooner when a round adds nobody new. A table cut at the firmware's limit makes
+ * the count "at least". The last table also becomes the Read's neighbour list.
+ */
+export async function countNeighbours({ roundMs = COUNT_ROUND_MS, tickMs = 1000 } = {}): Promise<void> {
+  countCancelled = false;
+  await withLock(async (link) => {
+    const total = Math.ceil(roundMs / 1000);
+    const idle = () => void (store.tune.value = { phase: "idle" });
+    const fail = (error: string) => void (store.tune.value = { phase: "failed", error });
+    store.tune.value = { phase: "counting", round: 1, rounds: COUNT_ROUNDS, left: total, total };
+    await setClockNow(link);
+    const heard = new Set<string>();
+    let atLeast = false;
+    let latest: Neighbour[] | null = null;
+    for (let round = 1; round <= COUNT_ROUNDS; round++) {
+      if (countCancelled) return idle();
+      store.tune.value = { phase: "counting", round, rounds: COUNT_ROUNDS, left: total, total };
+      const asked = await exchange(link, "discover.neighbors");
+      if (!asked.ok) return fail(asked.error);
+      if (!(await listen(roundMs, tickMs, round))) return idle();
+      const reply = await exchange(link, "neighbors");
+      if (countCancelled) return idle();
+      if (!reply.ok) return fail(reply.error);
+      const text = reply.reply.replace(/^\s*>\s*/, "");
+      const list = parseNeighbours(text);
+      if (!list) return fail(text);
+      atLeast ||= neighboursCut(text);
+      latest = list;
+      const before = heard.size;
+      for (const prefix of heardWell(list)) heard.add(prefix);
+      if (heard.size === before) break;
+    }
+    const snapshot = store.snapshot.peek();
+    if (snapshot && latest) store.snapshot.value = { ...snapshot, neighbours: latest };
+    store.tune.value = { phase: "done", heard: heard.size, atLeast };
   });
 }
 

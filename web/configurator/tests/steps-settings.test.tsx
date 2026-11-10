@@ -229,19 +229,19 @@ describe("Settings step", () => {
     expect(document.querySelectorAll(".field.changed").length).toBe(0);
   });
 
-  it("the Site & timing card: Hilltop sets 2 / 2 and leaves RX delay, typed timing shows Custom and opens Fine-tune", () => {
+  it("the Site & timing card: the current band by name, Custom with Fine-tune open for any other timing", () => {
+    resetPlan(newPlan());
     render(<SettingsStep />);
     const site = card("Site & timing");
-    expect(within(site).getByText("Timing preset")).toBeTruthy();
+    expect(within(site).getByText("Timing")).toBeTruthy();
+    expect(within(site).getByText("Suburban")).toBeTruthy();
+    expect(within(site).queryByRole("button", { name: "Hilltop" })).toBeNull();
     expect(within(card("Adverts & hops")).getByText("Hop allowance preset (unscoped / advert)")).toBeTruthy();
     const fold = within(site).getByText("Fine-tune").closest("details") as HTMLDetailsElement;
-    fireEvent.click(within(site).getByRole("button", { name: "Hilltop" }));
-    expect(store.plan.value.settings).toMatchObject({ txdelay: 2, directTxdelay: 2, rxdelay: 0 });
-    expect(within(fold).getByText("2 / 2 / 0")).toBeTruthy();
+    expect(within(fold).getByText("0.8 / 0.4 / 0")).toBeTruthy();
     expect(fold.open).toBe(false);
-    expect(within(site).getByRole("button", { name: "Custom" }).getAttribute("aria-pressed")).toBe("false");
     type("Flood delay factor", "0.6");
-    expect(within(site).getByRole("button", { name: "Custom" }).getAttribute("aria-pressed")).toBe("true");
+    expect(within(site).getByText("Custom")).toBeTruthy();
     expect(fold.open).toBe(true);
   });
 

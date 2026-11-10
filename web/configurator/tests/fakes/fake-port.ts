@@ -24,6 +24,8 @@ export type FakePortOptions = {
   delayMs?: Record<string, number>;
   /** The exact output for a command, instead of its echo and "->" reply. */
   raw?: Record<string, string>;
+  /** Replies given in turn each time the command comes (an empty one is no reply); the last one stays. */
+  sequence?: Record<string, string[]>;
   /** What getInfo() reports: the USB vendor and product id. */
   info?: { usbVendorId?: number; usbProductId?: number };
 };
@@ -109,8 +111,9 @@ export class FakePort implements PortLike {
         this.emit(this.opts.raw[line], delay);
         continue;
       }
-      const known = Object.prototype.hasOwnProperty.call(this.replies, line);
-      const reply = known ? this.replies[line] : unknownReply(line);
+      const turns = this.opts.sequence?.[line];
+      const known = !!turns || Object.prototype.hasOwnProperty.call(this.replies, line);
+      const reply = turns ? (turns.length > 1 ? turns.shift()! : turns[0]) : known ? this.replies[line] : unknownReply(line);
       // the firmware prints nothing at all for an empty reply
       const framed = RAW_OUTPUT_COMMANDS.has(line) && known ? reply : reply === "" ? "" : `  -> ${reply}\r\n`;
       this.emit(`${line}\r\n` + framed, delay);

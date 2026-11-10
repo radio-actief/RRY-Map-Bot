@@ -328,6 +328,27 @@ describe("Send step: Apply", () => {
     expect(screen.queryByRole("button", { name: "Reboot now" })).toBeNull();
   });
 
+  it("when the silent stop lands on region save itself, it still says to send again", async () => {
+    const lines = applyLines();
+    const save = lines.indexOf("region save");
+    const silent = lines.slice(save - 2, save + 1);
+    await connect({ ...okReplies(lines), ...Object.fromEntries(silent.map((l) => [l, ""])) });
+    render(<Send />);
+    fireEvent.click(applyButton());
+    expect(
+      await screen.findByText("It stopped answering after 3 lines in a row. Check that it is on and in reach, then try again.", { selector: ".notice p" }),
+    ).toBeTruthy();
+    expect(screen.getByText("Region changes only count once region save is sent, so send again to finish.")).toBeTruthy();
+  });
+
+  it("a region save that never answers, while sending went on, also says to send again", async () => {
+    const lines = applyLines();
+    await connect({ ...okReplies(lines), "region save": "" });
+    render(<Send />);
+    fireEvent.click(applyButton());
+    expect(await screen.findByText(/Saved\. 1 line got no reply; the log shows which\. Region changes only count once region save is sent/)).toBeTruthy();
+  });
+
   it("a line that never answers is tried again, and Apply goes on and says the log shows it", async () => {
     const lines = applyLines();
     const { port } = await connect({ ...okReplies(lines), [lines[1]]: "" });

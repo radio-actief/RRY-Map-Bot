@@ -132,13 +132,19 @@ export async function apply(
     onProgress(i + 1, lines.length);
     let error = "";
     let reply = "";
+    let tries = 0;
     try {
-      for (let tries = 0; tries < APPLY_TRIES && !reply; tries++) {
+      for (; tries < APPLY_TRIES && !reply; tries++) {
         reply = await link.command(command);
         // A line that drops the link on purpose answers nothing.
         if (expectsDeviceDisconnect(command)) break;
       }
-      if (isErrorReply(reply)) error = reply;
+      // An error only on a retry may answer a first try that did run (a removed region is gone
+      // now): it counts as no reply, not as a failure.
+      if (isErrorReply(reply)) {
+        if (tries > 1) reply = "";
+        else error = reply;
+      }
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
     }
@@ -162,9 +168,10 @@ export async function apply(
  * (`failedAt`, 1-based), and whether region changes went through without the `region save` that
  * keeps them (the firmware stores regions only on `region save`).
  */
-export function stoppedApply(lines: string[], failedAt: number): { done: number; regionsUnsaved: boolean } {
+export function stoppedApply(lines: string[], failedAt: number, silent: string[] = []): { done: number; regionsUnsaved: boolean } {
   const sent = lines.slice(0, failedAt - 1).map((l) => l.trim());
-  const saved = sent.includes("region save");
+  // A region save that got no reply may not have saved anything.
+  const saved = sent.includes("region save") && !silent.includes("region save");
   return { done: sent.length, regionsUnsaved: !saved && sent.some((l) => l.startsWith("region ")) };
 }
 

@@ -194,6 +194,12 @@ describe("apply: lines that get no reply", () => {
     expect(await apply(link, lines, () => {})).toEqual({ ok: true, silent: ["set k1 v", "set k2 v", "set k4 v", "set k5 v"] });
   });
 
+  it("an error that only comes on a retry counts as no reply: the first try may have run", async () => {
+    const lines2 = ["region remove be-old", "region save"];
+    const { link } = await linkTo({ "region save": "OK" }, undefined, { sequence: { "region remove be-old": ["", "Err - not found"] } });
+    expect(await apply(link, lines2, () => {})).toEqual({ ok: true, silent: ["region remove be-old"] });
+  });
+
   it("an error reply is not tried again", async () => {
     const { link, port } = await linkTo({ ...replies, "set k2 v": "Err - bad value" });
     await apply(link, lines, () => {});
@@ -274,5 +280,10 @@ describe("stoppedApply", () => {
     expect(stoppedApply(lines, 4).regionsUnsaved).toBe(true);
     expect(stoppedApply(lines, 5).regionsUnsaved).toBe(false);
     expect(stoppedApply(lines, 2).regionsUnsaved).toBe(false);
+  });
+
+  it("a region save that got no reply does not count as saved", () => {
+    expect(stoppedApply(lines, 5, ["region save"]).regionsUnsaved).toBe(true);
+    expect(stoppedApply(lines, 5, ["set name X"]).regionsUnsaved).toBe(false);
   });
 });

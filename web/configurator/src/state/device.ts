@@ -330,7 +330,9 @@ export async function applyPlan(script: ScriptGroup[], { skipFirmwareCheck = fal
     if (!result.ok) {
       const { failedAt, command, error, remaining, silent } = result;
       // Lines that got no reply may still have gone through: the silent stop counts them as sent.
-      const stopped = stoppedApply(lines, silent ? failedAt + 1 : failedAt);
+      const stopped = silent
+        ? stoppedApply(lines, failedAt + 1, lines.slice(failedAt - silent, failedAt).map((l) => l.trim()))
+        : stoppedApply(lines, failedAt);
       store.apply.value = { phase: "failed", failedAt, total, command, error, remaining, ...stopped, ...(silent ? { silent } : {}) };
       appendLog({ text: silent ? t("apply.silent", { lines: silent }) : t("apply.stopped", { n: failedAt, total, command }), kind: "error" });
       return;
@@ -354,6 +356,7 @@ export async function applyPlan(script: ScriptGroup[], { skipFirmwareCheck = fal
       radioChanged: lines.some((l) => NEEDS_REBOOT.test(l)),
       clock,
       silent: result.silent.length,
+      regionsUnsaved: result.silent.includes("region save"),
     };
   } catch (err) {
     store.apply.value = { phase: "error", reason: reasonOf(err) };

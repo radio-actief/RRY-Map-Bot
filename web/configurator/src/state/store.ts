@@ -155,6 +155,8 @@ export type ApplyState =
       clock: ClockOutcome;
       /** Lines that got no reply, though sending went on. */
       silent: number;
+      /** `region save` was among them: the region changes may not be saved. */
+      regionsUnsaved?: boolean;
     };
 
 /**

@@ -284,7 +284,12 @@ export function Send() {
           ) : null}
           <Script text={text} />
           <Progress state={state} />
-          {state.phase === "done" && state.silent ? <Notice kind="warn">{t("apply.savedSilent", { count: state.silent })}</Notice> : null}
+          {state.phase === "done" && state.silent ? (
+            <Notice kind="warn">
+              {t("apply.savedSilent", { count: state.silent })}
+              {state.regionsUnsaved ? ` ${t("apply.silentRegions")}` : ""}
+            </Notice>
+          ) : null}
           {state.phase === "done" ? <DeskCheck state={state} name={name} /> : null}
           {state.phase === "old" ? (
             <Notice kind="error">{t("apply.firmwareOld", { version: state.version, min: REGION_DEF_MIN_TEXT })}</Notice>

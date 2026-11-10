@@ -139,7 +139,7 @@
   "connect.check.firmware": "Flash MeshCore Repeater firmware at flasher.meshcore.io first.",
   "connect.check.wake": "Asleep or still starting? Press its reset button, wait ten seconds and connect.",
   "connect.unplugged": "The repeater was disconnected. Plug it in and connect again to continue.",
-  "connect.noSerial": "This browser can't use USB (no Web Serial). Try another browser on a computer, or build the script here and enter it yourself.",
+  "connect.noSerial": "This browser can't use USB (no Web Serial). Use Chrome, Edge or Firefox 151 or later on a computer, or build the script here and enter it yourself.",
   "connect.noRepeater": "No repeater at hand?",
   "connect.continue": "Continue without a device →",
   "connect.disconnect": "Disconnect",

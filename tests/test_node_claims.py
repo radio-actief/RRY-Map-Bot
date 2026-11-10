@@ -114,6 +114,63 @@ class TestNodeClaimsLog(unittest.TestCase):
         self.assertFalse(update_ownership("pkclaim01", "111", "alice"))
         self.assertEqual(self._claims(), [("pkclaim01", "111", "claim")])
 
+    def test_unclaim_does_not_wipe_a_claim_made_after_its_owner_check(self):
+        """Two unclaims by the owner race; another user claims the node in between."""
+        import backend.discord_queries as dq
+        from backend.discord_queries import update_ownership, remove_ownership
+
+        self.assertTrue(update_ownership("pkclaim01", "111", "alice"))
+        real_get_connection = dq.get_connection
+
+        class Cursor:
+            def __init__(self, inner):
+                self._inner = inner
+                self.raced = False
+
+            def execute(self, sql, *args):
+                if sql.lstrip().startswith("UPDATE belgian_nodes") and not self.raced:
+                    self.raced = True
+                    # The other request unclaims, then bob claims the free node.
+                    other = sqlite3.connect(self.db_path)
+                    other.execute("UPDATE belgian_nodes SET discord_owner_id = '222', "
+                                  "discord_owner_name = 'bob' WHERE public_key = 'pkclaim01'")
+                    other.commit()
+                    other.close()
+                return self._inner.execute(sql, *args)
+
+            def __getattr__(self, name):
+                return getattr(self._inner, name)
+
+        class Conn:
+            def __init__(self, inner, db_path):
+                self._inner = inner
+                self._db_path = db_path
+
+            def cursor(self):
+                c = Cursor(self._inner.cursor())
+                c.db_path = self._db_path
+                return c
+
+            def __getattr__(self, name):
+                return getattr(self._inner, name)
+
+        dq.get_connection = lambda: Conn(real_get_connection(), self.db_path)
+        try:
+            self.assertFalse(remove_ownership("pkclaim01", "111"))
+        finally:
+            dq.get_connection = real_get_connection
+
+        conn = sqlite3.connect(self.db_path)
+        try:
+            owner = conn.execute(
+                "SELECT discord_owner_id FROM belgian_nodes WHERE public_key = ?",
+                ("pkclaim01",),
+            ).fetchone()[0]
+        finally:
+            conn.close()
+        self.assertEqual(owner, "222")
+        self.assertEqual(self._claims(), [("pkclaim01", "111", "claim")])
+
 
 if __name__ == "__main__":
     unittest.main()

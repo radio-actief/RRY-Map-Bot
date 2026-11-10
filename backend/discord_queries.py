@@ -917,12 +917,18 @@ def remove_ownership(public_key: str, user_id: str, *, source: Optional[str] = N
 
         prior_owner_name = row['discord_owner_name']
 
+        # The owner check is repeated in the UPDATE: another request may have
+        # unclaimed (and someone else claimed) the node since the SELECT.
         cursor.execute("""
             UPDATE belgian_nodes
             SET discord_owner_id = NULL,
                 discord_owner_name = NULL
-            WHERE public_key = ?
-        """, (public_key_normalized,))
+            WHERE public_key = ? AND discord_owner_id = ?
+        """, (public_key_normalized, str(user_id)))
+
+        if cursor.rowcount == 0:
+            conn.rollback()
+            return False
 
         cursor.execute("""
             INSERT INTO node_claims

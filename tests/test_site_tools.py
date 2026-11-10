@@ -85,16 +85,19 @@ def test_the_tool_list_is_empty_when_not_set(monkeypatch):
     assert r.get_json() == []
 
 
+def _pending_next(client):
+    cookie = client.get_cookie(app_module.OAUTH_COOKIE, path='/auth/')
+    return app_module.read_oauth_pending(cookie.value)['next']
+
+
 def test_sign_in_returns_to_a_listed_tool(client):
     client.get('/auth/login?next=/nodebook/')
-    with client.session_transaction() as s:
-        assert s.get('oauth_next') == '/nodebook/'
+    assert _pending_next(client) == '/nodebook/'
 
 
 def test_sign_in_never_returns_to_an_unlisted_path(client):
     client.get('/auth/login?next=/elsewhere/')
-    with client.session_transaction() as s:
-        assert 'oauth_next' not in s
+    assert _pending_next(client) is None
 
 
 def test_log_out_returns_to_a_listed_tool(client):

@@ -2,6 +2,7 @@
 
 import os
 import shutil
+import sqlite3
 import sys
 import tempfile
 import unittest
@@ -156,18 +157,58 @@ class TestAuthNext(unittest.TestCase):
                 r = self.client.post("/auth/logout", query_string={"next": target}, headers=SAME_SITE)
                 self.assertEqual(r.headers["Location"], "/?logout=success")
 
+    def _pending(self):
+        cookie = self.client.get_cookie(api.OAUTH_COOKIE, path="/auth/")
+        self.assertIsNotNone(cookie)
+        return api.read_oauth_pending(cookie.value)
+
     def test_login_stores_a_tool_page(self):
-        with self.client as c:
-            r = c.get("/auth/login?next=/region-map")
-            self.assertEqual(r.status_code, 302)
-            with c.session_transaction() as sess:
-                self.assertEqual(sess.get("oauth_next"), "/region-map")
+        r = self.client.get("/auth/login?next=/region-map")
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(self._pending()["next"], "/region-map")
 
     def test_login_drops_other_targets(self):
-        with self.client as c:
-            c.get("/auth/login?next=//evil.example")
-            with c.session_transaction() as sess:
-                self.assertNotIn("oauth_next", sess)
+        self.client.get("/auth/login?next=//evil.example")
+        self.assertIsNone(self._pending()["next"])
+
+    def test_login_writes_no_server_side_session(self):
+        """Anonymous sign-in starts must not fill the session store (and push real sessions out)."""
+        session_dir = api.app.config["SESSION_FILE_DIR"]
+        before = set(os.listdir(session_dir)) if os.path.isdir(session_dir) else set()
+        for _ in range(5):
+            r = api.app.test_client().get("/auth/login")
+            self.assertEqual(r.status_code, 302)
+            self.assertNotIn(api.app.config.get("SESSION_COOKIE_NAME", "session") + "=",
+                             " ".join(r.headers.getlist("Set-Cookie")))
+        after = set(os.listdir(session_dir)) if os.path.isdir(session_dir) else set()
+        self.assertEqual(after, before)
+
+    def _callback(self, state):
+        with mock.patch.object(api, "exchange_code_for_token", return_value={"access_token": "t"}), \
+             mock.patch.object(api, "get_user_info", return_value={"id": "42", "username": "ann"}), \
+             mock.patch.object(auth, "is_guild_member", return_value=True):
+            return self.client.get("/auth/callback", query_string={"code": "c", "state": state})
+
+    def test_callback_with_the_login_state_signs_in(self):
+        self.client.get("/auth/login?next=/region-map")
+        state = self._pending()["state"]
+        r = self._callback(state)
+        self.assertEqual(r.headers["Location"], "/region-map")
+        self.assertIsNone(self.client.get_cookie(api.OAUTH_COOKIE, path="/auth/"))
+        self.assertEqual(self.client.get("/auth/me").get_json()["user"]["id"], "42")
+
+    def test_callback_with_another_state_is_refused(self):
+        self.client.get("/auth/login")
+        r = self._callback("not-the-state")
+        self.assertEqual(r.headers["Location"], "/?error=invalid_state")
+        self.assertFalse(self.client.get("/auth/me").get_json()["authenticated"])
+
+    def test_tampered_or_old_login_cookie_is_ignored(self):
+        self.assertIsNone(api.read_oauth_pending("garbage"))
+        token = api._oauth_serializer().dumps({"state": "s", "next": None})
+        with mock.patch("itsdangerous.timed.time.time", return_value=__import__("time").time() + 3600):
+            self.assertIsNone(api.read_oauth_pending(token))
+        self.assertEqual(api.read_oauth_pending(token)["state"], "s")
 
     def test_success_redirect_target(self):
         self.assertEqual(api._after_auth_target("/configurator", "login=success"), "/configurator")
@@ -196,6 +237,47 @@ class TestRadioCustomParams(unittest.TestCase):
         self.assertIsNone(self._parse(""))
         self.assertIsNone(self._parse("freq=abc"))
         self.assertIsNone(self._parse("sf=8&bw=5000"))
+
+
+class _BrokenConnection:
+    """A database that fails every query with a message naming internals."""
+
+    def cursor(self):
+        return self
+
+    def execute(self, *a, **k):
+        raise sqlite3.OperationalError("no such table: secret_table_xyz")
+
+    def close(self):
+        pass
+
+
+class TestErrorResponses(unittest.TestCase):
+    def setUp(self):
+        self.client = api.app.test_client()
+        patcher = mock.patch.object(api, "get_connection", lambda: _BrokenConnection())
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_node_list_failure_is_a_500_not_an_empty_map(self):
+        r = self.client.get("/api/v1/belgian-nodes")
+        self.assertEqual(r.status_code, 500)
+        self.assertNotIn("secret_table_xyz", r.get_data(as_text=True))
+
+    def test_errors_do_not_show_internal_details(self):
+        for path in (
+            "/api/v1/belgian-nodes/count",
+            "/api/v1/node-changes",
+            "/api/v1/sync-history",
+            "/api/v1/stats",
+            "/api/v1/repeaters/contacts",
+        ):
+            with self.subTest(path=path):
+                r = self.client.get(path)
+                self.assertEqual(r.status_code, 500)
+                body = r.get_data(as_text=True)
+                self.assertNotIn("secret_table_xyz", body)
+                self.assertEqual(r.get_json()["error"], "Internal server error")
 
 
 if __name__ == "__main__":

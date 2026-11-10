@@ -280,10 +280,6 @@ def get_all_belgian_nodes():
             nodes.append(formatted_node)
         
         return nodes
-        
-    except Exception as e:
-        print(f"Error fetching nodes: {e}")
-        return []
     finally:
         conn.close()
 
@@ -337,7 +333,7 @@ def get_belgian_nodes_count():
         return jsonify({"count": count}), 200
     except Exception as e:
         print(f"Error in get_belgian_nodes_count: {e}")
-        return jsonify({"error": "Internal server error", "message": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @app.route('/api/v1/belgian-nodes', methods=['GET'])
@@ -386,10 +382,7 @@ def get_belgian_nodes():
         return jsonify(nodes), 200
     except Exception as e:
         print(f"Error in get_belgian_nodes endpoint: {e}")
-        return jsonify({
-            'error': 'Internal server error',
-            'message': str(e)
-        }), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 SOURCE_URL = 'https://github.com/radio-actief/RRY-Map-Bot'
@@ -1073,10 +1066,7 @@ def node_changes():
         return jsonify(changes), 200
     except Exception as e:
         print(f"Error in node_changes endpoint: {e}")
-        return jsonify({
-            'error': 'Internal server error',
-            'message': str(e)
-        }), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @app.route('/api/v1/sync-history', methods=['GET'])
@@ -1106,10 +1096,7 @@ def sync_history():
         return resp, 200
     except Exception as e:
         print(f"Error in sync_history endpoint: {e}")
-        return jsonify({
-            'error': 'Internal server error',
-            'message': str(e)
-        }), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @app.route('/api/v1/stats', methods=['GET'])
@@ -1143,10 +1130,7 @@ def get_stats():
         return jsonify(stats), 200
     except Exception as e:
         print(f"Error in get_stats endpoint: {e}")
-        return jsonify({
-            'error': 'Internal server error',
-            'message': str(e)
-        }), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @app.route('/api/v1/config', methods=['GET'])
@@ -1206,10 +1190,7 @@ def get_config():
         }), 200
     except Exception as e:
         print(f"Error in get_config endpoint: {e}")
-        return jsonify({
-            'error': 'Internal server error',
-            'message': str(e)
-        }), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 def _date_to_unix(date_val) -> int:
@@ -1272,10 +1253,7 @@ def _get_contacts_by_type(node_type: int, filename: str):
         return resp
     except Exception as e:
         print(f"Error in contacts by type (type={node_type}): {e}")
-        return jsonify({
-            "error": "Internal server error",
-            "message": str(e)
-        }), 500
+        return jsonify({"error": "Internal server error"}), 500
     finally:
         conn.close()
 
@@ -1372,23 +1350,57 @@ def _after_auth_target(next_page, home_query):
     return '/?' + home_query
 
 
+# A started sign-in (OAuth state and the page to return to) lives in a short-lived signed cookie,
+# not in the server-side session store: anonymous /auth/login requests then create no session
+# files, so they can't push signed-in users' sessions out of the store.
+OAUTH_COOKIE = 'rry_oauth'
+OAUTH_MAX_AGE_S = 600
+
+
+def _oauth_serializer():
+    from itsdangerous import URLSafeTimedSerializer
+    return URLSafeTimedSerializer(app.config['SECRET_KEY'], salt='oauth-login')
+
+
+def read_oauth_pending(value):
+    """The sign-in started by this browser (``{'state', 'next'}``), or None if missing, forged or too old."""
+    from itsdangerous import BadSignature
+    if not value:
+        return None
+    try:
+        data = _oauth_serializer().loads(value, max_age=OAUTH_MAX_AGE_S)
+    except BadSignature:
+        return None
+    return data if isinstance(data, dict) else None
+
+
 @app.route('/auth/login')
 def auth_login():
     """Initiate Discord OAuth2 login flow."""
     state = generate_state()
-    session['oauth_state'] = state
     next_page = _safe_next(request.args.get('next'))
-    if next_page:
-        session['oauth_next'] = next_page
-    else:
-        session.pop('oauth_next', None)
-    auth_url = get_authorization_url(state=state)
-    return redirect(auth_url)
+    resp = redirect(get_authorization_url(state=state))
+    resp.set_cookie(
+        OAUTH_COOKIE,
+        _oauth_serializer().dumps({'state': state, 'next': next_page}),
+        max_age=OAUTH_MAX_AGE_S,
+        path='/auth/',
+        secure=app.config['SESSION_COOKIE_SECURE'],
+        httponly=True,
+        samesite='Lax',
+    )
+    return resp
 
 
 @app.route('/auth/callback')
 def auth_callback():
     """Handle Discord OAuth2 callback."""
+    resp = _auth_callback(read_oauth_pending(request.cookies.get(OAUTH_COOKIE)))
+    resp.delete_cookie(OAUTH_COOKIE, path='/auth/')
+    return resp
+
+
+def _auth_callback(pending):
     code = request.args.get('code')
     state = request.args.get('state')
     error = request.args.get('error')
@@ -1398,12 +1410,10 @@ def auth_callback():
         return redirect('/?error=auth_failed')
     
     # Verify state
-    if not state or state != session.get('oauth_state'):
+    if not state or not pending or state != pending.get('state'):
         return redirect('/?error=invalid_state')
     
-    # Remove state from session
-    session.pop('oauth_state', None)
-    next_page = _safe_next(session.pop('oauth_next', None))
+    next_page = _safe_next(pending.get('next'))
     
     # Exchange code for token
     if not code:

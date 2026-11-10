@@ -27,6 +27,9 @@ import {
 } from "../state/device";
 import { busy, importPlan, store } from "../state/store";
 import { Dialog } from "./Dialog";
+import { siteTools, toolText } from "./pages";
+import { handoffFromPlan } from "../core/handoff";
+import { sendHandoff } from "../state/handoff";
 import { Notice, type NoticeKind } from "./Notice";
 
 /** The word the factory reset dialog asks for. */
@@ -221,6 +224,14 @@ function Drawer() {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
+  /** Hands the plan to NodeBook on this site (it opens in a new tab and asks before saving). */
+  async function saveToNodebook(url: string, name: string) {
+    setNote(null);
+    const msg = handoffFromPlan(store.plan.peek(), store.data.peek().places ?? []);
+    const r = await sendHandoff(`${url}#/handoff`, msg);
+    setNote(r === "sent" ? { kind: "ok", text: t("handoff.sent", { tool: name }) } : { kind: "error", text: t(r === "blocked" ? "handoff.blocked" : "handoff.noAnswer", { tool: name }) });
+  }
+
   async function importJson(input: HTMLInputElement) {
     const file = input.files?.[0];
     input.value = "";
@@ -351,6 +362,13 @@ function Drawer() {
               aria-label={t("tools.importFile")}
               onChange={(e) => void importJson(e.currentTarget as HTMLInputElement)}
             />
+            {siteTools.value
+              .filter((x) => x.key === "nodebook")
+              .map((nb) => (
+                <button key={nb.url} type="button" class="btn small" onClick={() => void saveToNodebook(nb.url, toolText(nb))}>
+                  {t("handoff.save", { tool: toolText(nb) })}
+                </button>
+              ))}
           </div>
         </section>
 

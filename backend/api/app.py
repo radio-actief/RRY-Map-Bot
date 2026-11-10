@@ -1646,8 +1646,15 @@ def stats_page():
 
 @app.route('/configurator')
 def configurator_page():
-    """Serve the built configurator app."""
-    return send_from_directory(CONFIGURATOR_DIST, 'index.html')
+    """Serve the built configurator app.
+
+    Cross-Origin-Opener-Policy same-origin, as the site's other tools send it: a page that opens
+    the configurator (or that it opens) keeps window.opener only when both pages send the same
+    policy, and the settings hand-off between them needs it.
+    """
+    resp = send_from_directory(CONFIGURATOR_DIST, 'index.html')
+    resp.headers['Cross-Origin-Opener-Policy'] = 'same-origin'
+    return resp
 
 
 def _configurator_url(fragment: str = '') -> str:

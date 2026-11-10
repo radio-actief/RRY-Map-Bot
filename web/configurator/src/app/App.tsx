@@ -2,7 +2,9 @@ import { useEffect } from "preact/hooks";
 import { lang, t } from "../i18n/t";
 import { ensureData, loadAppData, loadOnDemand } from "../state/appdata";
 import { isWide, listenToHash, store } from "../state/store";
+import { receiveHandoff } from "../state/handoff";
 import { DeviceDrawer } from "./DeviceDrawer";
+import { HandoffDialog } from "./HandoffDialog";
 import { useLazy } from "./lazy";
 import { Panel } from "./Panel";
 import { TopBar } from "./TopBar";
@@ -25,9 +27,11 @@ export function App() {
     void loadAppData();
     const stopData = loadOnDemand();
     const stopHash = listenToHash();
+    const stopHandoff = receiveHandoff();
     return () => {
       stopData();
       stopHash();
+      stopHandoff();
     };
   }, []);
   const current = lang.value;
@@ -42,6 +46,7 @@ export function App() {
         <Panel />
         <DeviceDrawer />
       </main>
+      <HandoffDialog />
     </div>
   );
 }

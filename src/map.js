@@ -12,11 +12,23 @@ import {
 import * as ntools from "./node-utils.js";
 import { copyText } from "./shared/clipboard.js";
 import { settleAfterKeyboard } from "./shared/viewport-settle.js";
+import { nodebookApiUrl, nodebookState, toolLinksHtml } from "./site-tools.js";
 
 // Page language: src/shared/i18n.js (loaded in <head>) fetches the messages and translates the static page first.
 const I18N = window.BEmeshI18n;
 await I18N.ready;
 const t = I18N.t;
+
+/** The site's other tools (NodeBook, MeshMate); [] on a site that only runs the map. */
+let siteTools = [];
+const siteToolsLoaded = fetch("/api/v1/site-tools")
+  .then((r) => (r.ok ? r.json() : []))
+  .then((list) => {
+    siteTools = Array.isArray(list) ? list : [];
+  })
+  .catch(() => {});
+/** NodeBook's answer per node key for this visit: "in", "out", or null when it gave none. */
+const nodebookStatus = new Map();
 
 // MDI path (same as @mdi/js).
 const mdiOpenInNew =
@@ -1352,7 +1364,15 @@ function getTable(node, authState = null, nodes = []) {
         ? `<a href="${delUrl}" class="node-popup-action node-popup-action--danger node-popup-action--icon-only" title="${escapeAttrHtml(t("map.requestDeletion"))}" aria-label="${escapeAttrHtml(t("map.requestDeletion"))}"><i class="bi bi-trash" aria-hidden="true"></i></a>`
         : "";
 
-      return `<nav class="node-popup-actions" aria-label="${escapeAttrHtml(t("map.actions"))}"><div class="node-popup-actions__row"><div class="node-popup-actions__slot node-popup-actions__slot--start">${footerStart}</div><div class="node-popup-actions__slot node-popup-actions__slot--center">${footerCenter}</div><div class="node-popup-actions__slot node-popup-actions__slot--end">${footerEnd}</div></div></nav>`;
+      const tools = toolLinksHtml({
+        tools: siteTools,
+        node,
+        signedIn: Boolean(authState && authState.authenticated),
+        nodebook: nodebookStatus.get((node.public_key || "").toLowerCase()) ?? null,
+        t,
+        escape: escapeAttrHtml,
+      });
+      return tools + `<nav class="node-popup-actions" aria-label="${escapeAttrHtml(t("map.actions"))}"><div class="node-popup-actions__row"><div class="node-popup-actions__slot node-popup-actions__slot--start">${footerStart}</div><div class="node-popup-actions__slot node-popup-actions__slot--center">${footerCenter}</div><div class="node-popup-actions__slot node-popup-actions__slot--end">${footerEnd}</div></div></nav>`;
     })() +
     "</div>"
   );
@@ -1716,6 +1736,7 @@ createApp({
           fillNodeQrSlotFromPopup(content);
         }, 100);
         watchPopupGrowth(marker, nodePopup);
+        askNodebook(node, marker);
       });
       marker.on("popupclose", function () {
         delete app.urlParams.node;
@@ -1737,6 +1758,26 @@ createApp({
       });
     }
 
+    /** Once per node and visit: ask NodeBook whether the node is in the visitor's fleets, then redraw its popup. */
+    async function askNodebook(node, marker) {
+      await Promise.all([siteToolsLoaded, authChecked]);
+      const key = (node.public_key || "").toLowerCase();
+      const url = nodebookApiUrl(siteTools, key);
+      if (!url || !auth.authenticated || nodebookStatus.has(key)) return;
+      nodebookStatus.set(key, null);
+      try {
+        const res = await fetch(url, { credentials: "same-origin" });
+        nodebookStatus.set(key, nodebookState(res.status, res.ok ? await res.json() : null));
+      } catch {
+        return;
+      }
+      const p = marker.getPopup?.();
+      if (p && p.isOpen()) {
+        p.setContent(() => getTable(node, auth, app.nodes));
+        p.update();
+      }
+    }
+
     function refreshOpenPopups() {
       for (const node of app.nodes) {
         const p = node.marker?.getPopup?.();
@@ -1746,6 +1787,9 @@ createApp({
         }
       }
     }
+
+    /** Settles once the first sign-in check is done (a popup can open before it, from a ?node= link). */
+    let authChecked = Promise.resolve();
 
     // Check authentication status
     async function checkAuth() {
@@ -2075,6 +2119,7 @@ createApp({
           );
         }, 0);
         watchPopupGrowth(tempMarker, deepLinkPopup);
+        askNodebook(node, tempMarker);
       });
       tempMarker.on("popupclose", () => {
         delete app.urlParams.node;
@@ -2685,7 +2730,8 @@ createApp({
       }
 
       // Check authentication status first
-      checkAuth().then(() => {
+      authChecked = checkAuth();
+      authChecked.then(() => {
         // Watch for auth changes and update popups and markers
         watch(
           () => auth.authenticated,

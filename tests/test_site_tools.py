@@ -103,3 +103,10 @@ def test_discord_api_address_defaults_to_discord(monkeypatch):
     import config.config as cfg
     monkeypatch.delenv('DISCORD_API_BASE_URL', raising=False)
     assert importlib.reload(cfg).DISCORD_API_BASE_URL == 'https://discord.com/api/v10'
+
+
+def test_the_configurator_page_isolates_its_opener_to_this_site(client):
+    r = client.get('/configurator')
+    if r.status_code == 404:
+        pytest.skip('configurator not built')
+    assert r.headers['Cross-Origin-Opener-Policy'] == 'same-origin'

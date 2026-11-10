@@ -32,4 +32,42 @@ export default async function (ctx) {
     ctx.check(`site tools ${path}: without a list only the four pages`, only.join(" ") === "/ /stats /region-map /configurator", only.join(" "));
     await plain.close();
   }
+  await popupChecks(ctx);
+}
+
+// The node popup: a signed-in visitor sees NodeBook's answer; a companion also gets Connect live.
+const KEY = (i) => (i + 1).toString(16).padStart(2, "0").repeat(32);
+const base = { city: "Gent", source: "app", params: { bw: 62.5, cr: 8, freq: 869.618, sf: 8 }, inserted_date: new Date().toISOString(), updated_date: new Date().toISOString(), last_advert: new Date().toISOString() };
+const NODES = [
+  { ...base, adv_name: "Companion one", public_key: KEY(0), type: 1, adv_lat: 51.05, adv_lon: 3.72 },
+  { ...base, adv_name: "Repeater two", public_key: KEY(1), type: 2, adv_lat: 50.5, adv_lon: 4.5 },
+];
+const popupSetup = (signedIn) => async (p) => {
+  await p.route("**/api/v1/site-tools", (r) => r.fulfill({ contentType: "application/json", body: JSON.stringify(TOOLS) }));
+  await p.route("**/api/v1/belgian-nodes", (r) => r.fulfill({ contentType: "application/json", body: JSON.stringify(NODES) }));
+  await p.route("**/auth/me", (r) => r.fulfill({ contentType: "application/json", body: JSON.stringify(signedIn ? { authenticated: true, user: { id: "1", username: "tester" } } : { authenticated: false }) }));
+  await p.route("**/nodebook/api/nodes/*", (r) => {
+    const inFleet = r.request().url().endsWith(KEY(0));
+    r.fulfill({ contentType: "application/json", body: JSON.stringify({ public_key: KEY(0), fleets: inFleet ? [{ id: 1, name: "Home" }] : [] }) });
+  });
+};
+const toolLinks = (page) => page.locator(".node-popup__tools a").evaluateAll((as) => as.map((a) => `${a.textContent}=${a.getAttribute("href")}`));
+
+export async function popupChecks(ctx) {
+  for (const [signedIn, i, want] of [
+    [true, 0, [`In your NodeBook=/nodebook/node/${KEY(0)}`, `Connect live=/app/?node=${KEY(0)}`]],
+    [true, 1, [`Add to NodeBook=/nodebook/node/${KEY(1)}`]],
+    [false, 0, [`Connect live=/app/?node=${KEY(0)}`]],
+    [false, 1, []],
+  ]) {
+    const name = `site tools popup (${signedIn ? "signed in" : "signed out"}, ${NODES[i].adv_name})`;
+    const page = await ctx.open(`/?node=${KEY(i)}`, { setup: popupSetup(signedIn) });
+    await page.waitForSelector(".node-popup", { timeout: 10000 }).catch(() => {});
+    if (want.length) await page.waitForSelector(`.node-popup__tools a >> nth=${want.length - 1}`, { timeout: 8000 }).catch(() => {});
+    else await page.waitForTimeout(1500);
+    const got = await toolLinks(page);
+    ctx.check(name, got.join(" | ") === want.join(" | "), got.join(" | "));
+    ctx.check(`${name}: no page errors`, !page.errors.length, page.errors.join("; "));
+    await page.close();
+  }
 }

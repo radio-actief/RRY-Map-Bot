@@ -1459,6 +1459,20 @@ a.node-popup__source-icon {
     color var(--dur) ease-out;
 }
 
+/* The site's other tools (NodeBook, MeshMate), above the action row; only on a site that runs them. */
+.node-popup .node-popup__tools {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px 8px;
+  padding: 6px 12px 0;
+  border-top: 1px solid var(--line);
+}
+
+.node-popup .node-popup__tools + .node-popup-actions {
+  border-top: 0;
+}
+
 /* Claim: the popup's one primary button. */
 .node-popup .node-popup-action--claim {
   border-color: var(--gold);
@@ -1496,6 +1510,7 @@ a.node-popup__source-icon {
 /* Phone: every popup button is at least 44px to tap. */
 @media (max-width: 600px) {
   .node-popup .node-popup-actions .node-popup-action,
+  .node-popup .node-popup__tools .node-popup-action,
   .node-popup__source-icon {
     min-width: 44px;
     min-height: 44px;

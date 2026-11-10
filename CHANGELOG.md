@@ -2,6 +2,16 @@
 
 What changed in each release of the #BEmesh map, bot and configurator.
 
+## 1.0.8 (2026-11-10)
+
+### New
+
+- The configurator sets a repeater's timing from the repeaters it actually hears: "Count its neighbours" listens for up to a minute and proposes the timing for that many, instead of asking what kind of site it stands on. Count once it stands at its final spot, ideally after a day
+- The recommended flood advert interval is now each repeater's own hour between 35 and 59, picked from its key, so the network's adverts don't all go out at once
+- The configurator recommends resetting the radio's gain control every 4 seconds, and offers the front-end amplifier switch on the few boards that have one
+- Sending to a repeater tries a line again when it gets no answer, and stops with a clear message when the repeater stops answering, instead of failing on the first silent line
+- Groundwork to show NodeBook and MeshMate next to the map and configurator later; nothing changes on this site yet
+
 ## 1.0.7 (2026-11-05)
 
 ### New

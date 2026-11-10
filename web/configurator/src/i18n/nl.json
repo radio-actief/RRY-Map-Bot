@@ -178,6 +178,8 @@
   "tune.resultAtLeast_one": "Hoort minstens {count} repeater → timing {band}",
   "tune.resultAtLeast_other": "Hoort minstens {count} repeaters → timing {band}",
   "tune.use": "Deze timing gebruiken",
+  "tune.mayBeMore": "Over USB kan hij er hoogstens ongeveer 8 tonen. Op een hoge plek met veel repeaters binnen bereik past Heuveltop misschien beter.",
+  "tune.useBand": "{band}-timing gebruiken",
   "tune.failed": "Tellen lukte niet: {reason}",
   "tune.hint": "De telling zegt pas iets als de repeater op zijn vaste plek staat, liefst na een dag.",
   "tune.needDevice": "Verbind de repeater via USB om te tellen.",

@@ -91,6 +91,20 @@ describe("Timing", () => {
     expect(screen.getByText("Hears at least 8 repeaters → Foothills timing")).toBeTruthy();
   });
 
+  it("a cut table at Foothills also offers Hilltop, as it may hear more than USB can list", () => {
+    store.tune.value = { phase: "done", heard: 8, atLeast: true };
+    render(<TimingPreset />);
+    fireEvent.click(button("Use Hilltop timing"));
+    expect(timingOf(store.plan.value)).toEqual({ txdelay: 2, directTxdelay: 2, rxdelay: 0 });
+  });
+
+  it("Use this timing stays on while the band's delays match but RX delay is not 0", () => {
+    resetPlan({ ...newPlan(), settings: { ...newPlan().settings, txdelay: 1.5, directTxdelay: 1, rxdelay: 3 } });
+    store.tune.value = { phase: "done", heard: 7, atLeast: false };
+    render(<TimingPreset />);
+    expect(button("Use this timing").disabled).toBe(false);
+  });
+
   it("one repeater is singular", () => {
     store.tune.value = { phase: "done", heard: 1, atLeast: false };
     render(<TimingPreset />);
@@ -171,6 +185,24 @@ describe("countNeighbours", () => {
     await connect({ neighbors: table(...lines) });
     await countNeighbours(QUICK);
     expect(store.tune.value).toEqual({ phase: "done", heard: 9, atLeast: true });
+  });
+
+  it("leaves out repeaters last heard long before the count", async () => {
+    await connect({ neighbors: table(nb("aaaaaaaa", 5), "bbbbbbbb:86400:20", "cccccccc:200000:12") });
+    await countNeighbours(QUICK);
+    expect(store.tune.value).toEqual({ phase: "done", heard: 1, atLeast: false });
+  });
+
+  it("stops at once when the repeater is unplugged during the wait", async () => {
+    const port = await connect({ neighbors: table(nb("aaaaaaaa", 5)) });
+    const run = countNeighbours({ roundMs: 60000, tickMs: 10 });
+    await waitFor(() => expect(store.tune.value.phase).toBe("counting"));
+    store.device.value = { status: "none", link: null, firmware: null };
+    store.tune.value = { phase: "idle" };
+    await run;
+    expect(store.tune.value).toEqual({ phase: "idle" });
+    expect(port.received).toEqual(expect.not.arrayContaining(["neighbors"]));
+    expect(store.commandBusy.value).toBe(false);
   });
 
   it("refreshes the neighbours of the last Read", async () => {

@@ -526,9 +526,15 @@ export function cancelCount(): void {
 }
 
 /** Listen `ms` for the neighbours' answers, showing the seconds left; false when cancelled. */
-async function listen(ms: number, tickMs: number, round: number): Promise<boolean> {
+/** A neighbour heard up to this long before the count started still counts. */
+const RECENT_S = 600;
+
+async function listen(link: SerialLink, ms: number, tickMs: number, round: number): Promise<boolean> {
   const total = Math.ceil(ms / 1000);
+  // Unplugged (or another device chosen): stop at once, and leave the state to whoever reset it.
+  const gone = () => !link.connected || store.device.peek().link !== link;
   for (let waited = 0; waited < ms && !countCancelled; ) {
+    if (gone()) return false;
     store.tune.value = { phase: "counting", round, rounds: COUNT_ROUNDS, left: Math.ceil((ms - waited) / 1000), total };
     const step = Math.min(tickMs || ms, ms - waited);
     await new Promise<void>((resolve) => {
@@ -541,7 +547,7 @@ async function listen(ms: number, tickMs: number, round: number): Promise<boolea
     wakeCount = null;
     waited += step;
   }
-  return !countCancelled;
+  return !countCancelled && !gone();
 }
 
 /**
@@ -559,15 +565,16 @@ export async function countNeighbours({ roundMs = COUNT_ROUND_MS, tickMs = 1000 
     const fail = (error: string) => void (store.tune.value = { phase: "failed", error });
     store.tune.value = { phase: "counting", round: 1, rounds: COUNT_ROUNDS, left: total, total };
     await setClockNow(link);
+    const started = Date.now();
     const heard = new Set<string>();
     let atLeast = false;
     let latest: Neighbour[] | null = null;
     for (let round = 1; round <= COUNT_ROUNDS; round++) {
-      if (countCancelled) return idle();
+      if (countCancelled || !link.connected || store.device.peek().link !== link) return idle();
       store.tune.value = { phase: "counting", round, rounds: COUNT_ROUNDS, left: total, total };
       const asked = await exchange(link, "discover.neighbors");
       if (!asked.ok) return fail(asked.error);
-      if (!(await listen(roundMs, tickMs, round))) return idle();
+      if (!(await listen(link, roundMs, tickMs, round))) return idle();
       const reply = await exchange(link, "neighbors");
       if (countCancelled) return idle();
       if (!reply.ok) return fail(reply.error);
@@ -577,7 +584,9 @@ export async function countNeighbours({ roundMs = COUNT_ROUND_MS, tickMs = 1000 
       atLeast ||= neighboursCut(text);
       latest = list;
       const before = heard.size;
-      for (const prefix of heardWell(list)) heard.add(prefix);
+      // Only those heard during the count, or shortly before it: an old entry may be days old.
+      const maxAgoS = (Date.now() - started) / 1000 + RECENT_S;
+      for (const prefix of heardWell(list, maxAgoS)) heard.add(prefix);
       if (heard.size === before) break;
     }
     const snapshot = store.snapshot.peek();

@@ -178,6 +178,8 @@
   "tune.resultAtLeast_one": "Hears at least {count} repeater → {band} timing",
   "tune.resultAtLeast_other": "Hears at least {count} repeaters → {band} timing",
   "tune.use": "Use this timing",
+  "tune.mayBeMore": "Over USB it can list about 8 at most. On a high site with many repeaters in reach, Hilltop may fit better.",
+  "tune.useBand": "Use {band} timing",
   "tune.failed": "Couldn't count: {reason}",
   "tune.hint": "The count only means something once the repeater stands at its final place, ideally after a day.",
   "tune.needDevice": "Connect the repeater over USB to count.",

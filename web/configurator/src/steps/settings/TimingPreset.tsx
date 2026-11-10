@@ -1,6 +1,6 @@
 /** Timing: the current band, counting the repeater's neighbours to pick one, and how many repeaters the map shows near. */
 import { nodesWithin, NEIGHBOR_RADIUS_KM } from "../../core/geo";
-import { bandFor, bandTiming, siteOf, timingOf, withTiming } from "../../core/site";
+import { bandFor, bandTiming, siteOf, timingOf, withTiming, type SiteProfile } from "../../core/site";
 import { t } from "../../i18n/t";
 import { cancelCount, countNeighbours } from "../../state/device";
 import { busy, store, type TuneState } from "../../state/store";
@@ -43,15 +43,28 @@ function Counting({ state }: { state: Extract<TuneState, { phase: "counting" }> 
 /** The count, its band, and the button that puts the band's timing in the plan. */
 function Result({ heard, atLeast }: { heard: number; atLeast: boolean }) {
   const band = bandFor(heard);
-  const current = siteOf(timingOf(store.plan.value));
-  const use = () => (store.plan.value = withTiming(store.plan.peek(), bandTiming(band)));
+  const timing = timingOf(store.plan.value);
+  const isBand = (b: SiteProfile) => siteOf(timing) === b && timing.rxdelay === 0;
+  const use = (b: SiteProfile) => (store.plan.value = withTiming(store.plan.peek(), bandTiming(b)));
+  // Over USB the table lists about 8 at most: a cut one at Foothills may well be Hilltop.
+  const mayBeHilltop = atLeast && band === "foothills";
   return (
-    <p class="tune-result">
-      {t(atLeast ? "tune.resultAtLeast" : "tune.result", { count: heard, band: t(`site.${band}`) })}{" "}
-      <button type="button" class="btn tiny" disabled={current === band} onClick={use}>
-        {t("tune.use")}
-      </button>
-    </p>
+    <>
+      <p class="tune-result">
+        {t(atLeast ? "tune.resultAtLeast" : "tune.result", { count: heard, band: t(`site.${band}`) })}{" "}
+        <button type="button" class="btn tiny" disabled={isBand(band)} onClick={() => use(band)}>
+          {t("tune.use")}
+        </button>
+      </p>
+      {mayBeHilltop ? (
+        <p class="sub tune-result">
+          {t("tune.mayBeMore")}{" "}
+          <button type="button" class="btn tiny" disabled={isBand("hilltop")} onClick={() => use("hilltop")}>
+            {t("tune.useBand", { band: t("site.hilltop") })}
+          </button>
+        </p>
+      ) : null}
+    </>
   );
 }
 

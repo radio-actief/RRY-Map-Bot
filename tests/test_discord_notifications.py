@@ -43,6 +43,13 @@ def test_send_uses_a_timeout_and_components(posts):
     assert calls[0]["json"] == {"embeds": [{"title": "x"}], "components": [{"type": 1}]}
 
 
+def test_send_goes_to_the_configured_discord_address(posts, monkeypatch):
+    calls, _ = posts
+    monkeypatch.setattr(dn, "DISCORD_API_BASE_URL", "http://oauth-stub:9000/api")
+    dn.send_discord_message({"title": "x"})
+    assert calls[0]["url"] == "http://oauth-stub:9000/api/channels/123/messages"
+
+
 def test_send_retries_once_after_a_short_rate_limit(posts):
     calls, replies = posts
     replies.extend([_Resp(429, {"retry_after": 0.5}), _Resp(200)])

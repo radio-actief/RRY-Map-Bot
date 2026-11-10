@@ -27,7 +27,7 @@ from backend.database import (
     dict_from_row
 )
 from backend.datetime_utils import normalize_node_timestamps
-from config.site_tools import parse_site_tools
+from config.config import SITE_TOOLS as config_site_tools
 from backend.auth import (
     get_authorization_url,
     exchange_code_for_token,
@@ -1348,8 +1348,8 @@ def internal_error(error):
 
 # OAuth2 Routes
 NEXT_PAGES = ('/', '/stats', '/region-map', '/configurator')
-# More tools on this site (SITE_TOOLS_JSON), e.g. NodeBook; none on a site that only runs the map.
-SITE_TOOLS = parse_site_tools(os.getenv('SITE_TOOLS_JSON'))
+# More tools on this site (config SITE_TOOLS_JSON); none on a site that only runs the map.
+SITE_TOOLS = config_site_tools
 
 
 def _safe_next(value):

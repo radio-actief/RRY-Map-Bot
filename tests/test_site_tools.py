@@ -39,6 +39,8 @@ def test_a_list_that_cannot_be_read_gives_no_tools(bad):
 
 
 @pytest.mark.parametrize('entry', [
+    {'key': 'dots', 'label': 'Dots', 'url': '/x/../auth/logout'},
+    {'key': 'dot', 'label': 'Dot', 'url': '/./x/'},
     {'key': 'evil', 'label': 'Evil', 'url': 'https://example.com/'},
     {'key': 'evil', 'label': 'Evil', 'url': '//example.com/'},
     {'key': 'evil', 'label': 'Evil', 'url': '/\\example.com'},
@@ -59,6 +61,16 @@ def test_only_paths_on_this_site_with_a_plain_key_and_label_are_kept(entry):
 def client(monkeypatch):
     monkeypatch.setattr(app_module, 'SITE_TOOLS', TOOLS)
     return app_module.app.test_client()
+
+
+def test_the_tool_list_is_read_with_the_other_site_settings(monkeypatch):
+    import config.config as cfg
+    monkeypatch.setenv('SITE_TOOLS_JSON', json.dumps(TOOLS))
+    try:
+        assert importlib.reload(cfg).SITE_TOOLS == TOOLS
+    finally:
+        monkeypatch.delenv('SITE_TOOLS_JSON')
+        importlib.reload(cfg)
 
 
 def test_the_tool_list_is_served_to_the_pages(client):

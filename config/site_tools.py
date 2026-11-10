@@ -5,8 +5,9 @@ import json
 import re
 
 _KEY = re.compile(r'^[A-Za-z][A-Za-z0-9]{0,30}$')
-# A path on this site: starts with one "/", then plain URL path characters only.
+# A path on this site: starts with one "/", then plain URL path characters only, no "." or ".." segment.
 _URL = re.compile(r'^/(?![/\\])[A-Za-z0-9._~\-/]*$')
+_DOT_SEGMENT = re.compile(r'(^|/)\.{1,2}(/|$)')
 
 
 def parse_site_tools(raw):
@@ -28,7 +29,7 @@ def parse_site_tools(raw):
             continue
         if not (isinstance(label, str) and 0 < len(label.strip()) <= 40):
             continue
-        if not (isinstance(url, str) and _URL.fullmatch(url)):
+        if not (isinstance(url, str) and _URL.fullmatch(url)) or _DOT_SEGMENT.search(url):
             continue
         tools.append({'key': key, 'label': label.strip(), 'url': url})
     return tools

@@ -14,7 +14,7 @@ from typing import Any, Dict, Optional
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from config.config import DISCORD_BOT_TOKEN, STARTUP_CHANNEL_ID
+from config.config import DISCORD_API_BASE_URL, DISCORD_BOT_TOKEN, STARTUP_CHANNEL_ID
 from backend.discord_branding import apply_brand_to_embed_dict
 from backend.discord_formatting import (
     build_claim_embed_dict,
@@ -41,7 +41,7 @@ def send_discord_message(embed: Dict[str, Any], components: Optional[list] = Non
         print("Discord bot token or channel ID not configured. Skipping notification.")
         return False
 
-    url = f"https://discord.com/api/v10/channels/{STARTUP_CHANNEL_ID}/messages"
+    url = f"{DISCORD_API_BASE_URL}/channels/{STARTUP_CHANNEL_ID}/messages"
     headers = {
         "Authorization": f"Bot {DISCORD_BOT_TOKEN}",
         "Content-Type": "application/json",

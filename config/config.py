@@ -2,6 +2,8 @@
 # Loads environment variables and provides configuration access
 
 import os
+
+from config.site_tools import parse_site_tools
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -71,6 +73,9 @@ DISCORD_OAUTH2_REDIRECT_URI = os.getenv('DISCORD_OAUTH2_REDIRECT_URI', 'http://l
 DISCORD_OAUTH2_SCOPE = 'identify guilds'  # Need identify and guilds to check server membership
 # A stand-in Discord on a test site; Discord itself when unset.
 DISCORD_API_BASE_URL = (os.getenv('DISCORD_API_BASE_URL') or 'https://discord.com/api/v10').rstrip('/')
+
+# More tools served on the same site (SITE_TOOLS_JSON), e.g. NodeBook; none on a site that only runs the map.
+SITE_TOOLS = parse_site_tools(os.getenv('SITE_TOOLS_JSON'))
 DISCORD_SERVER_INVITE_URL = os.getenv('DISCORD_SERVER_INVITE_URL', 'https://discord.gg/kvybAgqnhD')
 
 # Belgian Geographic Bounds

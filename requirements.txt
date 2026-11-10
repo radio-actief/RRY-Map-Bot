@@ -22,7 +22,7 @@ pyproj>=3.6.0
 # REST API Framework
 flask>=3.0.0
 flask-cors>=4.0.0
-flask-session>=0.5.0
+flask-session>=0.8.0
 # Production web server for the API (app.py runs it unless FLASK_DEBUG=true)
 waitress>=3.0.2
 

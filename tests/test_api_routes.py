@@ -197,6 +197,21 @@ class TestAuthNext(unittest.TestCase):
         self.assertIsNone(self.client.get_cookie(api.OAUTH_COOKIE, path="/auth/"))
         self.assertEqual(self.client.get("/auth/me").get_json()["user"]["id"], "42")
 
+    def test_signing_in_gives_a_new_session_id(self):
+        """A session id planted in the visitor's browser beforehand must not become the signed-in one."""
+        name = api.app.config.get("SESSION_COOKIE_NAME", "session")
+        with self.client.session_transaction() as s:
+            s["lang"] = "nl"
+        planted = self.client.get_cookie(name).value
+        self.client.get("/auth/login?next=/region-map")
+        self._callback(self._pending()["state"])
+        signed_in = self.client.get_cookie(name).value
+        self.assertNotEqual(signed_in, planted)
+        self.assertEqual(self.client.get("/auth/me").get_json()["user"]["id"], "42")
+        fresh = api.app.test_client()
+        fresh.set_cookie(name, planted)
+        self.assertFalse(fresh.get("/auth/me").get_json()["authenticated"])
+
     def test_callback_with_another_state_is_refused(self):
         self.client.get("/auth/login")
         r = self._callback("not-the-state")

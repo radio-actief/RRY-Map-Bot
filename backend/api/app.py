@@ -1497,6 +1497,9 @@ def _auth_callback(pending):
     session['discriminator'] = user_info.get('discriminator', '0000')
     session['avatar'] = user_info.get('avatar')
     session['is_guild_member'] = is_member
+    # A new session id from here on: one planted in this browser beforehand (the cookie domain can
+    # be shared by the site's tools) never becomes a signed-in session.
+    app.session_interface.regenerate(session)
 
     # Signed in, but not on the server yet: the page with the invite, then back.
     if not is_member:

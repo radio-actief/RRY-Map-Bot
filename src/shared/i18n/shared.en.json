@@ -10,6 +10,8 @@
   "menu.signIn": "Sign in with Discord",
   "menu.signInHint": "Sign in to claim your node. Having trouble? Reach Radio-Actief on Discord or open an issue on GitHub.",
   "menu.logOut": "Log out",
+  "signout.title": "Log out",
+  "signout.text": "Log out of #BEmesh in this browser?",
   "menu.myNodes": "My nodes",
   "about.menu": "About",
   "about.title": "About #BEmesh",

@@ -814,3 +814,21 @@ button {
   border-radius: 50%;
   box-shadow: 0 0 0 2px var(--node-rim);
 }
+
+/* /auth/signout: the page other tools link to for logging out, one card with one button. */
+.signout-page {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  margin: 0;
+  padding: 16px;
+  box-sizing: border-box;
+}
+.signout {
+  max-width: 28rem;
+  padding: 24px;
+}
+.signout h1 {
+  margin: 0 0 8px;
+  font-size: 1.25rem;
+}

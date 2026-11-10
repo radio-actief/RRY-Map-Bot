@@ -10,6 +10,8 @@
   "menu.signIn": "Se connecter avec Discord",
   "menu.signInHint": "Connectez-vous pour revendiquer votre nœud. Un souci ? Contactez Radio-Actief sur Discord ou ouvrez une issue sur GitHub.",
   "menu.logOut": "Se déconnecter",
+  "signout.title": "Se déconnecter",
+  "signout.text": "Se déconnecter de #BEmesh dans ce navigateur ?",
   "menu.myNodes": "Mes nœuds",
   "about.menu": "À propos",
   "about.title": "À propos de #BEmesh",

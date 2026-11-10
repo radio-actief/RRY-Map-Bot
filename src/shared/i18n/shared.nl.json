@@ -10,6 +10,8 @@
   "menu.signIn": "Aanmelden met Discord",
   "menu.signInHint": "Meld je aan om je node te claimen. Lukt het niet? Contacteer Radio-Actief op Discord of open een issue op GitHub.",
   "menu.logOut": "Afmelden",
+  "signout.title": "Afmelden",
+  "signout.text": "Afmelden bij #BEmesh in deze browser?",
   "menu.myNodes": "Mijn nodes",
   "about.menu": "Over",
   "about.title": "Over #BEmesh",

@@ -108,6 +108,15 @@ app.config['SESSION_COOKIE_SECURE'] = os.getenv('SESSION_COOKIE_SECURE', 'False'
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 
+
+def session_cookie_domain():
+    """SESSION_COOKIE_DOMAIN from the environment (e.g. ".example.org", so the site's tools on other
+    addresses share the sign-in); None, the default, keeps the cookie on this host only."""
+    return (os.getenv('SESSION_COOKIE_DOMAIN') or '').strip() or None
+
+
+app.config['SESSION_COOKIE_DOMAIN'] = session_cookie_domain()
+
 # Initialize session
 Session(app)
 
@@ -1385,6 +1394,7 @@ def auth_login():
         _oauth_serializer().dumps({'state': state, 'next': next_page}),
         max_age=OAUTH_MAX_AGE_S,
         path='/auth/',
+        domain=app.config['SESSION_COOKIE_DOMAIN'],
         secure=app.config['SESSION_COOKIE_SECURE'],
         httponly=True,
         samesite='Lax',
@@ -1396,7 +1406,7 @@ def auth_login():
 def auth_callback():
     """Handle Discord OAuth2 callback."""
     resp = _auth_callback(read_oauth_pending(request.cookies.get(OAUTH_COOKIE)))
-    resp.delete_cookie(OAUTH_COOKIE, path='/auth/')
+    resp.delete_cookie(OAUTH_COOKIE, path='/auth/', domain=app.config['SESSION_COOKIE_DOMAIN'])
     return resp
 
 
@@ -1460,6 +1470,62 @@ def auth_logout():
     can't sign someone out."""
     session.clear()
     return redirect(_after_auth_target(_safe_next(request.args.get('next')), 'logout=success'))
+
+
+SIGNOUT_LANGS = ('en', 'nl', 'fr')
+
+
+def _shared_messages(lang):
+    """The shared page texts (src/shared/i18n/shared.<lang>.json) over the English ones."""
+    texts = {}
+    for name in dict.fromkeys(('en', lang)):
+        try:
+            with open(os.path.join(PROJECT_ROOT, 'src', 'shared', 'i18n', f'shared.{name}.json'), encoding='utf-8') as f:
+                texts.update(json.load(f))
+        except (OSError, ValueError):
+            pass
+    return texts
+
+
+def _page_lang():
+    """A known ?lang=, else the browser's first known language, else English."""
+    asked = request.args.get('lang')
+    if asked in SIGNOUT_LANGS:
+        return asked
+    return request.accept_languages.best_match(SIGNOUT_LANGS) or 'en'
+
+
+@app.route('/auth/signout')
+def auth_signout():
+    """A page on this site with one button that logs out (a POST from here, so the Origin check
+    passes) and then goes to ?next= when it is a map page or a listed tool. The site's tools on
+    other addresses link here to log out."""
+    from html import escape
+    from urllib.parse import quote
+    lang = _page_lang()
+    texts = _shared_messages(lang)
+    next_page = _safe_next(request.args.get('next'))
+    action = '/auth/logout' + (f'?next={quote(next_page, safe="")}' if next_page else '')
+    body = (
+        '<!doctype html>\n'
+        f'<html lang="{lang}">\n<head>\n<meta charset="utf-8">\n'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
+        f'<title>{escape(texts.get("signout.title", "Log out"))}</title>\n'
+        '<link rel="icon" href="/favicon.ico" sizes="any">\n'
+        '<link rel="stylesheet" href="/src/shared/bemesh-tokens.css">\n'
+        '<link rel="stylesheet" href="/src/shared/bemesh-shell.css">\n'
+        '</head>\n<body class="signout-page">\n<main class="card signout">\n'
+        f'<h1>{escape(texts.get("signout.title", "Log out"))}</h1>\n'
+        f'<p>{escape(texts.get("signout.text", ""))}</p>\n'
+        f'<form method="post" action="{escape(action)}">'
+        f'<button type="submit" class="btn primary">{escape(texts.get("menu.logOut", "Log out"))}</button></form>\n'
+        '</main>\n</body>\n</html>\n'
+    )
+    resp = make_response(body, 200)
+    resp.mimetype = 'text/html'
+    resp.headers['Cache-Control'] = 'no-store'
+    resp.vary.add('Accept-Language')
+    return resp
 
 
 @app.route('/auth/me')

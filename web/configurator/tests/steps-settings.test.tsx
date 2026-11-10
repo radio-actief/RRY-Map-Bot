@@ -532,13 +532,35 @@ describe("Access list card", () => {
     expect(within(list()).getByText("Unchanged")).toBeTruthy();
   });
 
-  it("at 32 entries the card warns", () => {
-    const warn = /keeps at most 32 entries/;
+  it("at 32 entries the card says a new key on the repeater replaces another, even an admin", () => {
+    const warn = /keeps at most 32 keys.*even an admin/;
     render(<SettingsStep />);
     expect(within(list()).queryByText(warn)).toBeNull();
     const full = Array.from({ length: ACL_MAX }, (_, i) => ({ key: i.toString(16).padStart(64, "0"), role: 1 as const }));
     store.plan.value = { ...store.plan.value, acl: full };
     return screen.findByText(warn);
+  });
+
+  it("a 33rd key is refused, also from the map suggestions and by undoing a removal", async () => {
+    const full = Array.from({ length: ACL_MAX }, (_, i) => ({ key: i.toString(16).padStart(64, "0"), role: 3 as const }));
+    withAcl(full);
+    render(<SettingsStep />);
+    add(K4);
+    fireEvent.click(within(list()).getByRole("button", { name: "Add" }));
+    expect(within(list()).getByText("The list is full (32 keys). Remove a key first.")).toBeTruthy();
+    add("Pieter");
+    fireEvent.click(within(list()).getByRole("button", { name: "BE-GNT-Pieter" }));
+    expect(store.plan.value.acl).toHaveLength(ACL_MAX);
+    expect(store.plan.value.acl!.some((e) => e.key === K4)).toBe(false);
+
+    // Removing one makes room; adding the new key fills it again, so the removal can't be undone.
+    fireEvent.click(within(list()).getAllByRole("button", { name: /^Remove/ })[0]);
+    add(K4);
+    fireEvent.click(within(list()).getByRole("button", { name: "Add" }));
+    expect(store.plan.value.acl).toHaveLength(ACL_MAX);
+    fireEvent.click(within(list()).getByRole("button", { name: /^Undo the removal/ }));
+    expect(store.plan.value.acl).toHaveLength(ACL_MAX);
+    expect(within(list()).getByText("The list is full (32 keys). Remove a key first.")).toBeTruthy();
   });
 
   it("without a Read (or a device) keys can be added; they are sent as additions", () => {

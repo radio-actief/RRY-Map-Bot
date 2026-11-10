@@ -23,7 +23,7 @@ import { defaultPlan } from "../src/core/plan";
 import type { Place } from "../src/core/search";
 import { isErrorReply, SerialLink } from "../src/device/serial";
 import { t } from "../src/i18n/t";
-import { connectUsb, deviceCommand } from "../src/state/device";
+import { connectUsb, deviceCommand, secretMask, sendConsole } from "../src/state/device";
 import { dirty, placeChosen, placeLeft, resetPlan, store } from "../src/state/store";
 import { FakePort } from "./fakes/fake-port";
 
@@ -684,5 +684,33 @@ describe("command log", () => {
     expect(logText()).not.toMatch(/abab|cdcd/);
     expect(logText()).toContain("> get prv.key");
     expect(logText()).toContain("> set prv.key (hidden)");
+  });
+});
+
+describe("Command log: passwords", () => {
+  it("hides the admin and guest passwords in commands, echoes and replies", async () => {
+    await connectApp({
+      "password Hunter 2x": "password now: Hunter 2x",
+      "set guest.password g4est pw": "OK",
+      "get guest.password": "> g4est pw",
+    });
+    await sendConsole("password Hunter 2x");
+    await sendConsole("set guest.password g4est pw");
+    await sendConsole("get guest.password");
+    const log = logText();
+    expect(log).not.toContain("Hunter");
+    expect(log).not.toContain("g4est");
+    expect(log).toContain(`password ${t("log.hidden")}`);
+    expect(log).toContain(`password now: ${t("log.hidden")}`);
+    expect(log).toContain(`set guest.password ${t("log.hidden")}`);
+  });
+
+  it("masks a password in an error that quotes the line, and leaves other text alone", () => {
+    const hidden = t("log.hidden");
+    expect(secretMask("password Hunter 2x")("Line too long (200 > 151 bytes): password Hunter 2x…")).toBe(
+      `Line too long (200 > 151 bytes): password ${hidden}`,
+    );
+    expect(secretMask("get name")("> password now: x")).toBe("> password now: x");
+    expect(secretMask("password a")("Error: unknown command")).toBe("Error: unknown command");
   });
 });

@@ -48,24 +48,35 @@ export function clearLog(): void {
   store.log.value = [];
 }
 
+/** A line that sets the admin or guest password (the firmware takes the rest of the line). */
+const SETS_PASSWORD = /^(password|set\s+guest\.password)\s/i;
+
 /**
  * Masks the private key of a `set prv.key` line wherever it shows up (the command, a reply that
  * echoes it in full or in part, a "line too long" error that quotes its start), and any hex that
- * follows `prv.key`. Used for the log and for every reply or error text a drawer command hands back.
+ * follows `prv.key`. For a line that sets a password it also masks the rest of that line where it is
+ * quoted, and the firmware's `password now: <password>` echo. Used for the log and for every reply
+ * or error text a drawer command hands back.
  */
 export function secretMask(cmd: string): (text: string) => string {
   const hidden = t("log.hidden");
   const secret = /^set\s+prv\.key\s+(\S+)/i.exec(cmd)?.[1];
+  const password = SETS_PASSWORD.test(cmd);
   return (text) => {
-    const masked = text
+    let masked = text
       .replace(/(set\s+prv\.key)\s+\S+/gi, `$1 ${hidden}`)
       .replace(/(prv\.key)\s+[0-9a-f]+/gi, `$1 ${hidden}`);
+    if (password) {
+      masked = masked
+        .replace(/(password now:)[^\n]*/gi, `$1 ${hidden}`)
+        .replace(/((?:^|[\s:])(?:set\s+guest\.)?password)\s+(?!now:)[^\n]*/gi, `$1 ${hidden}`);
+    }
     return secret ? masked.split(secret).join(hidden) : masked;
   };
 }
 
-/** A `get prv.key` line: its reply is the private key. */
-const READS_SECRET = /^get\s+prv\.key$/i;
+/** A `get prv.key` or `get guest.password` line: its reply is the secret. */
+const READS_SECRET = /^get\s+(prv\.key|guest\.password)$/i;
 
 /** The read-back after Apply is running: its commands stay out of the log, like a Read's. */
 let readingBack = false;
@@ -109,7 +120,8 @@ let leaving: SerialLink | null = null;
 
 /**
  * Forget what the last Read told about a device (its snapshot, clock, regions and the Read's
- * outcome), so nothing of it is shown for or used against another device. The plan stays.
+ * outcome), so nothing of it is shown for or used against another device. The plan stays
+ * (its access list is dropped separately, see forgetAcl).
  */
 function forgetRead(): void {
   store.snapshot.value = null;
@@ -119,7 +131,31 @@ function forgetRead(): void {
   store.lastRead.value = null;
 }
 
-/** The device is gone: forget it and its Read, with the unplug notice unless it left on purpose. */
+/**
+ * Take the access list out of the plan, its base and its start plan: it is the list of the
+ * repeater that was read, and sent to another one it would give that repeater's admins access.
+ * A plan that was not edited stays not edited.
+ */
+function forgetAcl(): void {
+  const stripped = new Map<Plan, Plan>();
+  const without = (p: Plan): Plan => {
+    if (!p.acl) return p;
+    if (!stripped.has(p)) {
+      const { acl: _acl, ...rest } = p;
+      stripped.set(p, rest);
+    }
+    return stripped.get(p)!;
+  };
+  store.planBase.value = without(store.planBase.peek());
+  store.startPlan.value = without(store.startPlan.peek());
+  store.plan.value = without(store.plan.peek());
+}
+
+/**
+ * The device is gone: forget it and its Read, with the unplug notice unless it left on purpose.
+ * An unplug also drops the access list (another repeater may be plugged in next); a reboot or
+ * other planned leave keeps it, and the next connect drops it.
+ */
 function dropped(link: SerialLink): void {
   if (store.device.peek().link !== link) return;
   const usb = store.device.peek().usb;
@@ -127,7 +163,10 @@ function dropped(link: SerialLink): void {
   deviceReleased(usb);
   forgetRead();
   if (leaving === link) leaving = null;
-  else store.notice.value = { kind: "error", text: t("connect.unplugged") };
+  else {
+    forgetAcl();
+    store.notice.value = { kind: "error", text: t("connect.unplugged") };
+  }
 }
 
 /** Ask the tab that holds this port to let go, then open it here. */
@@ -170,6 +209,7 @@ export async function connectUsb({ requestPort = requestUsbPort, timing }: Conne
   }
   store.notice.value = null;
   forgetRead();
+  forgetAcl();
   store.apply.value = { phase: "idle" };
   store.device.value = { status: "connecting", link: null, firmware: null };
   const link = new SerialLink(port, timing);
@@ -217,6 +257,7 @@ export async function disconnectUsb(): Promise<void> {
   const { link, usb } = store.device.peek();
   store.device.value = NO_DEVICE;
   forgetRead();
+  forgetAcl();
   await link?.close();
   if (link) deviceReleased(usb);
 }

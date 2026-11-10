@@ -114,6 +114,15 @@ export const APPLY_TRIES = 4;
 export const SILENT_STOP = 3;
 
 /**
+ * The error a removal answers when it is sent again after a first try that did run: any error for
+ * `region remove`, and for `setperm <key> 0` the firmware's "not found" ("Err - invalid params").
+ */
+function removedOnFirstTry(command: string, reply: string): boolean {
+  if (/^region remove /.test(command)) return true;
+  return /^setperm [0-9a-f]+ 0$/i.test(command) && reply.trim() === "Err - invalid params";
+}
+
+/**
  * Send the script line by line. A line that gets no reply is tried again (APPLY_TRIES in all);
  * an error reply or a lost link stops at once, never retried; SILENT_STOP lines in a row without
  * a reply stop too. `onProgress(sent, total)` is called as each line is about to go out, so the
@@ -140,10 +149,10 @@ export async function apply(
         // A line that drops the link on purpose answers nothing.
         if (expectsDeviceDisconnect(command)) break;
       }
-      // A removal that errors only on a retry may answer a first try that did run (the region is
-      // gone now): it counts as no reply. Any other error is a real one.
+      // A removal that errors only on a retry may answer a first try that did run (the region or
+      // ACL entry is gone now): it counts as no reply. Any other error is a real one.
       if (isErrorReply(reply)) {
-        if (tries > 1 && /^region remove /.test(command)) reply = "";
+        if (tries > 1 && removedOnFirstTry(command, reply)) reply = "";
         else error = reply;
       }
     } catch (err) {

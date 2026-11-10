@@ -216,6 +216,21 @@ describe("apply: lines that get no reply", () => {
     expect(await apply(link, lines2, () => {})).toEqual({ ok: true, silent: ["region remove be-old"] });
   });
 
+  it("an ACL removal that errors only on a retry counts as no reply: the first try removed it", async () => {
+    const key = "ab".repeat(32);
+    const lines2 = [`setperm ${key} 0`, "region save"];
+    const { link } = await linkTo({ "region save": "OK" }, undefined, { sequence: { [`setperm ${key} 0`]: ["", "Err - invalid params"] } });
+    expect(await apply(link, lines2, () => {})).toEqual({ ok: true, silent: [`setperm ${key} 0`] });
+  });
+
+  it("other setperm errors on a retry still stop Apply", async () => {
+    const key = "ab".repeat(32);
+    const { link: a } = await linkTo({}, undefined, { sequence: { [`setperm ${key} 3`]: ["", "Err - invalid params"] } });
+    expect(await apply(a, [`setperm ${key} 3`], () => {})).toMatchObject({ ok: false, error: "Err - invalid params" });
+    const { link: b } = await linkTo({}, undefined, { sequence: { [`setperm ${key} 0`]: ["", "Err - bad pubkey"] } });
+    expect(await apply(b, [`setperm ${key} 0`], () => {})).toMatchObject({ ok: false, error: "Err - bad pubkey" });
+  });
+
   it("an error reply is not tried again", async () => {
     const { link, port } = await linkTo({ ...replies, "set k2 v": "Err - bad value" });
     await apply(link, lines, () => {});

@@ -5,7 +5,7 @@
 import { hasControlChars, POWER_EMOJIS, prefixFormatFromLegacy, type PowerEmoji } from "./naming";
 import { defaultPlan, hasValidCoords, type Plan, type Radio } from "./plan";
 import { checkRadioValue, RADIO_FIELD_SPECS, type RadioFieldId } from "./presets";
-import { anchorFromChoice, applyLegacyPolicyFields, policyFor, settlePolicy } from "./regions";
+import { anchorFromChoice, applyLegacyPolicyFields, DEFAULT_SCOPE_NONE, HOME_OVERRIDE_OMIT, policyFor, settlePolicy } from "./regions";
 import { locationChoices, type Place } from "./search";
 import { validateSetting, type SettingKey } from "./settings";
 
@@ -66,17 +66,37 @@ function controlText(v: unknown, newlineOk = false): boolean {
 }
 const oneOf = (v: unknown, values: readonly unknown[]) => values.includes(v);
 
+/**
+ * A region code as the script sends it: the firmware splits a line on spaces and a name on ',' and
+ * '|', and keeps 30 bytes of a name.
+ */
+const REGION_CODE = /^[a-z0-9-]{1,30}$/;
+const isCode = (v: unknown) => typeof v === "string" && REGION_CODE.test(v);
+const isCodeOrNull = (v: unknown) => v === null || isCode(v);
+
 function validAnchor(a: unknown): boolean {
   if (a === null) return true;
   return (
     isObject(a) &&
     oneOf(a.mode, ["city", "province", "country"]) &&
-    (a.province_code === null || typeof a.province_code === "string") &&
-    (a.mode === "city" ? isObject(a.place) && typeof a.place.city_code === "string" : a.place === null)
+    isCodeOrNull(a.province_code) &&
+    (a.mode === "city"
+      ? isObject(a.place) && isCode(a.place.city_code) && (a.place.province_code === undefined || isCodeOrNull(a.place.province_code))
+      : a.place === null)
   );
 }
 
-const REGION_CODE = /^[a-z0-9-]{1,30}$/;
+/** Every row's code (and parent, when set) is a region code; home and default are a code or one of their own values. */
+function validRegionCodes(p: Record<string, unknown>): boolean {
+  const rows = p.rows as unknown[];
+  const home = p.homeOverride;
+  const def = p.defaultScope;
+  return (
+    rows.every((r) => isObject(r) && isCode(r.code) && (r.parent === undefined || isCodeOrNull(r.parent))) &&
+    (home === undefined || home === "*" || home === HOME_OVERRIDE_OMIT || isCodeOrNull(home)) &&
+    (def === undefined || def === "<null>" || def === DEFAULT_SCOPE_NONE || isCodeOrNull(def))
+  );
+}
 
 /** A free region row needs a valid region code and a parent that is a valid code or null (top level). */
 function validFreeRow(r: unknown): boolean {
@@ -112,7 +132,8 @@ function planFromV2(raw: unknown): Plan {
       (isObject(raw.regions) &&
         Array.isArray(raw.regions.rows) &&
         raw.regions.rows.every(validFreeRow) &&
-        uniqueFreeCodes(raw.regions.rows)));
+        uniqueFreeCodes(raw.regions.rows) &&
+        validRegionCodes(raw.regions)));
   if (!ok) throw new BackupError("backup.error.invalid");
   // Owner info may hold newlines (sent as '|'); nothing else may hold a control character.
   const { settings, ...rest } = raw;

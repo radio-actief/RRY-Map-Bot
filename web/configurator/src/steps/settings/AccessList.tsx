@@ -46,6 +46,7 @@ export function AccessList() {
   const set = (list: AclEntry[]) => editPlan({ acl: list });
   const add = (key: string) => {
     if (present.has(key)) return setError(t("acl.duplicate"));
+    if (acl.length >= ACL_MAX) return setError(t("acl.fullAdd"));
     const old = read.find((e) => e.key === key);
     set([...acl, old ?? { key, role: 3 }]);
     setText("");

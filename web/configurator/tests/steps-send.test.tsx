@@ -34,7 +34,7 @@ import { SerialLink } from "../src/device/serial";
 import { Panel } from "../src/app/Panel";
 import { Send } from "../src/steps/Send";
 import { AccessList } from "../src/steps/settings/AccessList";
-import { connectUsb, disconnectUsb, readDevice } from "../src/state/device";
+import { connectUsb, disconnectUsb, readDevice, sendConsole } from "../src/state/device";
 import { chooseLocation, dirty, prefs, resetPlan, store } from "../src/state/store";
 import { FakePort } from "./fakes/fake-port";
 import { resetFake } from "./fakes/leaflet";
@@ -679,6 +679,38 @@ describe("Send step: only the changes", () => {
     expect(screen.getByText(/Without a Read, the keys you add are sent as additions/)).toBeTruthy();
     expect(screen.queryByText("removed")).toBeNull();
     expect(screen.getAllByRole("combobox").length).toBe(store.plan.value.acl!.length);
+  });
+
+  it("connecting another repeater drops the access list read from the first", async () => {
+    await connectApp(read);
+    await readDevice();
+    expect(store.plan.value.acl?.length).toBeGreaterThan(0);
+    store.plan.value = { ...store.plan.value, adminPasswordSkip: true, acl: [...store.plan.value.acl!, { key: KEY_B, role: 3 }] };
+    const lines = commandLines(buildScript(store.plan.value, PLACES, { includeDefaults: true }));
+    const other = await connectApp(okReplies(lines));
+    expect(store.plan.value.acl).toBeUndefined();
+    expect(store.startPlan.value.acl).toBeUndefined();
+    render(<Send />);
+    expect(scriptText()).not.toContain("setperm");
+    fireEvent.click(applyButton());
+    await screen.findByRole("button", { name: "Reboot now" });
+    expect(other.received.some((l) => l.startsWith("setperm"))).toBe(false);
+  });
+
+  it("an unplug after a Read drops the access list; the rest of the plan stays", async () => {
+    const opts: { disconnectAfter?: number } = {};
+    const port = await connectApp(read, opts);
+    await readDevice();
+    const name = store.plan.value.nameSuffix;
+    expect(store.plan.value.acl?.length).toBeGreaterThan(0);
+    expect(dirty.value).toBe(false);
+    opts.disconnectAfter = port.received.length + 1;
+    await sendConsole("get name");
+    await waitFor(() => expect(store.device.value.status).toBe("none"));
+    expect(store.plan.value.acl).toBeUndefined();
+    expect(store.startPlan.value.acl).toBeUndefined();
+    expect(store.plan.value.nameSuffix).toBe(name);
+    expect(dirty.value).toBe(false);
   });
 
   it("without a Read the full script is sent", async () => {

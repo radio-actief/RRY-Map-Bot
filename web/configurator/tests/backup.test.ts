@@ -262,4 +262,34 @@ describe("rejected input", () => {
     expect(key(plan(freeRow("zone", null), freeRow("zone", null)))).toBe("backup.error.invalid");
     expect(importBackup(plan(structured, freeRow("zone", "be-wht")), PLACES).regions!.rows).toHaveLength(2);
   });
+
+  it("rejects a v2 plan with a region code the script can't send: every row, the anchor, home and default", () => {
+    const start = importBackup(backup("neighbour-deny"), PLACES);
+    const exported = () => JSON.parse(JSON.stringify(exportBackup(start)));
+    const row = (code: string) => ({ code, label: code, labelKey: "region.kind.device", group: "device", allow: true, deny: false });
+    const withPlan = (edit: (plan: Record<string, any>) => void) => {
+      const b = exported();
+      edit(b.plan);
+      return b;
+    };
+    for (const code of ["be-vbr x", "foo,be-vbr", "a|b", "Be-Vbr", "", "x".repeat(31)]) {
+      expect(key(withPlan((p) => p.regions.rows.push(row(code))))).toBe("backup.error.invalid");
+      expect(key(withPlan((p) => (p.regions.rows[0].code = code)))).toBe("backup.error.invalid");
+      expect(key(withPlan((p) => (p.anchor.place.city_code = code)))).toBe("backup.error.invalid");
+      expect(key(withPlan((p) => (p.anchor.place.province_code = code)))).toBe("backup.error.invalid");
+      expect(key(withPlan((p) => (p.anchor.province_code = code)))).toBe("backup.error.invalid");
+      expect(key(withPlan((p) => (p.regions.homeOverride = code)))).toBe("backup.error.invalid");
+      expect(key(withPlan((p) => (p.regions.defaultScope = code)))).toBe("backup.error.invalid");
+    }
+    expect(key(withPlan((p) => (p.regions.rows[0].parent = "a b")))).toBe("backup.error.invalid");
+    expect(key(withPlan((p) => (p.regions.defaultScope = "*")))).toBe("backup.error.invalid");
+    // The values the steps themselves store stay valid.
+    expect(importBackup(withPlan((p) => p.regions.rows.push(row("be-old"))), PLACES).regions!.rows.at(-1)!.code).toBe("be-old");
+    for (const homeOverride of [null, "*", "__nohome__", "be"]) {
+      expect(() => importBackup(withPlan((p) => (p.regions.homeOverride = homeOverride)), PLACES)).not.toThrow();
+    }
+    for (const defaultScope of [null, "__none__", "<null>", "be"]) {
+      expect(() => importBackup(withPlan((p) => (p.regions.defaultScope = defaultScope)), PLACES)).not.toThrow();
+    }
+  });
 });

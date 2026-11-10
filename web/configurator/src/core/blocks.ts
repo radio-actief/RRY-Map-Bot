@@ -64,14 +64,14 @@ const withSettings = (plan: Plan, settings: Plan["settings"]): Plan => ({
 export const FLOOD_ADVERT_HOURS = { min: 35, max: 59 };
 
 /**
- * The recommended flood advert interval: 35-59 h, picked by the first byte of the repeater's key and
- * spread evenly (each hour by 10 or 11 of the 256 bytes), so the mesh's flood adverts do not all
- * come at once; 47 h while the key is not known.
+ * The recommended flood advert interval: 35 h plus the first 4 bytes of the repeater's key, read as
+ * an unsigned 32-bit number, mod 25, so the mesh's flood adverts do not all come at once; 47 h
+ * while the key is not known.
  */
 export function floodAdvertHoursFor(key: string | undefined): number {
-  const byte = key && /^[0-9a-f]{2}/i.test(key) ? parseInt(key.slice(0, 2), 16) : NaN;
+  const head = key && /^[0-9a-f]{8}/i.test(key) ? parseInt(key.slice(0, 8), 16) : NaN;
   const { min, max } = FLOOD_ADVERT_HOURS;
-  return Number.isNaN(byte) ? 47 : min + Math.floor((byte * (max - min + 1)) / 256);
+  return Number.isNaN(head) ? 47 : min + (head % (max - min + 1));
 }
 
 /** The firmware's own default: a repeater on it has not been given an interval yet. */

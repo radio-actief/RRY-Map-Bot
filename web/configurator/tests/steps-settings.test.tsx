@@ -245,6 +245,11 @@ describe("Settings step", () => {
     expect(fold.open).toBe(true);
   });
 
+  it("the flood advert says its recommended hour comes from the repeater's key", () => {
+    render(<SettingsStep />);
+    expect(within(fieldOf("Flood advert (hours)")).getByText(/hour comes from the repeater's key/)).toBeTruthy();
+  });
+
   it("an empty hop field hints the value it will send: the #BEmesh 4/6/10", () => {
     resetPlan(newPlan());
     render(<SettingsStep />);

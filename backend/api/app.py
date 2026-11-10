@@ -173,13 +173,60 @@ def _cache_policy(path: str) -> Optional[str]:
 
 @app.after_request
 def same_origin_opener(resp):
-    """Every page: Cross-Origin-Opener-Policy same-origin, as the site's other tools send it.
-
-    A page that opens another (the configurator and NodeBook hand settings over this way) keeps
-    window.opener only when both send the same policy; it also cuts the link to other sites' pages.
-    """
+    """Every page: Cross-Origin-Opener-Policy same-origin, as the site's other tools send it: no
+    window of another origin keeps a link to these pages. (In a frame, as the device hub is, it has
+    no effect.)"""
     if resp.mimetype == 'text/html':
         resp.headers.setdefault('Cross-Origin-Opener-Policy', 'same-origin')
+    return resp
+
+
+def csp_enabled():
+    """CSP_ENABLED from the environment: on unless "false", "0", "off" or "no" (for local debugging only)."""
+    return (os.getenv('CSP_ENABLED') or 'true').strip().lower() not in ('false', '0', 'off', 'no')
+
+
+CSP_ENABLED = csp_enabled()
+
+# What the pages load from elsewhere. Scripts: the files they take from the CDN, pinned by version
+# (the map's QR codes and the module those import, the stats charts, the region map's geometry;
+# Turf 7: version 6 builds code with eval).
+CSP_CDN_SCRIPTS = (
+    'https://cdn.jsdelivr.net/npm/qrcode@1.5.4/+esm',
+    'https://cdn.jsdelivr.net/npm/dijkstrajs@1.0.3/+esm',
+    'https://cdn.jsdelivr.net/npm/apexcharts@3.45.1/dist/apexcharts.min.js',
+    'https://cdn.jsdelivr.net/npm/@turf/turf@7.2.0/turf.min.js',
+)
+# Images: map tiles, and QR codes drawn as data: URLs.
+CSP_IMAGES = (
+    "'self'", 'data:', 'blob:',
+    'https://tile.openstreetmap.org', 'https://*.tile.openstreetmap.org', 'https://server.arcgisonline.com',
+)
+
+
+def page_policy():
+    """The Content-Security-Policy of the map's pages and the configurator. The listed tools on their
+    own address may be asked for data (the popup's NodeBook lookup) and are where log out may return."""
+    tools = tool_origins(SITE_TOOLS)
+    directives = [
+        ("default-src", ["'self'"]),
+        ("script-src", ["'self'", *CSP_CDN_SCRIPTS]),
+        ("style-src", ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com']),
+        ("font-src", ["'self'", 'https://fonts.gstatic.com']),
+        ("img-src", list(CSP_IMAGES)),
+        ("connect-src", ["'self'", *tools]),
+        ("form-action", ["'self'", *tools]),
+        ("object-src", ["'none'"]),
+        ("base-uri", ["'self'"]),
+    ]
+    return '; '.join(f"{name} {' '.join(sources)}" for name, sources in directives)
+
+
+@app.after_request
+def content_security_policy(resp):
+    """Every HTML page gets page_policy(), unless it set its own (the device hub)."""
+    if CSP_ENABLED and resp.mimetype == 'text/html' and 'Content-Security-Policy' not in resp.headers:
+        resp.headers['Content-Security-Policy'] = page_policy()
     return resp
 
 
@@ -1336,7 +1383,7 @@ def internal_error(error):
 
 # OAuth2 Routes
 NEXT_PAGES = ('/', '/stats', '/region-map', '/configurator')
-# More tools on this site (config SITE_TOOLS_JSON); none on a site that only runs the map.
+# The site's other tools (config SITE_TOOLS_JSON); none on a site that only runs the map.
 SITE_TOOLS = config_site_tools
 
 

@@ -74,7 +74,8 @@ DISCORD_OAUTH2_SCOPE = 'identify guilds'  # Need identify and guilds to check se
 # A stand-in Discord on a test site; Discord itself when unset.
 DISCORD_API_BASE_URL = (os.getenv('DISCORD_API_BASE_URL') or 'https://discord.com/api/v10').rstrip('/')
 
-# More tools served on the same site (SITE_TOOLS_JSON), e.g. NodeBook; none on a site that only runs the map.
+# The site's other tools (SITE_TOOLS_JSON), e.g. NodeBook, on a path of this site or on their own
+# address; none on a site that only runs the map. Format: DEPLOYMENT.md.
 SITE_TOOLS = parse_site_tools(os.getenv('SITE_TOOLS_JSON'))
 DISCORD_SERVER_INVITE_URL = os.getenv('DISCORD_SERVER_INVITE_URL', 'https://discord.gg/kvybAgqnhD')
 

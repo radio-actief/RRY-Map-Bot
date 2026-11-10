@@ -32,22 +32,7 @@
     <title data-i18n="regionMap.title">Region codes map – #BEmesh</title>
   </head>
   <body class="region-map-body">
-    <script>
-      (function () {
-        var q = new URLSearchParams(window.location.search || "");
-        var ev = (q.get("embed") || "").toLowerCase();
-        var embedParam = ev === "1" || ev === "true" || (q.has("embed") && ev === "");
-        var inFrame = false;
-        try {
-          inFrame = window.self !== window.top;
-        } catch (e) {
-          inFrame = true;
-        }
-        if (embedParam || inFrame) {
-          document.documentElement.classList.add("region-map-embed");
-        }
-      })();
-    </script>
+    <script src="./src/region-map-embed.js"></script>
     <header class="topbar">
       <span class="wordmark"><b>#BE</b><span data-i18n="regionMap.wordmark">mesh region map</span></span>
       <nav class="switcher" aria-label="Pages" data-i18n-attr="aria-label:top.pages">
@@ -128,7 +113,7 @@
 
     <script src="./lib/leaflet.js"></script>
     <script src="./lib/leaflet.markercluster.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@7.2.0/turf.min.js"></script>
     <script src="./src/shared/be-regions.js"></script>
     <script src="./src/shared/about.js"></script>
     <script src="./src/shared/topbar.js"></script>

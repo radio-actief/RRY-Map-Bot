@@ -10,6 +10,8 @@ import {
   shallowRef,
 } from "../lib/vue.esm-browser.prod.js";
 import * as ntools from "./node-utils.js";
+// The #app template of index.html, compiled ahead of time (npm run build:map): no eval in the page.
+import { render } from "./map-app.render.js";
 import { copyText } from "./shared/clipboard.js";
 import { settleAfterKeyboard } from "./shared/viewport-settle.js";
 import { nodebookApiUrl, nodebookFetchInit, nodebookState, toolLinksHtml } from "./site-tools.js";
@@ -588,7 +590,7 @@ function buildCoordsMenuWrapFromLatLon(latN, lonN, toggleLabelEscaped) {
   const mapy = `https://mapy.com/?q=${latN},${lonN}`;
   return (
     `<span class="coords-menu-wrap">` +
-    `<a href="#" class="coords-menu-toggle" onclick="event.preventDefault();event.stopPropagation();this.parentElement.classList.toggle('open');return false;" title="${escapeAttrHtml(t("map.coordsMenu"))}">${toggleLabelEscaped}</a>` +
+    `<a href="#" class="coords-menu-toggle" title="${escapeAttrHtml(t("map.coordsMenu"))}">${toggleLabelEscaped}</a>` +
     `<span class="coords-menu">${createCopyableElement(plain, t("map.copyCoords"))}<a href="${osm}" target="_blank" rel="noopener noreferrer">OpenStreetMap</a><a href="${gMap}" target="_blank" rel="noopener noreferrer">Google Maps</a><a href="${mapy}" target="_blank" rel="noopener noreferrer">Mapy.com</a></span>` +
     `</span>`
   );
@@ -760,7 +762,7 @@ function buildAnalyzerFooterMenu(node, letsMeshUrl) {
   const o8 = escapeAttrHtml(on8arUrl);
   return (
     `<span class="coords-menu-wrap node-popup-analyzer-menu">` +
-    `<a href="#" class="node-popup-action node-popup-action--external node-popup-action--icon-only node-popup-analyzer-menu__toggle" onclick="event.preventDefault();event.stopPropagation();this.parentElement.classList.toggle('open');return false;" title="${escapeAttrHtml(t("map.analyzer"))}" aria-label="${escapeAttrHtml(t("map.analyzer"))}"><i class="bi bi-search" aria-hidden="true"></i></a>` +
+    `<a href="#" class="node-popup-action node-popup-action--external node-popup-action--icon-only node-popup-analyzer-menu__toggle" title="${escapeAttrHtml(t("map.analyzer"))}" aria-label="${escapeAttrHtml(t("map.analyzer"))}"><i class="bi bi-search" aria-hidden="true"></i></a>` +
     `<span class="coords-menu" role="menu">` +
     `<a role="menuitem" href="${lm}" target="_blank" rel="noopener noreferrer">Let\u2019s Mesh Analyzer</a>` +
     `<a role="menuitem" href="${o8}" target="_blank" rel="noopener noreferrer">ON8AR Analyzer</a>` +
@@ -1329,7 +1331,7 @@ function getTable(node, authState = null, nodes = []) {
     (() => {
       const isUnclaimed =
         !node.discord_owner_name || node.discord_owner_name.trim() === "";
-      // Only a hex key goes into the claim buttons' click code (the server checks it too).
+      // Only a hex key goes into the claim buttons (the server checks it too).
       const publicKey = /^[0-9a-f]{1,64}$/i.test(node.public_key || "") ? node.public_key : "";
 
       const footerStart = buildAnalyzerFooterMenu(node, analyzerUrl);
@@ -1337,7 +1339,7 @@ function getTable(node, authState = null, nodes = []) {
       let footerCenter = "";
       if (authState && authState.authenticated && publicKey) {
         if (isUnclaimed) {
-          footerCenter = `<a href="javascript:void(0)" class="node-popup-action node-popup-action--claim" onclick="window.claimNode('${publicKey}')">${escapeAttrHtml(t("map.claim"))}</a>`;
+          footerCenter = `<a href="#" role="button" class="node-popup-action node-popup-action--claim" data-popup-action="claim" data-public-key="${publicKey}">${escapeAttrHtml(t("map.claim"))}</a>`;
         } else {
           const nodeOwnerId = node.discord_owner_id;
           const currentUserId = authState.user?.id;
@@ -1347,7 +1349,7 @@ function getTable(node, authState = null, nodes = []) {
             currentUserId &&
             String(nodeOwnerId) === String(currentUserId)
           ) {
-            footerCenter = `<a href="javascript:void(0)" class="node-popup-action node-popup-action--danger" onclick="window.unclaimNode('${publicKey}')">${escapeAttrHtml(t("map.unclaim"))}</a>`;
+            footerCenter = `<a href="#" role="button" class="node-popup-action node-popup-action--danger" data-popup-action="unclaim" data-public-key="${publicKey}">${escapeAttrHtml(t("map.unclaim"))}</a>`;
           }
         }
       } else if (isUnclaimed) {
@@ -1378,15 +1380,45 @@ function getTable(node, authState = null, nodes = []) {
   );
 }
 
+/**
+ * The popup's menu toggles (coordinates, analyzers) and its Claim and Unclaim, by delegation: the
+ * page allows no inline handlers. Capture phase, as the copy handlers: Leaflet stops clicks at the popup.
+ */
+function setupPopupActionHandlers() {
+  document.addEventListener(
+    "click",
+    (e) => {
+      const toggle = e.target?.closest?.(".coords-menu-toggle, .node-popup-analyzer-menu__toggle");
+      if (toggle) {
+        e.preventDefault();
+        e.stopPropagation();
+        toggle.parentElement?.classList.toggle("open");
+        return;
+      }
+      const action = e.target?.closest?.("[data-popup-action]");
+      if (!action) return;
+      e.preventDefault();
+      const key = action.getAttribute("data-public-key") || "";
+      if (!/^[0-9a-f]{1,64}$/i.test(key)) return;
+      const kind = action.getAttribute("data-popup-action");
+      if (kind === "claim") window.claimNode?.(key);
+      else if (kind === "unclaim") window.unclaimNode?.(key);
+    },
+    true,
+  );
+}
+
 // Initialize copy handlers when DOM is ready
 if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", () => {
     setupCopyHandlers();
     setupNodeQrCardHandlers();
+    setupPopupActionHandlers();
   });
 } else {
   setupCopyHandlers();
   setupNodeQrCardHandlers();
+  setupPopupActionHandlers();
 }
 
 window.isNewerThan = (date, days) => {
@@ -2673,7 +2705,7 @@ createApp({
       app.urlParams.lon = pos.lng.toFixed(4);
     });
 
-    // Expose functions globally for onclick handlers
+    // For the popup's Claim and Unclaim (setupPopupActionHandlers)
     window.claimNode = claimNode;
     window.unclaimNode = unclaimNode;
 
@@ -2914,4 +2946,5 @@ createApp({
       unclaimNode,
     };
   },
+  render,
 }).mount("#app");

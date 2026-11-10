@@ -143,9 +143,19 @@ export type ApplyState =
       done: number;
       /** Region changes went through but `region save` did not. */
       regionsUnsaved: boolean;
+      /** It stopped answering: this many lines in a row got no reply (error is empty). */
+      silent?: number;
     }
   | { phase: "error"; reason: string }
-  | { phase: "done"; total: number; offerReboot: boolean; radioChanged: boolean; clock: ClockOutcome };
+  | {
+      phase: "done";
+      total: number;
+      offerReboot: boolean;
+      radioChanged: boolean;
+      clock: ClockOutcome;
+      /** Lines that got no reply, though sending went on. */
+      silent: number;
+    };
 
 /**
  * Counting the repeater's neighbours for its timing: listening (round of rounds, seconds left of

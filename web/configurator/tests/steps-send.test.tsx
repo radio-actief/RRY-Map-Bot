@@ -311,6 +311,33 @@ describe("Send step: Apply", () => {
     await waitFor(() => expect(writeText).toHaveBeenCalledWith(lines.slice(2).join("\n")));
   });
 
+  it("a repeater that stops answering: Apply stops after 3 silent lines in a row and says region save is still to come", async () => {
+    const lines = applyLines();
+    const save = lines.indexOf("region save");
+    expect(save).toBeGreaterThan(3);
+    const silent = lines.slice(save - 3, save);
+    const { port } = await connect({ ...okReplies(lines), ...Object.fromEntries(silent.map((l) => [l, ""])) });
+    render(<Send />);
+    fireEvent.click(applyButton());
+    expect(
+      await screen.findByText("It stopped answering after 3 lines in a row. Check that it is on and in reach, then try again.", { selector: ".notice p" }),
+    ).toBeTruthy();
+    expect(screen.getByText("Region changes only count once region save is sent, so send again to finish.")).toBeTruthy();
+    expect(port.received).not.toContain("region save");
+    expect(port.received.filter((l) => l === silent[0])).toHaveLength(4);
+    expect(screen.queryByRole("button", { name: "Reboot now" })).toBeNull();
+  });
+
+  it("a line that never answers is tried again, and Apply goes on and says the log shows it", async () => {
+    const lines = applyLines();
+    const { port } = await connect({ ...okReplies(lines), [lines[1]]: "" });
+    render(<Send />);
+    fireEvent.click(applyButton());
+    expect(await screen.findByRole("button", { name: "Reboot now" })).toBeTruthy();
+    expect(port.received.filter((l) => l === lines[1])).toHaveLength(4);
+    expect(screen.getByText("Saved. 1 line got no reply; the log shows which.", { selector: ".notice" })).toBeTruthy();
+  });
+
   it("an unplug during Apply stops it and shows the unplug notice", async () => {
     const lines = applyLines();
     // connect's `ver`, Apply's `ver`, then commands 1-3.

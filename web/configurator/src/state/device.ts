@@ -320,9 +320,11 @@ export async function applyPlan(script: ScriptGroup[], { skipFirmwareCheck = fal
       store.aclSaveUntil.value = Date.now() + ACL_SAVE_WAIT_MS;
     }
     if (!result.ok) {
-      const { failedAt, command, error, remaining } = result;
-      store.apply.value = { phase: "failed", failedAt, total, command, error, remaining, ...stoppedApply(lines, failedAt) };
-      appendLog({ text: t("apply.stopped", { n: failedAt, total, command }), kind: "error" });
+      const { failedAt, command, error, remaining, silent } = result;
+      // Lines that got no reply may still have gone through: the silent stop counts them as sent.
+      const stopped = stoppedApply(lines, silent ? failedAt + 1 : failedAt);
+      store.apply.value = { phase: "failed", failedAt, total, command, error, remaining, ...stopped, ...(silent ? { silent } : {}) };
+      appendLog({ text: silent ? t("apply.silent", { lines: silent }) : t("apply.stopped", { n: failedAt, total, command }), kind: "error" });
       return;
     }
     if (plan.anchor) {
@@ -335,6 +337,7 @@ export async function applyPlan(script: ScriptGroup[], { skipFirmwareCheck = fal
     store.apply.value = { phase: "readBack", total };
     await readBack(link, plan);
     appendLog({ text: t("log.applied"), kind: "ok" });
+    if (result.silent.length) appendLog({ text: t("apply.savedSilent", { count: result.silent.length }), kind: "muted" });
     const stillConnected = link.connected && store.device.peek().link === link;
     store.apply.value = {
       phase: "done",
@@ -342,6 +345,7 @@ export async function applyPlan(script: ScriptGroup[], { skipFirmwareCheck = fal
       offerReboot: stillConnected,
       radioChanged: lines.some((l) => NEEDS_REBOOT.test(l)),
       clock,
+      silent: result.silent.length,
     };
   } catch (err) {
     store.apply.value = { phase: "error", reason: reasonOf(err) };

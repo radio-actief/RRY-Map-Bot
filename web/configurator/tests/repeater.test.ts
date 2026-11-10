@@ -1,14 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 import read from "./fixtures/read-ronse.json";
-import { FakePort } from "./fakes/fake-port";
+import { FakePort, type FakePortOptions } from "./fakes/fake-port";
 import { SerialLink, isErrorReply } from "../src/device/serial";
 import { READ_BACK_COMMANDS, READ_COMMANDS, apply, checkFirmware, readAll, readCount, run, stoppedApply } from "../src/device/repeater";
 import { regionReplies, type FwRegion } from "./fakes/region-firmware";
 
 const FAST = { interCommandDelayMs: 0, bootDrainMs: 0, disconnectSettleMs: 0, replyTimeoutMs: 40 };
 
-async function linkTo(replies: Record<string, string>, disconnectAfter?: number) {
-  const port = new FakePort(replies, { disconnectAfter });
+async function linkTo(replies: Record<string, string>, disconnectAfter?: number, opts: FakePortOptions = {}) {
+  const port = new FakePort(replies, { disconnectAfter, ...opts });
   const link = new SerialLink(port, FAST);
   await link.open();
   return { port, link };
@@ -136,7 +136,7 @@ describe("apply", () => {
   it("sends every line", async () => {
     const { link, port } = await linkTo(replies);
     const seen: number[] = [];
-    expect(await apply(link, lines, (n) => seen.push(n))).toEqual({ ok: true });
+    expect(await apply(link, lines, (n) => seen.push(n))).toEqual({ ok: true, silent: [] });
     expect(port.received).toEqual(lines);
     expect(seen).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
   });
@@ -159,6 +159,45 @@ describe("apply", () => {
     expect(r).toMatchObject({ ok: false, failedAt: 3, error: "Err - bad value" });
     expect(port.received.filter((l) => l === "set k2 v")).toHaveLength(1);
     expect(port.received).toHaveLength(3);
+  });
+});
+
+describe("apply: lines that get no reply", () => {
+  const lines = Array.from({ length: 8 }, (_, i) => `set k${i} v`);
+  const replies = Object.fromEntries(lines.map((l) => [l, "OK"]));
+  const sent = (port: FakePort, line: string) => port.received.filter((l) => l === line).length;
+
+  it("a line with no reply is tried again, and counts once it answers", async () => {
+    const { link, port } = await linkTo(replies, undefined, { sequence: { "set k2 v": ["", "", "OK"] } });
+    const seen: number[] = [];
+    expect(await apply(link, lines, (n) => seen.push(n))).toEqual({ ok: true, silent: [] });
+    expect(sent(port, "set k2 v")).toBe(3);
+    expect(seen).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+  });
+
+  it("gives up on a line after 4 tries and carries on; the result names it", async () => {
+    const { link, port } = await linkTo({ ...replies, "set k2 v": "" });
+    expect(await apply(link, lines, () => {})).toEqual({ ok: true, silent: ["set k2 v"] });
+    expect(sent(port, "set k2 v")).toBe(4);
+    expect(port.received.at(-1)).toBe("set k7 v");
+  });
+
+  it("stops when 3 lines in a row get no reply", async () => {
+    const { link, port } = await linkTo({ ...replies, "set k2 v": "", "set k3 v": "", "set k4 v": "" });
+    const r = await apply(link, lines, () => {});
+    expect(r).toEqual({ ok: false, failedAt: 5, command: "set k4 v", error: "", remaining: lines.slice(5), silent: 3 });
+    expect(port.received).not.toContain("set k5 v");
+  });
+
+  it("a reply between them starts the count again", async () => {
+    const { link } = await linkTo({ ...replies, "set k1 v": "", "set k2 v": "", "set k4 v": "", "set k5 v": "" });
+    expect(await apply(link, lines, () => {})).toEqual({ ok: true, silent: ["set k1 v", "set k2 v", "set k4 v", "set k5 v"] });
+  });
+
+  it("an error reply is not tried again", async () => {
+    const { link, port } = await linkTo({ ...replies, "set k2 v": "Err - bad value" });
+    await apply(link, lines, () => {});
+    expect(sent(port, "set k2 v")).toBe(1);
   });
 });
 
@@ -186,7 +225,7 @@ describe("after a timeout", () => {
   it("carries on past gps advert on firmware built without GPS", async () => {
     const lines = ["set lat 0", "set lon 0", "gps advert none", "region home be"];
     const { link, port } = await linkTo({ "set lat 0": "OK", "set lon 0": "OK", "gps advert none": "Unknown command", "region home be": "OK" });
-    expect(await apply(link, lines, () => {})).toEqual({ ok: true });
+    expect(await apply(link, lines, () => {})).toEqual({ ok: true, silent: [] });
     expect(port.received).toEqual(lines);
   });
 

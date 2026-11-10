@@ -37,6 +37,17 @@ describe("settings hand-off", () => {
     expect(handoffFromPlan(p, PLACES, "configurator", new Date(), board).settings["radio.fem.rxgain"]).toBe("off");
   });
 
+  it("takes radio.fem.rxgain from NodeBook, but sends it only to a board whose own Read answered", () => {
+    const msg = handoffFromPlan(plan("brussels"), PLACES);
+    msg.settings["radio.fem.rxgain"] = "off";
+    const p = planFromSnapshot(snapshotFromHandoff(msg).snapshot, PLACES);
+    expect(p.settings.radioFemRxgain).toBe("off");
+    const lines = (board?: object) => commandLines(buildScript(p, PLACES, { includeDefaults: true, board: board as never }));
+    expect(lines()).not.toContain("set radio.fem.rxgain off");
+    expect(lines({ settings: {}, missing: ["get radio.fem.rxgain"] })).not.toContain("set radio.fem.rxgain off");
+    expect(lines({ settings: { radioFemRxgain: "on" }, missing: [] })).toContain("set radio.fem.rxgain off");
+  });
+
   it("never carries passwords, the private key or the clock", () => {
     const p = plan("admin-password");
     const msg = handoffFromPlan(p, PLACES);

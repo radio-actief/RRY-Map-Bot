@@ -324,17 +324,47 @@ def test_claim_outside_the_home_server_is_refused(db, monkeypatch):
 
 def test_claim_success_is_private_then_announced_with_a_map_button(db, monkeypatch):
     monkeypatch.setattr(bot_mod, "DISCORD_GUILD_ID", "999")
-    inter = FakeInteraction(user_id=333, name="carol")
-    run(bot_mod.node_claim.callback(inter, "a1" * 32))
 
-    assert inter.response.deferred == {"ephemeral": True, "thinking": True}
-    assert "Claimed" in inter.original_edits[0]["embed"].description
-    _, kwargs = inter.followup.sent[0]
+    async def flow():
+        inter = FakeInteraction(user_id=333, name="carol")
+        await bot_mod.node_claim.callback(inter, "a1" * 32)
+        assert inter.response.deferred == {"ephemeral": True, "thinking": True}
+        view = inter.followup.sent[0][1]["view"]
+        click = FakeInteraction(user_id=333, name="carol")
+        await view.confirm_claim.callback(click)
+        return click
+
+    click = run(flow())
+    assert "Claimed" in click.original_edits[0]["embed"].description
+    _, kwargs = click.followup.sent[0]
     assert "ephemeral" not in kwargs  # the announcement is public
     lines = kwargs["embed"].description.split("\n")
     assert lines[0] == "<@333> claimed this node." and len(lines) == 2
     assert _buttons(kwargs["view"])[0] == ("Open on map", "https://meshmap.radio-actief.be/?node=a1a1a1a1a1a1")
     assert _claims(db) == [("a1" * 32, "333", "claim", "bot")]
+
+
+def test_claim_of_a_single_typed_match_asks_first(db):
+    async def flow():
+        inter = FakeInteraction(user_id=333)
+        await bot_mod.node_claim.callback(inter, "Leuven Rep")
+        _, kwargs = inter.followup.sent[0]
+        assert kwargs["embed"].title == "⚠️ Claim this node?"
+        assert "Leuven Rep" in kwargs["embed"].description
+        assert isinstance(kwargs["view"], bot_mod.ClaimConfirmView)
+        assert kwargs["view"].message is not None
+        assert _owner(db, "a1" * 32) is None  # nothing claimed yet
+
+        other = FakeInteraction(user_id=444)
+        assert await kwargs["view"].interaction_check(other) is False
+
+        cancel = FakeInteraction(user_id=333)
+        await kwargs["view"].cancel.callback(cancel)
+        assert "cancelled" in cancel.response.edited[0]["embed"].description
+
+    run(flow())
+    assert _owner(db, "a1" * 32) is None
+    assert _claims(db) == []
 
 
 @pytest.mark.parametrize("user_id,query,expected", [
@@ -365,9 +395,17 @@ def test_claim_lost_race_explains_instead_of_a_db_error(db, monkeypatch):
         return "This node is already claimed by <@9>:\nline"
 
     monkeypatch.setattr(bot_mod, "explain_unclaimable", claimed_meanwhile)
-    inter = FakeInteraction(user_id=333)
-    run(bot_mod.node_claim.callback(inter, "a1" * 32))
-    assert inter.followup.sent[0][1]["embed"].description.startswith("This node is already claimed by <@9>")
+
+    async def flow():
+        inter = FakeInteraction(user_id=333)
+        await bot_mod.node_claim.callback(inter, "a1" * 32)
+        click = FakeInteraction(user_id=333)
+        await inter.followup.sent[0][1]["view"].confirm_claim.callback(click)
+        return click
+
+    click = run(flow())
+    assert click.original_edits[0]["embed"].description.startswith("This node is already claimed by <@9>")
+    assert click.followup.sent == []
 
 
 # ---------------------------------------------------------------- I4 unclaim
@@ -486,6 +524,27 @@ def test_digest_run_hides_internals(db, monkeypatch):
         run(bot_mod.digest_run.callback(inter))
     run(bot_mod.on_app_command_error(inter, app_commands.CommandInvokeError(inter.command, exc.value)))
     assert inter.followup.sent == [(bot_mod.GENERIC_ERROR, {"ephemeral": True})]
+
+
+def test_digest_run_only_in_the_home_server(db, monkeypatch):
+    monkeypatch.setattr(bot_mod, "DISCORD_GUILD_ID", "999")
+    calls = []
+
+    async def post(*a, **k):
+        calls.append(k)
+        return True
+
+    monkeypatch.setattr(bot_mod, "post_daily_digest", post)
+    inter = FakeInteraction(guild_id=123)
+    inter.user.guild_permissions = discord.Permissions(manage_guild=True)
+    run(bot_mod.digest_run.callback(inter))
+    assert calls == []
+    assert inter.response.sent == [(bot_mod.DIGEST_NOT_IN_SERVER, {"ephemeral": True})]
+
+    inter = FakeInteraction(guild_id=999)
+    inter.user.guild_permissions = discord.Permissions(manage_guild=True)
+    run(bot_mod.digest_run.callback(inter))
+    assert calls == [{"force": True}]
 
 
 # ---------------------------------------------------------------- M13 intents

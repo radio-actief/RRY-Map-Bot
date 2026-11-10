@@ -116,6 +116,7 @@ from backend.discord_queries import (
 
 GENERIC_ERROR = "Something went wrong — try again in a minute."
 NOT_IN_SERVER = f"Claiming only works inside the {BEMESH} Discord server."
+DIGEST_NOT_IN_SERVER = f"The digest can only be run inside the {BEMESH} Discord server."
 
 # Server (custom) emojis used in bot texts as :name:. Unicode emoji are written
 # as the characters themselves: Discord does not turn :shortcodes: sent by a
@@ -619,8 +620,8 @@ search_source_choices = [
 ]
 
 
-class UnclaimConfirmView(discord.ui.View):
-    """Yes / Cancel for /node unclaim; only the person who asked can answer."""
+class ConfirmView(discord.ui.View):
+    """Yes / Cancel prompt about one node; only the person who asked can answer."""
 
     def __init__(self, node: Dict[str, Any], user_id: str):
         super().__init__(timeout=60.0)
@@ -656,13 +657,28 @@ class UnclaimConfirmView(discord.ui.View):
         traceback.print_exception(type(error), error, error.__traceback__)
         await send_error_reply(interaction)
 
-    @discord.ui.button(label="Yes, unclaim", style=discord.ButtonStyle.danger, emoji="✅")
-    async def confirm_unclaim(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def _answer(self, interaction: discord.Interaction) -> bool:
+        """Take the first click; a second click is only acknowledged. True for the first."""
         if self.chosen:
             await interaction.response.defer()  # second click: already being handled
-            return
+            return False
         self.chosen = True
         self.stop()
+        return True
+
+    async def _cancelled(self, interaction: discord.Interaction, text: str) -> None:
+        if not await self._answer(interaction):
+            return
+        await interaction.response.edit_message(content=None, embed=notice_embed(text), view=None)
+
+
+class UnclaimConfirmView(ConfirmView):
+    """Yes / Cancel for /node unclaim."""
+
+    @discord.ui.button(label="Yes, unclaim", style=discord.ButtonStyle.danger, emoji="✅")
+    async def confirm_unclaim(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not await self._answer(interaction):
+            return
         await interaction.response.defer()
 
         if not await run_db(remove_ownership, self.node['public_key'], self.user_id, source='bot'):
@@ -683,16 +699,43 @@ class UnclaimConfirmView(discord.ui.View):
 
     @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary, emoji="❌")
     async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if self.chosen:
-            await interaction.response.defer()
+        await self._cancelled(interaction, "Unclaim cancelled. Nothing changed.")
+
+
+class ClaimConfirmView(ConfirmView):
+    """Yes / Cancel for /node claim, so a typed name never claims someone else's node by accident."""
+
+    @discord.ui.button(label="Yes, claim", style=discord.ButtonStyle.success, emoji="✅")
+    async def confirm_claim(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not await self._answer(interaction):
             return
-        self.chosen = True
-        self.stop()
-        await interaction.response.edit_message(
-            content=None,
-            embed=notice_embed("Unclaim cancelled. Nothing changed."),
+        await interaction.response.defer()
+
+        claimed = await run_db(
+            update_ownership,
+            self.node['public_key'],
+            self.user_id,
+            interaction.user.name,
+            source='bot',
+        )
+        if not claimed:
+            # Someone claimed it (or it went inactive) a moment ago.
+            reason = await run_db(explain_unclaimable, self.node['public_key'], self.user_id)
+            await interaction.edit_original_response(embed=notice_embed(reason), view=None)
+            return
+
+        await interaction.edit_original_response(
+            embed=notice_embed("✅ Claimed. The announcement is in the channel.", COLOR_OK),
             view=None,
         )
+        await interaction.followup.send(
+            embed=build_claim_embed(self.node, self.user_id),
+            view=map_view(get_map_link(self.node, short=True), "Open on map", my_nodes=True),
+        )
+
+    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary, emoji="❌")
+    async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._cancelled(interaction, "Claim cancelled. Nothing changed.")
 
 
 def run_search(filters: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], int]:
@@ -905,26 +948,12 @@ async def node_claim(interaction: discord.Interaction, query: str):
         return
 
     node = ensure_node_params(nodes[0])
-    claimed = await run_db(
-        update_ownership,
-        node['public_key'],
-        user_id,
-        interaction.user.name,
-        source='bot',
+    embed = notice_embed(
+        f"{format_node_line(node, owner=False)}\n\nAfter this, you are shown as its owner on the map.",
+        title="⚠️ Claim this node?",
     )
-    if not claimed:
-        # Someone claimed it (or it went inactive) a moment ago.
-        reason = await run_db(explain_unclaimable, node['public_key'], user_id)
-        await interaction.followup.send(embed=notice_embed(reason))
-        return
-
-    await interaction.edit_original_response(
-        embed=notice_embed("✅ Claimed. The announcement is in the channel.", COLOR_OK),
-    )
-    await interaction.followup.send(
-        embed=build_claim_embed(node, user_id),
-        view=map_view(get_map_link(node, short=True), "Open on map", my_nodes=True),
-    )
+    view = ClaimConfirmView(node, user_id)
+    view.message = await interaction.followup.send(embed=embed, view=view, wait=True)
 
 
 @node_claim.autocomplete('query')
@@ -1198,6 +1227,9 @@ def _is_guild_admin(interaction: discord.Interaction) -> bool:
 
 @digest_group.command(name="run", description="Post the daily digest now (admin only)")
 async def digest_run(interaction: discord.Interaction) -> None:
+    if DISCORD_GUILD_ID and str(interaction.guild_id) != str(DISCORD_GUILD_ID):
+        await interaction.response.send_message(DIGEST_NOT_IN_SERVER, ephemeral=True)
+        return
     if not _is_guild_admin(interaction):
         await interaction.response.send_message(
             "You need the Manage Server permission to run this command.",

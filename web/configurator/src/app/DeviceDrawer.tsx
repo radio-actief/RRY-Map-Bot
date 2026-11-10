@@ -224,12 +224,11 @@ function Drawer() {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
-  /** Hands the plan to NodeBook on this site (it opens in a new tab and asks before saving). */
-  async function saveToNodebook(url: string, name: string) {
-    setNote(null);
+  /** Hands the plan to NodeBook (it opens in a new tab and asks before saving). */
+  function saveToNodebook(url: string, name: string) {
     const msg = handoffFromPlan(store.plan.peek(), store.data.peek().places ?? [], "configurator", new Date(), store.snapshot.peek());
-    const r = await sendHandoff(`${url}#/handoff`, msg);
-    setNote(r === "sent" ? { kind: "ok", text: t("handoff.sent", { tool: name }) } : { kind: "error", text: t(r === "blocked" ? "handoff.blocked" : "handoff.noAnswer", { tool: name }) });
+    const r = sendHandoff(url, msg);
+    setNote(r === "sent" ? { kind: "ok", text: t("handoff.sent", { tool: name }) } : { kind: "error", text: t("handoff.tooLarge", { tool: name }) });
   }
 
   async function importJson(input: HTMLInputElement) {
@@ -365,7 +364,7 @@ function Drawer() {
             {siteTools.value
               .filter((x) => x.key === "nodebook")
               .map((nb) => (
-                <button key={nb.url} type="button" class="btn small" onClick={() => void saveToNodebook(nb.url, toolText(nb))}>
+                <button key={nb.url} type="button" class="btn small" onClick={() => saveToNodebook(nb.url, toolText(nb))}>
                   {t("handoff.save", { tool: toolText(nb) })}
                 </button>
               ))}

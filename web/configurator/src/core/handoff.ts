@@ -1,7 +1,9 @@
 /**
- * Settings handed between the configurator and another tool on the same site (NodeBook) with
- * postMessage: the opened page posts `bemesh.ready` to its opener, the opener answers once with
- * `bemesh.settings`, the receiver confirms with `bemesh.received`. Nothing is stored.
+ * Settings handed between the configurator and another tool of the site (NodeBook), which may be on
+ * another address, in the address fragment of a new tab: the configurator opens
+ * `<nodebook url>#/handoff?d=<data>` and receives `<configurator url>#handoff=<data>`, where <data>
+ * is the message as URL-safe base64 of its UTF-8 JSON, without padding. A fragment never reaches a
+ * server. The receiver shows what arrived and asks before using it. Nothing is stored.
  *
  * `settings` holds the script's `set <name> <value>` lines as {name: value}; `regions` the full
  * region set as CLI lines, written as for a repeater without regions (no removals). Passwords,
@@ -13,9 +15,9 @@ import { snapshotFromReplies, type DeviceSnapshot, type Plan } from "./plan";
 import type { Place } from "./search";
 import { SETTINGS } from "./settings";
 
-export const READY = "bemesh.ready";
 export const SETTINGS_KIND = "bemesh.settings";
-export const RECEIVED = "bemesh.received";
+/** The longest link a hand-off may make; a longer one is refused rather than cut off on the way. */
+export const HANDOFF_MAX_LINK = 16 * 1024;
 
 export type HandoffMessage = {
   kind: typeof SETTINGS_KIND;
@@ -43,6 +45,32 @@ export function isHandoffMessage(data: unknown): data is HandoffMessage {
   if (!isObject(data.settings) || Object.keys(data.settings).length > MAX_LINES) return false;
   if (!Object.entries(data.settings).every(([k, v]) => plainText(k, 40) && plainText(v))) return false;
   return Array.isArray(data.regions) && data.regions.length <= MAX_LINES && data.regions.every((l) => plainText(l));
+}
+
+/** The message as URL-safe base64 of its UTF-8 JSON, without padding. */
+export function encodeHandoff(msg: HandoffMessage): string {
+  const bytes = new TextEncoder().encode(JSON.stringify(msg));
+  let bin = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+/** What a base64url text holds as JSON; null when it is not base64url of UTF-8 JSON. Check it with isHandoffMessage. */
+export function decodeHandoff(text: string): unknown {
+  if (!text || !/^[A-Za-z0-9_-]+$/.test(text)) return null;
+  try {
+    const bin = atob(text.replace(/-/g, "+").replace(/_/g, "/"));
+    const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
+    return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+  } catch {
+    return null;
+  }
+}
+
+/** NodeBook's page for a hand-off (`url` ends in "/"); null when the link would be too long. */
+export function handoffLink(url: string, msg: HandoffMessage): string | null {
+  const link = `${url}#/handoff?d=${encodeHandoff(msg)}`;
+  return link.length > HANDOFF_MAX_LINK ? null : link;
 }
 
 /** The hand-off for a plan: every setting of the full script (also firmware defaults) and its region set. */

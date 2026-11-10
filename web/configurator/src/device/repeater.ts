@@ -1,6 +1,7 @@
 import { parseVersion, supportsRegionDef } from "../core/firmware";
 import { regionNamesToAsk, snapshotFromReplies, type DeviceSnapshot } from "../core/plan";
-import { isErrorReply, type SerialLink } from "./serial";
+import { SETTINGS } from "../core/settings";
+import { expectsDeviceDisconnect, isErrorReply, type SerialLink } from "./serial";
 
 /** What "Read from the device" asks, in this order (verbatim from the old page). */
 export const READ_COMMANDS = [
@@ -21,6 +22,7 @@ export const READ_COMMANDS = [
   "get direct.txdelay",
   "get rxdelay",
   "get radio.rxgain",
+  "get radio.fem.rxgain",
   "get tx",
   "get int.thresh",
   "get agc.reset.interval",
@@ -40,6 +42,15 @@ export const READ_COMMANDS = [
   "get public.key",
   "clock",
 ];
+
+/** Reads of settings only some boards have: a board without one answers an error, which is no missing read. */
+export const OPTIONAL_READS = SETTINGS.filter((s) => s.onlyIfRead && s.readCmd).map((s) => s.readCmd!);
+
+/** How many of `commands` the Read got an answer to (an optional read the board lacks does not count). */
+export function readCount(snapshot: DeviceSnapshot, commands: string[] = READ_COMMANDS): number {
+  const lacking = SETTINGS.filter((s) => s.onlyIfRead && s.readCmd && commands.includes(s.readCmd) && snapshot.settings[s.key] === undefined);
+  return commands.length - snapshot.missing.length - lacking.filter((s) => !snapshot.missing.includes(s.readCmd!)).length;
+}
 
 /** The reads Apply never changes: the identity, firmware version, clock and the neighbour table. */
 export const IDENTITY_READS = ["neighbors", "ver", "get role", "get public.key", "clock"];
@@ -67,8 +78,9 @@ export async function readAll(
     }
     try {
       const reply = await link.command(cmd);
-      if (reply === "" || isErrorReply(reply)) missing.push(cmd);
-      else replies[cmd] = reply;
+      if (reply === "" || isErrorReply(reply)) {
+        if (!OPTIONAL_READS.includes(cmd)) missing.push(cmd);
+      } else replies[cmd] = reply;
     } catch {
       missing.push(cmd);
     }
@@ -87,27 +99,45 @@ export async function readAll(
   return snapshotFromReplies(replies, missing);
 }
 
+/**
+ * `silent`: the lines that got no reply after every try. A stop after SILENT_STOP such lines in a
+ * row has `silent` (that count) and an empty `error`.
+ */
 export type ApplyResult =
-  | { ok: true }
-  | { ok: false; failedAt: number; command: string; error: string; remaining: string[] };
+  | { ok: true; silent: string[] }
+  | { ok: false; failedAt: number; command: string; error: string; remaining: string[]; silent?: number };
+
+/** A line that gets no reply is sent up to this many times in all. */
+export const APPLY_TRIES = 4;
+/** Sending stops after this many lines in a row got no reply. */
+export const SILENT_STOP = 3;
 
 /**
- * Send the script line by line, stopping at the first failure (never retries). `onProgress(sent,
- * total)` is called as each line is about to go out, so the failing line is counted. `failedAt` is
- * the 1-based position of the failed line in `lines`; `remaining` are the lines after it.
+ * Send the script line by line. A line that gets no reply is tried again (APPLY_TRIES in all);
+ * an error reply or a lost link stops at once, never retried; SILENT_STOP lines in a row without
+ * a reply stop too. `onProgress(sent, total)` is called as each line is about to go out, so the
+ * failing line is counted. `failedAt` is the 1-based position of the failed line in `lines`;
+ * `remaining` are the lines after it.
  */
 export async function apply(
   link: SerialLink,
   lines: string[],
   onProgress: (sent: number, total: number) => void,
 ): Promise<ApplyResult> {
+  const silent: string[] = [];
+  let inRow = 0;
   for (let i = 0; i < lines.length; i++) {
     const command = lines[i].trim();
     if (!command || command.startsWith("#")) continue;
     onProgress(i + 1, lines.length);
     let error = "";
+    let reply = "";
     try {
-      const reply = await link.command(command);
+      for (let tries = 0; tries < APPLY_TRIES && !reply; tries++) {
+        reply = await link.command(command);
+        // A line that drops the link on purpose answers nothing.
+        if (expectsDeviceDisconnect(command)) break;
+      }
       if (isErrorReply(reply)) error = reply;
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
@@ -115,8 +145,16 @@ export async function apply(
     // `gps advert` only exists on builds with GPS support; elsewhere the position lines already did the job.
     if (error && command.startsWith("gps advert ") && /^Unknown command/i.test(error)) continue;
     if (error) return { ok: false, failedAt: i + 1, command, error, remaining: lines.slice(i + 1) };
+    if (reply || expectsDeviceDisconnect(command)) {
+      inRow = 0;
+      continue;
+    }
+    silent.push(command);
+    if (++inRow === SILENT_STOP) {
+      return { ok: false, failedAt: i + 1, command, error: "", remaining: lines.slice(i + 1), silent: inRow };
+    }
   }
-  return { ok: true };
+  return { ok: true, silent };
 }
 
 /**

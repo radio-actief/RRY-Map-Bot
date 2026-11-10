@@ -7,8 +7,9 @@ import { commandLines, type ScriptGroup } from "../core/cli";
 import { deviceRegionsFromSnapshot, planFromSnapshot, regionCandidates, type DeviceSnapshot, type Plan } from "../core/plan";
 import { policyFor, regionsAfterApply } from "../core/regions";
 import { REGION_DEF_MIN_TEXT } from "../core/firmware";
+import { heardWell, neighboursCut, parseNeighbours, type Neighbour } from "../core/neighbours";
 import { pubkeyFromSetReply, type VanityKey } from "../core/vanity";
-import { apply, checkFirmware, IDENTITY_READS, readAll, READ_BACK_COMMANDS, READ_COMMANDS, run, stoppedApply } from "../device/repeater";
+import { apply, checkFirmware, IDENTITY_READS, readAll, readCount, READ_BACK_COMMANDS, READ_COMMANDS, run, stoppedApply } from "../device/repeater";
 import {
   expectsDeviceDisconnect,
   isErrorReply,
@@ -110,6 +111,7 @@ let leaving: SerialLink | null = null;
  */
 function forgetRead(): void {
   store.snapshot.value = null;
+  store.tune.value = { phase: "idle" };
   store.clock.value = null;
   store.deviceRegions.value = undefined;
   store.lastRead.value = null;
@@ -199,7 +201,7 @@ export async function readDevice(): Promise<void> {
     store.clock.value = snapshot.clock ? { reply: snapshot.clock, at: Date.now() } : null;
     store.deviceRegions.value = deviceRegionsFromSnapshot(snapshot);
     resetPlan(planFromSnapshot(snapshot, store.data.peek().places ?? []));
-    store.lastRead.value = { ok: true, count: READ_COMMANDS.length - snapshot.missing.length, missing: snapshot.missing };
+    store.lastRead.value = { ok: true, count: readCount(snapshot), missing: snapshot.missing };
   } catch (err) {
     store.lastRead.value = { ok: false, reason: reasonOf(err) };
   } finally {
@@ -210,25 +212,33 @@ export async function readDevice(): Promise<void> {
 /** Snapshot fields the read-back keeps from the last Read (a written key waits for a reboot). */
 const KEPT_ON_READ_BACK = ["version", "role", "publicKey", "publicKeyPending", "previousPublicKeys", "clock", "neighbours"] as const;
 
+/** A `set radio <freq,bw,sf,cr>` line (not `set radio.rxgain`). */
+const RADIO_LINE = /^set radio /;
+
 /**
  * After Apply: read back what Apply can change, so the repeater's values on screen are the new
  * ones and the device regions carry the tree. The identity, firmware version and clock stay from
- * the last Read. When the link goes, the regions that were sent stand in.
+ * the last Read, and so does the radio when `lines` (what was sent) had no radio line. When the
+ * link goes, the regions that were sent stand in.
  */
-async function readBack(link: SerialLink, sent: Plan): Promise<void> {
+async function readBack(link: SerialLink, sent: Plan, lines: string[]): Promise<void> {
   readingBack = true;
   try {
-    const fresh = await readAll(link, READ_BACK_COMMANDS, () => regionCandidates(sent));
+    const radioSent = lines.some((l) => RADIO_LINE.test(l));
+    const commands = radioSent ? READ_BACK_COMMANDS : READ_BACK_COMMANDS.filter((c) => c !== "get radio");
+    const fresh = await readAll(link, commands, () => regionCandidates(sent));
     if (!link.connected || store.device.peek().link !== link) return;
     const old = store.snapshot.peek();
     const snapshot: DeviceSnapshot = { ...fresh };
     if (old) for (const k of KEPT_ON_READ_BACK) if (old[k] !== undefined) Object.assign(snapshot, { [k]: old[k] });
-    snapshot.missing = [...fresh.missing, ...(old ? old.missing : IDENTITY_READS).filter((c) => IDENTITY_READS.includes(c))];
+    const kept = radioSent ? IDENTITY_READS : [...IDENTITY_READS, "get radio"];
+    if (!radioSent && old?.radio) snapshot.radio = old.radio;
+    snapshot.missing = [...fresh.missing, ...(old ? old.missing : kept).filter((c) => kept.includes(c))];
     store.snapshot.value = snapshot;
     const regions = deviceRegionsFromSnapshot(snapshot);
     if (regions) store.deviceRegions.value = regions;
     if (store.lastRead.peek()?.ok) {
-      store.lastRead.value = { ok: true, count: READ_COMMANDS.length - snapshot.missing.length, missing: snapshot.missing };
+      store.lastRead.value = { ok: true, count: readCount(snapshot), missing: snapshot.missing };
     }
   } catch {
     /* link lost: the unplug notice says it */
@@ -318,9 +328,11 @@ export async function applyPlan(script: ScriptGroup[], { skipFirmwareCheck = fal
       store.aclSaveUntil.value = Date.now() + ACL_SAVE_WAIT_MS;
     }
     if (!result.ok) {
-      const { failedAt, command, error, remaining } = result;
-      store.apply.value = { phase: "failed", failedAt, total, command, error, remaining, ...stoppedApply(lines, failedAt) };
-      appendLog({ text: t("apply.stopped", { n: failedAt, total, command }), kind: "error" });
+      const { failedAt, command, error, remaining, silent } = result;
+      // Lines that got no reply may still have gone through: the silent stop counts them as sent.
+      const stopped = stoppedApply(lines, silent ? failedAt + 1 : failedAt);
+      store.apply.value = { phase: "failed", failedAt, total, command, error, remaining, ...stopped, ...(silent ? { silent } : {}) };
+      appendLog({ text: silent ? t("apply.silent", { lines: silent }) : t("apply.stopped", { n: failedAt, total, command }), kind: "error" });
       return;
     }
     if (plan.anchor) {
@@ -331,8 +343,9 @@ export async function applyPlan(script: ScriptGroup[], { skipFirmwareCheck = fal
     store.startPlan.value = plan;
     const clock = await setClock(link);
     store.apply.value = { phase: "readBack", total };
-    await readBack(link, plan);
+    await readBack(link, plan, lines);
     appendLog({ text: t("log.applied"), kind: "ok" });
+    if (result.silent.length) appendLog({ text: t("apply.savedSilent", { count: result.silent.length }), kind: "muted" });
     const stillConnected = link.connected && store.device.peek().link === link;
     store.apply.value = {
       phase: "done",
@@ -340,6 +353,7 @@ export async function applyPlan(script: ScriptGroup[], { skipFirmwareCheck = fal
       offerReboot: stillConnected,
       radioChanged: lines.some((l) => NEEDS_REBOOT.test(l)),
       clock,
+      silent: result.silent.length,
     };
   } catch (err) {
     store.apply.value = { phase: "error", reason: reasonOf(err) };
@@ -481,13 +495,91 @@ export function deviceCommand(cmd: string): Promise<CommandResult | null> {
 }
 
 /** Set the device clock to this computer's time (`time <epoch>`), then read `clock` again. */
+async function setClockNow(link: SerialLink): Promise<CommandResult> {
+  const set = await exchange(link, `time ${Math.floor(Date.now() / 1000)}`);
+  if (!set.ok) return set;
+  const clock = await exchange(link, "clock");
+  if (clock.ok) store.clock.value = { reply: clock.reply, at: Date.now() };
+  return set;
+}
+
+/** The drawer's clock button: setClockNow under the lock. */
 export function syncClock(): Promise<CommandResult | null> {
-  return withLock(async (link) => {
-    const set = await exchange(link, `time ${Math.floor(Date.now() / 1000)}`);
-    if (!set.ok) return set;
-    const clock = await exchange(link, "clock");
-    if (clock.ok) store.clock.value = { reply: clock.reply, at: Date.now() };
-    return set;
+  return withLock(setClockNow);
+}
+
+/** Counting neighbours asks them at most this many times, and listens this long after each ask. */
+export const COUNT_ROUNDS = 3;
+export const COUNT_ROUND_MS = 20_000;
+
+let countCancelled = false;
+/** Ends the current listening wait at once (Cancel). */
+let wakeCount: (() => void) | null = null;
+
+/** Stop counting neighbours: nothing more is sent and the result is dropped. */
+export function cancelCount(): void {
+  countCancelled = true;
+  wakeCount?.();
+}
+
+/** Listen `ms` for the neighbours' answers, showing the seconds left; false when cancelled. */
+async function listen(ms: number, tickMs: number, round: number): Promise<boolean> {
+  const total = Math.ceil(ms / 1000);
+  for (let waited = 0; waited < ms && !countCancelled; ) {
+    store.tune.value = { phase: "counting", round, rounds: COUNT_ROUNDS, left: Math.ceil((ms - waited) / 1000), total };
+    const step = Math.min(tickMs || ms, ms - waited);
+    await new Promise<void>((resolve) => {
+      const timer = setTimeout(resolve, step);
+      wakeCount = () => {
+        clearTimeout(timer);
+        resolve();
+      };
+    });
+    wakeCount = null;
+    waited += step;
+  }
+  return !countCancelled;
+}
+
+/**
+ * Count the repeaters it hears well, for its timing band (see bandFor). The clock is set first.
+ * Each round sends `discover.neighbors` (nearby repeaters answer over the air), listens, then reads
+ * `neighbors`; the count is every key prefix heard above SNR 0 in any round. It stops after
+ * COUNT_ROUNDS, or sooner when a round adds nobody new. A table cut at the firmware's limit makes
+ * the count "at least". The last table also becomes the Read's neighbour list.
+ */
+export async function countNeighbours({ roundMs = COUNT_ROUND_MS, tickMs = 1000 } = {}): Promise<void> {
+  countCancelled = false;
+  await withLock(async (link) => {
+    const total = Math.ceil(roundMs / 1000);
+    const idle = () => void (store.tune.value = { phase: "idle" });
+    const fail = (error: string) => void (store.tune.value = { phase: "failed", error });
+    store.tune.value = { phase: "counting", round: 1, rounds: COUNT_ROUNDS, left: total, total };
+    await setClockNow(link);
+    const heard = new Set<string>();
+    let atLeast = false;
+    let latest: Neighbour[] | null = null;
+    for (let round = 1; round <= COUNT_ROUNDS; round++) {
+      if (countCancelled) return idle();
+      store.tune.value = { phase: "counting", round, rounds: COUNT_ROUNDS, left: total, total };
+      const asked = await exchange(link, "discover.neighbors");
+      if (!asked.ok) return fail(asked.error);
+      if (!(await listen(roundMs, tickMs, round))) return idle();
+      const reply = await exchange(link, "neighbors");
+      if (countCancelled) return idle();
+      if (!reply.ok) return fail(reply.error);
+      const text = reply.reply.replace(/^\s*>\s*/, "");
+      const list = parseNeighbours(text);
+      if (!list) return fail(text);
+      atLeast ||= neighboursCut(text);
+      latest = list;
+      const before = heard.size;
+      for (const prefix of heardWell(list)) heard.add(prefix);
+      if (heard.size === before) break;
+    }
+    const snapshot = store.snapshot.peek();
+    if (snapshot && latest) store.snapshot.value = { ...snapshot, neighbours: latest };
+    store.tune.value = { phase: "done", heard: heard.size, atLeast };
   });
 }
 

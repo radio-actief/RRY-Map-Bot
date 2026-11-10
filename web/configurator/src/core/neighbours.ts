@@ -9,6 +9,19 @@ export type Neighbour = { prefix: string; agoS: number; snr: number };
 
 const LINE = /^([0-9a-f]{8}):(\d+):(-?\d+)$/i;
 
+/** The firmware stops adding lines once the reply reaches this many bytes. */
+export const NEIGHBOURS_REPLY_LIMIT = 134;
+
+/** The reply reached the firmware's limit, so older neighbours may be left out. */
+export function neighboursCut(reply: string): boolean {
+  return reply.trim().length >= NEIGHBOURS_REPLY_LIMIT;
+}
+
+/** The key prefixes of the neighbours heard with an SNR above 0. */
+export function heardWell(list: Neighbour[]): string[] {
+  return list.filter((n) => n.snr > 0).map((n) => n.prefix);
+}
+
 /** The neighbours in the reply; [] for `-none-`, null when nothing in it could be read. */
 export function parseNeighbours(reply: string): Neighbour[] | null {
   const text = reply.trim();

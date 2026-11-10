@@ -18,6 +18,7 @@ export type SettingKey =
   | "directTxdelay"
   | "rxdelay"
   | "radioRxgain"
+  | "radioFemRxgain"
   | "intThresh"
   | "agcResetInterval"
   | "multiAcks"
@@ -34,6 +35,8 @@ export type SettingDef = {
   formDefault: string | number | null;
   range?: { min: number; max: number; step?: number };
   options?: string[];
+  /** Only some boards have it: shown and sent only when the Read got a value for it. */
+  onlyIfRead?: boolean;
   helpKey: string;
 };
 
@@ -75,6 +78,7 @@ export const SETTINGS: SettingDef[] = [
   def("directTxdelay", "direct.txdelay", "timing", 0.2, 0.2, { range: { min: 0, max: 2 } }),
   def("rxdelay", "rxdelay", "timing", 0, 0, { range: { min: 0, max: 20 } }),
   def("radioRxgain", "radio.rxgain", "advanced", "on", "on", { options: ["on", "off"] }),
+  def("radioFemRxgain", "radio.fem.rxgain", "advanced", "on", null, { options: ["on", "off"], onlyIfRead: true }),
   def("intThresh", "int.thresh", "advanced", 0, 0, { range: { min: 0, max: 255 } }),
   def("agcResetInterval", "agc.reset.interval", "advanced", 0, 0, { range: { min: 0, max: 255, step: 4 } }),
   def("multiAcks", "multi.acks", "advanced", "0", "0", { options: ["0", "1"] }),

@@ -225,7 +225,7 @@ function sendScript(
 ): ScriptGroup[] {
   const changes = buildScript(plan, places, { includeDefaults: true, device, snapshot });
   if (!snapshot || !sendAll) return changes;
-  return [...buildScript(plan, places, { includeDefaults: true, device }), ...changes.filter((g) => g.titleKey === "acl")];
+  return [...buildScript(plan, places, { includeDefaults: true, device, board: snapshot }), ...changes.filter((g) => g.titleKey === "acl")];
 }
 
 function readSendAll(): boolean {
@@ -284,11 +284,18 @@ export function Send() {
           ) : null}
           <Script text={text} />
           <Progress state={state} />
+          {state.phase === "done" && state.silent ? <Notice kind="warn">{t("apply.savedSilent", { count: state.silent })}</Notice> : null}
           {state.phase === "done" ? <DeskCheck state={state} name={name} /> : null}
           {state.phase === "old" ? (
             <Notice kind="error">{t("apply.firmwareOld", { version: state.version, min: REGION_DEF_MIN_TEXT })}</Notice>
           ) : null}
-          {state.phase === "failed" ? (
+          {state.phase === "failed" && state.silent ? (
+            <Notice kind="error">
+              <p>{t("apply.silent", { lines: state.silent })}</p>
+              {state.regionsUnsaved ? <p>{t("apply.silentRegions")}</p> : null}
+            </Notice>
+          ) : null}
+          {state.phase === "failed" && !state.silent ? (
             <Notice kind="error">
               <p>{t("apply.stopped", { n: state.failedAt, total: state.total, command: state.command })}</p>
               <p>{state.error}</p>

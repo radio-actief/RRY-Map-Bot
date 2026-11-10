@@ -27,6 +27,7 @@ const P: Plan = {
     txdelay: 0.5,
     directTxdelay: 0.2,
     rxdelay: 0,
+    agcResetInterval: 4,
   },
 };
 const ticked = (plan: Plan) => new Set(checkupLines(plan, PLACES).filter((l) => l.ticked).map((l) => l.id));
@@ -59,6 +60,11 @@ describe("checkupLines", () => {
     expect(lines.map((l) => l.id)).not.toContain("timing");
     // RX delay is a line of its own: #BEmesh leaves it off.
     expect(lines.find((l) => l.id === "rxdelay")).toMatchObject({ group: "timing", from: "3", to: "0", ticked: true });
+  });
+
+  it("an AGC reset off (0) gets a line to the recommended 4", () => {
+    const lines = checkupLines({ ...P, settings: { ...P.settings, agcResetInterval: 0 } }, PLACES);
+    expect(lines.find((l) => l.id === "agcResetInterval")).toMatchObject({ group: "advanced", from: "0", to: "4", ticked: true });
   });
 
   it("the name is listed, not ticked, with its note", () => {

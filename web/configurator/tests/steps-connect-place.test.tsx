@@ -275,9 +275,9 @@ describe("Connect step", () => {
     const B = { ver: "v1.17.1 (Build: 12-Oct-2026)" };
     const A_KEY = read["get public.key"].replace(/^> /, "");
 
-    /** Device A connected through the app and read (35 commands after `ver`), the next command unplugs it. */
+    /** Device A connected through the app and read (36 commands after `ver`), the next command unplugs it. */
     async function readA() {
-      const port = new FakePort(read, { disconnectAfter: 37 });
+      const port = new FakePort(read, { disconnectAfter: 38 });
       await connectUsb({ requestPort: async () => port, timing: FAST });
       await readDevice();
       expect(store.snapshot.value?.publicKey).toBe(A_KEY);

@@ -143,9 +143,29 @@ export type ApplyState =
       done: number;
       /** Region changes went through but `region save` did not. */
       regionsUnsaved: boolean;
+      /** It stopped answering: this many lines in a row got no reply (error is empty). */
+      silent?: number;
     }
   | { phase: "error"; reason: string }
-  | { phase: "done"; total: number; offerReboot: boolean; radioChanged: boolean; clock: ClockOutcome };
+  | {
+      phase: "done";
+      total: number;
+      offerReboot: boolean;
+      radioChanged: boolean;
+      clock: ClockOutcome;
+      /** Lines that got no reply, though sending went on. */
+      silent: number;
+    };
+
+/**
+ * Counting the repeater's neighbours for its timing: listening (round of rounds, seconds left of
+ * total), done (how many it hears above SNR 0; atLeast when a table was cut), or failed.
+ */
+export type TuneState =
+  | { phase: "idle" }
+  | { phase: "counting"; round: number; rounds: number; left: number; total: number }
+  | { phase: "done"; heard: number; atLeast: boolean }
+  | { phase: "failed"; error: string };
 
 /** Setting the clock at the end of Apply: set, refused because the repeater's clock runs ahead, or failed (with why). */
 export type ClockOutcome = "set" | "ahead" | { failed: string };
@@ -173,6 +193,7 @@ export const store = {
   /** Apply is running: like `reading`, step navigation, Read and device actions are disabled. */
   applying: signal(false),
   apply: signal<ApplyState>({ phase: "idle" }),
+  tune: signal<TuneState>({ phase: "idle" }),
   /** A console command or the reboot is in flight (until the link has settled). */
   commandBusy: signal(false),
   /** Until when (Date.now()) the repeater is still saving an access list change; 0 = nothing pending. */

@@ -311,6 +311,33 @@ describe("Send step: Apply", () => {
     await waitFor(() => expect(writeText).toHaveBeenCalledWith(lines.slice(2).join("\n")));
   });
 
+  it("a repeater that stops answering: Apply stops after 3 silent lines in a row and says region save is still to come", async () => {
+    const lines = applyLines();
+    const save = lines.indexOf("region save");
+    expect(save).toBeGreaterThan(3);
+    const silent = lines.slice(save - 3, save);
+    const { port } = await connect({ ...okReplies(lines), ...Object.fromEntries(silent.map((l) => [l, ""])) });
+    render(<Send />);
+    fireEvent.click(applyButton());
+    expect(
+      await screen.findByText("It stopped answering after 3 lines in a row. Check that it is on and in reach, then try again.", { selector: ".notice p" }),
+    ).toBeTruthy();
+    expect(screen.getByText("Region changes only count once region save is sent, so send again to finish.")).toBeTruthy();
+    expect(port.received).not.toContain("region save");
+    expect(port.received.filter((l) => l === silent[0])).toHaveLength(4);
+    expect(screen.queryByRole("button", { name: "Reboot now" })).toBeNull();
+  });
+
+  it("a line that never answers is tried again, and Apply goes on and says the log shows it", async () => {
+    const lines = applyLines();
+    const { port } = await connect({ ...okReplies(lines), [lines[1]]: "" });
+    render(<Send />);
+    fireEvent.click(applyButton());
+    expect(await screen.findByRole("button", { name: "Reboot now" })).toBeTruthy();
+    expect(port.received.filter((l) => l === lines[1])).toHaveLength(4);
+    expect(screen.getByText("Saved. 1 line got no reply; the log shows which.", { selector: ".notice" })).toBeTruthy();
+  });
+
   it("an unplug during Apply stops it and shows the unplug notice", async () => {
     const lines = applyLines();
     // connect's `ver`, Apply's `ver`, then commands 1-3.
@@ -493,7 +520,8 @@ describe("Send step: Apply", () => {
     render(<Send />);
     fireEvent.click(applyButton());
     await screen.findByRole("button", { name: "Reboot now" });
-    expect(store.lastRead.value).toEqual({ ok: true, count: READ_COMMANDS.length, missing: [] });
+    // The Ronse board has no front-end gain: that read does not count.
+    expect(store.lastRead.value).toEqual({ ok: true, count: READ_COMMANDS.length - 1, missing: [] });
   });
 
   it("an unplug during the read-back offers no reboot", async () => {
@@ -545,7 +573,21 @@ describe("Send step: only the changes", () => {
     expect(scriptText()).toBe(`# Settings\n${CHANGE}`);
     fireEvent.click(screen.getByRole("button", { name: "Apply 1 change to repeater" }));
     await screen.findByRole("button", { name: "Reboot now" });
-    expect(port.received).toEqual(["ver", CHANGE, CLOCK, ...READ_BACK_COMMANDS]);
+    // No radio line sent: the read-back does not ask for the radio again, and keeps the one read.
+    expect(port.received).toEqual(["ver", CHANGE, CLOCK, ...READ_BACK_COMMANDS.filter((c) => c !== "get radio")]);
+    expect(store.snapshot.value?.radio).toEqual(snapshotFromReplies(read).radio);
+    expect(store.snapshot.value?.missing).toEqual([]);
+  });
+
+  it("a changed radio is read back", async () => {
+    afterRead((p) => ({ ...p, radio: { ...p.radio, sf: 9 } }));
+    const lines = applyLines();
+    expect(lines).toContain("set radio 869.618,62.5,9,8");
+    const { port } = await connect({ ...read, ...okReplies(lines) });
+    render(<Send />);
+    fireEvent.click(applyButton());
+    await screen.findByRole("button", { name: "Reboot now" });
+    expect(port.received).toContain("get radio");
   });
 
   it("the switch sends every setting", async () => {
@@ -648,7 +690,7 @@ describe("Send step: only the changes", () => {
       for (let i = 0; store.apply.value.phase !== "done" && i < 500; i++) await vi.advanceTimersByTimeAsync(10);
       // The dialog opens in an effect, after the next frame.
       await vi.advanceTimersByTimeAsync(200);
-      expect([...port.received]).toEqual(["ver", setperm, CLOCK, ...READ_BACK_COMMANDS]);
+      expect([...port.received]).toEqual(["ver", setperm, CLOCK, ...READ_BACK_COMMANDS.filter((c) => c !== "get radio")]);
       fireEvent.click(screen.getByRole("button", { name: "Reboot now" }));
       await vi.advanceTimersByTimeAsync(0);
       expect(screen.getByText("Saving the access list…")).toBeTruthy();

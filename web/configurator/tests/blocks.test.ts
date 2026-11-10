@@ -18,50 +18,70 @@ import { SITE_PROFILES, withTiming } from "../src/core/site";
 
 const withSettings = (plan: Plan, s: Plan["settings"]): Plan => ({ ...plan, settings: { ...plan.settings, ...s } });
 
+/** A public key whose first 4 bytes are `head` (8 hex digits). */
+const keyOf = (head: string) => head + "0".repeat(56);
+/** Keys that pick 35, 47 and 59 h: their first 4 bytes mod 25 are 0, 12 and 24. */
+const KEY_35 = keyOf("00000000");
+const KEY_47 = keyOf("0000000c");
+const KEY_59 = keyOf("00000018");
+
 describe("the flood advert interval", () => {
-  it("is spread evenly over 35-59 h by the first byte of the repeater's key, so the mesh's flood adverts do not all come at once", () => {
-    expect(floodAdvertHoursFor("00ab")).toBe(35);
-    expect(floodAdvertHoursFor("7bab")).toBe(47);
-    expect(floodAdvertHoursFor("FF00")).toBe(59);
-    const seen = new Map<number, number>();
-    for (let b = 0; b < 256; b++) {
-      const h = floodAdvertHoursFor(b.toString(16).padStart(2, "0") + "00");
-      seen.set(h, (seen.get(h) ?? 0) + 1);
-    }
-    // Every hour from 35 to 59 is used, each by 10 or 11 of the 256 bytes.
-    expect([...seen.keys()].sort((a, b) => a - b)).toEqual(Array.from({ length: 25 }, (_, i) => 35 + i));
-    expect([...seen.values()].every((n) => n === 10 || n === 11)).toBe(true);
+  it("is 35 h plus the key's first 4 bytes (unsigned) mod 25, so the mesh's flood adverts do not all come at once", () => {
+    expect(floodAdvertHoursFor(KEY_35)).toBe(35);
+    expect(floodAdvertHoursFor(KEY_47)).toBe(47);
+    expect(floodAdvertHoursFor(KEY_59)).toBe(59);
+    expect(floodAdvertHoursFor(keyOf("00000019"))).toBe(35);
+    // 0xffffffff = 4294967295, mod 25 = 20; 0x7bab0000 = 2074804224, mod 25 = 24.
+    expect(floodAdvertHoursFor(keyOf("ffffffff"))).toBe(55);
+    expect(floodAdvertHoursFor(keyOf("FFFFFFFF"))).toBe(55);
+    expect(floodAdvertHoursFor(keyOf("7bab0000"))).toBe(59);
   });
 
   it("is 47 h while the key is not known", () => {
     expect(floodAdvertHoursFor(undefined)).toBe(47);
     expect(floodAdvertHoursFor("zz")).toBe(47);
+    expect(floodAdvertHoursFor("7bab00")).toBe(47);
   });
 
   it("the advertising recommendation follows the plan's node key", () => {
-    expect(recommendedFor({ ...defaultPlan(), nodeKey: "7bab" + "0".repeat(60) }, "advertising").settings.floodAdvertHours).toBe(47);
-    expect(recommendedFor({ ...defaultPlan(), nodeKey: "ffab" + "0".repeat(60) }, "advertising").settings.floodAdvertHours).toBe(59);
+    expect(recommendedFor({ ...defaultPlan(), nodeKey: KEY_47 }, "advertising").settings.floodAdvertHours).toBe(47);
+    expect(recommendedFor({ ...defaultPlan(), nodeKey: KEY_59 }, "advertising").settings.floodAdvertHours).toBe(59);
   });
 
   it("treats 47, the firmware's own default, as not chosen yet: a new repeater gets its key's pick", () => {
-    const plan = withSettings({ ...defaultPlan(), nodeKey: "00ab" + "0".repeat(60) }, { floodAdvertHours: 47 });
+    const plan = withSettings({ ...defaultPlan(), nodeKey: KEY_35 }, { floodAdvertHours: 47 });
     expect(recommendedFor(plan, "advertising").settings.floodAdvertHours).toBe(35);
   });
 
   it("keeps a repeater's own value from 35 to 59: it is already on the recommendation", () => {
-    const key = "00ab" + "0".repeat(60); // would pick 35
     for (const h of [35, 40, 46, 48, 56, 59]) {
-      const plan = withSettings({ ...defaultPlan(), nodeKey: key }, { floodAdvertHours: h });
+      const plan = withSettings({ ...defaultPlan(), nodeKey: KEY_35 }, { floodAdvertHours: h });
       expect(recommendedFor(plan, "advertising").settings.floodAdvertHours).toBe(h);
     }
   });
 
   it("replaces a value outside 35-59 with the one the key picks", () => {
-    const key = "7bab" + "0".repeat(60); // picks 47
     for (const h of [0, 12, 34, 60, 168]) {
-      const plan = withSettings({ ...defaultPlan(), nodeKey: key }, { floodAdvertHours: h });
+      const plan = withSettings({ ...defaultPlan(), nodeKey: KEY_47 }, { floodAdvertHours: h });
       expect(recommendedFor(plan, "advertising").settings.floodAdvertHours).toBe(47);
     }
+  });
+});
+
+describe("gain control", () => {
+  it("advanced recommends an AGC reset every 4 seconds", () => {
+    expect(recommendedFor(defaultPlan(), "advanced").settings.agcResetInterval).toBe(4);
+  });
+
+  it("the recommendation never touches radio.fem.rxgain", () => {
+    expect("radioFemRxgain" in recommendedFor(defaultPlan(), "advanced").settings).toBe(false);
+    const off = withSettings(defaultPlan(), { radioFemRxgain: "off" });
+    expect(recommendedFor(off, "advanced").settings.radioFemRxgain).toBe("off");
+  });
+
+  it("a new plan starts on the AGC reset of 4", () => {
+    expect(newPlan().settings.agcResetInterval).toBe(4);
+    expect(isBlockRecommended(newPlan(), "advanced")).toBe(true);
   });
 });
 
@@ -89,7 +109,7 @@ describe("blocks", () => {
     ]);
     expect(blockKeys("repeating")).toEqual(["repeat", "loopDetect"]);
     expect(blockKeys("timing")).toEqual(["txdelay", "directTxdelay", "rxdelay"]);
-    expect(blockKeys("advanced")).toEqual(["pathHashMode", "radioRxgain", "intThresh", "agcResetInterval", "multiAcks"]);
+    expect(blockKeys("advanced")).toEqual(["pathHashMode", "radioRxgain", "radioFemRxgain", "intThresh", "agcResetInterval", "multiAcks"]);
   });
 
   it("FLOOD_ALLOWANCE has tight first", () => {
@@ -107,7 +127,7 @@ describe("blocks", () => {
   });
 
   it("a repeater on the old Average hops (8/12/18) differs from #BEmesh, so its owner is asked to lower them", () => {
-    const old = withSettings({ ...newPlan(), nodeKey: "7bab" + "0".repeat(60) }, { floodAdvertHours: 47, floodMaxUnscoped: 8, floodMaxAdvert: 12, floodMax: 18 });
+    const old = withSettings({ ...newPlan(), nodeKey: KEY_47 }, { floodAdvertHours: 47, floodMaxUnscoped: 8, floodMaxAdvert: 12, floodMax: 18 });
     expect(isBlockRecommended(old, "advertising")).toBe(false);
     expect(isBlockRecommended(recommendedFor(old, "advertising"), "advertising")).toBe(true);
   });

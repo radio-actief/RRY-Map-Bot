@@ -33,6 +33,7 @@ const P: Plan = {
     txdelay: 0.5,
     directTxdelay: 0.2,
     rxdelay: 0,
+    agcResetInterval: 4,
   },
 };
 

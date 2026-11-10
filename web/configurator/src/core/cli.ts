@@ -21,6 +21,9 @@ import { expectedRegions, policyFor, regionCommandLines, regionsMatch, type Devi
 import type { Place } from "./search";
 import { adminPasswordCliLine, SETTINGS, type SettingKey } from "./settings";
 
+/** Settings only some boards have (see SettingDef.onlyIfRead). */
+const ONLY_IF_READ = new Set(SETTINGS.filter((s) => s.onlyIfRead).map((s) => s.key));
+
 export type ScriptGroup = { titleKey: "name" | "settings" | "location" | "regions" | "acl"; lines: string[] };
 
 /** The general settings in the old buildGeneralSettingsCli order (radio comes first). */
@@ -41,6 +44,7 @@ export const SETTINGS_ORDER: SettingKey[] = [
   "directTxdelay",
   "rxdelay",
   "radioRxgain",
+  "radioFemRxgain",
   "txPower",
   "intThresh",
   "agcResetInterval",
@@ -89,6 +93,8 @@ function settingHeld(plan: Plan, key: SettingKey, snapshot: DeviceSnapshot): boo
 /**
  * The script as groups. Values equal to the firmware default are left out unless
  * includeDefaults; `device` (the regions read from the repeater) adds the region removals.
+ * A setting only some boards have goes out only when `board` (the last Read, by default
+ * `snapshot`) holds a value for it.
  * With `snapshot` (a Read of this repeater) every line whose value the repeater already holds
  * is left out, the regions go only when they differ (as a whole, and only with `device`), and
  * the access list group holds the `setperm` lines that turn the read list into the plan's.
@@ -96,9 +102,10 @@ function settingHeld(plan: Plan, key: SettingKey, snapshot: DeviceSnapshot): boo
 export function buildScript(
   plan: Plan,
   places: Place[],
-  opts: { includeDefaults: boolean; device?: DeviceRegions; snapshot?: DeviceSnapshot },
+  opts: { includeDefaults: boolean; device?: DeviceRegions; snapshot?: DeviceSnapshot; board?: DeviceSnapshot },
 ): ScriptGroup[] {
   const { includeDefaults, snapshot: snap } = opts;
+  const board = opts.board ?? snap;
   const name = sendableName(plan);
 
   const settings: string[] = [];
@@ -107,6 +114,7 @@ export function buildScript(
     settings.push(`set radio ${formatRadio(plan.radio)}`);
   }
   for (const key of SETTINGS_ORDER) {
+    if (ONLY_IF_READ.has(key) && board?.settings[key] === undefined) continue;
     const line = settingLine(plan, key, includeDefaults);
     if (line && !(snap && settingHeld(plan, key, snap))) settings.push(line);
   }
@@ -151,7 +159,7 @@ export function unchangedCount(plan: Plan, places: Place[], snapshot: DeviceSnap
   const count = (groups: ScriptGroup[]) =>
     groups.filter((g) => g.titleKey !== "regions" && g.titleKey !== "acl").reduce((n, g) => n + g.lines.length, 0);
   return (
-    count(buildScript(plan, places, { includeDefaults: true })) -
+    count(buildScript(plan, places, { includeDefaults: true, board: snapshot })) -
     count(buildScript(plan, places, { includeDefaults: true, snapshot }))
   );
 }

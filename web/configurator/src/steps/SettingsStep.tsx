@@ -230,10 +230,12 @@ function BlockFields({ block }: { block: Block }) {
       </>
     );
   }
+  // A setting only some boards have shows once the Read found it.
+  const shown = defs.filter((d) => !d.onlyIfRead || store.snapshot.value?.settings[d.key] !== undefined);
   return (
     <>
       {block === "radio" ? <RadioFields /> : null}
-      {defs.map((d) => (
+      {shown.map((d) => (
         <SettingField key={d.key} def={d} />
       ))}
     </>

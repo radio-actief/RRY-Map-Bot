@@ -313,6 +313,31 @@ describe("invalid values", () => {
   });
 });
 
+describe("radio.fem.rxgain", () => {
+  const fem = (lines: string[]) => lines.filter((l) => l.startsWith("set radio.fem.rxgain"));
+  const read = (value?: string): DeviceSnapshot => ({ settings: value ? { radioFemRxgain: value } : {}, missing: [] });
+
+  it("is never sent unless the Read showed the board has it", () => {
+    const plan: Plan = { ...ronsePlan(), settings: { ...ronsePlan().settings, radioFemRxgain: "off" } };
+    expect(fem(commandLines(buildScript(plan, PLACES, { includeDefaults: true })))).toEqual([]);
+    expect(fem(commandLines(buildScript(plan, PLACES, { includeDefaults: true, snapshot: read() })))).toEqual([]);
+    expect(fem(commandLines(buildScript(plan, PLACES, { includeDefaults: true, board: read() })))).toEqual([]);
+  });
+
+  it("goes out when changed on a board that has it, and with every setting", () => {
+    const plan: Plan = { ...ronsePlan(), settings: { ...ronsePlan().settings, radioFemRxgain: "off" } };
+    expect(fem(commandLines(buildScript(plan, PLACES, { includeDefaults: true, snapshot: read("on") })))).toEqual(["set radio.fem.rxgain off"]);
+    expect(fem(commandLines(buildScript(plan, PLACES, { includeDefaults: true, snapshot: read("off") })))).toEqual([]);
+    expect(fem(commandLines(buildScript(plan, PLACES, { includeDefaults: true, board: read("on") })))).toEqual(["set radio.fem.rxgain off"]);
+  });
+
+  it("counts as unchanged when the repeater holds it", () => {
+    const plan: Plan = { ...ronsePlan(), settings: { ...ronsePlan().settings, radioFemRxgain: "on" } };
+    const snap = read("on");
+    expect(unchangedCount(plan, PLACES, snap)).toBe(unchangedCount(ronsePlan(), PLACES, read()) + 1);
+  });
+});
+
 describe("SETTINGS_ORDER", () => {
   it("is a permutation of the settings registry", () => {
     expect([...SETTINGS_ORDER].sort()).toEqual(SETTINGS.map((s) => s.key).sort());

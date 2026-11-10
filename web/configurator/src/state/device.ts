@@ -212,20 +212,28 @@ export async function readDevice(): Promise<void> {
 /** Snapshot fields the read-back keeps from the last Read (a written key waits for a reboot). */
 const KEPT_ON_READ_BACK = ["version", "role", "publicKey", "publicKeyPending", "previousPublicKeys", "clock", "neighbours"] as const;
 
+/** A `set radio <freq,bw,sf,cr>` line (not `set radio.rxgain`). */
+const RADIO_LINE = /^set radio /;
+
 /**
  * After Apply: read back what Apply can change, so the repeater's values on screen are the new
  * ones and the device regions carry the tree. The identity, firmware version and clock stay from
- * the last Read. When the link goes, the regions that were sent stand in.
+ * the last Read, and so does the radio when `lines` (what was sent) had no radio line. When the
+ * link goes, the regions that were sent stand in.
  */
-async function readBack(link: SerialLink, sent: Plan): Promise<void> {
+async function readBack(link: SerialLink, sent: Plan, lines: string[]): Promise<void> {
   readingBack = true;
   try {
-    const fresh = await readAll(link, READ_BACK_COMMANDS, () => regionCandidates(sent));
+    const radioSent = lines.some((l) => RADIO_LINE.test(l));
+    const commands = radioSent ? READ_BACK_COMMANDS : READ_BACK_COMMANDS.filter((c) => c !== "get radio");
+    const fresh = await readAll(link, commands, () => regionCandidates(sent));
     if (!link.connected || store.device.peek().link !== link) return;
     const old = store.snapshot.peek();
     const snapshot: DeviceSnapshot = { ...fresh };
     if (old) for (const k of KEPT_ON_READ_BACK) if (old[k] !== undefined) Object.assign(snapshot, { [k]: old[k] });
-    snapshot.missing = [...fresh.missing, ...(old ? old.missing : IDENTITY_READS).filter((c) => IDENTITY_READS.includes(c))];
+    const kept = radioSent ? IDENTITY_READS : [...IDENTITY_READS, "get radio"];
+    if (!radioSent && old?.radio) snapshot.radio = old.radio;
+    snapshot.missing = [...fresh.missing, ...(old ? old.missing : kept).filter((c) => kept.includes(c))];
     store.snapshot.value = snapshot;
     const regions = deviceRegionsFromSnapshot(snapshot);
     if (regions) store.deviceRegions.value = regions;
@@ -335,7 +343,7 @@ export async function applyPlan(script: ScriptGroup[], { skipFirmwareCheck = fal
     store.startPlan.value = plan;
     const clock = await setClock(link);
     store.apply.value = { phase: "readBack", total };
-    await readBack(link, plan);
+    await readBack(link, plan, lines);
     appendLog({ text: t("log.applied"), kind: "ok" });
     if (result.silent.length) appendLog({ text: t("apply.savedSilent", { count: result.silent.length }), kind: "muted" });
     const stillConnected = link.connected && store.device.peek().link === link;

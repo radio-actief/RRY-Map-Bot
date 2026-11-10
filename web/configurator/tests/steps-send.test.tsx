@@ -573,7 +573,21 @@ describe("Send step: only the changes", () => {
     expect(scriptText()).toBe(`# Settings\n${CHANGE}`);
     fireEvent.click(screen.getByRole("button", { name: "Apply 1 change to repeater" }));
     await screen.findByRole("button", { name: "Reboot now" });
-    expect(port.received).toEqual(["ver", CHANGE, CLOCK, ...READ_BACK_COMMANDS]);
+    // No radio line sent: the read-back does not ask for the radio again, and keeps the one read.
+    expect(port.received).toEqual(["ver", CHANGE, CLOCK, ...READ_BACK_COMMANDS.filter((c) => c !== "get radio")]);
+    expect(store.snapshot.value?.radio).toEqual(snapshotFromReplies(read).radio);
+    expect(store.snapshot.value?.missing).toEqual([]);
+  });
+
+  it("a changed radio is read back", async () => {
+    afterRead((p) => ({ ...p, radio: { ...p.radio, sf: 9 } }));
+    const lines = applyLines();
+    expect(lines).toContain("set radio 869.618,62.5,9,8");
+    const { port } = await connect({ ...read, ...okReplies(lines) });
+    render(<Send />);
+    fireEvent.click(applyButton());
+    await screen.findByRole("button", { name: "Reboot now" });
+    expect(port.received).toContain("get radio");
   });
 
   it("the switch sends every setting", async () => {
@@ -676,7 +690,7 @@ describe("Send step: only the changes", () => {
       for (let i = 0; store.apply.value.phase !== "done" && i < 500; i++) await vi.advanceTimersByTimeAsync(10);
       // The dialog opens in an effect, after the next frame.
       await vi.advanceTimersByTimeAsync(200);
-      expect([...port.received]).toEqual(["ver", setperm, CLOCK, ...READ_BACK_COMMANDS]);
+      expect([...port.received]).toEqual(["ver", setperm, CLOCK, ...READ_BACK_COMMANDS.filter((c) => c !== "get radio")]);
       fireEvent.click(screen.getByRole("button", { name: "Reboot now" }));
       await vi.advanceTimersByTimeAsync(0);
       expect(screen.getByText("Saving the access list…")).toBeTruthy();

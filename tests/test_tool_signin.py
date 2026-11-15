@@ -268,3 +268,12 @@ def test_the_alive_check_needs_the_secret(client):
     sign_in(client)
     handle = _handle(client)
     assert alive(app_module.app.test_client(), handle, secret='wrong' * 10).status_code == 401
+
+
+def test_a_flood_of_codes_never_pushes_out_a_handle(client, monkeypatch):
+    monkeypatch.setitem(grants._THRESHOLDS, 'codes', 5)
+    sign_in(client)
+    handle = _handle(client)
+    for i in range(30):
+        code_for(client, state=f's{i}')
+    assert alive(app_module.app.test_client(), handle).get_json()['alive'] is True

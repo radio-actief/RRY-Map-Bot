@@ -117,6 +117,13 @@ def test_the_origins_of_tools_on_their_own_address():
     assert tool_origins([]) == []
 
 
+@pytest.fixture(autouse=True)
+def _client_id(monkeypatch):
+    # The sign-in redirect needs a client id; a checkout without .env (CI) has none.
+    import backend.auth as auth
+    monkeypatch.setattr(auth, 'DISCORD_OAUTH2_CLIENT_ID', 'test-client-id')
+
+
 @pytest.fixture
 def client(monkeypatch):
     monkeypatch.setattr(app_module, 'SITE_TOOLS', TOOLS)

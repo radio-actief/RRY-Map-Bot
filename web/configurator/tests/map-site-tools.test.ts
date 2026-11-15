@@ -68,6 +68,13 @@ describe("map popup and the site's tools", () => {
     expect(links(html)).toEqual([["Open in NodeBook", `/nodebook/node/${KEY}`]]);
   });
 
+  it("tool links tell the tool they come from the map (NodeBook's quiet sign-in needs the referrer)", () => {
+    for (const nodebook of ["in", "out", "unknown"]) {
+      const html = toolLinksHtml({ tools: TOOLS, node: { public_key: KEY, type: 1 }, signedIn: true, nodebook, t, escape });
+      expect(html).not.toMatch(/noreferrer|referrerpolicy/i);
+    }
+  });
+
   it("a repeater gets no Connect live, and a node outside the fleets gets Add to NodeBook", () => {
     const html = toolLinksHtml({ tools: TOOLS, node: { public_key: KEY, type: 2 }, signedIn: true, nodebook: "out", t, escape });
     expect(links(html)).toEqual([["Add to NodeBook", `/nodebook/node/${KEY}`]]);

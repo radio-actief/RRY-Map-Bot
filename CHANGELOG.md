@@ -2,6 +2,27 @@
 
 What changed in each release of the #BEmesh map, bot and configurator.
 
+## 1.0.9 (2026-11-15)
+
+### New
+
+- When signing in doesn't work (you cancelled at Discord, the sign-in took too long, or you're not a member of the Discord server yet), you get a short page that says what happened, with Try again and a way back, instead of a pop-up
+- The configurator shows the device's name and board as soon as it connects, and "Reconnect <name>" puts a repeater you used before back in one click
+- If another tab already holds the repeater, the configurator says so and offers to take it over
+- The configurator accepts a gain-control reset interval up to 1020 seconds, as the firmware does
+- The configurator names the browsers that can use USB: Chrome, Edge, or Firefox 151 or later on a computer
+
+### Fixed
+
+- Safer sign-in: you get a fresh session every time you sign in, and every page now runs under a strict content policy
+- Configurator backups keep regions whose names contain #, $, _ or capitals, the access list stays with its own repeater, and passwords no longer show in the log
+- Sending to a repeater stops on a real error instead of retrying it, and names the lines that got no answer
+- Claiming a node from Discord with /node asks for confirmation when there is a single match
+- The sync stops removing nodes when its Belgian check fails, and skips broken records
+- Groundwork for NodeBook and MeshMate on their own addresses next to the map; nothing changes on this site yet
+
+You may need to sign in once more after this update.
+
 ## 1.0.8 (2026-11-10)
 
 ### New

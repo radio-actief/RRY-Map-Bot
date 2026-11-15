@@ -3,7 +3,7 @@
 
 import os
 
-from config.site_tools import parse_site_tools
+from config.site_tools import parse_site_tools, parse_tool_secrets
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -77,6 +77,9 @@ DISCORD_API_BASE_URL = (os.getenv('DISCORD_API_BASE_URL') or 'https://discord.co
 # The site's other tools (SITE_TOOLS_JSON), e.g. NodeBook, on a path of this site or on their own
 # address; none on a site that only runs the map. Format: DEPLOYMENT.md.
 SITE_TOOLS = parse_site_tools(os.getenv('SITE_TOOLS_JSON'))
+# Their secrets for signing in through the map (SITE_TOOL_SECRETS_JSON, {"nodebook": "..."}); a tool
+# without one can't sign in through the map.
+SITE_TOOL_SECRETS = parse_tool_secrets(os.getenv('SITE_TOOL_SECRETS_JSON'))
 DISCORD_SERVER_INVITE_URL = os.getenv('DISCORD_SERVER_INVITE_URL', 'https://discord.gg/kvybAgqnhD')
 
 # Belgian Geographic Bounds

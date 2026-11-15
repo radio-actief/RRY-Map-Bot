@@ -80,3 +80,26 @@ def tool_origins(tools):
         if origin not in origins:
             origins.append(origin)
     return origins
+
+
+# A tool's shared secret for signing in through the map: long enough that it can't be guessed.
+SECRET_MIN_LENGTH = 32
+
+
+def parse_tool_secrets(raw):
+    """{tool key: secret} from SITE_TOOL_SECRETS_JSON, the secrets the site's tools use when they swap
+    a sign-in code or ask whether someone is still signed in. A key that isn't plain or a secret
+    shorter than SECRET_MIN_LENGTH is left out, so that tool can't sign in through the map."""
+    if not raw:
+        return {}
+    try:
+        data = json.loads(raw)
+    except ValueError:
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    return {
+        key: secret for key, secret in data.items()
+        if isinstance(key, str) and _KEY.fullmatch(key)
+        and isinstance(secret, str) and len(secret) >= SECRET_MIN_LENGTH
+    }

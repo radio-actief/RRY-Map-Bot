@@ -23,6 +23,7 @@ pyproj>=3.6.0
 flask>=3.0.0
 flask-cors>=4.0.0
 flask-session>=0.8.0
+cachelib>=0.13.0
 # Production web server for the API (app.py runs it unless FLASK_DEBUG=true)
 waitress>=3.0.2
 

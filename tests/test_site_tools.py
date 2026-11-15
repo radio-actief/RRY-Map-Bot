@@ -245,30 +245,18 @@ def test_the_sign_out_page_signs_out(full_client):
         assert 'user_id' not in s
 
 
-def test_cookie_domain_comes_from_the_environment(monkeypatch):
-    monkeypatch.setenv('SESSION_COOKIE_DOMAIN', ' .example.test ')
-    assert app_module.session_cookie_domain() == '.example.test'
-    monkeypatch.setenv('SESSION_COOKIE_DOMAIN', '')
-    assert app_module.session_cookie_domain() is None
-    monkeypatch.delenv('SESSION_COOKIE_DOMAIN')
-    assert app_module.session_cookie_domain() is None
-
-
-def test_unset_cookie_domain_keeps_cookies_on_this_host(client):
+def test_the_session_cookie_has_no_domain():
     assert app_module.app.config['SESSION_COOKIE_DOMAIN'] is None
-    r = client.get('/auth/login?next=/')
-    cookie = [h for h in r.headers.getlist('Set-Cookie') if h.startswith(app_module.OAUTH_COOKIE + '=')][0]
-    assert 'Domain=' not in cookie
+    assert not hasattr(app_module, 'session_cookie_domain')
 
 
-def test_the_sign_in_cookie_follows_the_cookie_domain(client, monkeypatch):
-    monkeypatch.setitem(app_module.app.config, 'SESSION_COOKIE_DOMAIN', 'example.test')
+def test_the_sign_in_cookie_stays_on_this_host(client):
     r = client.get('/auth/login?next=/')
     cookie = [h for h in r.headers.getlist('Set-Cookie') if h.startswith(app_module.OAUTH_COOKIE + '=')][0]
-    assert 'Domain=example.test' in cookie and 'Path=/auth/' in cookie
+    assert 'Domain=' not in cookie and 'Path=/auth/' in cookie
     r = client.get('/auth/callback?error=x')
     gone = [h for h in r.headers.getlist('Set-Cookie') if h.startswith(app_module.OAUTH_COOKIE + '=')][0]
-    assert 'Domain=example.test' in gone and 'Max-Age=0' in gone
+    assert 'Domain=' not in gone and 'Max-Age=0' in gone
 
 
 def test_the_tool_list_stays_public(full_client):

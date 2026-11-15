@@ -27,7 +27,7 @@ from backend.database import (
     dict_from_row
 )
 from backend.datetime_utils import normalize_node_timestamps
-from config.config import SITE_TOOLS as config_site_tools
+from config.config import SITE_TOOLS as config_site_tools, SITE_TOOL_SECRETS as config_site_tool_secrets
 from config.site_tools import tool_origins
 from backend.auth import (
     get_authorization_url,
@@ -35,6 +35,7 @@ from backend.auth import (
     get_user_info,
     is_authenticated,
     get_current_user,
+    user_from_session,
     login_required,
     generate_state,
     is_guild_member,
@@ -101,7 +102,12 @@ def _secret_key(data_dir: str) -> str:
 _DATA_DIR = os.path.dirname(os.path.abspath(os.getenv('DATABASE_PATH', 'data/belgian_nodes.db')))
 app.config['SECRET_KEY'] = _secret_key(_DATA_DIR)
 app.config['SESSION_FILE_DIR'] = os.path.join(_DATA_DIR, 'sessions')
+import backend.tool_grants as tool_grants  # noqa: E402
+tool_grants.GRANTS_DIR = os.path.join(_DATA_DIR, 'tool-grants')
 app.config['SESSION_TYPE'] = 'filesystem'
+# Its own name, on this host only: the site's other tools sign in through the map instead
+# (/auth/authorize), so no other address ever gets this cookie.
+app.config['SESSION_COOKIE_NAME'] = 'bemesh_map_session'
 app.config['SESSION_PERMANENT'] = False
 app.config['SESSION_USE_SIGNER'] = True
 app.config['SESSION_KEY_PREFIX'] = 'rry_map_bot:'
@@ -110,13 +116,8 @@ app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 
 
-def session_cookie_domain():
-    """SESSION_COOKIE_DOMAIN from the environment (e.g. ".example.org", so the site's tools on other
-    addresses share the sign-in); None, the default, keeps the cookie on this host only."""
-    return (os.getenv('SESSION_COOKIE_DOMAIN') or '').strip() or None
-
-
-app.config['SESSION_COOKIE_DOMAIN'] = session_cookie_domain()
+# Cookies stay on the map's own host: no Domain attribute, so no other address gets them.
+app.config['SESSION_COOKIE_DOMAIN'] = None
 
 # Initialize session
 Session(app)
@@ -126,6 +127,9 @@ Session(app)
 CORS(app, resources={r"/api/v1/*": {"origins": "*"}}, supports_credentials=False, send_wildcard=True)
 
 
+TOOL_SERVER_PATHS = ('/auth/token', '/auth/alive')
+
+
 @app.before_request
 def _same_site_only():
     """Changes (claim, unclaim, logout) only from the map's own pages: the browser's Origin (or,
@@ -133,6 +137,10 @@ def _same_site_only():
     A proxy must keep the Host header and must not send Referrer-Policy: no-referrer (browsers then
     send Origin: null), see DEPLOYMENT.md."""
     if request.method in ('GET', 'HEAD', 'OPTIONS'):
+        return None
+    # The site's tools call these server to server with their secret, never with a cookie (they
+    # refuse one), so there is no visitor's cookie to misuse.
+    if request.path in TOOL_SERVER_PATHS:
         return None
     source = request.headers.get('Origin') or request.headers.get('Referer') or ''
     if urlparse(source).netloc != request.host:
@@ -1385,6 +1393,8 @@ def internal_error(error):
 NEXT_PAGES = ('/', '/stats', '/region-map', '/configurator')
 # The site's other tools (config SITE_TOOLS_JSON); none on a site that only runs the map.
 SITE_TOOLS = config_site_tools
+# Their secrets for signing in through the map (config SITE_TOOL_SECRETS_JSON).
+SITE_TOOL_SECRETS = config_site_tool_secrets
 
 
 def _safe_next(value):
@@ -1434,15 +1444,18 @@ def read_oauth_pending(value):
 @app.route('/auth/login')
 def auth_login():
     """Initiate Discord OAuth2 login flow."""
+    return _start_discord_sign_in({'next': _safe_next(request.args.get('next'))})
+
+
+def _start_discord_sign_in(pending):
+    """Off to Discord, with the sign-in's state and where it goes afterwards in the signed cookie."""
     state = generate_state()
-    next_page = _safe_next(request.args.get('next'))
     resp = redirect(get_authorization_url(state=state))
     resp.set_cookie(
         OAUTH_COOKIE,
-        _oauth_serializer().dumps({'state': state, 'next': next_page}),
+        _oauth_serializer().dumps({**pending, 'state': state}),
         max_age=OAUTH_MAX_AGE_S,
         path='/auth/',
-        domain=app.config['SESSION_COOKIE_DOMAIN'],
         secure=app.config['SESSION_COOKIE_SECURE'],
         httponly=True,
         samesite='Lax',
@@ -1454,7 +1467,7 @@ def auth_login():
 def auth_callback():
     """Handle Discord OAuth2 callback."""
     resp = _auth_callback(read_oauth_pending(request.cookies.get(OAUTH_COOKIE)))
-    resp.delete_cookie(OAUTH_COOKIE, path='/auth/', domain=app.config['SESSION_COOKIE_DOMAIN'])
+    resp.delete_cookie(OAUTH_COOKIE, path='/auth/')
     return resp
 
 
@@ -1463,28 +1476,36 @@ def _auth_callback(pending):
     state = request.args.get('state')
     error = request.args.get('error')
     next_page = _safe_next((pending or {}).get('next'))
+    # A sign-in a tool asked for (/auth/authorize): its key and the tool's own state.
+    tool = _sign_in_tool((pending or {}).get('tool'))
+    tool_state = (pending or {}).get('tool_state') if tool else None
+    if tool and not _good_tool_state(tool_state):
+        tool = tool_state = None
+
+    def failed(reason):
+        return _signin_failed(reason, next_page, tool and tool['key'], tool_state)
 
     # Discord says why it stopped: access_denied is the visitor pressing Cancel.
     if error:
-        return _signin_failed('cancelled' if error == 'access_denied' else 'failed', next_page)
+        return failed('cancelled' if error == 'access_denied' else 'failed')
 
     # Verify state: no started sign-in in this browser, or one from another tab or too old.
     if not state or not pending or state != pending.get('state'):
-        return _signin_failed('expired', next_page)
+        return failed('expired')
 
     # Exchange code for token
     if not code:
-        return _signin_failed('failed', next_page)
+        return failed('failed')
 
     token_response = exchange_code_for_token(code)
     access_token = (token_response or {}).get('access_token')
     if not access_token:
-        return _signin_failed('failed', next_page)
+        return failed('failed')
 
     # Get user info
     user_info = get_user_info(access_token)
     if not user_info:
-        return _signin_failed('failed', next_page)
+        return failed('failed')
 
     # Check if user is a member of the Discord server
     from backend.auth import is_guild_member
@@ -1494,12 +1515,17 @@ def _auth_callback(pending):
     # Store user info in session
     session['user_id'] = str(user_info['id'])
     session['username'] = user_info.get('username', 'Unknown')
+    session['global_name'] = user_info.get('global_name')
     session['discriminator'] = user_info.get('discriminator', '0000')
     session['avatar'] = user_info.get('avatar')
     session['is_guild_member'] = is_member
     # A new session id from here on: one planted in this browser beforehand (the cookie domain can
     # be shared by the site's tools) never becomes a signed-in session.
     app.session_interface.regenerate(session)
+
+    # Back to the tool that asked, with a code; the tool decides what membership means to it.
+    if tool:
+        return _back_to_tool_with_code(tool, tool_state)
 
     # Signed in, but not on the server yet: the page with the invite, then back.
     if not is_member:
@@ -1512,12 +1538,125 @@ def _auth_callback(pending):
 SIGNIN_FAILED_REASONS = ('cancelled', 'expired', 'failed', 'not_member')
 
 
-def _signin_failed(reason, next_page):
+def _signin_failed(reason, next_page, tool_key=None, tool_state=None):
     from urllib.parse import quote
     target = f'/auth/failed?reason={reason}'
-    if next_page:
+    if tool_key:
+        target += f'&tool={tool_key}&state={tool_state}'
+    elif next_page:
         target += f'&next={quote(next_page, safe="")}'
     return redirect(target)
+
+
+# Signing in for the site's other tools. A tool sends the person to /auth/authorize; the map sends
+# them back to the tool's listed address + "auth/callback" with a one-time code, which the tool's
+# server swaps (/auth/token) for a handle and the person; /auth/alive tells it later whether that
+# map session is still signed in. The map's cookie never leaves the map's address.
+_TOOL_STATE = re.compile(r'^[A-Za-z0-9._~-]{1,128}$')
+
+
+def _sign_in_tool(key):
+    """The listed tool with this key that has a secret, else None."""
+    if not isinstance(key, str) or key not in SITE_TOOL_SECRETS:
+        return None
+    return next((t for t in SITE_TOOLS if t['key'] == key), None)
+
+
+def _good_tool_state(value):
+    return isinstance(value, str) and bool(_TOOL_STATE.fullmatch(value))
+
+
+def _tool_callback(tool):
+    return tool['url'] + 'auth/callback'
+
+
+def _back_to_tool_with_code(tool, tool_state):
+    from urllib.parse import urlencode
+    code = tool_grants.issue_code(tool['key'], app.session_interface._get_store_id(session.sid), session.get('user_id'))
+    return redirect(_tool_callback(tool) + '?' + urlencode({'code': code, 'state': tool_state}))
+
+
+def _plain_400(text):
+    resp = make_response(text + '\n', 400)
+    resp.mimetype = 'text/plain'
+    resp.headers['Cache-Control'] = 'no-store'
+    return resp
+
+
+@app.route('/auth/authorize')
+def auth_authorize():
+    """A tool asks who is signed in on the map: back to the tool with a one-time code, after a
+    Discord sign-in when needed; with ?prompt=none and nobody signed in, back at once with
+    error=login_required."""
+    from urllib.parse import urlencode
+    tool = _sign_in_tool(request.args.get('tool'))
+    tool_state = request.args.get('state')
+    if not tool or not _good_tool_state(tool_state):
+        return _plain_400('Unknown tool or state.')
+    if is_authenticated():
+        return _back_to_tool_with_code(tool, tool_state)
+    if request.args.get('prompt') == 'none':
+        return redirect(_tool_callback(tool) + '?' + urlencode({'error': 'login_required', 'state': tool_state}))
+    return _start_discord_sign_in({'next': tool['url'], 'tool': tool['key'], 'tool_state': tool_state})
+
+
+def _tool_call():
+    """The calling tool's key for a server-to-server call (Bearer secret, JSON body), or the
+    response that refuses it. A call from a browser (an Origin or a cookie) is refused."""
+    import hmac
+    if request.headers.get('Origin') or request.cookies:
+        return None, (jsonify({'error': 'invalid_request'}), 400)
+    body = request.get_json(silent=True)
+    key = body.get('tool') if isinstance(body, dict) else None
+    secret = SITE_TOOL_SECRETS.get(key) if isinstance(key, str) else None
+    given = request.headers.get('Authorization', '')
+    if not secret or not given.startswith('Bearer ') or not hmac.compare_digest(
+            given[len('Bearer '):].encode('utf-8'), secret.encode('utf-8')):
+        return None, (jsonify({'error': 'invalid_client'}), 401)
+    return (key, body), None
+
+
+def _no_store(resp, status):
+    resp.headers['Cache-Control'] = 'no-store'
+    return resp, status
+
+
+def _signed_in_user(store_id, user_id):
+    """The person of a stored map session when it is still signed in as `user_id`, else None."""
+    data = app.session_interface._retrieve_session_data(store_id)
+    if not isinstance(data, dict) or not data.get('username') or data.get('user_id') != user_id:
+        return None
+    return user_from_session(data)
+
+
+@app.route('/auth/token', methods=['POST'])
+def auth_token():
+    """A tool's server swaps a one-time code for a handle and the signed-in person."""
+    call, refused = _tool_call()
+    if refused:
+        return refused
+    key, body = call
+    record = tool_grants.redeem_code(key, body.get('code'))
+    user = record and _signed_in_user(record['store_id'], record['user_id'])
+    if not user:
+        return _no_store(jsonify({'error': 'invalid_grant'}), 400)
+    handle = tool_grants.issue_handle(key, record['store_id'], record['user_id'],
+                                      app.permanent_session_lifetime.total_seconds())
+    return _no_store(jsonify({'handle': handle, 'user': user}), 200)
+
+
+@app.route('/auth/alive', methods=['POST'])
+def auth_alive():
+    """A tool's server asks whether the map session behind a handle is still signed in."""
+    call, refused = _tool_call()
+    if refused:
+        return refused
+    key, body = call
+    record = tool_grants.find_handle(key, body.get('handle'))
+    user = record and _signed_in_user(record['store_id'], record['user_id'])
+    if not user:
+        return _no_store(jsonify({'alive': False}), 200)
+    return _no_store(jsonify({'alive': True, 'user': user}), 200)
 
 
 @app.route('/auth/logout', methods=['POST'])
@@ -1610,6 +1749,12 @@ def auth_failed():
     next_page = _safe_next(request.args.get('next'))
     retry = '/auth/login' + (f'?next={quote(next_page, safe="")}' if next_page else '')
     back = next_page or '/'
+    # A sign-in a tool asked for: Try again asks again for that tool, Back goes to the tool.
+    tool = _sign_in_tool(request.args.get('tool'))
+    tool_state = request.args.get('state')
+    if tool and _good_tool_state(tool_state):
+        retry = f'/auth/authorize?tool={tool["key"]}&state={tool_state}'
+        back = tool['url']
     key = 'signin.notMember' if reason == 'not_member' else 'signin.failed'
     actions = ''
     if reason == 'not_member' and DISCORD_SERVER_INVITE_URL.startswith('https://'):

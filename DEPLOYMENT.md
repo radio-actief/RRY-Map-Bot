@@ -126,9 +126,9 @@ another's or act as the signed-in person there. What that needs:
 
 - Sign-in: `/auth/login?next=` and `/auth/logout?next=` return to a map page or to a listed `url`,
   exactly. Other tools log out through `GET /auth/signout?next=<their url>`: a page on the map's
-  address with one button that posts to `/auth/logout`. `SESSION_COOKIE_DOMAIN` (e.g.
-  `.example.org`) shares the sign-in cookie with the other addresses under that domain; unset, it
-  stays on the map's host.
+  address with one button that posts to `/auth/logout`. The map's cookies
+  (`bemesh_map_session`, and `rry_oauth` during a sign-in) stay on the map's own host: no other
+  address ever gets them. A tool that needs to know who is signed in asks the map, below.
 - The map popup asks NodeBook `GET <nodebook url>api/nodes/<key>` with the visitor's cookies when
   NodeBook is on another address: NodeBook answers with `Access-Control-Allow-Origin: <the map's
   origin>` and `Access-Control-Allow-Credentials: true`. "In your NodeBook" and "Add to NodeBook"
@@ -145,6 +145,34 @@ another's or act as the signed-in person there. What that needs:
   per top-level site, so the hub joins the configurator only when the tools share a site (one
   registrable domain, e.g. `map.example.org` and `nodebook.example.org`, or one host with a port
   per tool); the popup's NodeBook cookies need the same.
+
+### Signing in through the map
+
+A tool listed in `SITE_TOOLS_JSON` with a secret in `SITE_TOOL_SECRETS_JSON`
+(`{"<key>": "<secret>"}`, 32 characters or more, the same value in the tool's own settings) signs
+people in through the map. Its own sessions stay its own; it never sees the map's cookie.
+
+1. The browser goes to `GET /auth/authorize?tool=<key>&state=<state>[&prompt=none]`, `state` 1–128
+   characters of `A-Z a-z 0-9 . _ ~ -`. An unknown tool or state gets a plain 400, never a redirect.
+   The map sends the browser back to `<the tool's url>auth/callback` only:
+   - signed in: `?code=<code>&state=<state>`;
+   - not signed in: through Discord first, then the same (a Discord account that is not on the
+     server gets a code too; the tool decides what membership means);
+   - not signed in with `prompt=none`: at once `?error=login_required&state=<state>`;
+   - cancelled or failed at Discord: the map's `/auth/failed` page, whose Try again asks again for
+     that tool and whose Back goes to the tool's `url`.
+2. The tool's server swaps the code: `POST /auth/token` with `Authorization: Bearer <secret>` and
+   `{"tool": "<key>", "code": "<code>"}`. A code is good once, for 60 seconds, for that tool only.
+   Answer: `{"handle": "<handle>", "user": {"id", "username", "global_name", "discriminator",
+   "avatar", "is_guild_member"}}`. Wrong, used or expired code: 400 `{"error": "invalid_grant"}`;
+   wrong secret: 401; a request with an `Origin` header or a cookie (a browser): 400.
+3. Later the tool's server asks `POST /auth/alive` with the same header and
+   `{"tool": "<key>", "handle": "<handle>"}`: `{"alive": true, "user": {...}}` while the map
+   session that made the code is signed in, else `{"alive": false}` (signed out, expired, or signed
+   in again, which gives a new session).
+
+The tool calls 2 and 3 on the map's internal address. Codes and handles are kept in the data
+directory (`tool-grants/`) under their SHA-256, never in clear.
 
 Device hub messages, all with `v: 1`. The tool's page posts them to the frame with
 `postMessage(message, "<the map's origin>")`; the hub takes them only from its parent window and

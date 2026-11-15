@@ -195,12 +195,18 @@ def get_current_user() -> Optional[Dict[str, Any]]:
     if not is_authenticated():
         return None
     
+    return user_from_session(session)
+
+
+def user_from_session(data) -> Dict[str, Any]:
+    """The signed-in person as the API shows them, from a session (or its stored data)."""
     return {
-        'id': session.get('user_id'),
-        'username': session.get('username'),
-        'discriminator': session.get('discriminator'),
-        'avatar': session.get('avatar'),
-        'is_guild_member': session.get('is_guild_member', False)
+        'id': data.get('user_id'),
+        'username': data.get('username'),
+        'global_name': data.get('global_name'),
+        'discriminator': data.get('discriminator'),
+        'avatar': data.get('avatar'),
+        'is_guild_member': data.get('is_guild_member', False)
     }
 
 

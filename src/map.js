@@ -1803,7 +1803,8 @@ createApp({
         toolLinksHtml({ tools: siteTools, node, signedIn: Boolean(auth.authenticated), nodebook: nodebookStatus.get(key) ?? null, t, escape: escapeAttrHtml });
       const shown = marker.getPopup?.()?.getElement?.()?.querySelector(".node-popup__tools")?.outerHTML ?? "";
       const url = nodebookApiUrl(siteTools, key);
-      if (url && auth.authenticated && !nodebookStatus.has(key)) {
+      // "unknown" is asked again at the next open: once the visitor has opened NodeBook, it knows them.
+      if (url && auth.authenticated && (!nodebookStatus.has(key) || nodebookStatus.get(key) === "unknown")) {
         nodebookStatus.set(key, null);
         try {
           const res = await fetch(url, nodebookFetchInit(siteTools, location.origin));

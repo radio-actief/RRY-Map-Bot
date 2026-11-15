@@ -104,6 +104,7 @@
   "map.claim": "Claim",
   "map.nodebook.in": "In your NodeBook",
   "map.nodebook.add": "Add to NodeBook",
+  "map.nodebook.open": "Open in NodeBook",
   "map.connectLive": "Connect live",
   "map.unclaim": "Unclaim",
   "map.requestDeletion": "Request deletion",

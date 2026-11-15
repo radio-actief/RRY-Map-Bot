@@ -7,7 +7,7 @@ const TOOLS = [
   { key: "nodebook", label: "NodeBook", url: "/nodebook/" },
   { key: "meshmate", label: "MeshMate", url: "/app/" },
 ];
-const t = (k: string) => ({ "map.nodebook.in": "In your NodeBook", "map.nodebook.add": "Add to NodeBook", "map.connectLive": "Connect live" })[k] ?? k;
+const t = (k: string) => ({ "map.nodebook.in": "In your NodeBook", "map.nodebook.add": "Add to NodeBook", "map.nodebook.open": "Open in NodeBook", "map.connectLive": "Connect live" })[k] ?? k;
 const escape = (s: string) => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
 const links = (html: string) => Array.from(new DOMParser().parseFromString(html, "text/html").querySelectorAll("a")).map((a) => [a.textContent, a.getAttribute("href")]);
 
@@ -34,7 +34,8 @@ describe("map popup and the site's tools", () => {
   it("reads NodeBook's answer: in a fleet, not in one, or unknown", () => {
     expect(nodebookState(200, { fleets: [{ id: 1 }] })).toBe("in");
     expect(nodebookState(200, { fleets: [] })).toBe("out");
-    expect(nodebookState(401, null)).toBeNull();
+    // NodeBook doesn't know this browser yet (not opened since signing in): it can still be opened.
+    expect(nodebookState(401, null)).toBe("unknown");
     expect(nodebookState(500, { fleets: [{ id: 1 }] })).toBeNull();
   });
 
@@ -60,6 +61,11 @@ describe("map popup and the site's tools", () => {
     expect(nodebookFetchInit(full, "https://map.example")).toEqual({ credentials: "include" });
     expect(nodebookFetchInit([{ key: "nodebook", label: "N", url: "https://map.example/nodebook/" }], "https://map.example")).toEqual({ credentials: "same-origin" });
     expect(nodebookFetchInit(TOOLS, "https://map.example")).toEqual({ credentials: "same-origin" });
+  });
+
+  it("when NodeBook doesn't know the visitor yet, the line opens the node in NodeBook", () => {
+    const html = toolLinksHtml({ tools: TOOLS, node: { public_key: KEY, type: 2 }, signedIn: true, nodebook: "unknown", t, escape });
+    expect(links(html)).toEqual([["Open in NodeBook", `/nodebook/node/${KEY}`]]);
   });
 
   it("a repeater gets no Connect live, and a node outside the fleets gets Add to NodeBook", () => {

@@ -105,6 +105,7 @@
   "map.claim": "Revendiquer",
   "map.nodebook.in": "Dans votre NodeBook",
   "map.nodebook.add": "Ajouter au NodeBook",
+  "map.nodebook.open": "Ouvrir dans NodeBook",
   "map.connectLive": "Connexion en direct",
   "map.unclaim": "Libérer",
   "map.requestDeletion": "Demander la suppression",

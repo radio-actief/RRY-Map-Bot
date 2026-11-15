@@ -13,8 +13,13 @@ export function toolByKey(tools, key) {
   return tool;
 }
 
-/** NodeBook's answer for one node: "in" when it is in one of the visitor's fleets, "out" when not, null when unknown. */
+/**
+ * NodeBook's answer for one node: "in" when it is in one of the visitor's fleets, "out" when not,
+ * "unknown" when NodeBook doesn't know this browser yet (401: not opened since signing in), null
+ * when there is no usable answer.
+ */
 export function nodebookState(status, body) {
+  if (status === 401) return "unknown";
   if (status !== 200 || !body || typeof body !== "object") return null;
   return Array.isArray(body.fleets) && body.fleets.length > 0 ? "in" : "out";
 }
@@ -33,15 +38,17 @@ export function nodebookFetchInit(tools, here) {
 
 /**
  * The popup's tool links as HTML, or "" when there are none.
- * nodebook: "in" | "out" | null (unknown: no NodeBook line yet). t: the page's translator.
+ * nodebook: "in" | "out" | "unknown" (NodeBook doesn't know the visitor yet: "Open in NodeBook")
+ * | null (no answer: no NodeBook line). t: the page's translator.
  */
 export function toolLinksHtml({ tools, node, signedIn, nodebook, t, escape }) {
   const key = node && HEX_KEY.test(node.public_key || "") ? node.public_key.toLowerCase() : null;
   if (!key) return "";
   const links = [];
   const nb = toolByKey(tools, "nodebook");
-  if (nb && signedIn && (nodebook === "in" || nodebook === "out")) {
-    const text = nodebook === "in" ? t("map.nodebook.in") : t("map.nodebook.add");
+  const texts = { in: "map.nodebook.in", out: "map.nodebook.add", unknown: "map.nodebook.open" };
+  if (nb && signedIn && texts[nodebook]) {
+    const text = t(texts[nodebook]);
     links.push(`<a class="node-popup-action node-popup-action--tool" data-tool="nodebook" href="${escape(`${nb.url}node/${key}`)}">${escape(text)}</a>`);
   }
   const mm = toolByKey(tools, "meshmate");

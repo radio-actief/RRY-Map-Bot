@@ -171,7 +171,7 @@
     }
   }
 
-  /** EN · NL · FR: the current language pressed; a click remembers the choice and reloads in it. */
+  /** EN · NL · FR: the current language pressed; a click saves the choice for all the tools and reloads in it. */
   function langSwitch(cls) {
     var i18n = window.BEmeshI18n;
     if (!i18n) return null;

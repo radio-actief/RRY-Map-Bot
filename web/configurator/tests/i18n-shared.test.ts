@@ -10,61 +10,95 @@ const PLACES: Place[] = JSON.parse(readFileSync(resolve(__dirname, "../../../dat
 afterEach(async () => {
   await setLang("en");
   localStorage.clear();
+  document.cookie = "bemesh_lang=; Path=/; Max-Age=0";
   history.replaceState(null, "", "/");
+  vi.unstubAllGlobals();
 });
 
 describe("language choice", () => {
-  it("follows the browser language on a first visit: nl* → nl, fr* → fr, else en", () => {
-    expect(I18N.pick({ browser: "nl-BE" }).lang).toBe("nl");
-    expect(I18N.pick({ browser: "nl" }).lang).toBe("nl");
-    expect(I18N.pick({ browser: "fr-CA" }).lang).toBe("fr");
-    expect(I18N.pick({ browser: "de-DE" }).lang).toBe("en");
-    expect(I18N.pick({ browser: "en-US" }).lang).toBe("en");
-    expect(I18N.pick({ browser: "" }).lang).toBe("en");
-    expect(I18N.pick({}).remember).toBe(false);
+  it("follows the browser's languages on a first visit: the first one the site has, else English", () => {
+    expect(I18N.pick({ browser: ["nl-BE"] }).lang).toBe("nl");
+    expect(I18N.pick({ browser: ["nl"] }).lang).toBe("nl");
+    expect(I18N.pick({ browser: ["fr-CA"] }).lang).toBe("fr");
+    expect(I18N.pick({ browser: ["en-US", "nl-BE"] }).lang).toBe("en");
+    // A browser set to German first, Dutch second, gets Dutch.
+    expect(I18N.pick({ browser: ["de-DE", "nl-BE", "en"] }).lang).toBe("nl");
+    expect(I18N.pick({ browser: ["de-DE", "es"] }).lang).toBe("en");
+    expect(I18N.pick({ browser: ["FR_be"] }).lang).toBe("fr");
+    expect(I18N.pick({ browser: ["nld"] }).lang).toBe("en");
+    expect(I18N.pick({ browser: [] }).lang).toBe("en");
+    expect(I18N.pick({}).lang).toBe("en");
   });
 
-  it("prefers the stored choice over the browser", () => {
-    expect(I18N.pick({ stored: "fr", browser: "nl-BE" })).toEqual({ lang: "fr", remember: false });
-    expect(I18N.pick({ stored: "de", browser: "nl-BE" }).lang).toBe("nl");
+  it("the choice shared by the site's tools (cookie bemesh_lang) beats the browser", () => {
+    expect(I18N.pick({ cookie: "fr", browser: ["nl-BE"] }).lang).toBe("fr");
+    expect(I18N.pick({ cookie: "de", browser: ["nl-BE"] }).lang).toBe("nl");
   });
 
-  it("lets ?lang override everything and asks to remember it", () => {
-    expect(I18N.pick({ query: "nl", stored: "fr", browser: "en" })).toEqual({ lang: "nl", remember: true });
-    expect(I18N.pick({ query: "FR", stored: "nl" })).toEqual({ lang: "fr", remember: true });
-    expect(I18N.pick({ query: "xx", stored: "nl", browser: "fr" })).toEqual({ lang: "nl", remember: false });
+  it("without the cookie the browser decides, also when this page kept an older choice of its own", () => {
+    localStorage.setItem("bemesh.lang", "fr");
+    vi.stubGlobal("navigator", { languages: ["nl-BE"], language: "nl-BE" });
+    expect(I18N.detect()).toBe("nl");
+    // The old per-page choice is cleared, so it can never come back.
+    expect(localStorage.getItem("bemesh.lang")).toBeNull();
   });
 
-  it("detect() reads ?lang and stores it under bemesh.lang", () => {
-    history.replaceState(null, "", "/?lang=fr");
+  it("?lang in the address wins for that page", () => {
+    expect(I18N.pick({ query: "nl", cookie: "fr", browser: ["en"] }).lang).toBe("nl");
+    expect(I18N.pick({ query: "FR", cookie: "nl" }).lang).toBe("fr");
+    expect(I18N.pick({ query: "xx", cookie: "nl", browser: ["fr"] }).lang).toBe("nl");
+  });
+
+  it("detect() reads the shared cookie, and a ?lang is never saved", () => {
+    document.cookie = "other=1; Path=/";
+    document.cookie = "bemesh_lang=fr; Path=/";
     expect(I18N.detect()).toBe("fr");
-    expect(localStorage.getItem("bemesh.lang")).toBe("fr");
+    history.replaceState(null, "", "/?lang=nl");
+    expect(I18N.detect()).toBe("nl");
     history.replaceState(null, "", "/");
     expect(I18N.detect()).toBe("fr");
+    expect(localStorage.getItem("bemesh.lang")).toBeNull();
+    expect(document.cookie).toContain("bemesh_lang=fr");
+  });
+
+  it("a first visit saves nothing", () => {
+    vi.stubGlobal("navigator", { languages: ["nl-BE", "en"], language: "nl-BE" });
+    expect(I18N.detect()).toBe("nl");
+    expect(document.cookie).not.toContain("bemesh_lang");
+    expect(localStorage.getItem("bemesh.lang")).toBeNull();
   });
 
   it("detect() still works when storage throws", () => {
-    const get = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
-      throw new Error("blocked");
-    });
-    const set = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+    const get = vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => {
       throw new Error("blocked");
     });
     history.replaceState(null, "", "/?lang=nl");
     expect(I18N.detect()).toBe("nl");
     history.replaceState(null, "", "/");
+    vi.stubGlobal("navigator", { languages: ["de"], language: "de" });
     expect(I18N.detect()).toBe("en");
     get.mockRestore();
-    set.mockRestore();
   });
 
-  it("choose() remembers the language, updates a ?lang in the address and switches", async () => {
+  it("choose() asks the map to save the choice for all tools, drops the page's old one, updates a ?lang and switches", async () => {
+    const fetch = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", fetch);
+    localStorage.setItem("bemesh.lang", "fr");
     history.replaceState(null, "", "/configurator?lang=en&x=1");
     I18N.choose("nl");
     await vi.waitFor(() => expect(I18N.lang).toBe("nl"));
-    expect(localStorage.getItem("bemesh.lang")).toBe("nl");
+    expect(fetch).toHaveBeenCalledWith("/api/v1/lang", expect.objectContaining({ method: "POST", body: JSON.stringify({ lang: "nl" }) }));
+    expect(localStorage.getItem("bemesh.lang")).toBeNull();
     expect(location.search).toBe("?lang=nl&x=1");
     expect(document.documentElement.lang).toBe("nl-BE");
+  });
+
+  it("choose() ignores a language the site doesn't have", () => {
+    const fetch = vi.fn();
+    vi.stubGlobal("fetch", fetch);
+    I18N.choose("de");
+    expect(fetch).not.toHaveBeenCalled();
+    expect(I18N.lang).toBe("en");
   });
 });
 

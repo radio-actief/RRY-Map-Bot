@@ -193,6 +193,27 @@ The device message rules (`src/shared/device-message.js`): `tool` 1–40 charact
 `usb`/`ble`/`bridge`/null, `role` `repeater`/`room`/`sensor`/`companion`/null, USB ids 0–65535
 or null, `name` and `publicKey` up to 64 characters or null.
 
+### The language, shared by the tools
+
+Every tool picks its language the same way:
+
+1. `?lang=` in the address, for that page only (never saved);
+2. the cookie `bemesh_lang`;
+3. the first of the browser's languages the tool has (`nl-BE` counts as `nl`);
+4. English.
+
+The cookie:
+
+- holds only a code: `en`, `nl` or `fr`. A tool ignores a code it doesn't have.
+- is written only when a person picks a language, never on a first visit.
+- `Path=/`, `Max-Age=31536000`, `SameSite=Lax`, `Secure` on HTTPS, not HttpOnly (the tools read it in the page).
+- Without it, the browser decides; a tool's "follow the browser" removes it.
+
+The map sets it with `POST /api/v1/lang {"lang": "nl"}` from its own pages. With `LANG_COOKIE_DOMAIN` set (e.g.
+`.radio-actief.be`) it goes on that domain, so every tool under it sees it; a host outside that
+domain, or no setting, keeps it on its own host. Tools that share one host (different ports)
+share it without a setting. The other tools use the same name, codes and domain in their own settings.
+
 ### Content-Security-Policy
 
 Every page and the configurator get a Content-Security-Policy: scripts only from the site and the

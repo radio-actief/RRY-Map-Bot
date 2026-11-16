@@ -103,3 +103,21 @@ def parse_tool_secrets(raw):
         if isinstance(key, str) and _KEY.fullmatch(key)
         and isinstance(secret, str) and len(secret) >= SECRET_MIN_LENGTH
     }
+
+
+_DOMAIN = re.compile(r'^' + _LABEL + r'(?:\.' + _LABEL + r')+$')
+_IPV4 = re.compile(r'^[0-9.]+$')
+
+
+def parse_cookie_domain(raw):
+    """The parent domain the site's tools share a language cookie on (LANG_COOKIE_DOMAIN, e.g.
+    ".radio-actief.be"), lower case without the leading dot; None when unset or not a plain
+    domain name of two or more labels."""
+    if not isinstance(raw, str):
+        return None
+    value = raw.strip().lower()
+    if value.startswith('.'):
+        value = value[1:]
+    if not _DOMAIN.fullmatch(value) or _IPV4.fullmatch(value):
+        return None
+    return value

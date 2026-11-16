@@ -6,13 +6,17 @@
  * [data-i18n], [data-i18n-html] and [data-i18n-attr] in the page and then resolves BEmeshI18n.ready.
  * The configurator imports this file and adds its own messages (web/configurator/src/i18n/t.ts).
  *
- * The language: ?lang=en|nl|fr (remembered), else the remembered choice (localStorage bemesh.lang),
- * else the browser language (nl* → nl, fr* → fr, anything else → en). */
+ * The language, the same way in every tool of the site: ?lang=en|nl|fr (that page only), else the choice
+ * the site's tools share (cookie bemesh_lang), else the first of the browser's languages the site has
+ * (nl-BE → nl), else English. Only a person picking a language saves it: the map sets the shared
+ * cookie (POST /api/v1/lang). No cookie means the browser decides, also after a tool removed it. */
 (function (global) {
   "use strict";
 
   var LANGS = ["en", "nl", "fr"];
+  /** Where the pages kept their own choice before the shared cookie; cleared, never read. */
   var STORE_KEY = "bemesh.lang";
+  var COOKIE = "bemesh_lang";
   /** Intl locale per page language. */
   var LOCALES = { en: "en-GB", nl: "nl-BE", fr: "fr-FR" };
   /** Value of <html lang> per page language. */
@@ -52,25 +56,20 @@
     return LANGS.indexOf(c) >= 0 ? c : null;
   }
 
-  /** The page language for a browser language tag: nl* → nl, fr* → fr, else en. */
-  function fromBrowser(tag) {
-    var s = String(tag || "").toLowerCase();
-    if (s.indexOf("nl") === 0) return "nl";
-    if (s.indexOf("fr") === 0) return "fr";
-    return "en";
+  /** The first of the browser's language tags the site has (nl-BE → nl, fr_CA → fr), else null. */
+  function fromBrowser(tags) {
+    var list = Array.isArray(tags) ? tags : [tags];
+    for (var i = 0; i < list.length; i++) {
+      var l = normalize(String(list[i] || "").split(/[-_]/)[0]);
+      if (l) return l;
+    }
+    return null;
   }
 
-  /**
-   * The language choice without side effects: a valid ?lang wins (and should be remembered),
-   * then a valid remembered choice, then the browser language.
-   */
+  /** The language without side effects: a valid ?lang, the shared choice, the browser's languages, English. */
   function pick(opts) {
     var o = opts || {};
-    var q = normalize(o.query);
-    if (q) return { lang: q, remember: true };
-    var s = normalize(o.stored);
-    if (s) return { lang: s, remember: false };
-    return { lang: fromBrowser(o.browser), remember: false };
+    return { lang: normalize(o.query) || normalize(o.cookie) || fromBrowser(o.browser) || "en" };
   }
 
   function readQuery() {
@@ -81,32 +80,63 @@
     }
   }
 
-  function readStored() {
+  function forgetStored() {
     try {
-      return global.localStorage.getItem(STORE_KEY);
+      global.localStorage.removeItem(STORE_KEY);
     } catch (e) {
-      return null;
+      /* storage unavailable: nothing kept there */
     }
   }
 
-  function remember(lang) {
+  /** The shared choice: the first valid bemesh_lang cookie this page can see. */
+  function readCookie() {
     try {
-      global.localStorage.setItem(STORE_KEY, lang);
+      var parts = String(global.document.cookie || "").split(";");
+      for (var i = 0; i < parts.length; i++) {
+        var eq = parts[i].indexOf("=");
+        if (eq < 0 || parts[i].slice(0, eq).trim() !== COOKIE) continue;
+        var l = normalize(parts[i].slice(eq + 1));
+        if (l) return l;
+      }
     } catch (e) {
-      /* storage unavailable: the choice lasts until the page closes */
+      /* no document or cookies blocked */
     }
+    return null;
   }
 
-  function browserLang() {
+  function browserLangs() {
     var n = global.navigator || {};
-    return (n.languages && n.languages[0]) || n.language || "";
+    if (n.languages && n.languages.length) return Array.prototype.slice.call(n.languages);
+    return n.language ? [n.language] : [];
   }
 
-  /** Reads ?lang, the stored choice and the browser, and remembers a ?lang. */
+  /** The page language from ?lang, the shared choice and the browser. Saves nothing. */
   function detect() {
-    var r = pick({ query: readQuery(), stored: readStored(), browser: browserLang() });
-    if (r.remember) remember(r.lang);
-    return r.lang;
+    forgetStored();
+    return pick({ query: readQuery(), cookie: readCookie(), browser: browserLangs() }).lang;
+  }
+
+  /** Asks the map to save the choice for all the site's tools; resolves to whether it did. */
+  function save(lang) {
+    try {
+      return global
+        .fetch("/api/v1/lang", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ lang: lang }),
+        })
+        .then(
+          function (r) {
+            return r.ok;
+          },
+          function () {
+            return false;
+          },
+        );
+    } catch (e) {
+      return Promise.resolve(false);
+    }
   }
 
   function isDevHost() {
@@ -238,25 +268,38 @@
   }
 
   /**
-   * The visitor picks a language: remember it, keep a ?lang in the address in step, then
-   * api.switchTo (the configurator re-renders) or a reload (the tool pages).
+   * The visitor picks a language: save it for all the site's tools, keep a ?lang in the address in
+   * step, then api.switchTo (the configurator re-renders) or a reload once it is saved (the tool
+   * pages). When it can't be saved, the page reloads with ?lang so the pick still holds here.
    */
   function choose(lang) {
     var l = normalize(lang);
     if (!l) return;
-    remember(l);
+    forgetStored();
+    var saved = save(l);
+    var url = null;
     try {
-      var url = new URL(global.location.href);
+      url = new URL(global.location.href);
       if (url.searchParams.has("lang")) {
         url.searchParams.set("lang", l);
         global.history.replaceState(global.history.state, "", url.toString());
       }
     } catch (e) {
-      /* no history: the stored choice still applies */
+      /* no history: the saved choice still applies */
     }
     if (l === api.lang) return;
-    if (api.switchTo) api.switchTo(l);
-    else global.location.reload();
+    if (api.switchTo) {
+      api.switchTo(l);
+      return;
+    }
+    saved.then(function (ok) {
+      if (ok || !url) {
+        global.location.reload();
+        return;
+      }
+      url.searchParams.set("lang", l);
+      global.location.replace(url.toString());
+    });
   }
 
   /**
@@ -297,6 +340,7 @@
     LANGS: LANGS,
     NAMES: NAMES,
     STORE_KEY: STORE_KEY,
+    COOKIE: COOKIE,
     lang: "en",
     dev: isDevHost(),
     pick: pick,

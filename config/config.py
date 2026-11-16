@@ -3,7 +3,7 @@
 
 import os
 
-from config.site_tools import parse_site_tools, parse_tool_secrets
+from config.site_tools import parse_cookie_domain, parse_site_tools, parse_tool_secrets
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -80,6 +80,9 @@ SITE_TOOLS = parse_site_tools(os.getenv('SITE_TOOLS_JSON'))
 # Their secrets for signing in through the map (SITE_TOOL_SECRETS_JSON, {"nodebook": "..."}); a tool
 # without one can't sign in through the map.
 SITE_TOOL_SECRETS = parse_tool_secrets(os.getenv('SITE_TOOL_SECRETS_JSON'))
+# The parent domain the site's tools share the visitor's language choice on (cookie bemesh_lang),
+# e.g. .radio-actief.be. Unset: this host only (dev, where the tools share one host).
+LANG_COOKIE_DOMAIN = parse_cookie_domain(os.getenv('LANG_COOKIE_DOMAIN'))
 DISCORD_SERVER_INVITE_URL = os.getenv('DISCORD_SERVER_INVITE_URL', 'https://discord.gg/kvybAgqnhD')
 
 # Belgian Geographic Bounds

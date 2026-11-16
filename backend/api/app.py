@@ -28,6 +28,7 @@ from backend.database import (
 )
 from backend.datetime_utils import normalize_node_timestamps
 from config.config import SITE_TOOLS as config_site_tools, SITE_TOOL_SECRETS as config_site_tool_secrets
+from config.config import LANG_COOKIE_DOMAIN
 from config.site_tools import tool_origins
 from backend.auth import (
     get_authorization_url,
@@ -1682,12 +1683,51 @@ def _shared_messages(lang):
     return texts
 
 
+# The visitor's language choice, shared by the site's tools: a plain cookie holding only a code,
+# readable by every tool's page code (not HttpOnly), set only when a person picks a language.
+LANG_COOKIE = 'bemesh_lang'
+LANG_COOKIE_MAX_AGE = 365 * 24 * 3600
+
+
 def _page_lang():
-    """A known ?lang=, else the browser's first known language, else English."""
-    asked = request.args.get('lang')
-    if asked in SIGNOUT_LANGS:
-        return asked
-    return request.accept_languages.best_match(SIGNOUT_LANGS) or 'en'
+    """A known ?lang=, else the shared choice, else the browser's first known language, else English."""
+    for asked in (request.args.get('lang'), request.cookies.get(LANG_COOKIE)):
+        if asked in SIGNOUT_LANGS:
+            return asked
+    # In the browser's order (highest weight first), by main tag: nl-BE counts as nl. Werkzeug's
+    # best_match would take a later exact "en" over an earlier "nl-BE".
+    for tag, weight in request.accept_languages:
+        main = tag.replace('_', '-').split('-')[0].lower()
+        if weight > 0 and main in SIGNOUT_LANGS:
+            return main
+    return 'en'
+
+
+def _lang_cookie_domain():
+    """LANG_COOKIE_DOMAIN when this host is inside it (a browser drops a cookie for another
+    domain), else None: the cookie stays on this host."""
+    domain = LANG_COOKIE_DOMAIN
+    host = request.host.rsplit(':', 1)[0].lower() if not request.host.startswith('[') else ''
+    if domain and (host == domain or host.endswith('.' + domain)):
+        return domain
+    return None
+
+
+@app.route('/api/v1/lang', methods=['POST'])
+def save_lang():
+    """A person picked a language in a tool: keep it for all the site's tools for a year."""
+    body = request.get_json(silent=True)
+    lang = body.get('lang') if isinstance(body, dict) else None
+    lang = lang.lower() if isinstance(lang, str) else None
+    if lang not in SIGNOUT_LANGS:
+        return jsonify({'error': 'unknown_language'}), 400
+    resp = make_response('', 204)
+    resp.set_cookie(
+        LANG_COOKIE, lang, max_age=LANG_COOKIE_MAX_AGE, path='/', domain=_lang_cookie_domain(),
+        secure=app.config['SESSION_COOKIE_SECURE'] or request.is_secure, httponly=False, samesite='Lax',
+    )
+    resp.headers['Cache-Control'] = 'no-store'
+    return resp
 
 
 def _card_page(lang, title, paragraphs, actions):
@@ -1712,6 +1752,7 @@ def _card_page(lang, title, paragraphs, actions):
     resp.mimetype = 'text/html'
     resp.headers['Cache-Control'] = 'no-store'
     resp.vary.add('Accept-Language')
+    resp.vary.add('Cookie')
     return resp
 
 

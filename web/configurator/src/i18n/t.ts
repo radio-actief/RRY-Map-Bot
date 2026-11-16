@@ -13,7 +13,7 @@ type I18nApi = {
   NAMES: Record<Lang, string>;
   lang: Lang;
   dev: boolean;
-  pick(o: { query?: string | null; stored?: string | null; browser?: string | null }): { lang: Lang; remember: boolean };
+  pick(o: { query?: string | null; cookie?: string | null; browser?: readonly string[] | null }): { lang: Lang };
   detect(): Lang;
   t(key: string, params?: Params): string;
   has(key: string): boolean;

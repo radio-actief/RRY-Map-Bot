@@ -97,14 +97,11 @@ const _hoisted_48 = ["aria-expanded"]
 const _hoisted_49 = { class: "plan-how" }
 const _hoisted_50 = { class: "plan-credits" }
 const _hoisted_51 = { class: "plan-head" }
-const _hoisted_52 = {
-  id: "plan-prof-title",
-  class: "plan-title plan-title--profile"
-}
+const _hoisted_52 = ["aria-label"]
 const _hoisted_53 = { class: "plan-sr" }
-const _hoisted_54 = { class: "plan-end-name" }
+const _hoisted_54 = ["title"]
 const _hoisted_55 = { class: "plan-sr" }
-const _hoisted_56 = { class: "plan-end-name" }
+const _hoisted_56 = ["title"]
 const _hoisted_57 = {
   key: 1,
   class: "plan-sr"
@@ -516,13 +513,20 @@ export function render(_ctx, _cache) {
                   _createTextVNode(_toDisplayString(_ctx.t('cov.sheet')), 1 /* TEXT */)
                 ]))
               : _createCommentVNode("v-if", true),
-            _createElementVNode("h2", _hoisted_52, [
+            _createElementVNode("h2", {
+              id: "plan-prof-title",
+              class: "plan-title plan-title--profile",
+              "aria-label": _ctx.t('prof.from') + ' ' + _ctx.profileTitle[0] + (_ctx.profile.b ? ' ' + _ctx.t('prof.to') + ' ' + _ctx.profileTitle[1] : '')
+            }, [
               _cache[40] || (_cache[40] = _createElementVNode("span", {
                 class: "plan-end",
                 "aria-hidden": "true"
               }, "A", -1 /* CACHED */)),
               _createElementVNode("span", _hoisted_53, _toDisplayString(_ctx.t('prof.from')), 1 /* TEXT */),
-              _createElementVNode("b", _hoisted_54, _toDisplayString(_ctx.profileTitle[0]), 1 /* TEXT */),
+              _createElementVNode("b", {
+                class: "plan-end-name",
+                title: _ctx.profileTitle[0]
+              }, _toDisplayString(_ctx.profileTitleShort[0]), 9 /* TEXT, PROPS */, _hoisted_54),
               _cache[41] || (_cache[41] = _createElementVNode("span", {
                 class: "plan-arrow",
                 "aria-hidden": "true"
@@ -534,10 +538,13 @@ export function render(_ctx, _cache) {
                       "aria-hidden": "true"
                     }, "B", -1 /* CACHED */)),
                     _createElementVNode("span", _hoisted_55, _toDisplayString(_ctx.t('prof.to')), 1 /* TEXT */),
-                    _createElementVNode("b", _hoisted_56, _toDisplayString(_ctx.profileTitle[1]), 1 /* TEXT */)
+                    _createElementVNode("b", {
+                      class: "plan-end-name",
+                      title: _ctx.profileTitle[1]
+                    }, _toDisplayString(_ctx.profileTitleShort[1]), 9 /* TEXT, PROPS */, _hoisted_56)
                   ], 64 /* STABLE_FRAGMENT */))
                 : (_openBlock(), _createElementBlock("span", _hoisted_57, _toDisplayString(_ctx.t('prof.noEnd')), 1 /* TEXT */))
-            ]),
+            ], 8 /* PROPS */, _hoisted_52),
             (_ctx.profile.loading)
               ? (_openBlock(), _createElementBlock("span", {
                   key: 1,

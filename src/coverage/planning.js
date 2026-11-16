@@ -29,6 +29,14 @@ const BAR_ICONS = { 1: 'bi-reception-1', 2: 'bi-reception-3', 3: 'bi-reception-4
 const RESULT_ICONS = { clear: 'bi-check-lg', fresnel: 'bi-exclamation-lg', blocked: 'bi-x-lg', unchecked: 'bi-info-lg' };
 const COMPASS = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
 
+// A long name cut in the middle, at most `max` characters: "Test RPT Gent-Noord" → "Test RPT…Noord"
+export function middleCut(name, max) {
+	const chars = [...String(name)];
+	if(chars.length <= max) return chars.join('');
+	const head = Math.ceil((max - 1) * 0.6), tail = max - 1 - head;
+	return `${chars.slice(0, head).join('').trimEnd()}…${chars.slice(-tail).join('').trimStart()}`;
+}
+
 export function compassPoint(bearing) {
 	return COMPASS[Math.round((((bearing % 360) + 360) % 360) / 22.5) % 16];
 }
@@ -757,6 +765,8 @@ async function start(host) {
 	const sliders = COVERAGE_SLIDERS;
 	const options = COVERAGE_OPTIONS;
 	const profileTitle = computed(() => profileEnds.value.map(end => end?.adv_name ?? '…'));
+	// the names in the title, a long one cut in the middle ("Test RPT…Noord"), shorter on a phone
+	const profileTitleShort = computed(() => profileTitle.value.map(name => middleCut(name, ui.phone ? 14 : 28)));
 	const profileNote = computed(() => {
 		const view = profileView.value;
 		if(!view) return '';
@@ -778,7 +788,7 @@ async function start(host) {
 	const app = createApp({
 		setup() {
 			return {
-				t, ui, coverage, profile, profileView, profileEnds, profileTitle, profileStatus, profileUsesPreset, profileNote,
+				t, ui, coverage, profile, profileView, profileEnds, profileTitle, profileTitleShort, profileStatus, profileUsesPreset, profileNote,
 				profileCanvas, onChartPointer, onChartLeave, summary, assumptions, legend, sliders, options, presets, fmt,
 				AUTO_PRESET, buildingsMaxKm: BUILDINGS_MAX_DISTANCE / 1000, settingsOpen,
 				coverageOpen: computed(() => Boolean(coverage.publicKey || coverage.point)),

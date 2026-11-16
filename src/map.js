@@ -15,6 +15,7 @@ import { render } from "./map-app.render.js";
 import { copyText } from "./shared/clipboard.js";
 import { settleAfterKeyboard } from "./shared/viewport-settle.js";
 import { nodebookApiUrl, nodebookFetchInit, nodebookState, toolLinksHtml } from "./site-tools.js";
+import { coordsFallbackHtml, ownerHtml, typeLabelHtml } from "./popup-safe.js";
 
 // Page language: src/shared/i18n.js (loaded in <head>) fetches the messages and translates the static page first.
 const I18N = window.BEmeshI18n;
@@ -878,9 +879,7 @@ const columns = {
       const lat = parts[0]?.trim();
       const lon = parts[1]?.trim();
       if (!lat || !lon) {
-        return `<a target="_blank" rel="noopener noreferrer" href="https://www.google.com/maps/place/${compact}">${escapeAttrHtml(
-          val,
-        )}</a>`;
+        return coordsFallbackHtml(val);
       }
       const latN = Number(lat);
       const lonN = Number(lon);
@@ -937,7 +936,7 @@ const columns = {
   },
   type: {
     labelKey: "map.col.type",
-    value: (val) => typeName(val),
+    value: (val) => typeLabelHtml(val, t),
   },
   params: {
     labelKey: "map.col.radio",
@@ -966,13 +965,7 @@ const columns = {
     labelKey: "map.col.owner",
     value: (val, node) => {
       // This function is only called if val exists (field is shown)
-      const ownerId = node?.discord_owner_id;
-      if (ownerId) {
-        // Create clickable Discord DM link
-        // discord:// works for desktop Discord app, https:// works for web
-        return `<a href="https://discord.com/users/${ownerId}" target="_blank" title="${escapeAttrHtml(t("map.sendDm", { name: val }))}">@${val}</a>`;
-      }
-      return `@${val}`;
+      return ownerHtml(val, node?.discord_owner_id, t);
     },
   },
   source: {

@@ -2,6 +2,14 @@
 
 What changed in each release of the #BEmesh map, bot and configurator.
 
+## 1.1.0 (2026-11-16)
+
+### New
+
+- Coverage and profile on the map: "Show coverage" on a repeater, "Profile from here" and "Profile to here" on every node, and the same from a right click or a long press on the map. The coverage is an estimate from terrain and forests, not a promise of reach; its terrain and map data come from Mapterhorn and OpenFreeMap, which see your address and the area you look at. The profile draws the ground, the line of sight and the Fresnel zone between two points. Shared links keep both. Based on the official MeshCore map (MIT)
+- Your account page: your name, the nodes you claimed, a link to your NodeBook fleet, and Log out or Log out everywhere (also on your other devices). The account button in the top bar opens it
+- One set of names for node types everywhere: Companion, Repeater, Room server, Sensor
+
 ## 1.0.15 (2026-11-16)
 
 ### Changed

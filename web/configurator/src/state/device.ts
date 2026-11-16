@@ -20,6 +20,7 @@ import {
   type LinkTiming,
   type PortLike,
 } from "../device/serial";
+import type { UsbInfo } from "../device/usb";
 import { I18N, t } from "../i18n/t";
 import { siteTools, toolText } from "../app/pages";
 import { askRelease, deviceHeld, deviceReleased, holderOf } from "./devicebus";
@@ -117,6 +118,27 @@ effect(() => {
 
 /** A link that is about to drop on purpose (reboot and friends): its disconnect is not an error. */
 let leaving: SerialLink | null = null;
+
+/** After a `reboot` sent from here, the clock is set again on a connect to that repeater within this time. */
+export const REBOOT_CLOCK_MS = 10 * 60_000;
+
+/** The repeater the last `reboot` went to (USB ids and name) and when; null once its clock was set again. */
+let rebooted: { vendor: number; product: number; name: string; at: number } | null = null;
+
+/** The connected repeater as `rebooted` would remember it now; null without USB ids or a name. */
+function rebootMark(): typeof rebooted {
+  const { usb, name } = store.device.peek();
+  const current = store.snapshot.peek()?.name ?? name;
+  if (usb?.usbVendorId === undefined || usb.usbProductId === undefined || !current) return null;
+  return { vendor: usb.usbVendorId, product: usb.usbProductId, name: current, at: Date.now() };
+}
+
+/** Whether the repeater just connected (USB ids, name) is the one rebooted from here less than REBOOT_CLOCK_MS ago. */
+function backFromReboot(usb: UsbInfo | null, name: string | null): boolean {
+  if (!rebooted || !usb || !name) return false;
+  if (Date.now() - rebooted.at > REBOOT_CLOCK_MS) return false;
+  return usb.usbVendorId === rebooted.vendor && usb.usbProductId === rebooted.product && name === rebooted.name;
+}
 
 /**
  * Forget what the last Read told about a device (its snapshot, clock, regions and the Read's
@@ -252,6 +274,12 @@ export async function connectUsb({ requestPort = requestUsbPort, timing }: Conne
     const board = await said("board");
     if (store.device.peek().link !== link) return;
     store.device.value = { ...store.device.peek(), name, board };
+    // Back from a reboot sent from here: a board without a clock chip lost its time.
+    if (backFromReboot(store.device.peek().usb ?? null, name)) {
+      rebooted = null;
+      await setClock(link);
+      if (store.device.peek().link !== link) return;
+    }
   }
   deviceHeld();
   // No version: other firmware (Companion, Meshtastic), or a board still starting or asleep.
@@ -499,9 +527,12 @@ export async function answerReboot(reboot: boolean): Promise<void> {
 async function sendHeld(link: SerialLink, cmd: string): Promise<string | null> {
   const quits = expectsDeviceDisconnect(cmd);
   if (quits) leaving = link;
+  // Taken before sending: the link (and with it the device state) is gone once `reboot` went out.
+  const mark = cmd.trim().toLowerCase() === "reboot" ? rebootMark() : null;
   store.commandBusy.value = true;
   try {
     await run(link, cmd);
+    if (mark) rebooted = mark;
     return null;
   } catch (err) {
     return reasonOf(err);

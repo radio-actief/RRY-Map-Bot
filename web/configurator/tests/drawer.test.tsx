@@ -23,7 +23,7 @@ import { defaultPlan } from "../src/core/plan";
 import type { Place } from "../src/core/search";
 import { isErrorReply, SerialLink } from "../src/device/serial";
 import { t } from "../src/i18n/t";
-import { connectUsb, deviceCommand, secretMask, sendConsole } from "../src/state/device";
+import { connectUsb, deviceCommand, disconnectUsb, rebootDevice, restartDevice, secretMask, sendConsole } from "../src/state/device";
 import { dirty, placeChosen, placeLeft, resetPlan, store } from "../src/state/store";
 import { FakePort } from "./fakes/fake-port";
 
@@ -712,5 +712,93 @@ describe("Command log: passwords", () => {
     );
     expect(secretMask("get name")("> password now: x")).toBe("> password now: x");
     expect(secretMask("password a")("Error: unknown command")).toBe("Error: unknown command");
+  });
+});
+
+describe("the clock after a reboot the configurator sent", () => {
+  const NOW = 1_800_000_000_000;
+  const TIME = `time ${NOW / 1000}`;
+
+  /** A repeater on USB as connectUsb sees it: its USB ids and its name. */
+  async function plugIn(info: { usbVendorId: number; usbProductId: number }, name = "BE-RON-Proef") {
+    const port = new FakePort(
+      { ver: VER, "get name": `> ${name}`, board: "RAK4631", [TIME]: "OK - clock set: 08:00 - 15/1/2027 UTC", "start ota": "OK" },
+      { info },
+    );
+    await connectUsb({ requestPort: async () => port, timing: FAST });
+    return port;
+  }
+  const at = (ms: number) => vi.spyOn(Date, "now").mockReturnValue(ms);
+
+  it("sets the clock once on the next connect to the same repeater after it sent reboot", async () => {
+    at(NOW);
+    const info = { usbVendorId: 0x239a, usbProductId: 0x8029 };
+    const before = await plugIn(info);
+    expect(before.received).not.toContain(TIME);
+    await rebootDevice();
+    expect(store.device.value.status).toBe("none");
+    const back = await plugIn(info);
+    expect(back.received).toEqual(["ver", "get name", "board", TIME]);
+    expect(store.clock.value?.reply).toBe("08:00 - 15/1/2027 UTC");
+    await disconnectUsb();
+    const again = await plugIn(info);
+    expect(again.received).not.toContain(TIME);
+    await disconnectUsb();
+  });
+
+  it("also after a reboot typed in the console", async () => {
+    at(NOW);
+    const info = { usbVendorId: 0x239a, usbProductId: 0x8030 };
+    await plugIn(info);
+    await sendConsole("reboot");
+    const back = await plugIn(info);
+    expect(back.received).toContain(TIME);
+    await disconnectUsb();
+  });
+
+  it("not for another repeater: another name or other USB ids", async () => {
+    at(NOW);
+    const info = { usbVendorId: 0x239a, usbProductId: 0x8031 };
+    await plugIn(info, "BE-RON-Een");
+    await rebootDevice();
+    const other = await plugIn(info, "BE-RON-Twee");
+    expect(other.received).not.toContain(TIME);
+    await disconnectUsb();
+    const otherUsb = await plugIn({ usbVendorId: 0x303a, usbProductId: 0x1001 }, "BE-RON-Een");
+    expect(otherUsb.received).not.toContain(TIME);
+    await disconnectUsb();
+    // The repeater itself still gets it when it comes back within the time.
+    const back = await plugIn(info, "BE-RON-Een");
+    expect(back.received).toContain(TIME);
+    await disconnectUsb();
+  });
+
+  it("not once 10 minutes have passed since the reboot", async () => {
+    const now = at(NOW);
+    const info = { usbVendorId: 0x239a, usbProductId: 0x8032 };
+    await plugIn(info);
+    await rebootDevice();
+    now.mockReturnValue(NOW + 10 * 60_000 + 1);
+    const late = await plugIn(info);
+    expect(late.received).not.toContain(`time ${Math.floor((NOW + 10 * 60_000 + 1) / 1000)}`);
+    expect(late.received).toEqual(["ver", "get name", "board"]);
+    await disconnectUsb();
+  });
+
+  it("not after another restart (OTA), nor without USB ids", async () => {
+    at(NOW);
+    const info = { usbVendorId: 0x239a, usbProductId: 0x8033 };
+    await plugIn(info);
+    await restartDevice("start ota");
+    const back = await plugIn(info);
+    expect(back.received).not.toContain(TIME);
+    await disconnectUsb();
+    const port = new FakePort({ ver: VER, "get name": "> X", board: "RAK4631" });
+    await connectUsb({ requestPort: async () => port, timing: FAST });
+    await rebootDevice();
+    const port2 = new FakePort({ ver: VER, "get name": "> X", board: "RAK4631" });
+    await connectUsb({ requestPort: async () => port2, timing: FAST });
+    expect(port2.received).toEqual(["ver", "get name", "board"]);
+    await disconnectUsb();
   });
 });

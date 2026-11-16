@@ -1,0 +1,280 @@
+<!-- The coverage and profile panels of the map page (src/coverage/planning.js). Compiled ahead by
+     `npm run build:map` into panels.render.js: the page has no template compiler. -->
+<div class="plan-dock" :class="{ 'plan-dock--both': coverageOpen && profile.a }">
+  <section
+    v-if="coverageOpen"
+    class="plan-coverage"
+    :class="{ 'plan-coverage--settings': ui.settingsOpen, 'plan-off-phone': profile.a && ui.sheet === 'profile' }"
+    aria-labelledby="plan-cov-title"
+  >
+    <div class="plan-head">
+      <i class="bi bi-broadcast plan-head__icon" aria-hidden="true"></i>
+      <h2 id="plan-cov-title" class="plan-title">{{ t('cov.titlePrefix') }} <b>{{ coverage.name }}</b></h2>
+      <span v-if="coverage.loading" class="plan-spinner" role="status" :aria-label="t('cov.computing')" :title="t('cov.computing')"></span>
+      <button v-if="profile.a" type="button" class="plan-switch plan-phone-only" @click="ui.sheet = 'profile'">
+        {{ t('prof.sheet') }}<span aria-hidden="true">&nbsp;›</span>
+      </button>
+      <button type="button" class="plan-icon-btn" :aria-label="t('cov.close')" :title="t('cov.close')" @click="closeCoverage">
+        <i class="bi bi-x-lg" aria-hidden="true"></i>
+      </button>
+    </div>
+    <div class="plan-chip-wrap">
+    <button
+      type="button"
+      class="plan-chip"
+      :aria-expanded="ui.settingsOpen"
+      aria-controls="plan-cov-settings"
+      :aria-label="t('cov.settingsLabel', { summary: summary.join(', ') })"
+      @click="toggleSettings"
+    >
+      <i class="bi bi-sliders" aria-hidden="true"></i>
+      <span class="plan-chip__parts">
+        <template v-for="(part, i) in summary" :key="i"
+          ><span v-if="i" class="plan-chip__dot" aria-hidden="true">·</span><span class="plan-mono">{{ part }}</span></template
+        >
+      </span>
+    </button>
+    <div v-show="ui.settingsOpen" id="plan-cov-settings" class="plan-settings" role="group" :aria-label="t('cov.settings')">
+      <div v-if="coverage.point" class="plan-field">
+        <label class="plan-label" for="plan-preset">{{ t('cov.radio') }}</label>
+        <select id="plan-preset" class="plan-select" v-model="coverage.radioPreset">
+          <option v-for="preset in presets" :key="preset.name" :value="preset.name">
+            {{ preset.name === 'EU/UK (Narrow)' ? t('cov.bemeshPreset') : preset.name }} ({{ num(preset.radio.freq, 3) }} MHz, SF{{ preset.radio.sf }}, {{ num(preset.radio.bw, 1) }} kHz)
+          </option>
+          <option :value="AUTO_PRESET">{{ t('cov.presetAuto') }}</option>
+        </select>
+      </div>
+      <div class="plan-field">
+        <span class="plan-label" id="plan-freq-label">{{ t('cov.frequency') }}</span>
+        <div class="segmented plan-seg" role="group" aria-labelledby="plan-freq-label">
+          <button v-for="value in options.frequency" :key="value" type="button" :aria-pressed="coverage.settings.frequency === value" @click="setSetting('frequency', value)">
+            <span class="plan-mono">{{ value }}&nbsp;MHz</span>
+          </button>
+        </div>
+      </div>
+      <setting-slider v-model="coverage.settings.txPower" v-bind="sliders.txPower" :label="t('cov.txPower')" :format="(v) => num(v)"></setting-slider>
+      <div class="plan-field">
+        <span class="plan-label" id="plan-antenna-label">{{ t('cov.antenna') }}</span>
+        <div class="segmented plan-seg" role="group" aria-labelledby="plan-antenna-label">
+          <button
+            v-for="value in options.antennaType"
+            :key="value"
+            type="button"
+            :aria-pressed="coverage.settings.antennaType === value"
+            :title="t('cov.antenna.' + value + '.title')"
+            @click="setSetting('antennaType', value)"
+          >
+            {{ t('cov.antenna.' + value) }}
+          </button>
+        </div>
+      </div>
+      <template v-if="coverage.settings.antennaType !== 'omni'">
+        <setting-slider v-model="coverage.settings.beamWidth" v-bind="sliders.beamWidth" :label="t('cov.beamWidth')" :format="(v) => num(v)"></setting-slider>
+        <setting-slider
+          v-model="coverage.settings.direction"
+          v-bind="sliders.direction"
+          :label="t('cov.direction')"
+          :format="(v) => num(v)"
+          :compass="fmt.compass"
+        ></setting-slider>
+      </template>
+      <setting-slider v-model="coverage.settings.antennaGain" v-bind="sliders.antennaGain" :label="t('cov.antennaGain')" :format="(v) => num(v, 1)"></setting-slider>
+      <setting-slider v-model="coverage.settings.antennaHeight" v-bind="sliders.antennaHeight" :label="t('cov.antennaHeight')" :format="(v) => num(v)"></setting-slider>
+      <label class="plan-check">
+        <input type="checkbox" :checked="coverage.settings.clutter" @change="setSetting('clutter', $event.target.checked)" />
+        <span>{{ t('cov.clutter') }}<small class="plan-hint">{{ t('cov.clutter.hint') }}</small></span>
+      </label>
+      <div class="plan-field">
+        <span class="plan-label" id="plan-ridges-label" :title="t('cov.ridges.hint')">{{ t('cov.ridges') }}</span>
+        <div class="segmented plan-seg" role="group" aria-labelledby="plan-ridges-label">
+          <button
+            v-for="value in options.ridgeRounding"
+            :key="value"
+            type="button"
+            :aria-pressed="coverage.settings.ridgeRounding === value"
+            @click="setSetting('ridgeRounding', value)"
+          >
+            {{ value === 0 ? t('cov.off') : value === 1 ? t('cov.full') : num(value * 100) + ' %' }}
+          </button>
+        </div>
+      </div>
+      <label class="plan-check">
+        <input
+          type="checkbox"
+          :checked="coverage.settings.nodeDisplay === 'reachable'"
+          @change="setSetting('nodeDisplay', $event.target.checked ? 'reachable' : 'all')"
+        />
+        <span>{{ t('cov.reachableOnly') }}</span>
+      </label>
+      <div class="plan-field">
+        <span class="plan-label" id="plan-distance-label">{{ t('cov.distance') }}</span>
+        <div class="segmented plan-seg" role="group" aria-labelledby="plan-distance-label">
+          <button v-for="value in options.distanceKm" :key="value" type="button" :aria-pressed="coverage.settings.distanceKm === value" @click="setSetting('distanceKm', value)">
+            <span class="plan-mono">{{ value }}&nbsp;km</span>
+          </button>
+        </div>
+      </div>
+    </div>
+    </div>
+    <div class="plan-legend">
+      <span class="plan-legend__label">{{ t('cov.legend') }}</span>
+      <span class="plan-legend__steps">
+        <span v-for="step in legend" :key="step.label" class="plan-legend__step">
+          <span class="plan-legend__swatch" :style="{ background: step.color }" aria-hidden="true"></span><span class="plan-mono">{{ step.label }}</span>
+        </span>
+        <span class="plan-mono">dB</span>
+      </span>
+    </div>
+    <p v-if="coverage.linkCounts" class="plan-links">
+      <template v-if="coverage.linkCounts[1] + coverage.linkCounts[2] + coverage.linkCounts[3]">
+        <span class="plan-links__label">{{ t('cov.inReach') }}</span>
+        <span class="plan-count plan-count--3"><i class="bi bi-reception-4" aria-hidden="true"></i>{{ t('cov.bars.3') }} <b>{{ num(coverage.linkCounts[3]) }}</b></span>
+        <span class="plan-count plan-count--2"><i class="bi bi-reception-3" aria-hidden="true"></i>{{ t('cov.bars.2') }} <b>{{ num(coverage.linkCounts[2]) }}</b></span>
+        <span class="plan-count plan-count--1"><i class="bi bi-reception-1" aria-hidden="true"></i>{{ t('cov.bars.1') }} <b>{{ num(coverage.linkCounts[1]) }}</b></span>
+      </template>
+      <template v-else>{{ t('cov.noneInReach') }}</template>
+    </p>
+    <p v-if="coverage.error" class="plan-error" role="alert">{{ coverage.error }}</p>
+    <button
+      v-if="profile.a"
+      type="button"
+      class="plan-more-toggle plan-desktop-only"
+      :aria-expanded="ui.coverageMore"
+      aria-controls="plan-cov-more"
+      @click="ui.coverageMore = !ui.coverageMore"
+    >
+      {{ ui.coverageMore ? t('cov.less') : t('cov.more') }}
+    </button>
+    <div id="plan-cov-more" class="plan-notes" :class="{ 'plan-collapsed-desktop': profile.a && !ui.coverageMore }">
+      <p><b>{{ t('cov.estimate') }}</b></p>
+      <details class="plan-how">
+        <summary>{{ t('cov.how') }}</summary>
+        <p>{{ assumptions }}</p>
+        <p>{{ t('cov.outside') }}</p>
+        <p>
+          {{ t('cov.credit.landcover') }}
+          <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap</a>
+          (<a href="https://openfreemap.org" target="_blank" rel="noopener noreferrer">OpenFreeMap</a>)
+        </p>
+      </details>
+      <p class="plan-credits">
+        {{ t('cov.credit.elevation') }}
+        <a href="https://mapterhorn.com/attribution" target="_blank" rel="noopener noreferrer">© Mapterhorn</a>,
+        <a href="https://github.com/tilezen/joerd/blob/master/docs/attribution.md" target="_blank" rel="noopener noreferrer">Terrain Tiles</a>
+      </p>
+    </div>
+  </section>
+
+  <section
+    v-if="profile.a"
+    class="plan-profile"
+    :class="{ 'plan-off-phone': coverageOpen && ui.sheet === 'coverage' }"
+    aria-labelledby="plan-prof-title"
+  >
+    <div class="plan-head">
+      <button v-if="coverageOpen" type="button" class="plan-switch plan-phone-only" @click="ui.sheet = 'coverage'">
+        <span aria-hidden="true">‹&nbsp;</span>{{ t('cov.sheet') }}
+      </button>
+      <h2 id="plan-prof-title" class="plan-title plan-title--profile">
+        <span class="plan-end" aria-hidden="true">A</span><span class="plan-sr">{{ t('prof.from') }}</span>
+        <b class="plan-end-name">{{ profileTitle[0] }}</b>
+        <span class="plan-arrow" aria-hidden="true">→</span>
+        <template v-if="profile.b">
+          <span class="plan-end" aria-hidden="true">B</span><span class="plan-sr">{{ t('prof.to') }}</span>
+          <b class="plan-end-name">{{ profileTitle[1] }}</b>
+        </template>
+        <span v-else class="plan-sr">{{ t('prof.noEnd') }}</span>
+      </h2>
+      <span v-if="profile.loading" class="plan-spinner" role="status" :aria-label="t('prof.computing')" :title="t('prof.computing')"></span>
+      <button type="button" class="plan-icon-btn" :aria-label="t('prof.swap')" :title="t('prof.swap')" :disabled="!profile.b" @click="swapProfileEnds">
+        <i class="bi bi-arrow-left-right" aria-hidden="true"></i>
+      </button>
+      <button type="button" class="plan-icon-btn" :aria-label="t('prof.close')" :title="t('prof.close')" @click="closeProfile">
+        <i class="bi bi-x-lg" aria-hidden="true"></i>
+      </button>
+    </div>
+    <p v-if="!profile.b" class="plan-hint-line">{{ t('prof.pickEnd') }}</p>
+    <div class="plan-profile__settings">
+      <setting-slider v-model="profile.heightA" v-bind="sliders.antennaHeight" :label="t('prof.heightA')" :format="(v) => num(v)"></setting-slider>
+      <setting-slider v-model="profile.heightB" v-bind="sliders.antennaHeight" :label="t('prof.heightB')" :format="(v) => num(v)"></setting-slider>
+      <div v-if="coverage.settings.antennaType !== 'omni'" class="plan-profile__direction">
+        <setting-slider
+          v-model="coverage.settings.direction"
+          v-bind="sliders.direction"
+          :label="t('prof.directionA')"
+          :format="(v) => num(v)"
+          :compass="fmt.compass"
+        ></setting-slider>
+        <button v-if="profileView" type="button" class="btn small plan-aim" @click="aimAtB">
+          <i class="bi bi-crosshair" aria-hidden="true"></i>{{ t('prof.aim') }}
+        </button>
+      </div>
+      <div v-if="profileUsesPreset" class="plan-field">
+        <label class="plan-label" for="plan-prof-preset">{{ t('cov.radio') }}</label>
+        <select id="plan-prof-preset" class="plan-select" v-model="coverage.radioPreset">
+          <option v-for="preset in presets" :key="preset.name" :value="preset.name">
+            {{ preset.name === 'EU/UK (Narrow)' ? t('cov.bemeshPreset') : preset.name }} ({{ num(preset.radio.freq, 3) }} MHz, SF{{ preset.radio.sf }}, {{ num(preset.radio.bw, 1) }} kHz)
+          </option>
+          <option :value="AUTO_PRESET">{{ t('cov.presetAuto') }}</option>
+        </select>
+      </div>
+    </div>
+    <template v-if="profileView">
+      <canvas
+        ref="profileCanvas"
+        class="plan-chart"
+        role="img"
+        :aria-label="t('prof.chartLabel')"
+        @pointermove="onChartPointer"
+        @pointerdown="onChartPointer"
+        @pointerleave="onChartLeave"
+      ></canvas>
+      <div class="plan-chart-legend" aria-hidden="true">
+        <span><i class="plan-key plan-key--terrain"></i>{{ t('prof.legend.terrain') }}</span>
+        <span><i class="plan-key plan-key--trees"></i>{{ t('prof.legend.trees') }}</span>
+        <span><i class="plan-key plan-key--buildings"></i>{{ t('prof.legend.buildings') }}</span>
+        <span><i class="plan-key plan-key--fresnel"></i>{{ t('prof.legend.fresnel') }}</span>
+        <span><i class="plan-key plan-key--los" :class="'plan-key--' + profileStatus"></i>{{ t('prof.legend.los') }}</span>
+        <span><i class="plan-key plan-key--blocks"></i>{{ t('prof.legend.blocks') }}</span>
+      </div>
+      <div class="plan-summary">
+        <span class="plan-status" :class="'plan-status--' + profileStatus">
+          <i
+            class="bi"
+            :class="{ clear: 'bi-check-lg', fresnel: 'bi-exclamation-lg', blocked: 'bi-x-lg', unchecked: 'bi-info-lg' }[profileStatus]"
+            aria-hidden="true"
+          ></i>
+          {{ t('prof.status.' + profileStatus) }}
+        </span>
+        <span class="plan-margin" :class="'plan-margin--' + profileView.bars">
+          <i class="bi" :class="['bi-reception-0', 'bi-reception-1', 'bi-reception-3', 'bi-reception-4'][profileView.bars]" aria-hidden="true"></i>
+          {{ t('prof.margin') }} <b class="plan-mono">{{ fmt.db(profileView.result.margin, true) }}</b>
+        </span>
+        <span v-if="profileView.result.pattern <= -0.1" class="plan-offbeam">
+          {{ t('prof.offBeam') }} <b class="plan-mono">{{ fmt.db(profileView.result.pattern) }}</b>
+        </span>
+        <span class="plan-mono">{{ fmt.km(profileView.result.distance) }}</span>
+        <span>A→B <span class="plan-mono">{{ fmt.deg(profileView.result.bearing) }}</span>, B→A <span class="plan-mono">{{ fmt.deg(profileView.result.backBearing) }}</span></span>
+        <span
+          >A <span class="plan-mono">{{ fmt.m(profileView.result.elevations[0]) }}</span> + <span class="plan-mono">{{ fmt.m(profileView.heights[0]) }}</span>,
+          B <span class="plan-mono">{{ fmt.m(profileView.result.elevations.at(-1)) }}</span> + <span class="plan-mono">{{ fmt.m(profileView.heights[1]) }}</span></span
+        >
+        <span>
+          {{ t('prof.pathLoss') }} <b class="plan-mono">{{ fmt.db(profileView.result.losses.total) }}</b>
+          <span class="plan-mono plan-muted"
+            >({{ fmt.db(profileView.result.losses.freeSpace) }} {{ t('prof.loss.free') }}<template v-if="profileView.result.losses.diffraction >= 0.1">
+              + {{ fmt.db(profileView.result.losses.diffraction) }} {{ t('prof.loss.terrain') }}</template
+            ><template v-if="profileView.result.losses.clutterA + profileView.result.losses.clutterB >= 0.1">
+              + {{ fmt.db(profileView.result.losses.clutterA + profileView.result.losses.clutterB) }} {{ t('prof.loss.clutter') }}</template
+            >)</span
+          >
+        </span>
+      </div>
+      <div class="plan-notes">
+        <p>{{ profileNote }}</p>
+        <p>{{ profileView.result.withBuildings ? t('prof.buildings') : t('prof.noBuildings', { km: num(buildingsMaxKm) }) }}</p>
+      </div>
+    </template>
+    <p v-if="profile.error" class="plan-error" role="alert">{{ profile.error }}</p>
+  </section>
+</div>

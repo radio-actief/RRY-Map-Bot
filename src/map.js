@@ -15,7 +15,7 @@ import { render } from "./map-app.render.js";
 import { copyText } from "./shared/clipboard.js";
 import { settleAfterKeyboard } from "./shared/viewport-settle.js";
 import { nodebookApiUrl, nodebookFetchInit, nodebookState, toolLinksHtml } from "./site-tools.js";
-import { coordsFallbackHtml, ownerHtml, typeLabelHtml } from "./popup-safe.js";
+import { coordsFallbackHtml, ownerHtml, planningActionsHtml, typeLabelHtml } from "./popup-safe.js";
 
 // Page language: src/shared/i18n.js (loaded in <head>) fetches the messages and translates the static page first.
 const I18N = window.BEmeshI18n;
@@ -32,6 +32,28 @@ const siteToolsLoaded = Promise.resolve(window.BEmeshTopbar?.siteTools?.() ?? []
   .catch(() => {});
 /** NodeBook's answer per node key for this visit: "in", "out", or null when it gave none. */
 const nodebookStatus = new Map();
+
+/**
+ * Coverage and profile tools (src/coverage/): their code loads only when someone opens one. Until
+ * then the map knows just the profile's ends, for the popup's "Profile from / to here" (the tools
+ * keep them up to date). `planningHost` is what the map gives the tools (set in the app's setup).
+ */
+const planningEnds = { a: null, b: null };
+let planningHost = null;
+let planningLoading = null;
+function planningTools() {
+  planningLoading ??= import("./coverage/planning.js")
+    .then((module) => module.startPlanning(planningHost))
+    .catch((e) => {
+      planningLoading = null;
+      throw e;
+    });
+  return planningLoading;
+}
+/** Runs `fn(tools)` once the tools are loaded; a failed load is logged (the next use tries again). */
+function withPlanning(fn) {
+  planningTools().then(fn, (e) => console.error("Coverage tools could not be loaded", e));
+}
 
 // MDI path (same as @mdi/js).
 const mdiOpenInNew =
@@ -1367,7 +1389,7 @@ function getTable(node, authState = null, nodes = []) {
         t,
         escape: escapeAttrHtml,
       });
-      return tools + `<nav class="node-popup-actions" aria-label="${escapeAttrHtml(t("map.actions"))}"><div class="node-popup-actions__row"><div class="node-popup-actions__slot node-popup-actions__slot--start">${footerStart}</div><div class="node-popup-actions__slot node-popup-actions__slot--center">${footerCenter}</div><div class="node-popup-actions__slot node-popup-actions__slot--end">${footerEnd}</div></div></nav>`;
+      return tools + planningActionsHtml(node, planningEnds, t) + `<nav class="node-popup-actions" aria-label="${escapeAttrHtml(t("map.actions"))}"><div class="node-popup-actions__row"><div class="node-popup-actions__slot node-popup-actions__slot--start">${footerStart}</div><div class="node-popup-actions__slot node-popup-actions__slot--center">${footerCenter}</div><div class="node-popup-actions__slot node-popup-actions__slot--end">${footerEnd}</div></div></nav>`;
     })() +
     "</div>"
   );
@@ -1386,6 +1408,19 @@ function setupPopupActionHandlers() {
         e.preventDefault();
         e.stopPropagation();
         toggle.parentElement?.classList.toggle("open");
+        return;
+      }
+      const plan = e.target?.closest?.("[data-plan-action]");
+      if (plan) {
+        e.preventDefault();
+        e.stopPropagation();
+        const key = plan.getAttribute("data-public-key") || "";
+        if (!/^[0-9a-f]{64}$/.test(key)) return;
+        const kind = plan.getAttribute("data-plan-action");
+        window.leafletMap?.closePopup();
+        if (kind === "coverage") withPlanning((p) => p.showCoverage(key));
+        else if (kind === "profile-from") withPlanning((p) => p.profileFrom({ publicKey: key }));
+        else if (kind === "profile-to") withPlanning((p) => p.profileTo({ publicKey: key }));
         return;
       }
       const action = e.target?.closest?.("[data-popup-action]");
@@ -1594,6 +1629,81 @@ L.control.zoom({ position: "bottomleft", zoomInTitle: t("zoom.in"), zoomOutTitle
 window.BEmeshMapShade.attach(L, map, baseMaps.OpenStreetMap, {
   position: "bottomleft",
 });
+
+/**
+ * Right click on the map (a long press on a touch screen: Leaflet turns it into contextmenu, on iOS
+ * too): coverage or a profile from that spot. A small menu of the map's own; the tools load when an
+ * item is picked.
+ */
+const mapMenu = (() => {
+  let el = null;
+  function close() {
+    if (!el) return;
+    el.remove();
+    el = null;
+    document.removeEventListener("pointerdown", onOutside, true);
+    document.removeEventListener("keydown", onKey, true);
+  }
+  function onOutside(e) {
+    if (el && !el.contains(e.target)) close();
+  }
+  function onKey(e) {
+    if (e.key === "Escape") close();
+  }
+  function item(icon, text, run) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.setAttribute("role", "menuitem");
+    b.innerHTML = `<i class="bi ${icon}" aria-hidden="true"></i><span>${escapeAttrHtml(text)}</span>`;
+    b.addEventListener("click", () => {
+      close();
+      run();
+    });
+    return b;
+  }
+  function open(latlng, x, y, viaKeyboard = false) {
+    close();
+    const lat = Math.round(latlng.lat * 1e5) / 1e5;
+    const lon = Math.round(L.Util.wrapNum(latlng.lng, [-180, 180], true) * 1e5) / 1e5;
+    el = document.createElement("div");
+    el.className = "map-menu";
+    el.setAttribute("role", "menu");
+    el.setAttribute("aria-label", t("map.plan.menu"));
+    const coords = document.createElement("div");
+    coords.className = "map-menu__coords";
+    // "50.89873, 4.28776" in English; with a decimal comma (nl, fr) the two are kept apart by a middle dot
+    const sep = I18N.number(0.5).includes(",") ? " · " : ", ";
+    coords.textContent = `${I18N.number(lat, { minimumFractionDigits: 5 })}${sep}${I18N.number(lon, { minimumFractionDigits: 5 })}`;
+    el.append(
+      coords,
+      item("bi-broadcast", t("map.plan.coverageHere"), () => withPlanning((p) => p.showPointCoverage(lat, lon))),
+      item("bi-graph-up", t("map.plan.profileFrom"), () => withPlanning((p) => p.profileFrom({ lat, lon }))),
+    );
+    if (planningEnds.a) {
+      el.append(item("bi-graph-up", t("map.plan.profileTo"), () => withPlanning((p) => p.profileTo({ lat, lon }))));
+    }
+    document.body.append(el);
+    // never past the edges of the window
+    const w = el.offsetWidth;
+    const h = el.offsetHeight;
+    el.style.left = `${Math.max(8, Math.min(x, window.innerWidth - w - 8))}px`;
+    el.style.top = `${Math.max(8, Math.min(y, window.innerHeight - h - 8))}px`;
+    if (viaKeyboard) el.querySelector("button")?.focus();
+    document.addEventListener("pointerdown", onOutside, true);
+    document.addEventListener("keydown", onKey, true);
+  }
+  return { open, close };
+})();
+map.on("contextmenu", (ev) => {
+  const oe = ev.originalEvent;
+  oe?.preventDefault?.();
+  const touch = oe?.pointerType === "touch" || oe?.type?.startsWith?.("touch") || Boolean(oe?.touches);
+  if (touch) navigator.vibrate?.(15);
+  const x = oe?.clientX ?? oe?.touches?.[0]?.clientX ?? ev.containerPoint.x;
+  const y = oe?.clientY ?? oe?.touches?.[0]?.clientY ?? ev.containerPoint.y;
+  mapMenu.open(ev.latlng, x, y);
+});
+map.on("movestart zoomstart", () => mapMenu.close());
 // Icon structure: nested by update status, then by node type (upstream implementation)
 const icons = Object.fromEntries(
   ["none", "recent", "stale", "old", "extinct"].map((color) => [
@@ -2007,6 +2117,15 @@ createApp({
       return null;
     }
 
+    /** The nodes the map shows with the current filters. */
+    function shownNodes() {
+      if (filtersRestrictMapView()) return app.filteredNodes;
+      return app.filteredNodes.length > 0 ? app.filteredNodes : app.nodes;
+    }
+
+    /** The coverage tool's "reachable only" view: just these nodes on the map (null: the usual ones). */
+    let planningNodes = null;
+
     async function refreshMap({
       clusteringZoom = 0,
       targetNodeKey = null,
@@ -2016,13 +2135,7 @@ createApp({
         pendingClusterPopupCleanup = null;
       }
 
-      let nodes;
-      if (filtersRestrictMapView()) {
-        nodes = app.filteredNodes;
-      } else {
-        nodes =
-          app.filteredNodes.length > 0 ? app.filteredNodes : app.nodes;
-      }
+      let nodes = planningNodes ?? shownNodes();
       if (targetNodeKey) {
         const target = findNodeByPubKey(app.nodes, targetNodeKey);
         if (target && !nodes.includes(target)) {
@@ -2033,7 +2146,8 @@ createApp({
       map.removeLayer(markerClusterGroup);
 
       markerClusterGroup = L.markerClusterGroup({
-        disableClusteringAtZoom: clusteringZoom || app.clusteringZoom,
+        // the coverage's "reachable only" view shows its few nodes on their own
+        disableClusteringAtZoom: planningNodes ? 1 : clusteringZoom || app.clusteringZoom,
         chunkedLoading: true,
       });
       attachClusterClickHandler(markerClusterGroup);
@@ -2699,6 +2813,30 @@ createApp({
       app.urlParams.lon = pos.lng.toFixed(4);
     });
 
+    // What the coverage and profile tools (src/coverage/planning.js) get from the map
+    planningHost = {
+      map,
+      L,
+      i18n: I18N,
+      urlParams: app.urlParams,
+      ends: planningEnds,
+      /** All nodes, and the ones the filters show (both reactive). */
+      nodes: () => app.nodes,
+      shownNodes,
+      /** Shows only these nodes on the map, unclustered; null shows the usual ones again. */
+      showOnly(nodes) {
+        planningNodes = nodes;
+        refreshMap();
+      },
+      /** The radio presets the map knows ({ name, freq, sf, bw, cr }). */
+      presets: () => FREQUENCY_PRESETS,
+      isDark: () => Boolean(window.BEmeshTheme?.isDark?.()),
+      closePopup: () => map.closePopup(),
+      closeFilters: () => {
+        app.filterMenuOpen = false;
+      },
+    };
+
     // For the popup's Claim and Unclaim (setupPopupActionHandlers)
     window.claimNode = claimNode;
     window.unclaimNode = unclaimNode;
@@ -2854,6 +2992,12 @@ createApp({
         nextTick(() => {
           refreshMap({ targetNodeKey: nodeKey || undefined });
         });
+
+        // A shared link with a coverage or a profile: load the tools and show them
+        if (qp.cov || qp.pa) {
+          const shared = { ...qp };
+          withPlanning((p) => p.applyShared(shared));
+        }
 
         if (nodeKey && !targetNode) {
           console.warn(

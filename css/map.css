@@ -1710,3 +1710,124 @@ time {
     min-height: 44px;
   }
 }
+
+/* Coverage and profile actions in the popup (the tools load when one is used): "Show coverage"
+ * outlined, the profile links as text buttons. 32px high, 44px on a phone. */
+.node-popup .node-popup-plan-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 4px 8px;
+  padding: 6px 12px 0;
+  border-top: 1px solid var(--line);
+}
+
+.node-popup .node-popup-plan-row:empty {
+  display: none;
+}
+
+.node-popup .node-popup-plan-row + .node-popup-actions {
+  border-top: 0;
+}
+
+.node-popup .node-popup-plan {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 6px 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: none;
+  color: var(--node);
+  font: 600 12px/16px var(--font-ui);
+  cursor: pointer;
+}
+
+.node-popup .node-popup-plan--coverage {
+  border-color: var(--field-line);
+  color: var(--ink);
+}
+
+.node-popup .node-popup-plan:focus-visible,
+.map-menu button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+@media (hover: hover) {
+  .node-popup .node-popup-plan:hover {
+    border-color: var(--gold);
+    background: var(--gold-bg);
+  }
+}
+
+/* Right click / long press on the map: the menu look of the top bar's ☰ (glass, 13/18 rows). */
+.map-menu {
+  position: fixed;
+  z-index: 1200;
+  display: flex;
+  flex-direction: column;
+  width: 220px;
+  padding: 6px;
+  border: 1px solid var(--glass-line);
+  border-radius: 8px;
+  background: var(--glass);
+  box-shadow: var(--glass-shadow);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  color: var(--ink);
+  font: 13px/18px var(--font-ui);
+}
+
+.map-menu__coords {
+  padding: 2px 8px 4px;
+  color: var(--glass-mut);
+  font: 11px/14px var(--font-mono);
+}
+
+.map-menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 32px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.map-menu button i {
+  font-size: 16px;
+}
+
+.map-menu button:hover {
+  background: var(--gold-bg);
+}
+
+@media (max-width: 600px) {
+  .node-popup .node-popup-plan,
+  .map-menu button {
+    min-height: 44px;
+  }
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .map-menu {
+    background: var(--panel);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .map-menu {
+    background: var(--panel);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}

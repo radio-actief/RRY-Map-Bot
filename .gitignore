@@ -117,8 +117,9 @@ docs/archive/
 *.temp
 .cache/
 
-# Coverage reports
+# Coverage reports (src/coverage/ is the map's coverage tool, not a report)
 coverage/
+!src/coverage/
 .nyc_output/
 
 # Production configuration

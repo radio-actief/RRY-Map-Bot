@@ -144,5 +144,10 @@
   "map.added.7d": "Nodes toegevoegd in de laatste 7 dagen",
   "map.added.7d.short": "7d",
   "map.added.30d": "Nodes toegevoegd in de laatste 30 dagen",
-  "map.added.30d.short": "30d"
+  "map.added.30d.short": "30d",
+  "map.plan.showCoverage": "Toon bereik",
+  "map.plan.profileFrom": "Profiel vanaf hier",
+  "map.plan.profileTo": "Profiel tot hier",
+  "map.plan.coverageHere": "Bereik vanaf hier",
+  "map.plan.menu": "Kaartmenu"
 }

@@ -84,6 +84,8 @@ describe("the ☰ menu on the tool pages", () => {
     expect(here.getAttribute("href")).toBe("/region-map");
     expect(here.querySelector("i.bi-check-lg")?.getAttribute("aria-hidden")).toBe("true");
     expect(menu().querySelector("a.menu-signin")?.getAttribute("href")).toBe("/auth/login?next=/region-map");
+    // The other tools' hubs follow: the page records whether someone is signed in.
+    expect(JSON.parse(localStorage.getItem("bemesh.account.seen") ?? "null")).toEqual({ signedIn: false });
     // The switcher: the four pages, then NodeBook and MeshMate.
     expect(Array.from(document.querySelectorAll(".topbar .switcher a")).map((a) => a.textContent)).toEqual([
       "Map",

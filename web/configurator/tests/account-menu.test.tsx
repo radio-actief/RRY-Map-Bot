@@ -32,15 +32,78 @@ describe("account menu", () => {
     for (const a of links) expect(a.getAttribute("href")).toBe("/auth/login?next=/configurator");
   });
 
-  it("signed in shows @tester and Log out, and no chip", async () => {
+  it("signed in, ☰ has the account group of the account menu: name (@handle under it), My nodes, Account, Log out; no chip", async () => {
+    mockMe({ authenticated: true, user: { id: "1", username: "tester", global_name: "Tess" } });
+    render(<AccountMenu />);
+    await screen.findAllByText("@tester");
+    const group = (menu: Element) => {
+      const user = menu.querySelector(".menu-user")!;
+      const out: string[] = [`${user.querySelector(".menu-name")!.textContent} / ${user.querySelector(".menu-handle")?.textContent}`];
+      for (let el = user.nextElementSibling; el && !el.classList.contains("menu-lang"); el = el.nextElementSibling) {
+        out.push(el.tagName === "HR" ? "|" : el.tagName === "FORM" ? `${el.textContent} → ${el.getAttribute("action")}` : `${el.textContent} ${el.getAttribute("href")}`);
+      }
+      return out;
+    };
+    const want = ["Tess / @tester", "My nodes /account#my-nodes", "Account /account", "|", "Log out → /auth/logout?next=/configurator"];
+    expect(group(document.getElementById("page-menu")!)).toEqual(want);
+    expect(group(document.getElementById("account-menu")!)).toEqual(want);
+    // Log out is a POST (a link elsewhere can't sign someone out), in ☰ and in the account menu.
+    const outs = screen.getAllByRole("button", { name: "Log out", hidden: true });
+    expect(outs.length).toBe(2);
+    for (const out of outs) {
+      const form = out.closest("form")!;
+      expect([form.getAttribute("method"), form.getAttribute("action")]).toEqual(["post", "/auth/logout?next=/configurator"]);
+    }
+    expect(document.querySelector(".signin-chip")).toBeNull();
+  });
+
+  it("signed in, the account button takes the chip's place: the initial in a circle, named for screen readers", async () => {
+    mockMe({ authenticated: true, user: { id: "1", username: "tester", global_name: "Émile" } });
+    render(<AccountMenu />);
+    const button = await screen.findByRole("button", { name: "Account: Émile" });
+    expect(button.id).toBe("account-toggle");
+    expect(button.classList.contains("icon")).toBe(true);
+    expect(button.textContent).toBe("É");
+    expect(button.querySelector(".account-initial")?.getAttribute("aria-hidden")).toBe("true");
+    expect(button.querySelector("img")).toBeNull();
+  });
+
+  it("the account button opens the name, My nodes, Account and Log out; a click keeps the focus, the keyboard moves it in", async () => {
+    mockMe({ authenticated: true, user: { id: "1", username: "tester", global_name: null } });
+    const place = vi.spyOn(window.BEmeshMenu, "place");
+    render(<AccountMenu />);
+    const button = await screen.findByRole("button", { name: "Account: tester" });
+    const menu = document.getElementById("account-menu")!;
+    expect(menu.hidden).toBe(true);
+    button.focus();
+    fireEvent.click(button, { detail: 1 });
+    expect(menu.hidden).toBe(false);
+    expect(button.getAttribute("aria-expanded")).toBe("true");
+    expect(document.activeElement).toBe(button);
+    expect(place).toHaveBeenCalledWith(menu);
+    const rows = Array.from(menu.children).map((el) =>
+      el.tagName === "HR" ? "|" : el.tagName === "FORM" ? `${el.textContent} → ${el.getAttribute("action")}` : `${el.textContent} ${el.getAttribute("href") ?? ""}`.trim(),
+    );
+    expect(rows).toEqual(["tester", "My nodes /account#my-nodes", "Account /account", "|", "Log out → /auth/logout?next=/configurator"]);
+    fireEvent.click(button, { detail: 1 });
+    fireEvent.click(button, { detail: 0 });
+    expect(document.activeElement?.textContent).toBe("My nodes");
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(menu.hidden).toBe(true);
+    expect(document.activeElement).toBe(button);
+    place.mockRestore();
+  });
+
+  it("one menu at a time: opening ☰ closes the account menu", async () => {
     mockMe({ authenticated: true, user: { id: "1", username: "tester" } });
     render(<AccountMenu />);
-    await screen.findByText("@tester");
-    // Log out is a POST (a link elsewhere can't sign someone out).
-    const out = screen.getByRole("button", { name: "Log out", hidden: true });
-    const form = out.closest("form")!;
-    expect([form.getAttribute("method"), form.getAttribute("action")]).toEqual(["post", "/auth/logout?next=/configurator"]);
-    expect(document.querySelector(".signin-chip")).toBeNull();
+    const button = await screen.findByRole("button", { name: "Account: tester" });
+    fireEvent.click(button, { detail: 1 });
+    const menuButton = screen.getByRole("button", { name: "Menu" });
+    fireEvent.pointerDown(menuButton);
+    fireEvent.click(menuButton, { detail: 1 });
+    expect(document.getElementById("account-menu")!.hidden).toBe(true);
+    expect(document.getElementById("page-menu")!.hidden).toBe(false);
   });
 
   it("☰ follows the suite's order: tools, links, About, account, language; the account once known", async () => {
@@ -112,5 +175,16 @@ describe("account menu", () => {
     fireEvent.keyDown(document, { key: "Escape" });
     expect(document.querySelector<HTMLElement>("#page-menu")!.hidden).toBe(true);
     expect(button.getAttribute("aria-expanded")).toBe("false");
+  });
+});
+
+describe("the configurator tells the other tools' hubs about a sign-in", () => {
+  it("records whether someone is signed in after /auth/me", async () => {
+    const { recordSeen } = await import("../src/app/AccountMenu");
+    localStorage.removeItem("bemesh.account.seen");
+    recordSeen(true);
+    expect(localStorage.getItem("bemesh.account.seen")).toBe('{"signedIn":true}');
+    recordSeen(false);
+    expect(localStorage.getItem("bemesh.account.seen")).toBe('{"signedIn":false}');
   });
 });

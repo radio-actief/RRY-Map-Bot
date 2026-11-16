@@ -68,6 +68,8 @@ backups/
 *.db.gz
 data/*.db*
 data/sessions/
+data/session-index/
+data/tool-grants/
 data/.flask_secret_key
 
 # Full icon set the subset is built from (scripts/subset-icons.py); not served

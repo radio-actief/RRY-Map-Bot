@@ -105,6 +105,8 @@ app.config['SECRET_KEY'] = _secret_key(_DATA_DIR)
 app.config['SESSION_FILE_DIR'] = os.path.join(_DATA_DIR, 'sessions')
 import backend.tool_grants as tool_grants  # noqa: E402
 tool_grants.GRANTS_DIR = os.path.join(_DATA_DIR, 'tool-grants')
+import backend.account_sessions as account_sessions  # noqa: E402
+account_sessions.INDEX_DIR = os.path.join(_DATA_DIR, 'session-index')
 app.config['SESSION_TYPE'] = 'filesystem'
 # Its own name, on this host only: the site's other tools sign in through the map instead
 # (/auth/authorize), so no other address ever gets this cookie.
@@ -1438,7 +1440,7 @@ def internal_error(error):
 
 
 # OAuth2 Routes
-NEXT_PAGES = ('/', '/stats', '/region-map', '/configurator')
+NEXT_PAGES = ('/', '/stats', '/region-map', '/configurator', '/account')
 # The site's other tools (config SITE_TOOLS_JSON); none on a site that only runs the map.
 SITE_TOOLS = config_site_tools
 # Their secrets for signing in through the map (config SITE_TOOL_SECRETS_JSON).
@@ -1584,6 +1586,9 @@ def _auth_callback(pending):
     # A new session id from here on: one planted in this browser beforehand (the cookie domain can
     # be shared by the site's tools) never becomes a signed-in session.
     app.session_interface.regenerate(session)
+    # Kept under the person, so "Log out everywhere" finds this session again.
+    account_sessions.remember(session['user_id'], app.session_interface._get_store_id(session.sid),
+                              app.permanent_session_lifetime.total_seconds())
 
     # Back to the tool that asked, with a code; the tool decides what membership means to it.
     if tool:
@@ -1727,6 +1732,59 @@ def auth_logout():
     can't sign someone out."""
     session.clear()
     return redirect(_after_auth_target(_safe_next(request.args.get('next')), 'logout=success'))
+
+
+@app.route('/auth/logout-everywhere', methods=['POST'])
+def auth_logout_everywhere():
+    """Log out on every device: every map session this person signed in with ends, with the tool
+    handles that point at those sessions. A POST from the map's own pages only, like log out.
+    Sessions that already ended or expired are skipped; another person's session is never touched."""
+    user_id = session.get('user_id') if is_authenticated() else None
+    if user_id:
+        here = app.session_interface._get_store_id(session.sid)
+        for store_id in dict.fromkeys([*account_sessions.take_all(user_id), here]):
+            data = app.session_interface._retrieve_session_data(store_id)
+            if isinstance(data, dict) and data.get('user_id') == user_id:
+                app.session_interface._delete_session(store_id)
+                tool_grants.end_session(store_id)
+    session.clear()
+    return redirect('/?logout=success')
+
+
+# The tools that have an account part of their own, and where it is (after the tool's address).
+ACCOUNT_PARTS = {'nodebook': '#/account'}
+
+
+@app.route('/api/v1/account', methods=['GET'])
+def account_data():
+    """The account page's data: the person's name, the nodes they claimed on the map, and the
+    shown tools that have an account part. Never the Discord id."""
+    if not is_authenticated():
+        return _no_store(jsonify({'error': 'Authentication required'}), 401)
+    from backend.discord_queries import get_user_nodes
+    user = get_current_user()
+    nodes = [
+        {'public_key': n.get('public_key', ''), 'name': n.get('adv_name'), 'type': n.get('type')}
+        for n in get_user_nodes(user['id'], include_inactive=False)
+    ]
+    tools = [
+        {'key': t['key'], 'label': t['label'], 'url': t['url'] + ACCOUNT_PARTS[t['key']]}
+        for t in shown_tools(SITE_TOOLS) if t['key'] in ACCOUNT_PARTS
+    ]
+    resp, status = _no_store(jsonify({'name': user.get('global_name') or user.get('username'),
+                                      'nodes': nodes, 'tools': tools}), 200)
+    resp.vary.add('Cookie')
+    return resp, status
+
+
+@app.route('/account')
+def account_page():
+    """The site's one account page (the site's tools link here); signed out, sign in first."""
+    if not is_authenticated():
+        return redirect('/auth/login?next=/account')
+    resp = send_from_directory(PROJECT_ROOT, 'account.html')
+    resp.headers['Cache-Control'] = 'no-store'
+    return resp
 
 
 SIGNOUT_LANGS = ('en', 'nl', 'fr')

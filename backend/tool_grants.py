@@ -3,7 +3,8 @@
 A code is made when the map sends a signed-in person back to a tool. It is good for one swap,
 within CODE_TTL_S, by that tool only. The swap gives the tool a handle: a pointer to the map
 session that made the code, so the tool can later ask whether that session is still signed in.
-Both are kept server-side under the SHA-256 of their value, never in clear.
+Both are kept server-side under the SHA-256 of their value, never in clear. Each map session also
+keeps the list of its handles, so ending that session everywhere ends its handles too.
 """
 
 import hashlib
@@ -19,7 +20,7 @@ CODE_TTL_S = 60
 GRANTS_DIR = None
 # Codes and handles in separate stores: a flood of codes (anyone signed in can ask for them) only
 # pushes out codes, never the handles other people's tool sessions depend on.
-_THRESHOLDS = {'codes': 2000, 'handles': 20000}
+_THRESHOLDS = {'codes': 2000, 'handles': 20000, 'sessions': 20000}
 
 _store = None
 _lock = threading.Lock()
@@ -67,9 +68,27 @@ def redeem_code(tool, code):
 def issue_handle(tool, store_id, user_id, lifetime_s):
     """A handle for `tool` that points to the map session `store_id`."""
     handle = _new_value()
-    _cache('handles').set(_key('handle', handle), {'tool': tool, 'store_id': store_id, 'user_id': user_id},
+    key = _key('handle', handle)
+    _cache('handles').set(key, {'tool': tool, 'store_id': store_id, 'user_id': user_id},
                  timeout=int(lifetime_s))
+    session_key = _key('session', store_id)
+    with _lock:
+        known = _cache('sessions').get(session_key)
+        _cache('sessions').set(session_key, (known if isinstance(known, list) else []) + [key],
+                               timeout=int(lifetime_s))
     return handle
+
+
+def end_session(store_id):
+    """Forget every handle that points to the map session `store_id`; nothing when it has none."""
+    if not isinstance(store_id, str) or not store_id:
+        return
+    session_key = _key('session', store_id)
+    with _lock:
+        keys = _cache('sessions').get(session_key)
+        _cache('sessions').delete(session_key)
+    for key in keys if isinstance(keys, list) else []:
+        _cache('handles').delete(key)
 
 
 def find_handle(tool, handle):

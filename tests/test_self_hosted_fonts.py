@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 import backend.api.app as app_module  # noqa: E402
 
 ROOT = os.path.join(os.path.dirname(__file__), '..')
-PAGES = ['index.html', 'stats.html', 'region-map.html', 'web/configurator/index.html']
+PAGES = ['index.html', 'stats.html', 'region-map.html', 'account.html', 'web/configurator/index.html']
 FONTS_CSS = os.path.join(ROOT, 'src', 'shared', 'fonts.css')
 
 

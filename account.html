@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta name="robots" content="noindex" />
+    <link rel="icon" href="./favicon.ico" sizes="any" />
+    <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="./favicon-16.png" />
+    <link rel="apple-touch-icon" href="./favicon.png" />
+    <link rel="preload" href="./src/shared/fonts/figtree-latin-normal-4ba7d3d096.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="./src/shared/fonts.css" />
+    <link rel="stylesheet" href="./lib/css/bootstrap-icons.css" />
+    <link rel="stylesheet" href="./src/shared/bemesh-tokens.css" />
+    <link rel="stylesheet" href="./src/shared/bemesh-shell.css" />
+    <link rel="stylesheet" href="./css/account.css" />
+    <script src="./src/shared/i18n.js" data-i18n-page="account"></script>
+    <script src="./src/shared/theme.js"></script>
+    <title data-i18n="account.pageTitle">Account – #BEmesh</title>
+  </head>
+  <body class="account-body">
+    <header class="topbar">
+      <span class="wordmark"><b>#BE</b><span data-i18n="account.wordmark">mesh account</span></span>
+      <nav class="switcher" aria-label="Pages" data-i18n-attr="aria-label:top.pages">
+        <a href="/" data-i18n="page.map">Map</a><a href="/stats" data-i18n="page.stats">Stats</a
+        ><a href="/region-map" data-i18n="page.regionMap">Region map</a
+        ><a href="/configurator" data-i18n="page.configurator">Configurator</a>
+      </nav>
+      <span class="spacer"></span>
+      <span data-account-chip></span>
+      <span data-lang-switch></span>
+      <span class="menu-wrap" data-page-menu>
+        <button type="button" class="icon" aria-label="Menu" data-i18n-attr="aria-label:menu.label"><i class="bi bi-list" aria-hidden="true"></i></button>
+        <nav class="menu page-menu" aria-label="Menu" data-i18n-attr="aria-label:menu.label" hidden></nav>
+      </span>
+      <button type="button" class="icon" data-theme-toggle aria-label="Theme"><i class="bi bi-circle-half" aria-hidden="true"></i></button>
+    </header>
+    <main class="account-main">
+      <section class="card account-card" aria-labelledby="account-title">
+        <h1 id="account-title" data-i18n="account.heading">#BEmesh account</h1>
+        <p class="account-name" id="account-name" aria-live="polite"><span class="muted" data-i18n="account.loading">Loading…</span></p>
+      </section>
+      <section class="card account-card" id="my-nodes" aria-labelledby="my-nodes-title">
+        <h2 id="my-nodes-title" data-i18n="menu.myNodes">My nodes</h2>
+        <ul class="account-list" id="account-nodes" hidden></ul>
+        <div class="account-empty" id="account-nodes-empty" hidden>
+          <p data-i18n="account.noNodes">You haven't claimed a node yet. Open your node on the map and choose Claim.</p>
+          <a class="btn primary" href="/" data-i18n="account.openMap">Open the map</a>
+        </div>
+      </section>
+      <section class="card account-card" id="account-tools-card" aria-labelledby="account-tools-title" hidden>
+        <h2 id="account-tools-title" data-i18n="account.tools">Your tools</h2>
+        <ul class="account-list" id="account-tools"></ul>
+      </section>
+      <section class="card account-card account-out">
+        <div class="account-out-actions">
+          <form method="post" action="/auth/logout">
+            <button type="submit" class="btn" data-i18n="menu.logOut">Log out</button>
+          </form>
+          <form method="post" action="/auth/logout-everywhere">
+            <button type="submit" class="btn" aria-describedby="account-everywhere-hint" data-i18n="account.logOutEverywhere">Log out everywhere</button>
+          </form>
+        </div>
+        <p class="muted" id="account-everywhere-hint" data-i18n="account.everywhereHint">Also on your other devices.</p>
+      </section>
+    </main>
+
+    <script src="./src/shared/about.js"></script>
+    <script src="./src/shared/menu-place.js"></script>
+    <script src="./src/shared/topbar.js"></script>
+    <script src="./src/account.js"></script>
+  </body>
+</html>

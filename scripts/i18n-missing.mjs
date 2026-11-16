@@ -14,6 +14,7 @@ const SCOPES = {
   "region-map": (l) => join(SHARED, `region-map.${l}.json`),
   // the map's coverage and profile tools (loaded when they are used)
   coverage: (l) => join(SHARED, `coverage.${l}.json`),
+  account: (l) => join(SHARED, `account.${l}.json`),
   configurator: (l) => join(root, `web/configurator/src/i18n/${l}.json`),
 };
 const LOCALES = { nl: "nl-BE", fr: "fr-FR" };

@@ -77,5 +77,7 @@
   "mapShade.toDark": "Donkere kaart",
   "mapShade.toLight": "Lichte kaart",
   "mapShade.toDarkFollows": "Donkere kaart (volgt het thema)",
-  "mapShade.toLightFollows": "Lichte kaart (volgt het thema)"
+  "mapShade.toLightFollows": "Lichte kaart (volgt het thema)",
+  "account.title": "Account",
+  "account.label": "Account: {name}"
 }

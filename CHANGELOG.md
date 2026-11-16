@@ -2,6 +2,12 @@
 
 What changed in each release of the #BEmesh map, bot and configurator.
 
+## 1.0.13 (2026-11-16)
+
+### Other
+
+- NodeBook and MeshMate can show the same outside links in their menus as the map does, in your language
+
 ## 1.0.12 (2026-11-16)
 
 ### Faster

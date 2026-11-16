@@ -121,6 +121,9 @@ describe("English", () => {
       "src/map.js",
       "src/stats.js",
       "src/region-map.js",
+      "src/map-engine/maplibre-engine.js",
+      "src/map-engine/leaflet-engine.js",
+      "src/map-engine/basemaps.js",
       "src/account.js",
       "src/shared/topbar.js",
     ];

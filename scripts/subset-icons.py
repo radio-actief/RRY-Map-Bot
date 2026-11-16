@@ -14,7 +14,7 @@ import os
 import re
 import sys
 
-SOURCES = ('index.html', 'stats.html', 'region-map.html', 'account.html', 'src', 'src/shared', 'src/coverage')
+SOURCES = ('index.html', 'stats.html', 'region-map.html', 'account.html', 'src', 'src/shared', 'src/coverage', 'src/map-engine')
 # The configurator's own source, every folder below it (its components use icons in the top bar).
 TREES = ('web/configurator/src',)
 ICON = re.compile(r'\bbi-[a-z0-9]+(?:-[a-z0-9]+)*')

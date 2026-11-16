@@ -1563,20 +1563,22 @@ time {
   text-decoration-style: dotted;
 }
 
-/* Color coding for nodes with source 'uploader' based on update status */
-.leaflet-marker-icon.update-recent {
+/* Color coding for nodes with source 'uploader' based on update status. Both map engines read these:
+ * Leaflet's markers carry the classes, the MapLibre map draws its markers from their computed values
+ * (src/map-engine/node-images.js). */
+.node-marker.update-recent {
   filter: saturate(5) hue-rotate(260deg);
 }
 
-.leaflet-marker-icon.update-stale {
+.node-marker.update-stale {
   filter: saturate(28) hue-rotate(228deg);
 }
 
-.leaflet-marker-icon.update-old {
+.node-marker.update-old {
   filter: saturate(5) hue-rotate(165deg);
 }
 
-.leaflet-marker-icon.update-extinct {
+.node-marker.update-extinct {
   filter: grayscale(100) contrast(16);
   opacity: 0.6;
 }
@@ -1587,7 +1589,7 @@ time {
 }
 
 /* Yellow glow for claimed nodes (any owner) – medium (between subtle and original) */
-.leaflet-marker-icon.claimed {
+.node-marker.claimed {
   filter: drop-shadow(0 0 3px rgba(240, 200, 80, 0.55))
     drop-shadow(0 0 6px rgba(240, 200, 80, 0.45))
     drop-shadow(0 0 10px rgba(240, 200, 80, 0.4));
@@ -1595,7 +1597,7 @@ time {
 }
 
 /* Purple Discord glow for user-owned nodes – stronger medium (overrides yellow when ours) */
-.leaflet-marker-icon.user-owned {
+.node-marker.user-owned {
   filter: drop-shadow(0 0 4px rgba(88, 101, 242, 0.65))
     drop-shadow(0 0 8px rgba(88, 101, 242, 0.55))
     drop-shadow(0 0 12px rgba(88, 101, 242, 0.5));
@@ -1603,28 +1605,28 @@ time {
 }
 
 /* Yellow glow for claimed nodes with uploader color coding – medium */
-.leaflet-marker-icon.update-recent.claimed {
+.node-marker.update-recent.claimed {
   filter: saturate(5) hue-rotate(260deg)
     drop-shadow(0 0 3px rgba(240, 200, 80, 0.55))
     drop-shadow(0 0 6px rgba(240, 200, 80, 0.45))
     drop-shadow(0 0 10px rgba(240, 200, 80, 0.4));
   z-index: 999 !important;
 }
-.leaflet-marker-icon.update-stale.claimed {
+.node-marker.update-stale.claimed {
   filter: saturate(28) hue-rotate(228deg)
     drop-shadow(0 0 3px rgba(240, 200, 80, 0.55))
     drop-shadow(0 0 6px rgba(240, 200, 80, 0.45))
     drop-shadow(0 0 10px rgba(240, 200, 80, 0.4));
   z-index: 999 !important;
 }
-.leaflet-marker-icon.update-old.claimed {
+.node-marker.update-old.claimed {
   filter: saturate(5) hue-rotate(165deg)
     drop-shadow(0 0 3px rgba(240, 200, 80, 0.55))
     drop-shadow(0 0 6px rgba(240, 200, 80, 0.45))
     drop-shadow(0 0 10px rgba(240, 200, 80, 0.4));
   z-index: 999 !important;
 }
-.leaflet-marker-icon.update-extinct.claimed {
+.node-marker.update-extinct.claimed {
   filter: grayscale(100) contrast(16)
     drop-shadow(0 0 3px rgba(240, 200, 80, 0.55))
     drop-shadow(0 0 6px rgba(240, 200, 80, 0.45))
@@ -1634,7 +1636,7 @@ time {
 }
 
 /* Combine color coding with purple glow for owned nodes – stronger medium */
-.leaflet-marker-icon.update-recent.user-owned {
+.node-marker.update-recent.user-owned {
   filter: saturate(5) hue-rotate(260deg)
     drop-shadow(0 0 4px rgba(88, 101, 242, 0.65))
     drop-shadow(0 0 8px rgba(88, 101, 242, 0.55))
@@ -1642,7 +1644,7 @@ time {
   z-index: 1000 !important;
 }
 
-.leaflet-marker-icon.update-stale.user-owned {
+.node-marker.update-stale.user-owned {
   filter: saturate(28) hue-rotate(228deg)
     drop-shadow(0 0 4px rgba(88, 101, 242, 0.65))
     drop-shadow(0 0 8px rgba(88, 101, 242, 0.55))
@@ -1650,7 +1652,7 @@ time {
   z-index: 1000 !important;
 }
 
-.leaflet-marker-icon.update-old.user-owned {
+.node-marker.update-old.user-owned {
   filter: saturate(5) hue-rotate(165deg)
     drop-shadow(0 0 4px rgba(88, 101, 242, 0.65))
     drop-shadow(0 0 8px rgba(88, 101, 242, 0.55))
@@ -1658,7 +1660,7 @@ time {
   z-index: 1000 !important;
 }
 
-.leaflet-marker-icon.update-extinct.user-owned {
+.node-marker.update-extinct.user-owned {
   filter: grayscale(100) contrast(16)
     drop-shadow(0 0 4px rgba(88, 101, 242, 0.65))
     drop-shadow(0 0 8px rgba(88, 101, 242, 0.55))
@@ -1829,5 +1831,222 @@ time {
     background: var(--panel);
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------------------------
+ * The MapLibre map (src/map-engine/maplibre-engine.js): its chrome in the look of the Leaflet map's.
+ * Until the engine is in, the map's area shows the page background. */
+#map {
+  background: var(--page);
+}
+
+#map.maplibregl-map {
+  font-family: var(--font-ui);
+}
+
+/* Node popup: the Leaflet card's frame (glass from bemesh-shell.css) */
+.maplibregl-popup.bemesh-popup {
+  z-index: 5;
+  max-width: none !important;
+}
+
+.bemesh-popup .maplibregl-popup-content {
+  padding: 0;
+  border: 1px solid var(--glass-line);
+  min-width: 288px;
+  max-width: 386px;
+  overflow: visible;
+  font: inherit;
+}
+
+/* The tip: a glass triangle (the content's border would show through a translucent square) */
+.bemesh-popup .maplibregl-popup-tip {
+  width: 20px;
+  height: 10px;
+  border: 0;
+  box-shadow: none;
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+}
+
+.bemesh-popup.maplibregl-popup-anchor-top .maplibregl-popup-tip {
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+
+.bemesh-popup .maplibregl-popup-close-button {
+  z-index: 2;
+  top: 4px;
+  right: 4px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  color: var(--app-text-muted, #57534e);
+  font: 22px/1 var(--font-ui);
+}
+
+.bemesh-popup .maplibregl-popup-close-button:hover {
+  background: transparent;
+  color: var(--app-text, #1a1917);
+}
+
+/* Controls, bottom left: map shade, zoom, base map (as the Leaflet map's stack) */
+.map-ctrls {
+  position: absolute;
+  z-index: 2;
+  left: max(10px, env(safe-area-inset-left, 0px));
+  bottom: calc(10px + var(--map-safe-bottom));
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.map-ctrl {
+  background: var(--panel);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 2px 8px var(--shadow);
+  overflow: hidden;
+}
+
+.map-ctrl--bar button,
+.map-layers__toggle {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: var(--panel);
+  color: var(--ink);
+  font: 600 18px/1 var(--font-ui);
+  cursor: pointer;
+  transition: background-color var(--dur) ease-out;
+}
+
+.map-ctrl--bar button + button {
+  border-top: 1px solid var(--line);
+}
+
+.map-ctrl--bar button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+@media (hover: hover) {
+  .map-ctrl--bar button:hover:not(:disabled),
+  .map-layers__toggle:hover {
+    background: var(--gold-bg);
+  }
+}
+
+.map-ctrl button:focus-visible {
+  outline-offset: -2px;
+}
+
+/* The base map list opens above its button */
+.map-layers {
+  display: flex;
+  flex-direction: column-reverse;
+}
+
+.map-layers__list {
+  display: grid;
+  gap: 4px;
+  min-width: 150px;
+  margin: 0;
+  padding: 6px 10px 8px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.map-layers__list[hidden] {
+  display: none;
+}
+
+.map-layers__list legend {
+  float: left;
+  width: 100%;
+  margin: 0 0 2px;
+  padding: 0;
+  color: var(--mut);
+  font-size: 11px;
+}
+
+.map-layers__list label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  cursor: pointer;
+  font-family: var(--app-font-body);
+}
+
+/* The credit line: solid, 11px, as on the Leaflet map */
+#map .maplibregl-ctrl-bottom-right {
+  margin-right: max(0px, env(safe-area-inset-right, 0px));
+  margin-bottom: var(--map-safe-bottom, 0px);
+}
+
+#map .maplibregl-ctrl-attrib {
+  background: var(--panel);
+  color: var(--ink);
+  font: 11px/14px var(--font-ui);
+}
+
+#map .maplibregl-ctrl-attrib a {
+  color: var(--node);
+}
+
+#map.map-dark .maplibregl-ctrl-attrib-button {
+  filter: invert(1);
+}
+
+/* "This map style could not be loaded": quiet, bottom centre */
+.map-notice {
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  bottom: calc(10px + var(--map-safe-bottom));
+  transform: translateX(-50%);
+  max-width: calc(100% - 200px);
+  padding: 4px 10px;
+  background: var(--panel);
+  color: var(--mut);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 2px 8px var(--shadow);
+  font: 12px/1.4 var(--font-ui);
+}
+
+.map-notice[hidden] {
+  display: none;
+}
+
+@media (max-width: 600px) {
+  .map-ctrls {
+    bottom: calc(34px + var(--map-safe-bottom));
+  }
+
+  .bemesh-popup .maplibregl-popup-content {
+    min-width: 0;
+  }
+
+  .bemesh-popup .maplibregl-popup-close-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0;
+    top: 0;
+    right: 0;
+  }
+
+  .map-notice {
+    top: 120px;
+    bottom: auto;
+    max-width: calc(100% - 32px);
   }
 }

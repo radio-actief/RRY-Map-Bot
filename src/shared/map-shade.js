@@ -1,7 +1,10 @@
 /* Light / dark map tiles for the Leaflet maps. By default the map follows the site theme;
  * a button on the map overrides it (localStorage "bemesh.mapShade": "light" | "dark").
  * window.BEmeshMapShade.attach(L, map, tileLayer, { position }) returns a detach function.
- * The tile layer needs className "osm-tiles"; the filter lives in bemesh-shell.css. */
+ * The tile layer needs className "osm-tiles"; the filter lives in bemesh-shell.css.
+ * window.BEmeshMapShade.watch(container, onChange) does the same without Leaflet (the map page's
+ * MapLibre map, which swaps its style): it returns { button, detach }; onChange(shade) runs at once
+ * and on every change. */
 (function () {
   var KEY = "bemesh.mapShade";
 
@@ -104,5 +107,50 @@
     };
   }
 
-  window.BEmeshMapShade = { attach: attach, shade: shade, themeShade: themeShade };
+  /** The switch for a map of another engine: a plain <button>, `container` gets map-dark. */
+  function watch(container, onChange) {
+    var button = document.createElement("button");
+    button.type = "button";
+    button.className = "map-shade-button";
+    var last = null;
+    function render() {
+      var now = shade();
+      container.classList.toggle("map-dark", now === "dark");
+      var label = text((now === "dark" ? "mapShade.toLight" : "mapShade.toDark") + (stored() ? "" : "Follows"));
+      button.textContent = now === "dark" ? "☀" : "☾";
+      button.setAttribute("aria-label", label);
+      button.title = label;
+      if (now !== last) {
+        last = now;
+        onChange(now);
+      }
+    }
+    button.addEventListener("click", function () {
+      var next = shade() === "dark" ? "light" : "dark";
+      store(next === themeShade() ? null : next);
+      render();
+    });
+    var timer;
+    function changed() {
+      clearTimeout(timer);
+      timer = setTimeout(render, 0);
+    }
+    var observer = new MutationObserver(changed);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "lang"] });
+    var mq = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)");
+    if (mq && mq.addEventListener) mq.addEventListener("change", changed);
+    render();
+    return {
+      button: button,
+      detach: function () {
+        clearTimeout(timer);
+        observer.disconnect();
+        if (mq && mq.removeEventListener) mq.removeEventListener("change", changed);
+        button.remove();
+        container.classList.remove("map-dark");
+      },
+    };
+  }
+
+  window.BEmeshMapShade = { attach: attach, watch: watch, shade: shade, themeShade: themeShade };
 })();

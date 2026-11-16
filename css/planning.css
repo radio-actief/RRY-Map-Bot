@@ -1124,3 +1124,14 @@ path.plan-hover {
     animation-duration: 2.4s;
   }
 }
+
+/* The same on the MapLibre map, whose marks are plain elements (src/map-engine/maplibre-engine.js) */
+.plan-point.map-mark--draggable,
+.plan-knob.map-mark--draggable {
+  cursor: grab;
+}
+
+.plan-point.map-mark--dragging,
+.plan-knob.map-mark--dragging {
+  cursor: grabbing;
+}

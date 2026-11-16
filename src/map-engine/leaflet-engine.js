@@ -1,0 +1,331 @@
+// The map page's map on Leaflet, for browsers without WebGL (and when MapLibre can't start): the
+// map as it was before MapLibre, with the same interface as ./maplibre-engine.js (see ./index.js).
+// Leaflet and markercluster (lib/) load only here, so WebGL browsers never fetch them.
+import { BASE_MAPS, baseMapIds, rasterAttribution, readBaseMap, storeBaseMap } from "./basemaps.js";
+import { wrapLon } from "./geo.js";
+
+const base = (path) => new URL(`../../${path}`, import.meta.url).href;
+
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = src;
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error(`${src} did not load`));
+    document.head.append(s);
+  });
+}
+
+/** Leaflet's stylesheets go before the page's own, so those win ties (as when they were in <head>). */
+function loadCss(href) {
+  if (document.querySelector(`link[href="${href}"]`)) return Promise.resolve();
+  return new Promise((resolve) => {
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = href;
+    link.onload = link.onerror = () => resolve();
+    const before = document.querySelector('link[href*="bemesh-tokens.css"]');
+    if (before) before.before(link);
+    else document.head.append(link);
+  });
+}
+
+let loading = null;
+function loadLeaflet() {
+  loading ??= Promise.all([
+    loadCss(base("lib/css/leaflet.css")),
+    loadCss(base("lib/css/MarkerCluster.css")),
+    loadCss(base("lib/css/MarkerCluster.Default.css")),
+    window.L?.markerClusterGroup ? null : loadScript(base("lib/leaflet.js")).then(() => loadScript(base("lib/leaflet.markercluster.js"))),
+  ]);
+  return loading;
+}
+
+const ICON_OPTIONS = { iconSize: [32, 32], iconAnchor: [17, 17], popupAnchor: [0, -16] };
+
+export async function createLeafletEngine(container, { center, zoom, t, attribution }) {
+  await loadLeaflet();
+  const L = window.L;
+
+  const tiles = {
+    osm: L.tileLayer(BASE_MAPS.osm.raster.tiles, {
+      maxZoom: 19,
+      className: "osm-tiles",
+      attribution: `${rasterAttribution("osm", t)} | ${attribution}`,
+    }),
+    satellite: L.tileLayer(BASE_MAPS.satellite.raster.tiles, {
+      maxZoom: 18,
+      attribution: `${rasterAttribution("satellite", t)} | ${attribution}`,
+    }),
+  };
+  const baseId = readBaseMap(globalThis.localStorage, { vector: false });
+  const map = L.map(container, {
+    minZoom: 2,
+    maxBounds: [
+      [-90, -180],
+      [90, 200],
+    ],
+    layers: tiles[baseId],
+    zoomControl: false,
+  }).setView([center.lat, center.lon], zoom);
+
+  const layerNames = Object.fromEntries(baseMapIds({ vector: false }).map((id) => [BASE_MAPS[id].label, tiles[id]]));
+  map.on("baselayerchange", (ev) => {
+    const id = baseMapIds({ vector: false }).find((k) => BASE_MAPS[k].label === ev.name);
+    if (id) storeBaseMap(globalThis.localStorage, id);
+  });
+  // map type (layers) above zoom in/out, bottom left
+  L.control.layers(layerNames, null, { position: "bottomleft" }).addTo(map);
+  L.control.zoom({ position: "bottomleft", zoomInTitle: t("zoom.in"), zoomOutTitle: t("zoom.out") }).addTo(map);
+  window.BEmeshMapShade?.attach(L, map, tiles.osm, { position: "bottomleft" });
+
+  // the coverage image under the node markers, the planning marks over them
+  map.createPane("planCoverage").style.zIndex = 350;
+  map.createPane("planLines").style.zIndex = 450;
+  map.createPane("planMarks").style.zIndex = 650;
+  for (const pane of ["planCoverage", "planLines"]) map.getPane(pane).style.pointerEvents = "none";
+
+  const listeners = new Map();
+  const emit = (type, payload) => {
+    for (const fn of listeners.get(type) ?? []) fn(payload);
+  };
+  for (const type of ["movestart", "moveend", "zoomstart", "zoomend"]) map.on(type, () => emit(type));
+  // a long press on a touch screen is a contextmenu too (Leaflet makes one on iOS)
+  map.on("contextmenu", (ev) => {
+    const oe = ev.originalEvent;
+    oe?.preventDefault?.();
+    const touch = oe?.pointerType === "touch" || oe?.type?.startsWith?.("touch") || Boolean(oe?.touches);
+    emit("contextmenu", {
+      lat: ev.latlng.lat,
+      lon: wrapLon(ev.latlng.lng),
+      clientX: oe?.clientX ?? oe?.touches?.[0]?.clientX ?? ev.containerPoint.x,
+      clientY: oe?.clientY ?? oe?.touches?.[0]?.clientY ?? ev.containerPoint.y,
+      touch,
+      originalEvent: oe,
+    });
+  });
+
+  // ------------------------------------------------------------------ nodes
+  const icons = new Map();
+  function iconFor(look) {
+    const marks = look.mark ? ` ${look.mark}` : "";
+    const key = look.label != null ? `l|${look.color}|${look.label}|${look.status}|${look.mark}` : `t|${look.type}|${look.status}|${look.mark}`;
+    let icon = icons.get(key);
+    if (!icon) {
+      if (look.label != null) {
+        const text = String(look.label).replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" })[c]);
+        const html = `<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg"><ellipse cx="256" cy="256" rx="256" ry="256" fill="${look.color}"/><text x="256" y="256" dominant-baseline="central" text-anchor="middle" fill="#fff" font-size="150" font-weight="bold" font-family="sans-serif">${text}</text></svg>`;
+        icon = L.divIcon({ html, className: `node-marker node-icon svg-node-icon update-${look.status}${marks}`, ...ICON_OPTIONS });
+      } else {
+        icon = L.icon({ iconUrl: base(`img/node_types/${look.type}.svg`), className: `node-marker node-icon update-${look.status}${marks}`, ...ICON_OPTIONS });
+      }
+      icons.set(key, icon);
+    }
+    return icon;
+  }
+
+  const markers = new WeakMap();
+  const markerNode = new WeakMap();
+  let lookOf = () => ({ type: 1, status: "none", mark: "" });
+  let nodeClick = () => {};
+  let group = null;
+  let shown = [];
+
+  function markerFor(node) {
+    const icon = iconFor(lookOf(node));
+    let m = markers.get(node);
+    if (!m) {
+      m = L.marker([Number(node.adv_lat), Number(node.adv_lon)], { icon, title: node.adv_name });
+      markers.set(node, m);
+      markerNode.set(m, node);
+    } else if (m.options.icon !== icon) {
+      m.setIcon(icon);
+    }
+    return m;
+  }
+
+  function setNodes(nodes, { clusterUntil = 11, look } = {}) {
+    if (look) lookOf = look;
+    shown = nodes.filter((n) => Number.isFinite(Number(n.adv_lat)) && Number.isFinite(Number(n.adv_lon)));
+    if (group) map.removeLayer(group);
+    group = L.markerClusterGroup({ disableClusteringAtZoom: clusterUntil || 1, chunkedLoading: true });
+    group.on("click", (e) => {
+      const node = markerNode.get(e.layer);
+      if (node) nodeClick(node);
+    });
+    group.addLayers(shown.map(markerFor));
+    map.addLayer(group);
+  }
+
+  // ------------------------------------------------------------------ popup
+  let popup = null;
+  let popupResize = null;
+  let popupClose = null;
+  map.on("popupclose", (ev) => {
+    if (ev.popup !== popup) return;
+    popup = null;
+    popupResize?.disconnect();
+    popupResize = null;
+    const done = popupClose;
+    popupClose = null;
+    done?.();
+  });
+
+  function openPopup(spot, { html, className = "", width, onContent, onClose } = {}) {
+    if (popup) map.closePopup(popup);
+    const size = width ? { minWidth: Math.min(300, width), maxWidth: width } : {};
+    const p = L.popup({
+      ...size,
+      className,
+      autoPanPaddingTopLeft: [10, 100],
+      autoPanPaddingBottomRight: [10, 10],
+      // a marker's popup: popupAnchor [0, -16] and the popup's own offset [0, 7]
+      offset: [0, -9],
+    })
+      .setLatLng([spot.lat, spot.lon])
+      .setContent(html);
+    popup = p;
+    popupClose = onClose;
+    p.openOn(map);
+    const content = p.getElement()?.querySelector(".leaflet-popup-content");
+    onContent?.(content);
+    // the card grows once its QR code is drawn: pan again so it stays clear of the search box
+    if ("ResizeObserver" in window && p.getElement()) {
+      popupResize = new ResizeObserver(() => {
+        if (popup === p && p.isOpen()) p._adjustPan();
+      });
+      popupResize.observe(p.getElement());
+    }
+    return p;
+  }
+
+  const engine = {
+    kind: "leaflet",
+    container,
+    map,
+    getCenter() {
+      const c = map.getCenter();
+      return { lat: c.lat, lon: c.lng };
+    },
+    getZoom: () => map.getZoom(),
+    getSize() {
+      const s = map.getSize();
+      return { x: s.x, y: s.y };
+    },
+    setView(spot, z) {
+      map.setView([spot.lat, spot.lon], z, { animate: false });
+    },
+    flyTo(spot, z) {
+      return new Promise((resolve) => {
+        map.once("moveend", () => resolve());
+        map.flyTo([spot.lat, spot.lon], z);
+      });
+    },
+    fitBounds(bounds, { top = 0, bottom = 0, left = 0, right = 0, maxZoom } = {}) {
+      map.fitBounds(bounds, { paddingTopLeft: [left, top], paddingBottomRight: [right, bottom], animate: false, ...(maxZoom ? { maxZoom } : {}) });
+    },
+    project(spot) {
+      const p = map.latLngToContainerPoint([spot.lat, spot.lon]);
+      return { x: p.x, y: p.y };
+    },
+    unproject({ x, y }) {
+      const ll = map.containerPointToLatLng([x, y]);
+      return { lat: ll.lat, lon: ll.lng };
+    },
+    resize() {
+      map.invalidateSize({ animate: false, pan: false });
+    },
+    on(type, fn) {
+      if (!listeners.has(type)) listeners.set(type, new Set());
+      listeners.get(type).add(fn);
+    },
+    off(type, fn) {
+      listeners.get(type)?.delete(fn);
+    },
+
+    setNodes,
+    refreshNodes() {
+      for (const node of shown) markerFor(node);
+    },
+    onNodeClick(fn) {
+      nodeClick = fn;
+    },
+
+    openPopup,
+    closePopup() {
+      if (popup) map.closePopup(popup);
+    },
+    setPopupHtml(html) {
+      if (!popup) return null;
+      popup.setContent(html);
+      popup.update();
+      return popup.getElement()?.querySelector(".leaflet-popup-content") ?? null;
+    },
+    popupElement: () => popup?.getElement()?.querySelector(".leaflet-popup-content") ?? null,
+    isPopupOpen: () => Boolean(popup?.isOpen()),
+
+    addImage(url, corners) {
+      const [topLeft, , bottomRight] = corners;
+      const layer = L.imageOverlay(url, [[bottomRight[1], topLeft[0]], [topLeft[1], bottomRight[0]]], {
+        pane: "planCoverage",
+        interactive: false,
+        className: "plan-coverage-image",
+      }).addTo(map);
+      return { remove: () => layer.remove() };
+    },
+    addPath(spots, style = {}) {
+      const layer = L.polyline(spots.map((s) => (Array.isArray(s) ? s : [s.lat, s.lon])), { pane: "planLines", interactive: false, ...style }).addTo(map);
+      return { remove: () => layer.remove() };
+    },
+    addCircle(spot, meters, style = {}) {
+      const layer = L.circle([spot.lat, spot.lon], { radius: meters, pane: "planLines", interactive: false, fill: false, ...style }).addTo(map);
+      return { remove: () => layer.remove() };
+    },
+    addDot(spot, style = {}) {
+      const layer = L.circleMarker([spot.lat, spot.lon], { pane: "planMarks", interactive: false, fillOpacity: 1, ...style }).addTo(map);
+      return { remove: () => layer.remove() };
+    },
+    addMarker(spot, { html = "", className = "", size = [20, 20], anchor, draggable = false, title = "", interactive = true } = {}) {
+      const icon = (h, c) => L.divIcon({ className: c, html: h, iconSize: size, iconAnchor: anchor ?? [size[0] / 2, size[1] / 2] });
+      let current = { html, className };
+      const m = L.marker([spot.lat, spot.lon], {
+        pane: "planMarks",
+        icon: icon(html, className),
+        draggable,
+        title,
+        alt: title,
+        interactive,
+        keyboard: interactive,
+        riseOnHover: interactive,
+      }).addTo(map);
+      return {
+        get element() {
+          return m.getElement();
+        },
+        getLatLng() {
+          const ll = m.getLatLng();
+          return { lat: ll.lat, lon: ll.lng };
+        },
+        setLatLng(next) {
+          m.setLatLng([next.lat, next.lon]);
+        },
+        setIcon(next) {
+          current = { ...current, ...next };
+          m.setIcon(icon(current.html, current.className));
+        },
+        setDraggable(on) {
+          if (on) m.dragging?.enable();
+          else m.dragging?.disable();
+        },
+        isDragging: () => Boolean(m.dragging?.moved?.()),
+        on(type, fn) {
+          m.on(type, fn);
+        },
+        remove() {
+          m.remove();
+        },
+      };
+    },
+  };
+  return engine;
+}

@@ -6,7 +6,6 @@ import {
   onMounted,
   onBeforeUnmount,
   nextTick,
-  markRaw,
   shallowRef,
 } from "../lib/vue.runtime.esm-browser.prod.js";
 import * as ntools from "./node-utils.js";
@@ -16,6 +15,15 @@ import { copyText } from "./shared/clipboard.js";
 import { settleAfterKeyboard } from "./shared/viewport-settle.js";
 import { nodebookApiUrl, nodebookFetchInit, nodebookState, toolLinksHtml } from "./site-tools.js";
 import { coordsFallbackHtml, ownerHtml, planningActionsHtml, typeLabelHtml } from "./popup-safe.js";
+import { createMapEngine, preloadEngine } from "./map-engine/index.js";
+import { roundCoord, wrapLon } from "./map-engine/geo.js";
+
+const apiUrl = "/api/v1/belgian-nodes";
+// The node list and the map engine start loading now, side by side, before the page waits for its
+// language: neither waits for the other (MapLibre where the browser has WebGL, else Leaflet).
+const nodesRequest = fetch(apiUrl);
+nodesRequest.catch(() => {});
+preloadEngine()?.catch(() => {});
 
 // Page language: src/shared/i18n.js (loaded in <head>) fetches the messages and translates the static page first.
 const I18N = window.BEmeshI18n;
@@ -42,7 +50,8 @@ const planningEnds = { a: null, b: null };
 let planningHost = null;
 let planningLoading = null;
 function planningTools() {
-  planningLoading ??= import("./coverage/planning.js")
+  planningLoading ??= mapReady
+    .then(() => import("./coverage/planning.js"))
     .then((module) => module.startPlanning(planningHost))
     .catch((e) => {
       planningLoading = null;
@@ -58,7 +67,6 @@ function withPlanning(fn) {
 // MDI path (same as @mdi/js).
 const mdiOpenInNew =
   "M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z";
-const apiUrl = "/api/v1/belgian-nodes";
 
 function normalizePubKeyForCompare(key) {
   return (key || "").toLowerCase().replace(/\s/g, "");
@@ -272,7 +280,7 @@ function copyToClipboardWithQrWrapFeedback(text, wrapEl) {
   copyText(plain).then(doFlash);
 }
 
-// Copy on click (capture phase, so Leaflet's popup sees it first). Not on pointerup: a long press
+// Copy on click (capture phase, so the map's popup sees it first). Not on pointerup: a long press
 // ends with a pointerup too, and must open the browser's own menu instead of copying.
 function setupCopyHandlers() {
   document.addEventListener(
@@ -650,7 +658,7 @@ function closeQrEnlargeOverlay() {
   }
 }
 
-/** Read node label lines from the open Leaflet popup DOM (same source as the small QR card). */
+/** Read node label lines from the open popup DOM (same source as the small QR card). */
 function collectQrEnlargeContext(slot) {
   const popup = slot?.closest?.(".node-popup");
   const card = slot?.closest?.(".node-qr-card");
@@ -825,8 +833,8 @@ async function fillNodeQrSlotFromPopup(popupContentRoot) {
     const mod = await import(QR_CODE_MODULE_URL);
     const QRCode = mod.default;
     const src = await qrPngDataUrl(QRCode, link);
-    // Leaflet may call the popup content function again (pan/zoom/setView), replacing
-    // the DOM while we awaited the QR module — only paint if this link's slot still exists.
+    // The popup may be redrawn (NodeBook's answer, sign-in), replacing the DOM while we awaited
+    // the QR module — only paint if this link's slot still exists.
     const live = popupContentRoot.querySelector(
       ".node-qr-slot[data-meshcore-link]",
     );
@@ -849,35 +857,6 @@ async function fillNodeQrSlotFromPopup(popupContentRoot) {
       live.style.display = "none";
     }
   }
-}
-
-/**
- * The node card grows once its QR code is drawn; pan again so it stays clear of the search box.
- * Call from a marker's popupopen, and stopWatchingPopupGrowth from popupclose.
- */
-function watchPopupGrowth(marker, popup) {
-  const root = marker.getPopup()?.getElement();
-  if (!root || !("ResizeObserver" in window)) return;
-  marker._popupResize?.disconnect();
-  marker._popupResize = new ResizeObserver(() => {
-    if (popup.isOpen()) popup._adjustPan();
-  });
-  marker._popupResize.observe(root);
-}
-
-function stopWatchingPopupGrowth(marker) {
-  marker._popupResize?.disconnect();
-  marker._popupResize = null;
-}
-
-function bindPopupQrRefill(popup, getContentRoot) {
-  if (!popup || popup._qrRefillBound) return;
-  popup._qrRefillBound = true;
-  popup.on("contentupdate", () => {
-    requestAnimationFrame(() => {
-      fillNodeQrSlotFromPopup(getContentRoot());
-    });
-  });
 }
 
 const columnOrder = ["link"];
@@ -1017,35 +996,6 @@ const columns = {
     },
   },
 };
-
-const svgIconHtmlCache = new Map();
-
-function escapeXmlText(s) {
-  return String(s).replace(
-    /[<>&]/g,
-    (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" })[c],
-  );
-}
-
-function getSvgIcon(text, color, updateStatus) {
-  const status = updateStatus || "none";
-  const cacheKey = `${text}|${color}|${status}`;
-  let icon = svgIconHtmlCache.get(cacheKey);
-  if (!icon) {
-    const html = `<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg"><ellipse cx="256" cy="256" rx="256" ry="256" fill="${color}"/><text x="256" y="256" dominant-baseline="central" text-anchor="middle" fill="#fff" font-size="150" font-weight="bold" font-family="sans-serif">${escapeXmlText(
-      text,
-    )}</text></svg>`;
-    icon = L.divIcon({
-      html,
-      className: `node-icon svg-node-icon update-${status}`,
-      iconSize: [32, 32],
-      iconAnchor: [17, 17],
-      popupAnchor: [0, -16],
-    });
-    svgIconHtmlCache.set(cacheKey, icon);
-  }
-  return icon;
-}
 
 function clearLocationHash() {
   history.pushState("", document.title, location.pathname + location.search);
@@ -1397,7 +1347,7 @@ function getTable(node, authState = null, nodes = []) {
 
 /**
  * The popup's menu toggles (coordinates, analyzers) and its Claim and Unclaim, by delegation: the
- * page allows no inline handlers. Capture phase, as the copy handlers: Leaflet stops clicks at the popup.
+ * page allows no inline handlers. Capture phase, as the copy handlers: the map stops clicks at the popup.
  */
 function setupPopupActionHandlers() {
   document.addEventListener(
@@ -1417,7 +1367,7 @@ function setupPopupActionHandlers() {
         const key = plan.getAttribute("data-public-key") || "";
         if (!/^[0-9a-f]{64}$/.test(key)) return;
         const kind = plan.getAttribute("data-plan-action");
-        window.leafletMap?.closePopup();
+        mapEngine?.closePopup();
         if (kind === "coverage") withPlanning((p) => p.showCoverage(key));
         else if (kind === "profile-from") withPlanning((p) => p.profileFrom({ publicKey: key }));
         else if (kind === "profile-to") withPlanning((p) => p.profileTo({ publicKey: key }));
@@ -1558,23 +1508,6 @@ const appAttribution = t("map.attribution", {
   radioActief: `<a target="_blank" href="https://github.com/radio-actief"><strong>Radio-Actief</strong></a>`,
 });
 
-const baseMapSelected =
-  localStorage.getItem("baseMapSelected") || "OpenStreetMap";
-const baseMaps = {
-  OpenStreetMap: L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 19,
-    className: "osm-tiles",
-    attribution: `${t("map.tiles")}: &copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> | ${appAttribution}`,
-  }),
-  "Esri Satellite": L.tileLayer(
-    "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-    {
-      maxZoom: 18,
-      attribution: `${t("map.tiles")}: &copy; Esri | ${t("map.sources")}: Esri, DigitalGlobe, GeoEye, i-cubed, USDA FSA, USGS, AEX, Getmapping, Aerogrid, IGN, IGP, swisstopo, GIS Users | ${appAttribution}`,
-    },
-  ),
-};
-
 let params = { lat: 50.75, lon: 4.471, zoom: 9 }; // Brussels, Belgium
 
 const urlParams = Object.fromEntries(new URLSearchParams(location.search));
@@ -1583,28 +1516,31 @@ if (urlParams.public_key && !urlParams.node) {
   urlParams.node = String(urlParams.public_key);
 }
 if (Number(urlParams.lat) && Number(urlParams.lon) && Number(urlParams.zoom)) {
-  params = urlParams;
+  params = { lat: Number(urlParams.lat), lon: Number(urlParams.lon), zoom: Number(urlParams.zoom) };
 }
 
-// console.log(params);
-
-const map = (window.leafletMap = leaflet
-  .map("map", {
-    minZoom: 2,
-    maxBounds: [
-      [-90, -180], // top left
-      [90, 200], // bottom right
-    ],
-    layers: baseMaps[baseMapSelected],
-    zoomControl: false,
-  })
-  .setView([params.lat, params.lon], params.zoom));
+/**
+ * The map (src/map-engine/): set once its engine has started. The page (top bar, search, panels) is
+ * up before it; until then the map's area shows the page background.
+ */
+let mapEngine = null;
+const mapReady = createMapEngine(document.getElementById("map"), {
+  center: { lat: params.lat, lon: params.lon },
+  zoom: params.zoom,
+  t,
+  attribution: appAttribution,
+}).then((engine) => {
+  mapEngine = window.bemeshMap = engine;
+  document.getElementById("map").dataset.engine = engine.kind;
+  return engine;
+});
+mapReady.catch((e) => console.error("The map could not start", e));
 // The phone keyboard (search box) changes the visible height: re-measure, and undo a shifted page once it closes.
-settleAfterKeyboard(() => map.invalidateSize({ animate: false }));
+settleAfterKeyboard(() => mapEngine?.resize());
 
-/** Leaflet popup width: desktop keeps 350px; narrow / touch viewports avoid horizontal overflow. */
-function getLeafletNodePopupSize() {
-  if (typeof window === "undefined") return { minWidth: 350, maxWidth: 350 };
+/** Popup width: desktop keeps 350px; narrow / touch viewports avoid horizontal overflow. */
+function nodePopupWidth() {
+  if (typeof window === "undefined") return 350;
   const w = window.innerWidth;
   let coarse = false;
   try {
@@ -1613,26 +1549,13 @@ function getLeafletNodePopupSize() {
     coarse = false;
   }
   const compact = w <= 640 || (coarse && w <= 900);
-  if (!compact) return { minWidth: 350, maxWidth: 350 };
-  const maxW = Math.max(220, Math.min(350, w - 28));
-  const minW = Math.min(300, maxW);
-  return { minWidth: minW, maxWidth: maxW };
+  if (!compact) return 350;
+  return Math.max(220, Math.min(350, w - 28));
 }
 
-map.on("baselayerchange", function (ev) {
-  localStorage.setItem("baseMapSelected", ev.name);
-});
-
-// Map type (layers) above zoom in/out (bottom-left)
-L.control.layers(baseMaps, null, { position: "bottomleft" }).addTo(map);
-L.control.zoom({ position: "bottomleft", zoomInTitle: t("zoom.in"), zoomOutTitle: t("zoom.out") }).addTo(map);
-window.BEmeshMapShade.attach(L, map, baseMaps.OpenStreetMap, {
-  position: "bottomleft",
-});
-
 /**
- * Right click on the map (a long press on a touch screen: Leaflet turns it into contextmenu, on iOS
- * too): coverage or a profile from that spot. A small menu of the map's own; the tools load when an
+ * Right click on the map (a long press on a touch screen, on iOS too: the map engine turns it into
+ * contextmenu): coverage or a profile from that spot. A small menu of the map's own; the tools load when an
  * item is picked.
  */
 const mapMenu = (() => {
@@ -1661,10 +1584,10 @@ const mapMenu = (() => {
     });
     return b;
   }
-  function open(latlng, x, y, viaKeyboard = false) {
+  function open(spot, x, y, viaKeyboard = false) {
     close();
-    const lat = Math.round(latlng.lat * 1e5) / 1e5;
-    const lon = Math.round(L.Util.wrapNum(latlng.lng, [-180, 180], true) * 1e5) / 1e5;
+    const lat = roundCoord(spot.lat);
+    const lon = roundCoord(wrapLon(spot.lon));
     el = document.createElement("div");
     el.className = "map-menu";
     el.setAttribute("role", "menu");
@@ -1694,34 +1617,27 @@ const mapMenu = (() => {
   }
   return { open, close };
 })();
-map.on("contextmenu", (ev) => {
-  const oe = ev.originalEvent;
-  oe?.preventDefault?.();
-  const touch = oe?.pointerType === "touch" || oe?.type?.startsWith?.("touch") || Boolean(oe?.touches);
-  if (touch) navigator.vibrate?.(15);
-  const x = oe?.clientX ?? oe?.touches?.[0]?.clientX ?? ev.containerPoint.x;
-  const y = oe?.clientY ?? oe?.touches?.[0]?.clientY ?? ev.containerPoint.y;
-  mapMenu.open(ev.latlng, x, y);
+mapReady.then((map) => {
+  map.on("contextmenu", (ev) => {
+    if (ev.touch) navigator.vibrate?.(15);
+    mapMenu.open(ev, ev.clientX, ev.clientY);
+  });
+  map.on("movestart", () => mapMenu.close());
+  map.on("zoomstart", () => mapMenu.close());
 });
-map.on("movestart zoomstart", () => mapMenu.close());
-// Icon structure: nested by update status, then by node type (upstream implementation)
-const icons = Object.fromEntries(
-  ["none", "recent", "stale", "old", "extinct"].map((color) => [
-    color,
-    Object.fromEntries(
-      [1, 2, 3, 4].map((id) => [
-        id,
-        L.icon({
-          iconUrl: `img/node_types/${id}.svg`,
-          iconSize: [32, 32],
-          iconAnchor: [17, 17],
-          popupAnchor: [0, -16],
-          className: `node-icon update-${color}`,
-        }),
-      ]),
-    ),
-  ]),
-);
+
+/** How a node's marker looks: type icon or a companion's initials, freshness, claimed or own. */
+function nodeMarkerLook(node, auth) {
+  const type = [1, 2, 3, 4].includes(Number(node.type)) ? Number(node.type) : 1;
+  const owned = Boolean(auth.authenticated && auth.user && node.discord_owner_id && String(node.discord_owner_id) === String(auth.user.id));
+  const mark = owned ? "user-owned" : node.discord_owner_id ? "claimed" : "";
+  const look = { type, status: node.status || "none", mark };
+  if (type === 1) {
+    look.label = ntools.getNameIconLabel(node.adv_name);
+    look.color = ntools.getColourForName(node.adv_name);
+  }
+  return look;
+}
 
 createApp({
   setup() {
@@ -1838,59 +1754,36 @@ createApp({
       loading: true,
     });
 
-    const markerToNode = new WeakMap();
+    /** The node whose popup is open (one at a time). */
+    let popupNode = null;
 
-    function ensurePopup(marker) {
-      if (!marker || marker._popupBound) return;
-      const node = markerToNode.get(marker);
-      if (!node) return;
-      const nodePopup = markRaw(
-        L.popup({
-          ...getLeafletNodePopupSize(),
-          autoPanPaddingTopLeft: [10, 100],
-          autoPanPaddingBottomRight: [10, 10],
-          content: () => getTable(node, auth, app.nodes),
-        }),
-      );
-      marker.bindPopup(nodePopup);
-      marker._popupBound = true;
-      bindPopupQrRefill(nodePopup, () =>
-        marker
-          .getPopup()
-          ?.getElement()
-          ?.querySelector(".leaflet-popup-content"),
-      );
-      marker.on("popupopen", function () {
-        if (node.public_key) {
-          app.urlParams.node = node.public_key;
-        }
-        setTimeout(() => {
-          const root = marker.getPopup()?.getElement();
-          if (!root) return;
-          const content = root.querySelector(".leaflet-popup-content");
-          fillNodeQrSlotFromPopup(content);
-        }, 100);
-        watchPopupGrowth(marker, nodePopup);
-        askNodebook(node, marker);
+    /** Opens a node's card on the map (and puts it in the URL as ?node=). */
+    function openNodePopup(node) {
+      const map = mapEngine;
+      const lat = Number(node?.adv_lat);
+      const lon = Number(node?.adv_lon);
+      if (!map || !Number.isFinite(lat) || !Number.isFinite(lon)) return;
+      map.openPopup({ lat, lon }, {
+        html: getTable(node, auth, app.nodes),
+        className: "node-popup-wrap",
+        width: nodePopupWidth(),
+        onContent: (root) => setTimeout(() => fillNodeQrSlotFromPopup(root), 0),
+        onClose: () => {
+          if (popupNode?.public_key !== node.public_key) return;
+          popupNode = null;
+          delete app.urlParams.node;
+        },
       });
-      marker.on("popupclose", function () {
-        delete app.urlParams.node;
-        stopWatchingPopupGrowth(marker);
-      });
+      popupNode = node;
+      if (node.public_key) app.urlParams.node = node.public_key;
+      askNodebook(node);
     }
 
-    function attachClusterClickHandler(group) {
-      group.on("click", function (e) {
-        const m = e.layer;
-        if (
-          m &&
-          m instanceof L.Marker &&
-          typeof m.getAllChildMarkers !== "function"
-        ) {
-          ensurePopup(m);
-          m.openPopup();
-        }
-      });
+    /** Draws the open card again (sign-in or NodeBook's answer changed what it shows). */
+    function redrawPopup() {
+      if (!popupNode || !mapEngine?.isPopupOpen()) return;
+      const root = mapEngine.setPopupHtml(getTable(popupNode, auth, app.nodes));
+      if (root) fillNodeQrSlotFromPopup(root);
     }
 
     /**
@@ -1898,13 +1791,13 @@ createApp({
      * whether the node is in the visitor's fleets, then redraw the open popup, so links that
      * depend on the tool list (Connect live) show even when the popup opened before it.
      */
-    async function askNodebook(node, marker) {
+    async function askNodebook(node) {
       await Promise.all([siteToolsLoaded, authChecked]);
       if (!siteTools.length) return;
       const key = (node.public_key || "").toLowerCase();
       const links = () =>
         toolLinksHtml({ tools: siteTools, node, signedIn: Boolean(auth.authenticated), nodebook: nodebookStatus.get(key) ?? null, t, escape: escapeAttrHtml });
-      const shown = marker.getPopup?.()?.getElement?.()?.querySelector(".node-popup__tools")?.outerHTML ?? "";
+      const shown = popupNode === node ? (mapEngine?.popupElement()?.querySelector(".node-popup__tools")?.outerHTML ?? "") : "";
       const url = nodebookApiUrl(siteTools, key);
       // "unknown" is asked again at the next open: once the visitor has opened NodeBook, it knows them.
       if (url && auth.authenticated && (!nodebookStatus.has(key) || nodebookStatus.get(key) === "unknown")) {
@@ -1917,18 +1810,13 @@ createApp({
         }
       }
       // Redraw only when the tool links changed: a redraw rebuilds the QR code and re-pans the map.
-      const p = marker.getPopup?.();
-      if (p && p.isOpen() && links() !== shown) p.setContent(() => getTable(node, auth, app.nodes));
+      if (popupNode === node && links() !== shown) redrawPopup();
     }
 
     function refreshOpenPopups() {
-      for (const node of app.nodes) {
-        const p = node.marker?.getPopup?.();
-        if (p && p.isOpen()) {
-          p.setContent(() => getTable(node, auth, app.nodes));
-          p.update();
-        }
-      }
+      // the node list may have been loaded again: the card shows the node as it is now
+      if (popupNode) popupNode = findNodeByPubKey(app.nodes, popupNode.public_key) ?? popupNode;
+      redrawPopup();
     }
 
     /** Settles once the first sign-in check is done (a popup can open before it, from a ?node= link). */
@@ -1975,26 +1863,7 @@ createApp({
           await downloadNodes();
           await nextTick();
           refreshMap();
-          // Update marker glows and any open popups
-          app.nodes.forEach((node) => {
-            // Update marker glow (claimed = yellow, user-owned = purple)
-            if (node.marker) {
-              const isOwned =
-                auth.authenticated &&
-                auth.user &&
-                node.discord_owner_id &&
-                String(node.discord_owner_id) === String(auth.user.id);
-              const isClaimed = Boolean(node.discord_owner_id);
-
-              const iconElement = node.marker._icon;
-              if (iconElement) {
-                if (isClaimed) iconElement.classList.add("claimed");
-                else iconElement.classList.remove("claimed");
-                if (isOwned) iconElement.classList.add("user-owned");
-                else iconElement.classList.remove("user-owned");
-              }
-            }
-          });
+          // the markers' glow (claimed, own) follows from refreshMap; the open card shows the new owner
           refreshOpenPopups();
         } else {
           // Handle specific error cases
@@ -2039,26 +1908,7 @@ createApp({
           await downloadNodes();
           await nextTick();
           refreshMap();
-          // Update marker glows and any open popups
-          app.nodes.forEach((node) => {
-            // Update marker glow (claimed = yellow, user-owned = purple)
-            if (node.marker) {
-              const isOwned =
-                auth.authenticated &&
-                auth.user &&
-                node.discord_owner_id &&
-                String(node.discord_owner_id) === String(auth.user.id);
-              const isClaimed = Boolean(node.discord_owner_id);
-
-              const iconElement = node.marker._icon;
-              if (iconElement) {
-                if (isClaimed) iconElement.classList.add("claimed");
-                else iconElement.classList.remove("claimed");
-                if (isOwned) iconElement.classList.add("user-owned");
-                else iconElement.classList.remove("user-owned");
-              }
-            }
-          });
+          // the markers' glow (claimed, own) follows from refreshMap; the open card shows the new owner
           refreshOpenPopups();
         } else {
           const errorMsg = apiErrorText(data.error, "map.unclaim.failedDefault");
@@ -2096,8 +1946,6 @@ createApp({
       }
     }
 
-    let pendingClusterPopupCleanup = null;
-
     function normalizePubKey(key) {
       return (key || "").toLowerCase().replace(/\s/g, "");
     }
@@ -2126,180 +1974,55 @@ createApp({
     /** The coverage tool's "reachable only" view: just these nodes on the map (null: the usual ones). */
     let planningNodes = null;
 
-    async function refreshMap({
-      clusteringZoom = 0,
-      targetNodeKey = null,
-    } = {}) {
-      if (pendingClusterPopupCleanup) {
-        pendingClusterPopupCleanup();
-        pendingClusterPopupCleanup = null;
-      }
+    /** The node a ?node= link asked for: shown even when the filters would hide it. */
+    let targetNode = null;
+    /** A ?node= link's node, to focus once the map is in. */
+    let pendingFocus = null;
 
+    async function refreshMap({ clusteringZoom = 0, targetNodeKey = null } = {}) {
       let nodes = planningNodes ?? shownNodes();
-      if (targetNodeKey) {
-        const target = findNodeByPubKey(app.nodes, targetNodeKey);
-        if (target && !nodes.includes(target)) {
-          nodes = [...nodes, target];
-        }
+      if (targetNodeKey) targetNode = findNodeByPubKey(app.nodes, targetNodeKey) ?? targetNode;
+      if (targetNode && !planningNodes && !nodes.includes(targetNode)) {
+        nodes = [...nodes, targetNode];
       }
-
-      map.removeLayer(markerClusterGroup);
-
-      markerClusterGroup = L.markerClusterGroup({
-        // the coverage's "reachable only" view shows its few nodes on their own
-        disableClusteringAtZoom: planningNodes ? 1 : clusteringZoom || app.clusteringZoom,
-        chunkedLoading: true,
+      // the coverage's "reachable only" view shows its few nodes on their own
+      mapEngine?.setNodes(nodes, {
+        clusterUntil: planningNodes ? 0 : Number(clusteringZoom || app.clusteringZoom),
+        look: (node) => nodeMarkerLook(node, auth),
       });
-      attachClusterClickHandler(markerClusterGroup);
-
-      const markers = nodes.map((n) => n.marker).filter(Boolean);
-      markerClusterGroup.addLayers(markers);
-
-      map.addLayer(markerClusterGroup);
-
-      const urlNodeKey = normalizePubKey(
-        app.urlParams.node || new URLSearchParams(location.search).get("node"),
-      );
-      if (urlNodeKey) {
-        markerClusterGroup.on("clusterclick", function (e) {
-          const markers = e.layer.getAllChildMarkers();
-          const targetMarker = markers.find((m) => {
-            const node = app.nodes.find((n) => n.marker === m);
-            return node && normalizePubKey(node.public_key) === urlNodeKey;
-          });
-          if (targetMarker) {
-            let done = false;
-            const cluster = markerClusterGroup;
-            const onExpand = () => {
-              if (done) return;
-              done = true;
-              pendingClusterPopupCleanup = null;
-              cluster.off("spiderfied", onExpand);
-              map.off("moveend", onExpand);
-              if (targetMarker._map && cluster.hasLayer(targetMarker)) {
-                setTimeout(() => {
-                  try {
-                    ensurePopup(targetMarker);
-                    targetMarker.openPopup();
-                  } catch (_) {}
-                }, 100);
-              }
-            };
-            pendingClusterPopupCleanup = () => {
-              done = true;
-              cluster.off("spiderfied", onExpand);
-              map.off("moveend", onExpand);
-            };
-            cluster.once("spiderfied", onExpand);
-            map.once("moveend", onExpand);
-          }
-        });
-      }
-
-      // Update marker glows after markers are added to map
-      setTimeout(() => {
-        nodes.forEach((node) => {
-          if (node.marker) {
-            const isOwned =
-              auth.authenticated &&
-              auth.user &&
-              node.discord_owner_id &&
-              String(node.discord_owner_id) === String(auth.user?.id);
-
-            const iconElement = node.marker._icon;
-            if (iconElement) {
-              const isClaimed = Boolean(node.discord_owner_id);
-              if (isClaimed) iconElement.classList.add("claimed");
-              else iconElement.classList.remove("claimed");
-              if (isOwned) iconElement.classList.add("user-owned");
-              else iconElement.classList.remove("user-owned");
-            }
-          }
-        });
-      }, 50);
     }
 
+    const hasCoords = (node) => Number.isFinite(Number(node?.adv_lat)) && Number.isFinite(Number(node?.adv_lon)) && node.adv_lat != null && node.adv_lon != null;
+    const arrived = (promise) => Promise.race([promise, new Promise((r) => setTimeout(r, 2500))]);
+
     function showNode(node) {
-      if (!node.marker) {
-        console.warn(
-          `Cannot show node ${
-            node.adv_name || node.public_key
-          }: missing marker (no coordinates)`,
-        );
+      app.search = "";
+      if (!hasCoords(node)) {
+        console.warn(`Cannot show node ${node.adv_name || node.public_key}: missing coordinates`);
         return;
       }
-      ensurePopup(node.marker);
-      node.marker.openPopup();
-      map.flyTo(node.marker.getLatLng(), 19);
-      app.search = "";
+      const map = mapEngine;
+      if (!map) return;
+      map.closePopup();
+      arrived(map.flyTo({ lat: Number(node.adv_lat), lon: Number(node.adv_lon) }, 19)).then(() => openNodePopup(node));
     }
 
     /** Focus map on node and open popup when arriving via ?node=<public_key>. */
     function focusNodeFromUrl(node) {
-      const lat = node.adv_lat;
-      const lon = node.adv_lon;
-      if (lat == null || lon == null) return;
-
-      const typeKey = String(node.type || 1);
-      const icon = icons.none?.[typeKey] ?? icons.none["1"];
-      const tempMarker = L.marker([lat, lon], { icon, title: node.adv_name });
-      const deepLinkPopup = L.popup({
-        ...getLeafletNodePopupSize(),
-        autoPanPaddingTopLeft: [10, 100],
-        autoPanPaddingBottomRight: [10, 10],
-        content: () => getTable(node, auth, app.nodes),
-      });
-      tempMarker.bindPopup(deepLinkPopup);
-      bindPopupQrRefill(deepLinkPopup, () =>
-        tempMarker
-          .getPopup()
-          ?.getElement()
-          ?.querySelector(".leaflet-popup-content"),
-      );
-      tempMarker.on("popupopen", () => {
-        setTimeout(() => {
-          fillNodeQrSlotFromPopup(
-            tempMarker
-              .getPopup()
-              ?.getElement()
-              ?.querySelector(".leaflet-popup-content"),
-          );
-        }, 0);
-        watchPopupGrowth(tempMarker, deepLinkPopup);
-        askNodebook(node, tempMarker);
-      });
-      tempMarker.on("popupclose", () => {
-        delete app.urlParams.node;
-        stopWatchingPopupGrowth(tempMarker);
-        map.removeLayer(tempMarker);
-      });
-
-      map.addLayer(tempMarker);
-      map.invalidateSize();
-
+      const map = mapEngine;
+      if (!map || !hasCoords(node)) return;
       const zoom = 18;
-      const target = L.latLng(lat, lon);
-      map.setView(target, zoom, { animate: false });
+      const target = { lat: Number(node.adv_lat), lon: Number(node.adv_lon) };
+      map.resize();
+      map.setView(target, zoom);
       // Centering the node leaves the tall popup crowding the top; bias view so the
       // marker sits ~3/4 down the map pane (room above for popup).
       const size = map.getSize();
       if (size.x > 0 && size.y > 0) {
-        const verticalFraction = 3 / 4;
-        const biasPx = size.y * 0.5 - size.y * verticalFraction;
-        const newCenter = map.containerPointToLatLng(
-          L.point(size.x / 2, size.y / 2 + biasPx),
-        );
-        map.setView(newCenter, zoom, { animate: false });
+        const biasPx = size.y * 0.5 - size.y * (3 / 4);
+        map.setView(map.unproject({ x: size.x / 2, y: size.y / 2 + biasPx }), zoom);
       }
-
-      const openPopup = () => {
-        map.off("moveend", openPopup);
-        try {
-          tempMarker.openPopup();
-        } catch {}
-      };
-      map.once("moveend", openPopup);
-      setTimeout(openPopup, 400);
+      setTimeout(() => openNodePopup(node), 50);
     }
 
     /** The source as safe HTML, with the first match of toHighlight in bold. */
@@ -2337,11 +2060,15 @@ createApp({
       // Filter watch refreshes the map when nodeFilter / source / … change.
     }
 
+    let firstNodesRequest = nodesRequest;
     async function downloadNodes() {
       try {
         app.loading = true;
+        // the first time: the request the page started while it loaded
+        const request = firstNodesRequest ?? fetch(apiUrl);
+        firstNodesRequest = null;
         const [nodesReq] = await Promise.all([
-          fetch(apiUrl),
+          request,
           getPresets().catch((err) => {
             console.warn("Preset loading error (using fallback):", err);
           }),
@@ -2371,67 +2098,10 @@ createApp({
             }
 
             const updateStatus = getNodeUpdateStatus(node);
-            const typeKey = String(node.type || 1);
-            let icon =
-              icons[updateStatus]?.[typeKey] ??
-              icons.none?.[typeKey] ??
-              icons.none["1"];
-
             (byType[node.type] ??= []).push(node);
-
-            if (node.type === 1) {
-              const label = ntools.getNameIconLabel(node.adv_name);
-              const color = ntools.getColourForName(node.adv_name);
-              icon = getSvgIcon(label, color, updateStatus);
-            }
-
-            const isOwned =
-              auth.authenticated &&
-              auth.user &&
-              node.discord_owner_id &&
-              String(node.discord_owner_id) === String(auth.user.id);
-            const isClaimed = Boolean(node.discord_owner_id);
-
-            node.isOwned = isOwned;
-
-            if (
-              (isClaimed || isOwned) &&
-              icon.options &&
-              Object.prototype.hasOwnProperty.call(icon.options, "iconUrl") &&
-              icon.options.iconUrl
-            ) {
-              const iconUrl = icon.options.iconUrl;
-              const iconSize = icon.options.iconSize || [32, 32];
-              const iconAnchor = icon.options.iconAnchor || [17, 17];
-              const popupAnchor = icon.options.popupAnchor || [0, -16];
-              const existingClassName = icon.options.className || "";
-              const extraClasses = [
-                isClaimed ? "claimed" : "",
-                isOwned ? "user-owned" : "",
-              ]
-                .filter(Boolean)
-                .join(" ");
-              const newClassName = existingClassName
-                ? `${existingClassName} ${extraClasses}`.trim()
-                : extraClasses;
-
-              icon = L.icon({
-                iconUrl,
-                iconSize,
-                iconAnchor,
-                popupAnchor,
-                className: newClassName,
-              });
-            }
-
-            const marker = (node.marker = markRaw(
-              L.marker([node.adv_lat, node.adv_lon], {
-                icon,
-                title: node.adv_name,
-              }),
-            ));
-
-            markerToNode.set(marker, node);
+            node.isOwned = Boolean(
+              auth.authenticated && auth.user && node.discord_owner_id && String(node.discord_owner_id) === String(auth.user.id),
+            );
 
             node.status = updateStatus;
             node.coords = `${node.adv_lat.toFixed(4)}, ${node.adv_lon.toFixed(
@@ -2464,33 +2134,6 @@ createApp({
           app.freqFilter = [...app.availableFreqs];
         }
 
-        // Update marker glows for claimed (yellow) and user-owned (purple) after all markers are created
-        setTimeout(() => {
-          app.nodes.forEach((node) => {
-            if (node.marker) {
-              const isOwned =
-                auth.authenticated &&
-                auth.user &&
-                node.discord_owner_id &&
-                String(node.discord_owner_id) === String(auth.user.id);
-              const isClaimed = Boolean(node.discord_owner_id);
-
-              const iconElement = node.marker._icon;
-              if (iconElement) {
-                if (isClaimed) {
-                  iconElement.classList.add("claimed");
-                } else {
-                  iconElement.classList.remove("claimed");
-                }
-                if (isOwned) {
-                  iconElement.classList.add("user-owned");
-                } else {
-                  iconElement.classList.remove("user-owned");
-                }
-              }
-            }
-          });
-        }, 100);
       } catch (e) {
         console.error("Error loading map nodes:", e);
         const supportLink =
@@ -2500,13 +2143,6 @@ createApp({
         app.loading = false;
       }
     }
-
-    // Declare before clearFilters() / refreshMap() so it's in scope when they run
-    let markerClusterGroup = L.markerClusterGroup({
-      disableClusteringAtZoom: app.clusteringZoom,
-      chunkedLoading: true,
-    });
-    attachClusterClickHandler(markerClusterGroup);
 
     // Apply URL params to initial state (before clearFilters would overwrite)
     const hasUrlParams =
@@ -2805,18 +2441,29 @@ createApp({
       { deep: true },
     );
 
-    map.on("moveend", function (e) {
-      const pos = map.getCenter();
-      const zoom = map.getZoom();
-      app.urlParams.zoom = zoom;
-      app.urlParams.lat = pos.lat.toFixed(4);
-      app.urlParams.lon = pos.lng.toFixed(4);
+    // The map's view in the URL (zoom as the page counts it; MapLibre's can be fractional)
+    mapReady.then((map) => {
+      map.on("moveend", () => {
+        const pos = map.getCenter();
+        app.urlParams.zoom = Math.round(map.getZoom() * 100) / 100;
+        app.urlParams.lat = pos.lat.toFixed(4);
+        app.urlParams.lon = wrapLon(pos.lon).toFixed(4);
+      });
+      map.onNodeClick((node) => openNodePopup(node));
+      // nodes that came before the map: show them now, and a ?node= link's node
+      refreshMap();
+      if (pendingFocus) {
+        const node = pendingFocus;
+        pendingFocus = null;
+        focusNodeFromUrl(node);
+      }
     });
 
     // What the coverage and profile tools (src/coverage/planning.js) get from the map
     planningHost = {
-      map,
-      L,
+      get map() {
+        return mapEngine;
+      },
       i18n: I18N,
       urlParams: app.urlParams,
       ends: planningEnds,
@@ -2831,7 +2478,7 @@ createApp({
       /** The radio presets the map knows ({ name, freq, sf, bw, cr }). */
       presets: () => FREQUENCY_PRESETS,
       isDark: () => Boolean(window.BEmeshTheme?.isDark?.()),
-      closePopup: () => map.closePopup(),
+      closePopup: () => mapEngine?.closePopup(),
       closeFilters: () => {
         app.filterMenuOpen = false;
       },
@@ -2854,7 +2501,7 @@ createApp({
       window.BEmeshTopbar?.init();
       function onMapLayoutRefresh() {
         try {
-          map.invalidateSize({ animate: false });
+          mapEngine?.resize();
         } catch {
           /* ignore */
         }
@@ -2885,56 +2532,13 @@ createApp({
       // Check authentication status first
       authChecked = checkAuth();
       authChecked.then(() => {
-        // Watch for auth changes and update popups and markers
+        // claimed and own nodes glow: draw the markers with the sign-in as it is now, and on changes
+        mapEngine?.refreshNodes();
         watch(
-          () => auth.authenticated,
+          () => [auth.authenticated, auth.user?.id],
           () => {
             refreshOpenPopups();
-
-            app.nodes.forEach((node) => {
-              if (node.marker) {
-                const isOwned =
-                  auth.authenticated &&
-                  auth.user &&
-                  node.discord_owner_id &&
-                  String(node.discord_owner_id) === String(auth.user.id);
-                const isClaimed = Boolean(node.discord_owner_id);
-
-                const iconElement = node.marker._icon;
-                if (iconElement) {
-                  if (isClaimed) iconElement.classList.add("claimed");
-                  else iconElement.classList.remove("claimed");
-                  if (isOwned) iconElement.classList.add("user-owned");
-                  else iconElement.classList.remove("user-owned");
-                }
-              }
-            });
-          },
-        );
-
-        // Also watch for user changes (in case user ID changes)
-        watch(
-          () => auth.user?.id,
-          () => {
-            // Update marker glows when user changes
-            app.nodes.forEach((node) => {
-              if (node.marker) {
-                const isOwned =
-                  auth.authenticated &&
-                  auth.user &&
-                  node.discord_owner_id &&
-                  String(node.discord_owner_id) === String(auth.user?.id);
-                const isClaimed = Boolean(node.discord_owner_id);
-
-                const iconElement = node.marker._icon;
-                if (iconElement) {
-                  if (isClaimed) iconElement.classList.add("claimed");
-                  else iconElement.classList.remove("claimed");
-                  if (isOwned) iconElement.classList.add("user-owned");
-                  else iconElement.classList.remove("user-owned");
-                }
-              }
-            });
+            mapEngine?.refreshNodes();
           },
         );
       });
@@ -3006,7 +2610,11 @@ createApp({
         }
         if (targetNode) {
           nextTick(() => {
-            setTimeout(() => focusNodeFromUrl(targetNode), 150);
+            setTimeout(() => {
+              // the map may still be starting: it focuses the node once it is in
+              if (mapEngine) focusNodeFromUrl(targetNode);
+              else pendingFocus = targetNode;
+            }, 150);
           });
         }
       });

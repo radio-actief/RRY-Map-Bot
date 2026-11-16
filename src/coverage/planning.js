@@ -1,15 +1,16 @@
 // Adapted from map.meshcore.io (https://github.com/meshcore-dev/map.meshcore.io), MIT License,
 // Copyright (c) 2025 Rastislav Vysoky. See LICENSE in this folder.
 // The coverage and profile tools of the map page: the panels (a Vue app of their own, template in
-// panels.html, compiled by `npm run build:map`) and their marks on the Leaflet map. Rewritten here for
-// Leaflet and the #BEmesh map from upstream's app.js / map.js; the model is coverage-model.js.
+// panels.html, compiled by `npm run build:map`) and their marks on the map. Rewritten here for the
+// #BEmesh map from upstream's app.js / map.js; the model is coverage-model.js. The marks go through
+// the map engine (src/map-engine/: MapLibre, or Leaflet without WebGL), not a map library itself.
 // Loaded by src/map.js only when someone opens a tool: startPlanning(host) once, then its actions.
 import {
 	computed, createApp, nextTick, reactive, ref, shallowRef, watch,
 } from '../../lib/vue.runtime.esm-browser.prod.js';
 import {
 	AUTO_PRESET, BAND_RADIO, BEMESH_PRESET_NAME, BUILDINGS_MAX_DISTANCE, COVERAGE_OPTIONS, COVERAGE_SLIDERS, FADE_MARGIN_DB,
-	RECEIVER, applyCoverageSettings, computeCoverage, computeLinkProfile, cornersToLatLngBounds, decodeHeights, decodeSite,
+	RECEIVER, applyCoverageSettings, computeCoverage, computeLinkProfile, decodeHeights, decodeSite,
 	encodeCoverageSettings, encodeSite, getCoverageBounds, getCoverageRadio, getLinkBars, getLocalRadioParams, getSensitivity,
 	hasSameRadio, releaseCoverage, sanitizeSettings,
 } from './coverage.js';
@@ -17,6 +18,7 @@ import { drawProfileChart, getClearance, getProfileLines } from './profile-chart
 import { addProfileEnd, closeProfile, createProfileState, sameEnds, setProfileStart, swapProfileEnds } from './profile.js';
 import { render } from './panels.render.js';
 import { SettingSlider } from './setting-slider.js';
+import { destination, interpolate, roundCoord, wrapLon } from '../map-engine/geo.js';
 
 const SETTINGS_KEY = 'bemesh.coverage.settings';
 const PRESET_KEY = 'bemesh.coverage.preset';
@@ -89,17 +91,12 @@ export async function startPlanning(host) {
 }
 
 async function start(host) {
-	const { map, L, i18n } = host;
+	const { map, i18n } = host;
 	await Promise.all([loadTexts(i18n), loadStyles()]);
 	const t = i18n.t;
 	const num = (n, digits = 0, min = 0) => i18n.number(n, { maximumFractionDigits: digits, minimumFractionDigits: min });
 
-	// --- panes: the coverage image under the node markers, the planning marks over them ---
-	map.createPane('planCoverage').style.zIndex = 350;
-	map.createPane('planLines').style.zIndex = 450;
-	map.createPane('planMarks').style.zIndex = 650;
-	for(const pane of ['planCoverage', 'planLines']) map.getPane(pane).style.pointerEvents = 'none';
-
+	// the map engine puts the coverage image and the lines under the node markers, the marks over them
 	const root = document.createElement('div');
 	root.id = 'planning';
 	document.body.append(root);
@@ -179,7 +176,7 @@ async function start(host) {
 	};
 
 	// --- the coverage image and its lines ---
-	const layers = { image: null, circle: null, direction: null, badges: L.layerGroup() };
+	const layers = { image: null, circle: null, direction: null, badges: [] };
 	let coverageResult = null;
 	const coverageSite = shallowRef(null);
 
@@ -193,31 +190,18 @@ async function start(host) {
 		};
 	}
 
-	function destination([lon, lat], bearing, meters) {
-		// web mercator keeps angles: the line goes straight on the map, like the estimate's rays
-		const origin = L.Projection.SphericalMercator.project(L.latLng(lat, lon));
-		const scale = 1 / Math.cos(lat * Math.PI / 180);
-		const radians = bearing * Math.PI / 180;
-		return L.Projection.SphericalMercator.unproject(L.point(origin.x + Math.sin(radians) * meters * scale, origin.y + Math.cos(radians) * meters * scale));
-	}
-
 	function drawCoverage(result) {
 		for(const key of ['image', 'circle', 'direction']) {
 			layers[key]?.remove();
 			layers[key] = null;
 		}
 		if(!result) return;
-		layers.image = L.imageOverlay(result.url, cornersToLatLngBounds(result.coordinates), {
-			pane: 'planCoverage', interactive: false, className: 'plan-coverage-image',
-		}).addTo(map);
+		layers.image = map.addImage(result.url, result.coordinates);
 		const { center, radius, bearing } = result.lines;
-		layers.circle = L.circle([center[1], center[0]], {
-			radius, pane: 'planLines', interactive: false, fill: false, className: 'plan-reach-edge', weight: 2, dashArray: '6 4',
-		}).addTo(map);
+		const edge = { className: 'plan-reach-edge', weight: 2, dashArray: '6 4' };
+		layers.circle = map.addCircle({ lat: center[1], lon: center[0] }, radius, edge);
 		if(bearing !== null) {
-			layers.direction = L.polyline([[center[1], center[0]], destination(center, bearing, radius)], {
-				pane: 'planLines', interactive: false, className: 'plan-reach-edge', weight: 2, dashArray: '6 4',
-			}).addTo(map);
+			layers.direction = map.addPath([{ lat: center[1], lon: center[0] }, destination(center, bearing, radius)], edge);
 		}
 	}
 
@@ -258,21 +242,14 @@ async function start(host) {
 	watch([reachable, reachableOnly], ([links, only]) => {
 		const site = coverageSite.value;
 		host.showOnly(only ? [...(site?.node ? [site.node] : []), ...links.map(link => link.node)] : null);
-		layers.badges.clearLayers();
-		for(const { node, bars } of links ?? []) {
-			const word = t(`cov.bars.${bars}`);
-			L.marker([node.adv_lat, node.adv_lon], {
-				pane: 'planMarks', interactive: false, keyboard: false,
-				icon: L.divIcon({
-					className: `plan-badge plan-badge--${bars}`,
-					html: `<i class="bi ${BAR_ICONS[bars]}" aria-hidden="true"></i><span class="plan-sr">${word}</span>`,
-					iconSize: [18, 18],
-					iconAnchor: [-5, 23],
-				}),
-			}).addTo(layers.badges);
-		}
-		if(links?.length) layers.badges.addTo(map);
-		else layers.badges.remove();
+		for(const badge of layers.badges) badge.remove();
+		layers.badges = (links ?? []).map(({ node, bars }) => map.addMarker({ lat: Number(node.adv_lat), lon: Number(node.adv_lon) }, {
+			className: `plan-badge plan-badge--${bars}`,
+			html: `<i class="bi ${BAR_ICONS[bars]}" aria-hidden="true"></i><span class="plan-sr">${t(`cov.bars.${bars}`)}</span>`,
+			size: [18, 18],
+			anchor: [-5, 23],
+			interactive: false,
+		}));
 	});
 
 	const settingsOpen = computed(() => ui.settingsOpen);
@@ -332,7 +309,7 @@ async function start(host) {
 	// which it only reaches after the computation. With both tools open on a desktop, the coverage goes
 	// to the right of its panel.
 	function panelSpace({ forCoverage }) {
-		const c = map.getContainer().getBoundingClientRect();
+		const c = map.container.getBoundingClientRect();
 		const r = root.getBoundingClientRect();
 		const above = r.top - c.top, below = c.bottom - r.bottom, h = r.height;
 		const panel = root.querySelector('.plan-coverage')?.getBoundingClientRect();
@@ -355,14 +332,14 @@ async function start(host) {
 	// at the top, then at the bottom): paddings past the map's size would zoom out to the world
 	const MIN_VIEW = 160;
 	function fitPadded(bounds, { top, bottom, left = 20, side = 20, maxZoom }) {
-		// Leaflet's size can be stale after the page settled (a phone's toolbars): measure it again
-		map.invalidateSize({ animate: false, pan: false });
+		// the map's size can be stale after the page settled (a phone's toolbars): measure it again
+		map.resize();
 		const height = map.getSize().y;
 		let extra = top + bottom + MIN_VIEW - height;
 		if(extra > 0) { const cut = Math.min(extra, Math.max(0, top - 20)); top -= cut; extra -= cut; }
 		if(extra > 0) bottom = Math.max(20, bottom - extra);
 		left = Math.min(Math.max(left, side), map.getSize().x - side - MIN_VIEW);
-		map.fitBounds(bounds, { paddingTopLeft: [left, top], paddingBottomRight: [side, bottom], animate: false, ...(maxZoom ? { maxZoom } : {}) });
+		map.fitBounds(bounds, { top, bottom, left, right: side, ...(maxZoom ? { maxZoom } : {}) });
 	}
 
 	function closeCoverage() {
@@ -522,12 +499,10 @@ async function start(host) {
 	// --- marks on the map: the coverage point, the profile ends and the line between them ---
 	const marks = { line: null, outline: null, result: null, hover: null, points: new Map() };
 	function pointIcon(label, status) {
-		return L.divIcon({
+		return {
 			className: `plan-point plan-point--${status}${label ? '' : ' plan-point--site'}`,
 			html: `<span class="plan-point__disc">${label}</span>`,
-			iconSize: [44, 44],
-			iconAnchor: [22, 22],
-		});
+		};
 	}
 	function getDraggableEnd(label) {
 		if(label === 'A') return profile.a?.publicKey ? null : profile.a;
@@ -544,10 +519,10 @@ async function start(host) {
 		const draggable = Boolean(getDraggableEnd(label));
 		const title = label ? t('prof.end', { end: label }) : t('cov.pointMark');
 		if(!marker) {
-			marker = L.marker(latlng, { pane: 'planMarks', icon: pointIcon(label, status), draggable, title, alt: title, riseOnHover: true }).addTo(map);
+			marker = map.addMarker(latlng, { ...pointIcon(label, status), size: [44, 44], anchor: [22, 22], draggable, title });
 			marker.on('dragend', () => {
-				const { lat, lng } = marker.getLatLng();
-				const end = { lat: Math.round(lat * 1e5) / 1e5, lon: Math.round(L.Util.wrapNum(lng, [-180, 180], true) * 1e5) / 1e5 };
+				const { lat, lon } = marker.getLatLng();
+				const end = { lat: roundCoord(lat), lon: roundCoord(wrapLon(lon)) };
 				keepView = true;
 				if(label === 'A') profile.a = end;
 				else if(label === 'B') profile.b = end;
@@ -558,43 +533,33 @@ async function start(host) {
 		} else {
 			marker.setLatLng(latlng);
 			marker.setIcon(pointIcon(label, status));
-			if(draggable) marker.dragging?.enable();
-			else marker.dragging?.disable();
+			marker.setDraggable(draggable);
 		}
-	}
-	function interpolate(a, b, share) {
-		const pa = map.options.crs.latLngToPoint(L.latLng(a), 0), pb = map.options.crs.latLngToPoint(L.latLng(b), 0);
-		return map.options.crs.pointToLatLng(L.point(pa.x + (pb.x - pa.x) * share, pa.y + (pb.y - pa.y) * share), 0);
 	}
 	watch(
 		[() => coverage.point, profileEnds, profileHover, profileView, profileStatus],
 		([point, [a, b], hover, view, status]) => {
 			const state = status ?? 'pending';
-			placePoint('', point ? [point.lat, point.lon] : null, 'pending');
-			placePoint('A', a ? [a.lat, a.lon] : null, b ? state : 'pending');
-			placePoint('B', b ? [b.lat, b.lon] : null, state);
+			placePoint('', point ? { lat: point.lat, lon: point.lon } : null, 'pending');
+			placePoint('A', a ? { lat: a.lat, lon: a.lon } : null, b ? state : 'pending');
+			placePoint('B', b ? { lat: b.lat, lon: b.lon } : null, state);
 			for(const key of ['line', 'outline', 'result', 'hover']) {
 				marks[key]?.remove();
 				marks[key] = null;
 			}
 			if(!a || !b) return;
-			const line = [[a.lat, a.lon], [b.lat, b.lon]];
-			marks.outline = L.polyline(line, { pane: 'planLines', interactive: false, weight: 5, lineCap: 'round', className: 'plan-line-outline' }).addTo(map);
-			marks.line = L.polyline(line, {
-				pane: 'planLines', interactive: false, weight: 3, lineCap: 'round',
-				dashArray: view ? null : '8 6', className: `plan-line plan-line--${state}`,
-			}).addTo(map);
+			const line = [{ lat: a.lat, lon: a.lon }, { lat: b.lat, lon: b.lon }];
+			marks.outline = map.addPath(line, { weight: 5, lineCap: 'round', className: 'plan-line-outline' });
+			marks.line = map.addPath(line, { weight: 3, lineCap: 'round', dashArray: view ? null : '8 6', className: `plan-line plan-line--${state}` });
 			if(view) {
 				const icon = RESULT_ICONS[state];
 				const at = interpolate(line[0], line[1], view.clearance.index / (view.samples.length - 1));
-				marks.result = L.marker(at, {
-					pane: 'planMarks', interactive: false, keyboard: false,
-					icon: L.divIcon({ className: `plan-result plan-result--${state}`, html: `<i class="bi ${icon}" aria-hidden="true"></i>`, iconSize: [20, 20], iconAnchor: [10, 10] }),
-				}).addTo(map);
+				marks.result = map.addMarker(at, {
+					className: `plan-result plan-result--${state}`, html: `<i class="bi ${icon}" aria-hidden="true"></i>`,
+					size: [20, 20], anchor: [10, 10], interactive: false,
+				});
 				if(hover !== null) {
-					marks.hover = L.circleMarker(interpolate(line[0], line[1], hover / (view.samples.length - 1)), {
-						pane: 'planMarks', interactive: false, radius: 6, weight: 3, className: 'plan-hover', fillOpacity: 1,
-					}).addTo(map);
+					marks.hover = map.addDot(interpolate(line[0], line[1], hover / (view.samples.length - 1)), { radius: 6, weight: 3, className: 'plan-hover' });
 				}
 			}
 		},
@@ -604,17 +569,15 @@ async function start(host) {
 	const handle = { marker: null, site: null };
 	const ARM = 64;
 	function handlePosition(site, bearing) {
-		const center = map.latLngToContainerPoint(site);
+		const center = map.project(site);
 		const radians = bearing * Math.PI / 180;
-		return map.containerPointToLatLng(center.add(L.point(Math.sin(radians) * ARM, -Math.cos(radians) * ARM)));
+		return map.unproject({ x: center.x + Math.sin(radians) * ARM, y: center.y - Math.cos(radians) * ARM });
 	}
 	function handleIcon(bearing) {
-		return L.divIcon({
+		return {
 			className: 'plan-knob',
 			html: `<span class="plan-knob__disc"><i class="bi bi-arrow-repeat" aria-hidden="true"></i></span><span class="plan-knob__label">${bearing}° ${compassPoint(bearing)}</span>`,
-			iconSize: [44, 44],
-			iconAnchor: [22, 22],
-		});
+		};
 	}
 	function updateHandle() {
 		const site = handle.site;
@@ -626,9 +589,9 @@ async function start(host) {
 		}
 		const at = handlePosition(site, direction);
 		if(!handle.marker) {
-			handle.marker = L.marker(at, { pane: 'planMarks', draggable: true, icon: handleIcon(direction), title: t('cov.turn'), alt: t('cov.turn') }).addTo(map);
-			const bearingOf = latlng => {
-				const c = map.latLngToContainerPoint(handle.site), p = map.latLngToContainerPoint(latlng);
+			handle.marker = map.addMarker(at, { ...handleIcon(direction), size: [44, 44], anchor: [22, 22], draggable: true, title: t('cov.turn') });
+			const bearingOf = spot => {
+				const c = map.project(handle.site), p = map.project(spot);
 				return Math.round(Math.atan2(p.x - c.x, c.y - p.y) * 180 / Math.PI + 360) % 360;
 			};
 			handle.marker.on('drag', () => handle.marker.setIcon(handleIcon(bearingOf(handle.marker.getLatLng()))));
@@ -636,15 +599,13 @@ async function start(host) {
 				coverage.settings.direction = bearingOf(handle.marker.getLatLng());
 				updateHandle();
 			});
-			handle.marker.on('add', () => {
-				handle.marker.getElement()?.addEventListener('keydown', ev => {
-					const turn = { ArrowLeft: -1, ArrowDown: -1, ArrowRight: 1, ArrowUp: 1 }[ev.key];
-					if(!turn) return;
-					ev.preventDefault();
-					coverage.settings.direction = (coverage.settings.direction + turn * (ev.shiftKey ? 15 : 1) + 360) % 360;
-				});
+			handle.marker.element?.addEventListener('keydown', ev => {
+				const turn = { ArrowLeft: -1, ArrowDown: -1, ArrowRight: 1, ArrowUp: 1 }[ev.key];
+				if(!turn) return;
+				ev.preventDefault();
+				coverage.settings.direction = (coverage.settings.direction + turn * (ev.shiftKey ? 15 : 1) + 360) % 360;
 			});
-		} else if(!handle.marker.dragging?.moved?.()) {
+		} else if(!handle.marker.isDragging()) {
 			handle.marker.setLatLng(at);
 			handle.marker.setIcon(handleIcon(direction));
 		}
@@ -653,12 +614,12 @@ async function start(host) {
 		[() => coverage.settings.antennaType, () => coverage.settings.direction, () => coverage.publicKey, () => coverage.point, profileEnds],
 		([, , publicKey, point, [a]]) => {
 			const node = publicKey ? nodesByKey.value.get(publicKey) : null;
-			const site = node ? [node.adv_lat, node.adv_lon] : point ? [point.lat, point.lon] : a ? [a.lat, a.lon] : null;
-			handle.site = site && L.latLng(site);
+			handle.site = node ? { lat: Number(node.adv_lat), lon: Number(node.adv_lon) } : point ? { lat: point.lat, lon: point.lon } : a ? { lat: a.lat, lon: a.lon } : null;
 			updateHandle();
 		},
 	);
-	map.on('zoomend moveend', updateHandle);
+	map.on('zoomend', updateHandle);
+	map.on('moveend', updateHandle);
 
 	// --- the URL: coverage and profile in it, so a shared link shows them too ---
 	const setParam = (key, value) => {

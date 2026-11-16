@@ -16,7 +16,7 @@ import { settleAfterKeyboard } from "./shared/viewport-settle.js";
 import { nodebookApiUrl, nodebookFetchInit, nodebookState, toolLinksHtml } from "./site-tools.js";
 import { coordsFallbackHtml, ownerHtml, planningActionsHtml, typeLabelHtml } from "./popup-safe.js";
 import { createMapEngine, preloadEngine } from "./map-engine/index.js";
-import { roundCoord, wrapLon } from "./map-engine/geo.js";
+import { distanceKm, roundCoord, wrapLon } from "./map-engine/geo.js";
 
 const apiUrl = "/api/v1/belgian-nodes";
 // The node list and the map engine start loading now, side by side, before the page waits for its
@@ -1981,6 +1981,57 @@ createApp({
     /** The coverage tool's "reachable only" view: just these nodes on the map (null: the usual ones). */
     let planningNodes = null;
 
+    /**
+     * "Nodes in view" (Filters panel): the keyboard's way to the nodes, which the map draws on its
+     * canvas. Worked out only while the section is open: rows sorted by name, 50 at a time.
+     */
+    const inView = reactive({ open: false, rows: [], limit: 50 });
+    function updateInView() {
+      const map = mapEngine;
+      if (!inView.open || !map) return;
+      const [[s, w], [n, e]] = map.getBounds();
+      const centre = map.getCenter();
+      const collator = new Intl.Collator(I18N.locale(), { sensitivity: "base", numeric: true });
+      const list = planningNodes ?? shownNodes();
+      inView.rows = list
+        .filter((node) => {
+          const lat = Number(node.adv_lat);
+          const lon = Number(node.adv_lon);
+          return hasCoords(node) && lat >= s && lat <= n && (w <= e ? lon >= w && lon <= e : lon >= w || lon <= e);
+        })
+        .map((node) => {
+          const km = distanceKm(centre, { lat: Number(node.adv_lat), lon: Number(node.adv_lon) });
+          const type = [1, 2, 3, 4].includes(Number(node.type)) ? Number(node.type) : 1;
+          return {
+            key: node.public_key,
+            node,
+            name: node.adv_name || t("map.unnamed"),
+            type,
+            typeWord: typeName(type),
+            // value and unit never apart
+            distance: `${I18N.number(km, { maximumFractionDigits: km < 10 ? 1 : 0 })}\u00a0km`,
+          };
+        })
+        .sort((a, b) => collator.compare(a.name, b.name));
+    }
+    function inViewToggled(e) {
+      inView.open = Boolean(e.target?.open);
+      inView.limit = 50;
+      if (inView.open) updateInView();
+      else inView.rows = [];
+    }
+    /** Enter (or a click) on a row: the map centres on the node and its card opens, with the focus. */
+    function openFromList(node) {
+      const map = mapEngine;
+      if (!map || !hasCoords(node)) return;
+      app.filterMenuOpen = false;
+      const zoom = Math.max(map.getZoom(), Number(app.clusteringZoom) || 11);
+      arrived(map.flyTo({ lat: Number(node.adv_lat), lon: Number(node.adv_lon) }, zoom)).then(() => {
+        openNodePopup(node);
+        requestAnimationFrame(() => map.popupElement()?.querySelector("a[href], button, [tabindex]")?.focus());
+      });
+    }
+
     /** The node a ?node= link asked for: shown even when the filters would hide it. */
     let targetNode = null;
     /** A ?node= link's node, to focus once the map is in. */
@@ -1997,6 +2048,7 @@ createApp({
         clusterUntil: planningNodes ? 0 : Number(clusteringZoom || app.clusteringZoom),
         look: (node) => nodeMarkerLook(node, auth),
       });
+      updateInView();
     }
 
     const hasCoords = (node) => Number.isFinite(Number(node?.adv_lat)) && Number.isFinite(Number(node?.adv_lon)) && node.adv_lat != null && node.adv_lon != null;
@@ -2455,6 +2507,7 @@ createApp({
         app.urlParams.zoom = Math.round(map.getZoom() * 100) / 100;
         app.urlParams.lat = pos.lat.toFixed(4);
         app.urlParams.lon = wrapLon(pos.lon).toFixed(4);
+        updateInView();
       });
       map.onNodeClick((node) => openNodePopup(node));
       // nodes that came before the map: show them now, and a ?node= link's node
@@ -2674,6 +2727,9 @@ createApp({
       searchResults,
       filtersActive,
       showNode,
+      inView,
+      inViewToggled,
+      openFromList,
       highlightString,
       clearFilters,
       checkAuth,

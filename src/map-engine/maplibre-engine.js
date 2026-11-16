@@ -4,7 +4,7 @@
 // 256 px tiles, cluster zoom-in, panning the popup into view. The popup opens above its node and the
 // map pans to make room for it, as Leaflet's does.
 import { LngLatBounds, Map as MapLibreMap, Marker, Popup } from "../../lib/maplibre-gl.mjs";
-import { BASE_MAPS, baseMapIds, rasterStyle, readBaseMap, storeBaseMap, styleFor } from "./basemaps.js";
+import { baseMapIds, baseMapLabel, prepareStyle, rasterStyle, readBaseMap, storeBaseMap, styleFor } from "./basemaps.js";
 import { circleRing, clusterMaxZoomFor, dashInLineWidths, fromMapZoom, toMapZoom } from "./geo.js";
 import { CLUSTER_SIZE, drawClusterImage, drawNodeImage, nodeImageId, parseNodeImageId, readLook } from "./node-images.js";
 
@@ -17,6 +17,7 @@ const STYLE_TIMEOUT_MS = 8000;
 // base map tiles that fail before any loads: the style's host is down, show OpenStreetMap instead
 const TILE_FAILURES_BEFORE_FALLBACK = 6;
 const LONG_PRESS_MS = 550;
+const SNACKBAR_MS = 8000;
 
 /** MapLibre's stylesheet, before the page's own so they win ties (and the map doesn't warn). */
 function loadCss() {
@@ -70,6 +71,7 @@ export async function createMapLibreEngine(container, { center, zoom, t, attribu
     attributionControl: { customAttribution: attribution },
     locale: {
       "Popup.Close": t("map.close"),
+      "Map.Title": t("page.map"),
       "AttributionControl.ToggleAttribution": t("map.attributionToggle"),
     },
   });
@@ -203,14 +205,28 @@ export async function createMapLibreEngine(container, { center, zoom, t, attribu
   // ------------------------------------------------------------------ the base map
   let baseRequest = 0;
   let baseTiles = { ok: false, failed: 0 };
-  const notice = document.createElement("div");
-  notice.className = "map-notice";
-  notice.setAttribute("role", "status");
-  notice.hidden = true;
-  container.append(notice);
+  // A style host that is down: a snackbar for 8 s, and a ⚠ on the base map button until a style
+  // loads again
+  const snackbar = document.createElement("div");
+  snackbar.className = "map-snackbar";
+  snackbar.setAttribute("role", "status");
+  snackbar.hidden = true;
+  container.append(snackbar);
+  let snackTimer = 0;
   function showFallbackNotice(on) {
-    notice.hidden = !on;
-    notice.textContent = on ? t("map.baseMapFallback") : "";
+    layersToggle.classList.toggle("map-basemap__toggle--down", on);
+    const label = on ? `${t("map.baseMap")} (${t("map.baseMapDown")})` : t("map.baseMap");
+    layersToggle.setAttribute("aria-label", label);
+    layersToggle.title = label;
+    clearTimeout(snackTimer);
+    snackbar.hidden = !on;
+    snackbar.innerHTML = on ? '<i class="bi bi-info-circle" aria-hidden="true"></i><span></span>' : "";
+    if (on) {
+      snackbar.querySelector("span").textContent = t("map.baseMapFallback");
+      snackTimer = setTimeout(() => {
+        snackbar.hidden = true;
+      }, SNACKBAR_MS);
+    }
   }
 
   function applyStyle(style, fellBack) {
@@ -235,6 +251,7 @@ export async function createMapLibreEngine(container, { center, zoom, t, attribu
       }
     }
     if (request !== baseRequest) return;
+    if (!fellBack) prepareStyle(baseId, style, { dark });
     applyStyle(style, fellBack);
   }
 
@@ -490,18 +507,18 @@ export async function createMapLibreEngine(container, { center, zoom, t, attribu
   controls.className = "map-ctrls";
   const zoomBar = document.createElement("div");
   zoomBar.className = "map-ctrl map-ctrl--bar";
-  const zoomButton = (text, label, fn) => {
+  const zoomButton = (icon, label, fn) => {
     const b = document.createElement("button");
     b.type = "button";
-    b.textContent = text;
+    b.innerHTML = `<i class="bi ${icon}" aria-hidden="true"></i>`;
     b.setAttribute("aria-label", label);
     b.title = label;
     b.addEventListener("click", fn);
     zoomBar.append(b);
     return b;
   };
-  const zoomIn = zoomButton("+", t("zoom.in"), () => map.zoomIn());
-  const zoomOut = zoomButton("−", t("zoom.out"), () => map.zoomOut());
+  const zoomIn = zoomButton("bi-plus-lg", t("zoom.in"), () => map.zoomIn());
+  const zoomOut = zoomButton("bi-dash-lg", t("zoom.out"), () => map.zoomOut());
   const updateZoomButtons = () => {
     zoomIn.disabled = map.getZoom() >= map.getMaxZoom();
     zoomOut.disabled = map.getZoom() <= map.getMinZoom();
@@ -518,7 +535,7 @@ export async function createMapLibreEngine(container, { center, zoom, t, attribu
   layersToggle.setAttribute("aria-label", t("map.baseMap"));
   layersToggle.setAttribute("aria-expanded", "false");
   layersToggle.title = t("map.baseMap");
-  layersToggle.innerHTML = '<i class="bi bi-layers" aria-hidden="true"></i>';
+  layersToggle.innerHTML = '<i class="bi bi-layers" aria-hidden="true"></i><i class="bi bi-exclamation-triangle-fill map-basemap__warn" aria-hidden="true"></i>';
   const list = document.createElement("fieldset");
   list.className = "map-basemap__list";
   list.hidden = true;
@@ -538,7 +555,7 @@ export async function createMapLibreEngine(container, { center, zoom, t, attribu
       loadBase();
     });
     const span = document.createElement("span");
-    span.textContent = BASE_MAPS[id].label;
+    span.textContent = baseMapLabel(id, t);
     label.append(input, span);
     list.append(label);
   }
@@ -585,7 +602,7 @@ export async function createMapLibreEngine(container, { center, zoom, t, attribu
   const shade = shadeApi?.watch?.(container, (now) => {
     dark = now === "dark";
     if (started) loadBase();
-  });
+  }, { icons: true });
   if (shade) shadeBar.append(shade.button);
   else shadeBar.remove();
   // the site theme also colours the markers and the planning lines
@@ -632,6 +649,10 @@ export async function createMapLibreEngine(container, { center, zoom, t, attribu
     getCenter: () => spotOf(map.getCenter()),
     getZoom: () => fromMapZoom(map.getZoom()),
     getSize: () => ({ x: container.clientWidth, y: container.clientHeight }),
+    getBounds() {
+      const b = map.getBounds();
+      return [[b.getSouth(), b.getWest()], [b.getNorth(), b.getEast()]];
+    },
     setView(spot, z) {
       map.jumpTo({ center: lngLat(spot), zoom: toMapZoom(z) });
     },

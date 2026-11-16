@@ -106,17 +106,35 @@ const _hoisted_59 = { class: "filter-chips" }
 const _hoisted_60 = ["value"]
 const _hoisted_61 = { class: "filter-field" }
 const _hoisted_62 = { "data-i18n": "map.filter.clustering" }
-const _hoisted_63 = {
+const _hoisted_63 = { "data-i18n": "map.inView.title" }
+const _hoisted_64 = {
+  key: 0,
+  class: "in-view-count"
+}
+const _hoisted_65 = {
+  key: 0,
+  class: "in-view-empty",
+  "data-i18n": "map.inView.none"
+}
+const _hoisted_66 = {
+  key: 1,
+  class: "in-view-list"
+}
+const _hoisted_67 = ["onClick"]
+const _hoisted_68 = { class: "in-view-name" }
+const _hoisted_69 = { class: "in-view-type" }
+const _hoisted_70 = { class: "in-view-dist" }
+const _hoisted_71 = {
   key: 0,
   class: "map-float totals-chip"
 }
-const _hoisted_64 = ["innerHTML"]
-const _hoisted_65 = ["title"]
-const _hoisted_66 = {
+const _hoisted_72 = ["innerHTML"]
+const _hoisted_73 = ["title"]
+const _hoisted_74 = {
   class: "add-long",
   "data-i18n": "map.addNode"
 }
-const _hoisted_67 = {
+const _hoisted_75 = {
   class: "add-short",
   "data-i18n": "map.addShort"
 }
@@ -128,7 +146,7 @@ export function render(_ctx, _cache) {
       : _createCommentVNode("v-if", true),
     _createElementVNode("header", _hoisted_2, [
       _createElementVNode("span", _hoisted_3, [
-        _cache[19] || (_cache[19] = _createElementVNode("b", null, "#BE", -1 /* CACHED */)),
+        _cache[21] || (_cache[21] = _createElementVNode("b", null, "#BE", -1 /* CACHED */)),
         _createElementVNode("span", _hoisted_4, _toDisplayString(_ctx.t('map.wordmark')), 1 /* TEXT */)
       ]),
       _createElementVNode("nav", {
@@ -155,16 +173,16 @@ export function render(_ctx, _cache) {
             }), 256 /* UNKEYED_FRAGMENT */))
           ]))
         : _createCommentVNode("v-if", true),
-      _cache[21] || (_cache[21] = _createElementVNode("span", { class: "spacer" }, null, -1 /* CACHED */)),
-      _cache[22] || (_cache[22] = _createElementVNode("span", { "data-account-chip": "" }, null, -1 /* CACHED */)),
-      _cache[23] || (_cache[23] = _createElementVNode("span", { "data-lang-switch": "" }, null, -1 /* CACHED */)),
+      _cache[23] || (_cache[23] = _createElementVNode("span", { class: "spacer" }, null, -1 /* CACHED */)),
+      _cache[24] || (_cache[24] = _createElementVNode("span", { "data-account-chip": "" }, null, -1 /* CACHED */)),
+      _cache[25] || (_cache[25] = _createElementVNode("span", { "data-lang-switch": "" }, null, -1 /* CACHED */)),
       _createElementVNode("span", _hoisted_14, [
         _createElementVNode("button", {
           type: "button",
           class: "icon",
           "data-i18n-attr": "aria-label:menu.label",
           "aria-label": _ctx.t('menu.label')
-        }, [...(_cache[20] || (_cache[20] = [
+        }, [...(_cache[22] || (_cache[22] = [
           _createElementVNode("i", {
             class: "bi bi-list",
             "aria-hidden": "true"
@@ -177,7 +195,7 @@ export function render(_ctx, _cache) {
           "aria-label": _ctx.t('menu.label')
         }, null, 8 /* PROPS */, _hoisted_16)
       ]),
-      _cache[24] || (_cache[24] = _createElementVNode("button", {
+      _cache[26] || (_cache[26] = _createElementVNode("button", {
         type: "button",
         class: "icon",
         "data-theme-toggle": "",
@@ -406,12 +424,61 @@ export function render(_ctx, _cache) {
             ])
           ])
         ]),
+        _createElementVNode("details", {
+          class: "filter-more in-view",
+          onToggle: _cache[19] || (_cache[19] = (...args) => (_ctx.inViewToggled && _ctx.inViewToggled(...args)))
+        }, [
+          _createElementVNode("summary", null, [
+            _createElementVNode("span", _hoisted_63, _toDisplayString(_ctx.t('map.inView.title')), 1 /* TEXT */),
+            _cache[27] || (_cache[27] = _createTextVNode()),
+            (_ctx.inView.open)
+              ? (_openBlock(), _createElementBlock("span", _hoisted_64, _toDisplayString(_ctx.num(_ctx.inView.rows.length)), 1 /* TEXT */))
+              : _createCommentVNode("v-if", true)
+          ]),
+          (_ctx.inView.open && !_ctx.inView.rows.length)
+            ? (_openBlock(), _createElementBlock("p", _hoisted_65, _toDisplayString(_ctx.t('map.inView.none')), 1 /* TEXT */))
+            : _createCommentVNode("v-if", true),
+          (_ctx.inView.rows.length)
+            ? (_openBlock(), _createElementBlock("ul", _hoisted_66, [
+                (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(_ctx.inView.rows.slice(0, _ctx.inView.limit), (row) => {
+                  return (_openBlock(), _createElementBlock("li", {
+                    key: row.key
+                  }, [
+                    _createElementVNode("button", {
+                      type: "button",
+                      class: "in-view-row",
+                      onClick: $event => (_ctx.openFromList(row.node))
+                    }, [
+                      _createElementVNode("span", _hoisted_68, _toDisplayString(row.name), 1 /* TEXT */),
+                      _createElementVNode("span", _hoisted_69, [
+                        _createElementVNode("i", {
+                          class: _normalizeClass(["dot", `dot-${row.type}`]),
+                          "aria-hidden": "true"
+                        }, null, 2 /* CLASS */),
+                        _createTextVNode(_toDisplayString(row.typeWord), 1 /* TEXT */)
+                      ]),
+                      _createElementVNode("span", _hoisted_70, _toDisplayString(row.distance), 1 /* TEXT */)
+                    ], 8 /* PROPS */, _hoisted_67)
+                  ]))
+                }), 128 /* KEYED_FRAGMENT */))
+              ]))
+            : _createCommentVNode("v-if", true),
+          (_ctx.inView.rows.length > _ctx.inView.limit)
+            ? (_openBlock(), _createElementBlock("button", {
+                key: 2,
+                type: "button",
+                class: "btn small",
+                onClick: _cache[18] || (_cache[18] = $event => (_ctx.inView.limit += 50)),
+                "data-i18n": "map.inView.more"
+              }, _toDisplayString(_ctx.t('map.inView.more')), 1 /* TEXT */))
+            : _createCommentVNode("v-if", true)
+        ], 32 /* NEED_HYDRATION */),
         (_ctx.filtersActive)
           ? (_openBlock(), _createElementBlock("button", {
               key: 0,
               type: "button",
               class: "btn small",
-              onClick: _cache[18] || (_cache[18] = (...args) => (_ctx.clearFilters && _ctx.clearFilters(...args))),
+              onClick: _cache[20] || (_cache[20] = (...args) => (_ctx.clearFilters && _ctx.clearFilters(...args))),
               "data-i18n": "map.filter.clear"
             }, _toDisplayString(_ctx.t('map.filter.clear')), 1 /* TEXT */))
           : _createCommentVNode("v-if", true)
@@ -419,10 +486,10 @@ export function render(_ctx, _cache) {
         [_vShow, _ctx.app.filterMenuOpen]
       ]),
       (_ctx.totals && !_ctx.searchResults?.length && !_ctx.app.filterMenuOpen)
-        ? (_openBlock(), _createElementBlock("div", _hoisted_63, [
+        ? (_openBlock(), _createElementBlock("div", _hoisted_71, [
             _createElementVNode("span", {
               innerHTML: _ctx.t('map.totals', { count: _ctx.totals.total, n: _ctx.num(_ctx.totals.total), week: _ctx.num(_ctx.totals.week) })
-            }, null, 8 /* PROPS */, _hoisted_64)
+            }, null, 8 /* PROPS */, _hoisted_72)
           ]))
         : _createCommentVNode("v-if", true),
       _createElementVNode("a", {
@@ -433,9 +500,9 @@ export function render(_ctx, _cache) {
         href: "https://github.com/meshcore-dev/MeshCore/blob/main/docs/faq.md#512-q-how-do-i-add-a-node-to-the-meshcore-map",
         title: _ctx.t('map.addNodeTitle')
       }, [
-        _createElementVNode("span", _hoisted_66, _toDisplayString(_ctx.t('map.addNode')), 1 /* TEXT */),
-        _createElementVNode("span", _hoisted_67, _toDisplayString(_ctx.t('map.addShort')), 1 /* TEXT */)
-      ], 8 /* PROPS */, _hoisted_65)
+        _createElementVNode("span", _hoisted_74, _toDisplayString(_ctx.t('map.addNode')), 1 /* TEXT */),
+        _createElementVNode("span", _hoisted_75, _toDisplayString(_ctx.t('map.addShort')), 1 /* TEXT */)
+      ], 8 /* PROPS */, _hoisted_73)
     ])
   ], 64 /* STABLE_FRAGMENT */))
 }

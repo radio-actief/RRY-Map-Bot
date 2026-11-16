@@ -93,3 +93,12 @@ export function boundsOf(points) {
   }
   return [[s, w], [n, e]];
 }
+
+/** The distance on the ground between two spots, in km (haversine). */
+export function distanceKm(a, b) {
+  const d = Math.PI / 180;
+  const dLat = (b.lat - a.lat) * d;
+  const dLon = (b.lon - a.lon) * d;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * d) * Math.cos(b.lat * d) * Math.sin(dLon / 2) ** 2;
+  return (2 * EARTH * Math.asin(Math.min(1, Math.sqrt(h)))) / 1000;
+}

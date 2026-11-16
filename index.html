@@ -219,6 +219,28 @@
                 v-model="app.clusteringZoom"
             /></label>
           </details>
+          <details class="filter-more in-view" @toggle="inViewToggled">
+            <summary><span data-i18n="map.inView.title">Nodes in view</span> <span class="in-view-count" v-if="inView.open">{{ num(inView.rows.length) }}</span></summary>
+            <p class="in-view-empty" v-if="inView.open && !inView.rows.length" data-i18n="map.inView.none">No nodes in view</p>
+            <ul class="in-view-list" v-if="inView.rows.length">
+              <li v-for="row in inView.rows.slice(0, inView.limit)" :key="row.key">
+                <button type="button" class="in-view-row" @click="openFromList(row.node)">
+                  <span class="in-view-name">{{ row.name }}</span>
+                  <span class="in-view-type"><i class="dot" :class="`dot-${row.type}`" aria-hidden="true"></i>{{ row.typeWord }}</span>
+                  <span class="in-view-dist">{{ row.distance }}</span>
+                </button>
+              </li>
+            </ul>
+            <button
+              v-if="inView.rows.length > inView.limit"
+              type="button"
+              class="btn small"
+              @click="inView.limit += 50"
+              data-i18n="map.inView.more"
+            >
+              Show more
+            </button>
+          </details>
           <button
             v-if="filtersActive"
             type="button"

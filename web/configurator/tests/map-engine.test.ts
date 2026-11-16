@@ -69,6 +69,12 @@ describe("the map engines' shared maths", () => {
     expect(geo.dashInLineWidths("", 3)).toBeNull();
   });
 
+  it("measures distances on the ground", () => {
+    expect(geo.distanceKm({ lat: 50.85, lon: 4.35 }, { lat: 50.85, lon: 4.35 })).toBe(0);
+    // Brussels to Antwerp, about 41 km
+    expect(geo.distanceKm({ lat: 50.8467, lon: 4.3525 }, { lat: 51.2194, lon: 4.4025 })).toBeCloseTo(41.6, 0);
+  });
+
   it("bounds a set of points", () => {
     expect(geo.boundsOf([{ lat: 50, lon: 5 }, { lat: 51, lon: 4 }])).toEqual([[50, 4], [51, 5]]);
   });
@@ -94,15 +100,18 @@ const storage = (value: string | null) => {
 const t = (k: string) => ({ "map.tiles": "Tiles", "map.sources": "Sources" })[k] ?? k;
 
 describe("the base maps", () => {
-  it("default to OpenFreeMap's vector style, light or dark with the map's shade", () => {
+  it("default to OpenFreeMap's grey Positron, dark with the map's shade; Liberty as Streets", () => {
     expect(basemaps.readBaseMap(storage(null), { vector: true })).toBe("openfreemap");
-    expect(basemaps.styleFor("openfreemap", { dark: false, t })).toBe("https://tiles.openfreemap.org/styles/liberty");
+    expect(basemaps.styleFor("openfreemap", { dark: false, t })).toBe("https://tiles.openfreemap.org/styles/positron");
+    expect(basemaps.styleFor("streets", { dark: false, t })).toBe("https://tiles.openfreemap.org/styles/liberty");
+    expect(basemaps.baseMapLabel("streets", (k: string) => (k === "map.base.streets" ? "Straten" : k))).toBe("Straten");
+    expect(basemaps.baseMapLabel("versatiles", t)).toBe("VersaTiles");
     expect(basemaps.styleFor("openfreemap", { dark: true, t })).toBe("https://tiles.openfreemap.org/styles/dark");
     expect(basemaps.styleFor("versatiles", { dark: true, t })).toBe("https://tiles.versatiles.org/assets/styles/colorful-dark/style.json");
   });
 
   it("offer all four with WebGL and the two raster maps on the Leaflet map", () => {
-    expect(basemaps.baseMapIds({ vector: true })).toEqual(["openfreemap", "versatiles", "osm", "satellite"]);
+    expect(basemaps.baseMapIds({ vector: true })).toEqual(["openfreemap", "streets", "versatiles", "osm", "satellite"]);
     expect(basemaps.baseMapIds({ vector: false })).toEqual(["osm", "satellite"]);
   });
 
@@ -131,6 +140,57 @@ describe("the base maps", () => {
     expect(sat.sources.base.maxzoom).toBe(18);
     expect(sat.sources.base.attribution).toMatch(/Esri/);
     expect(sat.layers.find((l: { id: string }) => l.id === "base").paint).toEqual({});
+  });
+
+  it("label in one family: Noto Sans Regular, Italic for water, as each glyph host names it", () => {
+    const style = (glyphs: string) => ({
+      glyphs,
+      layers: [
+        { id: "label_city_capital", type: "symbol", layout: { "text-font": ["Noto Sans Bold"] } },
+        { id: "water_name_point_label", type: "symbol", "source-layer": "water_name", layout: { "text-font": ["Noto Sans Regular"] } },
+        { id: "road", type: "line", paint: {} },
+      ],
+    });
+    const ofm = basemaps.normalizeFonts(style("https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf"));
+    expect(ofm.layers[0].layout["text-font"]).toEqual(["Noto Sans Regular"]);
+    expect(ofm.layers[1].layout["text-font"]).toEqual(["Noto Sans Italic"]);
+    const vt = basemaps.normalizeFonts(style("https://tiles.versatiles.org/assets/glyphs/{fontstack}/{range}.pbf"));
+    expect(vt.layers.map((l: { layout?: Record<string, unknown> }) => l.layout?.["text-font"])).toEqual([["noto_sans_regular"], ["noto_sans_regular_italic"], undefined]);
+  });
+
+  it("tune OpenFreeMap's dark style to the site's ink, with town names a phone can read", () => {
+    const style = {
+      glyphs: "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf",
+      layers: [
+        { id: "background", type: "background", paint: { "background-color": "rgb(12,12,12)" } },
+        { id: "water", type: "fill", paint: { "fill-color": "x" } },
+        { id: "landcover_wood", type: "fill", paint: { "fill-color": "x", "fill-pattern": "wood-pattern" } },
+        { id: "highway_minor", type: "line", paint: { "line-color": "x" } },
+        { id: "highway_motorway_inner", type: "line", paint: { "line-color": ["interpolate", ["linear"], ["zoom"], 5.8, "a", 6, "b"] } },
+        { id: "railway_dashline", type: "line", paint: { "line-color": "x" } },
+        { id: "boundary_country_z5-", type: "line", paint: { "line-color": "x" } },
+        { id: "place_town", type: "symbol", layout: { "text-field": "{name}", "text-size": 10 }, paint: { "text-color": "x" } },
+        { id: "place_village", type: "symbol", layout: { "text-field": "{name}", "text-size": 10 }, paint: { "text-color": "x" } },
+      ],
+    };
+    const tuned = basemaps.prepareStyle("openfreemap", style, { dark: true });
+    const by = Object.fromEntries(tuned.layers.map((l: { id: string }) => [l.id, l])) as Record<string, { paint: Record<string, unknown>; layout: Record<string, unknown> }>;
+    expect(by.background.paint["background-color"]).toBe("#12161F");
+    expect(by.water.paint["fill-color"]).toBe("#1A202C");
+    expect(by.landcover_wood.paint).toEqual({ "fill-color": "#12161F" });
+    expect(by.highway_minor.paint["line-color"]).toBe("#2D3748");
+    expect(by.highway_motorway_inner.paint["line-color"]).toBe("#4A5568");
+    expect(by.railway_dashline.paint["line-color"]).toBe("#12161F");
+    expect(by["boundary_country_z5-"].paint["line-color"]).toBe("#4A5568");
+    expect(by.place_town.paint).toMatchObject({ "text-color": "#A0AEC0", "text-halo-color": "#12161F" });
+    expect(by.place_village.paint["text-color"]).toBe("#718096");
+    // bigger than the style's 10 px at the zooms a phone shows towns
+    const size = by.place_town.layout["text-size"] as unknown[];
+    expect(size[0]).toBe("interpolate");
+    expect(Math.min(...(size.slice(3).filter((_, i) => i % 2 === 1) as number[]))).toBeGreaterThanOrEqual(12);
+    // the light styles keep their colours
+    const light = basemaps.prepareStyle("openfreemap", { glyphs: "", layers: [{ id: "background", type: "background", paint: { "background-color": "#fff" } }] }, { dark: false });
+    expect(light.layers[0].paint["background-color"]).toBe("#fff");
   });
 
   it("only name hosts the page policy allows", () => {

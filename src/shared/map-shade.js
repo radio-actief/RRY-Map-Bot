@@ -4,7 +4,7 @@
  * The tile layer needs className "osm-tiles"; the filter lives in bemesh-shell.css.
  * window.BEmeshMapShade.watch(container, onChange) does the same without Leaflet (the map page's
  * MapLibre map, which swaps its style): it returns { button, detach }; onChange(shade) runs at once
- * and on every change. */
+ * and on every change. Option { icons: true }: Bootstrap's moon and sun instead of ☾ and ☀. */
 (function () {
   var KEY = "bemesh.mapShade";
 
@@ -51,6 +51,12 @@
     return i18n && i18n.has(key) ? i18n.t(key) : ENGLISH[key];
   }
 
+  /** ☾ / ☀, or the moon / sun icon: the shade a press gives. */
+  function setGlyph(el, now, icons) {
+    if (icons) el.innerHTML = '<i class="bi ' + (now === "dark" ? "bi-sun" : "bi-moon") + '" aria-hidden="true"></i>';
+    else el.textContent = now === "dark" ? "☀" : "☾";
+  }
+
   function attach(L, map, tileLayer, opts) {
     opts = opts || {};
     var container = map.getContainer();
@@ -64,7 +70,7 @@
       if (!link) return;
       var follows = !override();
       var label = text((now === "dark" ? "mapShade.toLight" : "mapShade.toDark") + (follows ? "Follows" : ""));
-      link.textContent = now === "dark" ? "☀" : "☾";
+      setGlyph(link, now, opts.icons);
       link.setAttribute("aria-label", label);
       link.title = label;
     }
@@ -108,7 +114,8 @@
   }
 
   /** The switch for a map of another engine: a plain <button>, `container` gets map-dark. */
-  function watch(container, onChange) {
+  function watch(container, onChange, opts) {
+    opts = opts || {};
     var button = document.createElement("button");
     button.type = "button";
     button.className = "map-shade-button";
@@ -117,7 +124,7 @@
       var now = shade();
       container.classList.toggle("map-dark", now === "dark");
       var label = text((now === "dark" ? "mapShade.toLight" : "mapShade.toDark") + (stored() ? "" : "Follows"));
-      button.textContent = now === "dark" ? "☀" : "☾";
+      setGlyph(button, now, opts.icons);
       button.setAttribute("aria-label", label);
       button.title = label;
       if (now !== last) {

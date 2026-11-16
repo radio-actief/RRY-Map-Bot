@@ -75,9 +75,24 @@ export async function createLeafletEngine(container, { center, zoom, t, attribut
     if (id) storeBaseMap(globalThis.localStorage, id);
   });
   // map type (layers) above zoom in/out, bottom left
-  L.control.layers(layerNames, null, { position: "bottomleft" }).addTo(map);
-  L.control.zoom({ position: "bottomleft", zoomInTitle: t("zoom.in"), zoomOutTitle: t("zoom.out") }).addTo(map);
-  window.BEmeshMapShade?.attach(L, map, tiles.osm, { position: "bottomleft" });
+  // the same icons as the MapLibre map's controls (css/map.css gives them its glass look)
+  const layersControl = L.control.layers(layerNames, null, { position: "bottomleft" }).addTo(map);
+  const toggle = layersControl.getContainer()?.querySelector(".leaflet-control-layers-toggle");
+  if (toggle) {
+    toggle.innerHTML = '<i class="bi bi-layers" aria-hidden="true"></i>';
+    toggle.setAttribute("aria-label", t("map.baseMap"));
+    toggle.title = t("map.baseMap");
+  }
+  L.control
+    .zoom({
+      position: "bottomleft",
+      zoomInText: '<i class="bi bi-plus-lg" aria-hidden="true"></i>',
+      zoomOutText: '<i class="bi bi-dash-lg" aria-hidden="true"></i>',
+      zoomInTitle: t("zoom.in"),
+      zoomOutTitle: t("zoom.out"),
+    })
+    .addTo(map);
+  window.BEmeshMapShade?.attach(L, map, tiles.osm, { position: "bottomleft", icons: true });
 
   // the coverage image under the node markers, the planning marks over them
   map.createPane("planCoverage").style.zIndex = 350;
@@ -211,6 +226,10 @@ export async function createLeafletEngine(container, { center, zoom, t, attribut
     getSize() {
       const s = map.getSize();
       return { x: s.x, y: s.y };
+    },
+    getBounds() {
+      const b = map.getBounds();
+      return [[b.getSouth(), b.getWest()], [b.getNorth(), b.getEast()]];
     },
     setView(spot, z) {
       map.setView([spot.lat, spot.lon], z, { animate: false });

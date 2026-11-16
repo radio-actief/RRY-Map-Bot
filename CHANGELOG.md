@@ -2,6 +2,14 @@
 
 What changed in each release of the #BEmesh map, bot and configurator.
 
+## 1.1.1 (2026-11-16)
+
+### Fixed
+
+- The configurator asks once more when a repeater's neighbour list comes back short
+- After you restart a repeater from the configurator, its clock is set again when you reconnect it
+- Counting neighbours reads the repeater's list one time fewer when the first round hears nobody
+
 ## 1.1.0 (2026-11-16)
 
 ### New

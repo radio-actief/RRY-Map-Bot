@@ -51,10 +51,25 @@ const loaders = {
 };
 
 let maplibreModule = null;
-/** Starts fetching MapLibre (when the browser can run it) without starting the map. */
-export function preloadEngine({ webgl = webglForPage } = {}) {
-  if (!maplibreModule && webgl()) maplibreModule = loaders.maplibre();
-  return maplibreModule;
+/**
+ * Starts fetching MapLibre where the browser can make a WebGL 2 context (checked first, once per
+ * page): fetched and compiled, not run yet; the engine starts once the page has painted.
+ */
+export function preloadEngine(doc = globalThis.document, { webgl = webglForPage } = {}) {
+  if (!doc?.head || !webgl()) return;
+  const files = [
+    ["modulepreload", new URL("../../lib/maplibre-gl.mjs", import.meta.url).href],
+    ["modulepreload", new URL("./maplibre-engine.js", import.meta.url).href],
+    ["preload", new URL("../../lib/css/maplibre-gl.css", import.meta.url).href, "style"],
+  ];
+  for (const [rel, href, as] of files) {
+    if (doc.head.querySelector(`link[href="${href}"]`)) continue;
+    const link = doc.createElement("link");
+    link.rel = rel;
+    link.href = href;
+    if (as) link.as = as;
+    doc.head.append(link);
+  }
 }
 
 /**

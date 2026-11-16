@@ -85,7 +85,7 @@ describe("the map page's engine files", () => {
 // @ts-ignore plain JS module of the map page
 import * as basemaps from "../../../src/map-engine/basemaps.js";
 // @ts-ignore plain JS module of the map page
-import { createMapEngine, webglAvailable } from "../../../src/map-engine/index.js";
+import { createMapEngine, preloadEngine, webglAvailable } from "../../../src/map-engine/index.js";
 
 const storage = (value: string | null) => {
   const data = new Map<string, string>(value === null ? [] : [["baseMapSelected", value]]);
@@ -284,13 +284,26 @@ describe("the map page loads its map engine without holding up the page", () => 
     expect(mapJs.indexOf("const nodesRequest = fetch(apiUrl)")).toBeGreaterThan(0);
     expect(mapJs.indexOf("const nodesRequest = fetch(apiUrl)")).toBeLessThan(wait);
     expect(mapJs.indexOf("preloadEngine()")).toBeLessThan(wait);
-    // the Vue app mounts without waiting for the map
+    // the Vue app mounts without waiting for the map, which starts once the page has painted
     expect(mapJs).not.toMatch(/await\s+(mapReady|createMapEngine)/);
+    expect(mapJs).toMatch(/const mapReady = afterFirstPaint\(\)\.then\(\(\) => createMapEngine\(/);
   });
 
   it("uses no Leaflet API itself: everything goes through the engine", () => {
     for (const f of ["src/map.js", "src/coverage/planning.js"]) {
       expect(read(f), f).not.toMatch(/\bL\.[a-zA-Z]|window\.L\b|leafletMap/);
     }
+  });
+});
+
+describe("preloading MapLibre", () => {
+  it("only hints the files (fetched, not run), and only where a WebGL 2 context can be made", () => {
+    const doc = document.implementation.createHTMLDocument("x");
+    preloadEngine(doc, { webgl: () => false });
+    expect(doc.head.querySelectorAll("link")).toHaveLength(0);
+    preloadEngine(doc, { webgl: () => true });
+    preloadEngine(doc, { webgl: () => true });
+    const links = [...doc.head.querySelectorAll("link")].map((l) => `${l.rel} ${l.getAttribute("href")?.replace(/^.*\/(lib|src)\//, "$1/")}`);
+    expect(links).toEqual(["modulepreload lib/maplibre-gl.mjs", "modulepreload src/map-engine/maplibre-engine.js", "preload lib/css/maplibre-gl.css"]);
   });
 });

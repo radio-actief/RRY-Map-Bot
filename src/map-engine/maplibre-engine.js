@@ -21,7 +21,7 @@ const LONG_PRESS_MS = 550;
 /** MapLibre's stylesheet, before the page's own so they win ties (and the map doesn't warn). */
 function loadCss() {
   const href = new URL("../../lib/css/maplibre-gl.css", import.meta.url).href;
-  if (document.querySelector(`link[href="${href}"]`)) return Promise.resolve();
+  if (document.querySelector(`link[rel="stylesheet"][href="${href}"]`)) return Promise.resolve();
   return new Promise((resolve) => {
     const link = document.createElement("link");
     link.rel = "stylesheet";

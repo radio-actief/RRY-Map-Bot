@@ -23,7 +23,7 @@ const apiUrl = "/api/v1/belgian-nodes";
 // language: neither waits for the other (MapLibre where the browser has WebGL, else Leaflet).
 const nodesRequest = fetch(apiUrl);
 nodesRequest.catch(() => {});
-preloadEngine()?.catch(() => {});
+preloadEngine();
 
 // Page language: src/shared/i18n.js (loaded in <head>) fetches the messages and translates the static page first.
 const I18N = window.BEmeshI18n;
@@ -1524,12 +1524,19 @@ if (Number(urlParams.lat) && Number(urlParams.lon) && Number(urlParams.zoom)) {
  * up before it; until then the map's area shows the page background.
  */
 let mapEngine = null;
-const mapReady = createMapEngine(document.getElementById("map"), {
+// The engine starts once the page has painted (its WebGL check and MapLibre's start take main-thread
+// time); a hidden tab paints no frames, so it starts after half a second there.
+const afterFirstPaint = () =>
+  new Promise((resolve) => {
+    requestAnimationFrame(() => setTimeout(resolve, 0));
+    setTimeout(resolve, 500);
+  });
+const mapReady = afterFirstPaint().then(() => createMapEngine(document.getElementById("map"), {
   center: { lat: params.lat, lon: params.lon },
   zoom: params.zoom,
   t,
   attribution: appAttribution,
-}).then((engine) => {
+})).then((engine) => {
   mapEngine = window.bemeshMap = engine;
   document.getElementById("map").dataset.engine = engine.kind;
   return engine;

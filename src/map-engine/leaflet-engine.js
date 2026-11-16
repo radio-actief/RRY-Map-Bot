@@ -18,7 +18,7 @@ function loadScript(src) {
 
 /** Leaflet's stylesheets go before the page's own, so those win ties (as when they were in <head>). */
 function loadCss(href) {
-  if (document.querySelector(`link[href="${href}"]`)) return Promise.resolve();
+  if (document.querySelector(`link[rel="stylesheet"][href="${href}"]`)) return Promise.resolve();
   return new Promise((resolve) => {
     const link = document.createElement("link");
     link.rel = "stylesheet";

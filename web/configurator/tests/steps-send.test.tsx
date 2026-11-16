@@ -172,7 +172,7 @@ describe("Send step: script", () => {
     try {
       render(<Send />);
       fireEvent.click(screen.getByRole("button", { name: "Connect over USB" }));
-      await waitFor(() => expect(store.device.value.status).toBe("connected"), { timeout: 3000 });
+      await waitFor(() => expect(store.device.value.status).toBe("connected"));
       expect(requestPort).toHaveBeenCalledTimes(1);
       expect(store.step.value).toBe("send");
       expect(store.plan.value.nameSuffix).toBe("Proefberg");
@@ -851,7 +851,7 @@ describe("Console", () => {
     await connect(okReplies(lines));
     render(<Send />);
     fireEvent.click(applyButton());
-    await screen.findByRole("button", { name: "Reboot now" }, { timeout: 3000 });
+    await screen.findByRole("button", { name: "Reboot now" });
     const log = store.log.value;
     expect(log.length).toBe(500);
     expect(log.some((l) => l.kind === "sep")).toBe(true);

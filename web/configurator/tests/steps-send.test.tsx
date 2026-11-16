@@ -851,7 +851,8 @@ describe("Console", () => {
     await connect(okReplies(lines));
     render(<Send />);
     fireEvent.click(applyButton());
-    await screen.findByRole("button", { name: "Reboot now" });
+    // 600 log lines make this Apply the slowest one; a busy test machine took over 3 s.
+    await screen.findByRole("button", { name: "Reboot now" }, { timeout: 15000 });
     const log = store.log.value;
     expect(log.length).toBe(500);
     expect(log.some((l) => l.kind === "sep")).toBe(true);

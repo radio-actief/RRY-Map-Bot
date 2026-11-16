@@ -3,6 +3,8 @@ import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import links from "../../../../src/shared/bemesh-links.json";
 // Side effect: src/shared/about.js sets window.BEmeshAbout, the About box the tool pages share.
 import "../../../../src/shared/about.js";
+// Side effect: src/shared/menu-place.js sets window.BEmeshMenu, which keeps the menu inside the window.
+import "../../../../src/shared/menu-place.js";
 import { I18N, lang, t } from "../i18n/t";
 import { store } from "../state/store";
 import { HERE, PAGES, siteTools, toolText } from "./pages";
@@ -63,12 +65,34 @@ export function LangSwitch({ inMenu = false }: { inMenu?: boolean }) {
   );
 }
 
-/** The sign-in chip (signed out only), the language switch and the ☰ menu: on a phone the page links, then links, then sign in or the account. */
+/** The menu's rows that take the keyboard and are shown (all of them in a document without layout). */
+function shownRows(menu: HTMLElement): HTMLElement[] {
+  const all = Array.from(menu.querySelectorAll<HTMLElement>("a, button"));
+  const shown = all.filter((x) => x.getClientRects().length > 0);
+  return shown.length ? shown : all;
+}
+
+/**
+ * The sign-in chip (signed out only), the language switch and the ☰ menu, in the order every #BEmesh
+ * tool uses: the tools (phone and tablet only), the outside links, About, sign in or the account,
+ * the language (phone and tablet only). The account joins once /auth/me has answered.
+ */
 export function AccountMenu() {
   const [open, setOpen] = useState(false);
   const wrap = useRef<HTMLSpanElement>(null);
   const button = useRef<HTMLButtonElement>(null);
+  const menu = useRef<HTMLElement>(null);
+  /** Opened with Enter or Space: the focus moves to the first row (a tap leaves no ring there). */
+  const byKeyboard = useRef(false);
   useEffect(loadAccount, []);
+  useLayoutEffect(() => {
+    if (!open || !menu.current) return;
+    window.BEmeshMenu.place(menu.current);
+    if (byKeyboard.current) shownRows(menu.current)[0]?.focus();
+    const resize = () => window.BEmeshMenu.place(menu.current);
+    window.addEventListener("resize", resize);
+    return () => window.removeEventListener("resize", resize);
+  }, [open]);
   useLayoutEffect(() => {
     if (!open) return;
     const outside = (e: MouseEvent) => {
@@ -98,8 +122,10 @@ export function AccountMenu() {
   }, [open]);
 
   const user = account.value;
-  const toggle = () => {
+  const toggle = (e: MouseEvent) => {
     if (!open) store.drawerOpen.value = false;
+    // A click from Enter or Space has no pointer behind it (detail 0).
+    byKeyboard.current = !open && e.detail === 0;
     setOpen(!open);
   };
   return (
@@ -122,17 +148,18 @@ export function AccountMenu() {
           aria-expanded={open}
           onClick={toggle}
         >
-          ☰
+          <i class="bi bi-list" aria-hidden="true" />
         </button>
-        <nav class="menu" id="page-menu" aria-label={t("menu.label")} hidden={!open}>
-          {/* The tool pages: shown on a phone only (bemesh-shell.css), where the top bar has no room for them. */}
+        <nav class="menu page-menu" id="page-menu" ref={menu} aria-label={t("menu.label")} hidden={!open}>
+          {/* The tools: shown on a phone and a tablet only (bemesh-shell.css), where the top bar has no room for them. */}
           {PAGES.map(([href, key]) => (
             <a key={href} class="menu-page" href={href} aria-current={href === HERE ? "page" : undefined}>
               {t(key)}
+              {href === HERE ? <i class="bi bi-check-lg menu-check" aria-hidden="true" /> : null}
             </a>
           ))}
           {siteTools.value.map((tool) => (
-            <a key={tool.url} class="menu-page" href={tool.url}>
+            <a key={tool.url} class="menu-page" href={tool.url} data-site-tool={tool.key}>
               {toolText(tool)}
             </a>
           ))}
@@ -153,7 +180,7 @@ export function AccountMenu() {
           >
             {t("about.menu")}
           </button>
-          <hr />
+          {user === undefined ? null : <hr />}
           {typeof user === "string" ? (
             <>
               <div class="menu-user">
@@ -164,9 +191,9 @@ export function AccountMenu() {
                 <button type="submit">{t("menu.logOut")}</button>
               </form>
             </>
-          ) : (
-            <a href={`/auth/login?next=${PAGE}`}>{t("menu.signIn")}</a>
-          )}
+          ) : user === null ? (
+            <a class="menu-signin" href={`/auth/login?next=${PAGE}`}>{t("menu.signIn")}</a>
+          ) : null}
           <hr class="menu-lang" />
           <LangSwitch inMenu />
         </nav>

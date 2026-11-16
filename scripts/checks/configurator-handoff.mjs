@@ -53,7 +53,7 @@ export async function handoffBothWays(ctx, context, { name, nb, confUrl, errors 
   ctx.check(`${name}: Use these makes them the plan`, /now your plan/.test(notice), notice);
 
   // configurator → NodeBook
-  await conf.locator('.topbar button:has-text("🛠")').click();
+  await conf.locator('.topbar button:has(.bi-tools)').click();
   await conf.waitForSelector(".drawer");
   const [nbIn] = await Promise.all([context.waitForEvent("page"), conf.locator('.drawer button:has-text("Save to NodeBook")').click()]);
   await nbIn.waitForFunction(() => !!window.got, null, { timeout: 15000 }).catch(() => {});

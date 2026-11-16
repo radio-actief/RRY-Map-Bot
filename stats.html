@@ -17,6 +17,7 @@
     <link rel="apple-touch-icon" href="./favicon.png" />
     <link rel="preload" href="./src/shared/fonts/figtree-latin-normal-4ba7d3d096.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="./src/shared/fonts.css" />
+    <link rel="stylesheet" href="./lib/css/bootstrap-icons.css" />
     <link rel="stylesheet" href="./lib/css/leaflet.css" />
     <link rel="stylesheet" href="./src/shared/bemesh-tokens.css" />
     <link rel="stylesheet" href="./src/shared/bemesh-shell.css" />
@@ -33,7 +34,6 @@
         ><a href="/region-map" data-i18n="page.regionMap">Region map</a
         ><a href="/configurator" data-i18n="page.configurator">Configurator</a>
       </nav>
-      <span class="spacer"></span>
       <span class="menu-wrap stats-pop" id="stats-filter-menu">
         <button
           type="button"
@@ -45,7 +45,9 @@
           title="Filter chart and stats by frequency or custom radio fields"
           data-i18n-attr="title:stats.filter.title"
         >
-          <span id="stats-preset-label">Preset: All</span> ▾
+          <i class="bi bi-sliders stats-preset-icon" aria-hidden="true"></i>
+          <span id="stats-preset-label" data-i18n="stats.presetAll">Preset: All</span>
+          <i class="bi bi-chevron-down stats-preset-chevron" aria-hidden="true"></i>
         </button>
         <div
           class="menu stats-filter-menu-dropdown"
@@ -69,6 +71,7 @@
           </details>
         </div>
       </span>
+      <span class="spacer"></span>
       <span class="menu-wrap stats-pop" id="stats-download-chip">
         <button
           type="button"
@@ -79,9 +82,7 @@
           aria-expanded="false"
           title="Download JSON"
           data-i18n-attr="aria-label:stats.download; title:stats.download"
-        >
-          ⬇
-        </button>
+        ><i class="bi bi-download" aria-hidden="true"></i></button>
         <div class="menu" id="stats-download-menu">
           <a href="/api/v1/companions/contacts" download="BEMesh-companions.json"><img src="./img/node_types/1.svg" alt="" width="16" height="16" /> <span data-i18n="stats.type.plural.1">Companions</span></a>
           <a href="/api/v1/repeaters/contacts" download="BEMesh-repeaters.json"><img src="./img/node_types/2.svg" alt="" width="16" height="16" /> <span data-i18n="stats.type.plural.2">Repeaters</span></a>
@@ -92,19 +93,17 @@
       <span data-account-chip></span>
       <span data-lang-switch></span>
       <span class="menu-wrap" data-page-menu>
-        <button type="button" class="icon" aria-label="Menu" data-i18n-attr="aria-label:menu.label">☰</button>
-        <nav class="menu" aria-label="Menu" data-i18n-attr="aria-label:menu.label" hidden></nav>
+        <button type="button" class="icon" aria-label="Menu" data-i18n-attr="aria-label:menu.label"><i class="bi bi-list" aria-hidden="true"></i></button>
+        <nav class="menu page-menu" aria-label="Menu" data-i18n-attr="aria-label:menu.label" hidden></nav>
       </span>
-      <button type="button" class="icon" data-theme-toggle aria-label="Theme">
-        ◐
-      </button>
+      <button type="button" class="icon" data-theme-toggle aria-label="Theme"><i class="bi bi-circle-half" aria-hidden="true"></i></button>
     </header>
     <main class="stats-main">
       <div class="stats-header-main is-loading">
         <div class="stats-tiles" id="stats-header-chips">
         <div class="tile stats-header-chip is-hero" id="stats-chip-network-wrap" title="Total nodes for the selected preset" data-i18n-attr="title:stats.tile.network.title">
           <span class="tile-label" data-i18n="stats.tile.network">Network</span>
-          <span class="tile-value" id="stats-chip-total">—</span>
+          <span class="tile-value" id="stats-chip-total" data-i18n="stats.tile.loading">Loading…</span>
         </div>
         <button type="button"
           class="tile stats-header-chip chip-filterable"
@@ -115,7 +114,7 @@
           aria-pressed="false"
         >
           <span class="tile-label" data-i18n="stats.type.plural.1">Companions</span>
-          <span class="tile-value" id="stats-chip-companions">—</span>
+          <span class="tile-value" id="stats-chip-companions" data-i18n="stats.tile.loading">Loading…</span>
         </button>
         <button type="button"
           class="tile stats-header-chip chip-filterable"
@@ -126,7 +125,7 @@
           aria-pressed="false"
         >
           <span class="tile-label" data-i18n="stats.type.plural.2">Repeaters</span>
-          <span class="tile-value" id="stats-chip-repeaters">—</span>
+          <span class="tile-value" id="stats-chip-repeaters" data-i18n="stats.tile.loading">Loading…</span>
         </button>
         <button type="button"
           class="tile stats-header-chip chip-filterable"
@@ -137,7 +136,7 @@
           aria-pressed="false"
         >
           <span class="tile-label" data-i18n="stats.tile.3">Rooms</span>
-          <span class="tile-value" id="stats-chip-roomservers">—</span>
+          <span class="tile-value" id="stats-chip-roomservers" data-i18n="stats.tile.loading">Loading…</span>
         </button>
         <button type="button"
           class="tile stats-header-chip chip-filterable"
@@ -148,19 +147,19 @@
           aria-pressed="false"
         >
           <span class="tile-label" data-i18n="stats.type.plural.4">Sensors</span>
-          <span class="tile-value" id="stats-chip-sensors">—</span>
+          <span class="tile-value" id="stats-chip-sensors" data-i18n="stats.tile.loading">Loading…</span>
         </button>
         <div class="tile stats-header-chip tile--wide" title="Nodes heard in the last day, week and month" data-i18n-attr="title:stats.tile.active.title">
             <span class="tile-label" data-i18n="stats.tile.active">Active · 1d / 7d / 30d</span>
-            <span class="tile-value" id="stats-chip-new">— · — · —</span>
+            <span class="tile-value" id="stats-chip-new" data-i18n="stats.tile.loading">Loading…</span>
           </div>
         <div class="tile stats-header-chip tile--pair" title="Nodes claimed" data-i18n-attr="title:stats.tile.claimed.title">
           <span class="tile-label" data-i18n="stats.tile.claimed">Claimed</span>
-          <span class="tile-value" id="stats-chip-claimed">—</span>
+          <span class="tile-value" id="stats-chip-claimed" data-i18n="stats.tile.loading">Loading…</span>
         </div>
         <div class="tile stats-header-chip tile--pair" title="Discord users" data-i18n-attr="title:stats.tile.users">
           <span class="tile-label" data-i18n="stats.tile.users">Discord users</span>
-          <span class="tile-value" id="stats-chip-users">—</span>
+          <span class="tile-value" id="stats-chip-users" data-i18n="stats.tile.loading">Loading…</span>
         </div>
         </div>
       </div>
@@ -311,6 +310,7 @@
       </div>
     </main>
     <script src="./src/shared/about.js"></script>
+    <script src="./src/shared/menu-place.js"></script>
     <script src="./src/shared/topbar.js"></script>
     <script src="./src/shared/map-shade.js"></script>
     <script src="./src/stats.js"></script>

@@ -43,6 +43,65 @@ describe("account menu", () => {
     expect(document.querySelector(".signin-chip")).toBeNull();
   });
 
+  it("☰ follows the suite's order: tools, links, About, account, language; the account once known", async () => {
+    let answer: (body: unknown) => void = () => {};
+    vi.stubGlobal("fetch", vi.fn(() => new Promise((res) => (answer = (body) => res({ ok: true, json: async () => body })))));
+    render(<AccountMenu />);
+    const groups = () => {
+      const out: string[] = [];
+      for (const el of Array.from(document.getElementById("page-menu")!.children)) {
+        const name =
+          el.tagName === "HR"
+            ? "|"
+            : el.classList.contains("menu-page")
+              ? "tools"
+              : el.getAttribute("target") === "_blank"
+                ? "links"
+                : el.classList.contains("menu-about")
+                  ? "about"
+                  : el.classList.contains("lang-switch")
+                    ? "language"
+                    : "account";
+        if (out[out.length - 1] !== name || name === "|") out.push(name);
+      }
+      return out;
+    };
+    // Rendered at once, before /auth/me answers.
+    expect(groups()).toEqual(["tools", "|", "links", "about", "|", "language"]);
+    answer({ authenticated: false });
+    await waitFor(() => expect(groups()).toEqual(["tools", "|", "links", "about", "|", "account", "|", "language"]));
+    const here = document.querySelector('#page-menu a[aria-current="page"]')!;
+    expect(here.getAttribute("href")).toBe("/configurator");
+    expect(here.querySelector("i.bi-check-lg")).not.toBeNull();
+  });
+
+  it("a click opens ☰ without moving the focus; Enter or Space moves it to the first row; the menu stays in the window", () => {
+    mockMe({ authenticated: false });
+    const place = vi.spyOn(window.BEmeshMenu, "place");
+    render(<AccountMenu />);
+    const button = screen.getByRole("button", { name: "Menu" });
+    expect(button.querySelector("i.bi-list")).not.toBeNull();
+    expect(button.textContent).toBe("");
+    button.focus();
+    fireEvent.click(button, { detail: 1 });
+    expect(document.activeElement).toBe(button);
+    expect(place).toHaveBeenCalledWith(document.getElementById("page-menu"));
+    fireEvent.click(button, { detail: 1 });
+    fireEvent.click(button, { detail: 0 });
+    expect(document.activeElement).toBe(document.querySelector("#page-menu a"));
+    place.mockRestore();
+  });
+
+  it("the selected language is pressed, in the bar and in the menu", () => {
+    mockMe({ authenticated: false });
+    render(<AccountMenu />);
+    const groups = Array.from(document.querySelectorAll(".lang-switch"));
+    expect(groups.length).toBe(2);
+    for (const g of groups) {
+      expect(Array.from(g.querySelectorAll("button")).map((b) => b.getAttribute("aria-pressed"))).toEqual(["true", "false", "false"]);
+    }
+  });
+
   it("a failing /auth/me counts as signed out, and Escape closes the menu", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => Promise.reject(new Error("offline"))));
     render(<AccountMenu />);

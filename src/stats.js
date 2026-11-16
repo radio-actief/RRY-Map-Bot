@@ -104,8 +104,10 @@
           var active30d = s.active_30d != null ? Number(s.active_30d) : 0;
           function set(id, val) {
             var el = document.getElementById(id);
-            if (el)
-              el.textContent = val != null ? num(val) : "—";
+            if (!el) return;
+            // The tile said "Loading…" until now.
+            el.removeAttribute("data-i18n");
+            el.textContent = val != null ? num(val) : "—";
           }
           function setChip(id, val, hideWhenZero) {
             set(id, val);
@@ -132,6 +134,7 @@
           );
           setChip("stats-chip-sensors", sensors > 0 ? sensors : null, true);
           var newEl = document.getElementById("stats-chip-new");
+          if (newEl) newEl.removeAttribute("data-i18n");
           if (newEl)
             newEl.textContent = [active24h, active7d, active30d]
               .map(function (n) {
@@ -338,6 +341,7 @@
 
         function syncStatsPresetPanelActive() {
           var labelEl = document.getElementById("stats-preset-label");
+          if (labelEl) labelEl.removeAttribute("data-i18n");
           if (labelEl)
             labelEl.textContent = tr("stats.preset", {
               name:
@@ -552,6 +556,7 @@
         function updateNetworkChipFromPreset() {
           var valEl = document.getElementById("stats-chip-total");
           if (!valEl) return;
+          valEl.removeAttribute("data-i18n");
           var count = getNetworkCountForPreset(currentPresetValue);
           valEl.textContent =
             count != null ? num(count) : "—";
@@ -2314,5 +2319,10 @@
             showError(err.message || tr("stats.error.page"));
             var main = document.querySelector(".stats-header-main");
             if (main) main.classList.remove("is-loading");
+            // Nothing came: the tiles stop saying "Loading…".
+            document.querySelectorAll('.stats-header-main [data-i18n="stats.tile.loading"]').forEach(function (el) {
+              el.removeAttribute("data-i18n");
+              el.textContent = "—";
+            });
           });
       });

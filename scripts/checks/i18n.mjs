@@ -4,7 +4,7 @@
 import { mockStats } from "./fixtures/mock-stats.mjs";
 
 const text = (s) => (s || "").replace(/\s+/g, " ").trim();
-const HTML_LANG = { en: "en", nl: "nl-BE", fr: "fr-FR" };
+const HTML_LANG = { en: "en", nl: "nl", fr: "fr" };
 const FIRST_LINK = { en: "Map", nl: "Kaart", fr: "Carte" };
 
 // The local database is empty, so the map gets a few synthetic nodes (with a long-named Brussels city).
@@ -63,6 +63,8 @@ async function clipped(page) {
     [...document.querySelectorAll("button, .chip, .switcher a, .segmented button, .lang-switch button")]
       .filter((el) => el.offsetParent !== null && !el.closest(".trunc, .leaflet-control, .apexcharts-canvas"))
       .filter((el) => getComputedStyle(el).textOverflow !== "ellipsis" && !el.querySelector(".sr"))
+      // A top bar button's larger hit area is an absolute ::after around it, not cut-off text.
+      .filter((el) => getComputedStyle(el, "::after").position !== "absolute")
       .filter((el) => el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 2)
       .map((el) => `${el.tagName.toLowerCase()}.${el.className}: ${el.textContent.trim().slice(0, 30)}`),
   );
@@ -137,7 +139,7 @@ export default async function (ctx) {
   // Remembered without ?lang, and the browser language on a first visit.
   const stored = await ctx.open("/region-map", { setup: async (p) => { await setup("/region-map")(p); await p.addInitScript(() => localStorage.setItem("bemesh.lang", "fr")); } });
   await ready(stored);
-  ctx.check("i18n: a stored choice applies without ?lang", (await stored.evaluate(() => document.documentElement.lang)) === "fr-FR");
+  ctx.check("i18n: a stored choice applies without ?lang", (await stored.evaluate(() => document.documentElement.lang)) === "fr");
   await stored.close();
   const browser = await ctx.open("/stats", { locale: "nl-BE", setup: setup("/stats") });
   await ready(browser);

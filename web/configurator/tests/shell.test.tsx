@@ -132,11 +132,30 @@ describe("app shell", () => {
     expect(within(drawer).queryByRole("navigation", { name: "Pages" })).toBeNull();
   });
 
-  it("the wordmark's tail can hide on a phone", () => {
+  it("the wordmark names the configurator, also on a phone", () => {
     const { container } = render(<App />);
     const mark = container.querySelector(".wordmark") as HTMLElement;
     expect(mark.textContent).toBe("#BEmesh configurator");
-    expect(mark.querySelector(".wordmark-tail")!.textContent).toBe(" configurator");
+    const css = readFileSync(resolve(process.cwd(), "web/configurator/src/theme/app.css"), "utf8");
+    expect(css).not.toMatch(/\.wordmark-tail\s*\{[^}]*display:\s*none/);
+  });
+
+  it("the top bar's icon buttons are Bootstrap icons, with no text glyphs or emoji", () => {
+    store.plan.value = { ...defaultPlan(), anchor: ronse, nameSuffix: "Proefberg" };
+    store.step.value = "settings";
+    const { container } = render(<App />);
+    const bar = container.querySelector(".topbar") as HTMLElement;
+    // The bar itself; the ☰ menu's outside links keep their ↗.
+    const own = bar.cloneNode(true) as HTMLElement;
+    own.querySelector(".menu")!.remove();
+    expect(own.textContent).not.toMatch(/[☰◐⬇▾🛠📍]|\p{Extended_Pictographic}/u);
+    const icons = Array.from(bar.querySelectorAll("button.icon"));
+    expect(icons.length).toBe(3);
+    for (const b of icons) {
+      expect(b.querySelector("i.bi")?.getAttribute("aria-hidden")).toBe("true");
+      expect(b.getAttribute("aria-label")).toBeTruthy();
+    }
+    expect(bar.querySelector(".chip.place i.bi-geo-alt")).not.toBeNull();
   });
 
   it("renders a bottom sheet with a grab handle under 768 px", () => {

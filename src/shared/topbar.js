@@ -1,9 +1,12 @@
 /* The top bar's account chip, language switch and ☰ menu, shared by the map, stats and region map pages.
  * Fills [data-account-chip], [data-lang-switch] and [data-page-menu] (a wrapper holding the ☰ button and
- * an empty .menu) from bemesh-links.json and GET /auth/me, in the page language (src/shared/i18n.js).
+ * an empty .menu) in the page language (src/shared/i18n.js).
+ * The menu shows what is known at once: the tool pages, the outside links (LINKS, a copy of
+ * bemesh-links.json), About and the language switch. Sign in or the account follows GET /auth/me.
  * Tools the site runs besides the map (GET /api/v1/site-tools, e.g. NodeBook, on a path of this site
- * or on its own address) join the page links in the top bar's .switcher and the menu; a site that
- * only runs the map lists none. The map's own pages in that list are not shown twice.
+ * or on its own address) join the page links in the top bar's .switcher and the menu when they
+ * arrive; a site that only runs the map lists none. The map's own pages in that list are not shown twice.
+ * The menu opens right-aligned under ☰ and stays inside the window (src/shared/menu-place.js).
  * The configurator renders the same menu in AccountMenu.tsx. */
 (function () {
   var PAGES = [
@@ -13,6 +16,14 @@
     ["/configurator", "page.configurator"],
   ];
   var OWN_KEYS = ["map", "stats", "regionMap", "configurator"];
+  // A copy of bemesh-links.json (this file is a classic script), so the menu needs no request.
+  var LINKS = [
+    { key: "link.radioActief", label: "Radio-Actief Website", href: "https://radio-actief.be", title: "Radio-Actief website" },
+    { key: "link.bemesh", label: "#BEmesh Website", href: "https://meshcore.radio-actief.be", title: "MeshCore website: settings & news" },
+    { key: "link.docs", label: "Documentation", href: "https://meshwiki.radio-actief.be", title: "Documentation" },
+    { key: "link.discord", label: "Discord", href: "https://discord.gg/kvybAgqnhD", title: "Join our Discord server" },
+    { key: "link.github", label: "GitHub", href: "https://github.com/radio-actief/RRY-Map-Bot", title: "Go to the Radio-Actief GitHub repo" },
+  ];
   // A copy of isToolUrl in site-urls.js (this file is a classic script): a path on this site, or
   // plain https ending in "/" (http only on this machine, for tests).
   var TOOL_PATH = /^\/(?![/\\])[A-Za-z0-9._~\-/]*$/;
@@ -43,35 +54,44 @@
     if (i18n && i18n.has(key)) return i18n.t(key);
     return fallback != null ? fallback : FALLBACK[key] || key;
   }
-  var script = document.currentScript;
-  var linksUrl = new URL("bemesh-links.json", script && script.src ? script.src : location.href).href;
   var myNodes = null;
   var loaded = null;
+  /** What the bar shows: user is undefined until /auth/me has answered, null when signed out. */
+  var state = { user: undefined, tools: [] };
 
   function pagePath() {
     var p = location.pathname.replace(/\/+$/, "") || "/";
     return PAGES.some(function (x) { return x[0] === p; }) ? p : "/";
   }
 
+  /** The listed tools that are not one of the four pages, in the site's order (NodeBook, MeshMate). */
+  function otherTools(list) {
+    var own = PAGES.map(function (p) { return p[0]; });
+    return (Array.isArray(list) ? list : []).filter(function (x) {
+      return x && typeof x.key === "string" && isToolUrl(x.url) && own.indexOf(x.url) < 0 && OWN_KEYS.indexOf(x.key) < 0;
+    });
+  }
+
+  /** Asks once for the account and the site's tools; the bar redraws as each answer arrives. */
   function load() {
     if (!loaded) {
-      var links = fetch(linksUrl).then(function (r) { return r.json(); }).catch(function () { return []; });
       var me = fetch("/auth/me", { credentials: "include" })
         .then(function (r) { return r.ok ? r.json() : null; })
         .catch(function () { return null; })
         .then(function (d) {
-          return d && d.authenticated && d.user ? d.user : null;
+          state.user = d && d.authenticated && d.user ? d.user : null;
+          render();
+          return state.user;
         });
       var tools = fetch("/api/v1/site-tools")
         .then(function (r) { return r.ok ? r.json() : []; })
         .catch(function () { return []; })
         .then(function (list) {
-          var own = PAGES.map(function (p) { return p[0]; });
-          return (Array.isArray(list) ? list : []).filter(function (x) {
-            return x && typeof x.key === "string" && isToolUrl(x.url) && own.indexOf(x.url) < 0 && OWN_KEYS.indexOf(x.key) < 0;
-          });
+          state.tools = otherTools(list);
+          render();
+          return state.tools;
         });
-      loaded = Promise.all([links, me, tools]);
+      loaded = Promise.all([me, tools]);
     }
     return loaded;
   }
@@ -89,9 +109,16 @@
     return a;
   }
 
+  /** A Bootstrap icon, hidden from screen readers (the control carries the name). */
+  function icon(name, cls) {
+    var i = el("i", "bi " + name + (cls ? " " + cls : ""));
+    i.setAttribute("aria-hidden", "true");
+    return i;
+  }
+
   function fillChip(slot, user, here) {
     slot.textContent = "";
-    if (user) return;
+    if (user !== null) return;
     var a = link("/auth/login?next=" + here, t("menu.signIn"), "chip signin-chip");
     a.title = t("menu.signInHint");
     slot.appendChild(a);
@@ -112,26 +139,48 @@
     });
   }
 
-  function fillMenu(wrap, links, user, here, tools) {
+  /** The menu's rows that take the keyboard, in order. */
+  function rows(menu) {
+    var all = Array.prototype.slice.call(menu.querySelectorAll("a, button"));
+    var shown = all.filter(function (x) {
+      return x.getClientRects().length > 0;
+    });
+    // Without layout (a test document) every row counts as shown.
+    return shown.length ? shown : all;
+  }
+
+  /**
+   * The ☰ menu, in the order every #BEmesh tool uses: the tools (phone and tablet only), the
+   * outside links, About, the account, the language (phone and tablet only).
+   */
+  function fillMenu(wrap, here) {
     var menu = wrap.querySelector(".menu");
     if (!menu) return;
+    // A redraw keeps the keyboard where it was.
+    var focused = menu.contains(document.activeElement) ? Array.prototype.indexOf.call(menu.querySelectorAll("a, button"), document.activeElement) : -1;
     menu.textContent = "";
     PAGES.forEach(function (p) {
       var a = link(p[0], t(p[1]), "menu-page");
-      if (p[0] === here) a.setAttribute("aria-current", "page");
+      if (p[0] === here) {
+        a.setAttribute("aria-current", "page");
+        a.appendChild(icon("bi-check-lg", "menu-check"));
+      }
       menu.appendChild(a);
     });
-    (tools || []).forEach(function (tool) {
-      menu.appendChild(link(tool.url, toolText(tool), "menu-page"));
+    state.tools.forEach(function (tool) {
+      var a = link(tool.url, toolText(tool), "menu-page");
+      a.setAttribute("data-site-tool", tool.key);
+      menu.appendChild(a);
     });
     menu.appendChild(el("hr", "menu-page"));
-    links.forEach(function (l) {
-      var a = link(l.href, t(l.key, l.label) + " ");
+    LINKS.forEach(function (l) {
+      var a = link(l.href, t(l.key, l.label));
       a.title = t(l.key + ".title", l.title || "");
       a.target = "_blank";
       a.rel = "noopener";
-      a.appendChild(el("span", "ext muted", "↗"));
-      a.lastChild.setAttribute("aria-hidden", "true");
+      var ext = el("span", "ext muted", "↗");
+      ext.setAttribute("aria-hidden", "true");
+      a.appendChild(ext);
       menu.appendChild(a);
     });
     if (window.BEmeshAbout) {
@@ -144,31 +193,39 @@
       });
       menu.appendChild(about);
     }
-    menu.appendChild(el("hr"));
-    if (user) {
-      var row = el("div", "menu-user");
-      row.appendChild(el("span", null, "@" + user.username));
-      var mine = el("span", "menu-mynodes");
-      mine.hidden = true;
-      row.appendChild(mine);
-      menu.appendChild(row);
-      // A POST from this page: the server refuses a logout by link or from another site.
-      var out = el("form", "menu-logout");
-      out.method = "post";
-      out.setAttribute("action", "/auth/logout?next=" + here);
-      var outBtn = el("button", null, t("menu.logOut"));
-      outBtn.type = "submit";
-      out.appendChild(outBtn);
-      menu.appendChild(out);
-      showMyNodes();
-    } else {
-      menu.appendChild(link("/auth/login?next=" + here, t("menu.signIn")));
+    var user = state.user;
+    if (user !== undefined) {
+      menu.appendChild(el("hr"));
+      if (user) {
+        var row = el("div", "menu-user");
+        row.appendChild(el("span", null, "@" + user.username));
+        var mine = el("span", "menu-mynodes");
+        mine.hidden = true;
+        row.appendChild(mine);
+        menu.appendChild(row);
+        // A POST from this page: the server refuses a logout by link or from another site.
+        var out = el("form", "menu-logout");
+        out.method = "post";
+        out.setAttribute("action", "/auth/logout?next=" + here);
+        var outBtn = el("button", null, t("menu.logOut"));
+        outBtn.type = "submit";
+        out.appendChild(outBtn);
+        menu.appendChild(out);
+      } else {
+        menu.appendChild(link("/auth/login?next=" + here, t("menu.signIn"), "menu-signin"));
+      }
     }
     var langRow = langSwitch("lang-switch menu-lang");
     if (langRow) {
       menu.appendChild(el("hr", "menu-lang"));
       menu.appendChild(langRow);
     }
+    showMyNodes();
+    if (focused >= 0) {
+      var again = menu.querySelectorAll("a, button")[focused];
+      if (again) again.focus();
+    }
+    if (!menu.hidden && window.BEmeshMenu) window.BEmeshMenu.place(menu);
   }
 
   /** EN · NL · FR: the current language pressed; a click saves the choice for all the tools and reloads in it. */
@@ -214,12 +271,19 @@
     return document.querySelector("[data-page-menu] .menu:not([hidden])");
   }
 
-  function setOpen(wrap, open) {
+  function setOpen(wrap, open, byKeyboard) {
     var btn = wrap.querySelector("button");
     var menu = wrap.querySelector(".menu");
     menu.hidden = !open;
     btn.setAttribute("aria-expanded", open ? "true" : "false");
-    if (open) document.dispatchEvent(new CustomEvent("bemesh:menu-opened"));
+    if (!open) return;
+    if (window.BEmeshMenu) window.BEmeshMenu.place(menu);
+    // Only a keyboard opening moves the focus in: a tap or click leaves no ring on the first row.
+    if (byKeyboard) {
+      var first = rows(menu)[0];
+      if (first) first.focus();
+    }
+    document.dispatchEvent(new CustomEvent("bemesh:menu-opened"));
   }
 
   function closeMenus() {
@@ -235,30 +299,38 @@
     var menu = wrap.querySelector(".menu");
     btn.id = btn.id || "menu-toggle";
     menu.id = menu.id || "page-menu";
+    menu.classList.add("page-menu");
     btn.setAttribute("aria-haspopup", "true");
     btn.setAttribute("aria-controls", menu.id);
     btn.setAttribute("aria-expanded", "false");
     menu.hidden = true;
     btn.addEventListener("click", function (e) {
       e.stopPropagation();
-      setOpen(wrap, menu.hidden);
+      // A click from Enter or Space has no pointer behind it (detail 0).
+      setOpen(wrap, menu.hidden, e.detail === 0);
     });
   }
 
-  function init() {
+  /** Draws the account chip, the language switches, the menus and the switcher's extra tools from what is known now. */
+  function render() {
     var here = pagePath();
-    document.querySelectorAll("[data-page-menu]").forEach(wire);
+    document.querySelectorAll("[data-lang-switch]").forEach(fillLangSwitch);
+    document.querySelectorAll("[data-account-chip]").forEach(function (s) { fillChip(s, state.user, here); });
+    document.querySelectorAll("[data-page-menu]").forEach(function (w) {
+      wire(w);
+      fillMenu(w, here);
+    });
+    document.querySelectorAll(".topbar .switcher").forEach(function (nav) { fillSwitcher(nav, state.tools); });
+  }
+
+  function init() {
+    render();
+    load();
     var i18n = window.BEmeshI18n;
     var ready = i18n && i18n.ready ? i18n.ready : Promise.resolve();
-    return Promise.all([load(), ready]).then(function (both) {
-      var res = both[0];
-      document.querySelectorAll("[data-lang-switch]").forEach(fillLangSwitch);
-      document.querySelectorAll("[data-account-chip]").forEach(function (s) { fillChip(s, res[1], here); });
-      document.querySelectorAll("[data-page-menu]").forEach(function (w) {
-        wire(w);
-        fillMenu(w, res[0], res[1], here, res[2]);
-      });
-      document.querySelectorAll(".topbar .switcher").forEach(function (nav) { fillSwitcher(nav, res[2]); });
+    // The page language's texts arrive after the first draw.
+    return Promise.all([loaded, ready]).then(function () {
+      render();
     });
   }
 
@@ -297,12 +369,18 @@
     btn.focus();
   });
 
+  // A turned phone or a resized window keeps the open menu inside it.
+  window.addEventListener("resize", function () {
+    var menu = openWrap();
+    if (menu && window.BEmeshMenu) window.BEmeshMenu.place(menu);
+  });
+
   window.BEmeshTopbar = {
     init: init,
     closeMenus: closeMenus,
     /** The site's other tools (not the four pages), as this bar loaded them; [] when none. */
     siteTools: function () {
-      return load().then(function (res) { return res[2]; });
+      return load().then(function () { return state.tools; });
     },
     setMyNodes: function (n) {
       myNodes = n;

@@ -17,6 +17,7 @@
     <link rel="apple-touch-icon" href="./favicon.png" />
     <link rel="preload" href="./src/shared/fonts/figtree-latin-normal-4ba7d3d096.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="./src/shared/fonts.css" />
+    <link rel="stylesheet" href="./lib/css/bootstrap-icons.css" />
     <link rel="stylesheet" href="./lib/css/leaflet.css" />
     <link rel="stylesheet" href="./lib/css/MarkerCluster.css" />
     <link rel="stylesheet" href="./lib/css/MarkerCluster.Default.css" />
@@ -40,12 +41,10 @@
       <span data-account-chip></span>
       <span data-lang-switch></span>
       <span class="menu-wrap" data-page-menu>
-        <button type="button" class="icon" aria-label="Menu" data-i18n-attr="aria-label:menu.label">☰</button>
-        <nav class="menu" aria-label="Menu" data-i18n-attr="aria-label:menu.label" hidden></nav>
+        <button type="button" class="icon" aria-label="Menu" data-i18n-attr="aria-label:menu.label"><i class="bi bi-list" aria-hidden="true"></i></button>
+        <nav class="menu page-menu" aria-label="Menu" data-i18n-attr="aria-label:menu.label" hidden></nav>
       </span>
-      <button type="button" class="icon" data-theme-toggle aria-label="Theme">
-        ◐
-      </button>
+      <button type="button" class="icon" data-theme-toggle aria-label="Theme"><i class="bi bi-circle-half" aria-hidden="true"></i></button>
     </header>
     <div class="region-map-layout">
       <aside class="region-map-controls" id="controls">
@@ -112,6 +111,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@turf/turf@7.2.0/turf.min.js"></script>
     <script src="./src/shared/be-regions.js"></script>
     <script src="./src/shared/about.js"></script>
+    <script src="./src/shared/menu-place.js"></script>
     <script src="./src/shared/topbar.js"></script>
     <script src="./src/shared/map-shade.js"></script>
     <script src="./src/region-map.js"></script>

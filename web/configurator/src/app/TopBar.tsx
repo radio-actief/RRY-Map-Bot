@@ -95,6 +95,7 @@ function ConnectionChip({ placeName }: { placeName: string | null }) {
       </button>
     );
   }
+  // On a phone only the dot shows (app.css); the text stays for screen readers.
   return (
     <span class="chip conn trunc" title={conn.title}>
       {content}
@@ -126,7 +127,8 @@ export function TopBar() {
           disabled={busy.value}
           onClick={() => (store.step.value = "place")}
         >
-          <span class="chip-text">{`📍 ${chip}`}</span>
+          <i class="bi bi-geo-alt" aria-hidden="true" />
+          <span class="chip-text">{chip}</span>
         </button>
       ) : null}
       <span class="spacer" />
@@ -136,7 +138,7 @@ export function TopBar() {
         aria-label={t("top.tools")}
         onClick={() => (store.drawerOpen.value = !store.drawerOpen.value)}
       >
-        🛠
+        <i class="bi bi-tools" aria-hidden="true" />
       </button>
       <AccountMenu />
       <button
@@ -145,7 +147,7 @@ export function TopBar() {
         aria-label={t("top.theme", { theme: t(`theme.${theme}`) })}
         onClick={() => (store.theme.value = NEXT_THEME[theme])}
       >
-        ◐
+        <i class="bi bi-circle-half" aria-hidden="true" />
       </button>
     </header>
   );

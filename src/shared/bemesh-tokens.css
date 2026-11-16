@@ -6,6 +6,8 @@
   --gold-bg: #fbf4dc;
   --ink: #1a202c;
   --mut: #64748b;
+  /* Muted text on the cream --gold-bg: #64748b is 4.32:1 there, #4a5568 is 6.84:1. */
+  --mut-on-gold-bg: #4a5568;
   --line: #e2e8f0;
   --ok: #1a7f37;
   --warn: #9a5b00;
@@ -65,6 +67,7 @@
     --gold-bg: #3a2f10;
     --ink: #edf2f7;
     --mut: #a0aec0;
+    --mut-on-gold-bg: #a0aec0;
     --line: #2d3748;
     --ok: #3fb950;
     --warn: #d29922;
@@ -100,6 +103,7 @@
   --gold-bg: #3a2f10;
   --ink: #edf2f7;
   --mut: #a0aec0;
+  --mut-on-gold-bg: #a0aec0;
   --line: #2d3748;
   --ok: #3fb950;
   --warn: #d29922;

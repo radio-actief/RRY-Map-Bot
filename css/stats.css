@@ -35,6 +35,78 @@ button.chip {
   font-family: inherit;
 }
 
+/* The Preset chip: "Preset: All" with a chevron from 1280px; narrower, the bar has no room for it
+ * and it is a sliders icon button among the tool actions (its label stays for screen readers). */
+.stats-preset-icon {
+  display: none;
+}
+
+#stats-preset-label {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 1279px) {
+  .stats-body .topbar .spacer {
+    display: none;
+  }
+
+  #stats-filter-menu {
+    margin-left: auto;
+  }
+
+  #stats-filter-menu-trigger {
+    position: relative;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border-radius: 8px;
+    font-size: 16px;
+  }
+
+  #stats-filter-menu-trigger::after {
+    content: "";
+    position: absolute;
+    inset: -3px;
+  }
+
+  .stats-preset-icon {
+    display: inline-block;
+  }
+
+  .stats-preset-chevron {
+    display: none;
+  }
+
+  #stats-preset-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 600px) {
+  #stats-filter-menu-trigger {
+    margin: 0 4px;
+  }
+
+  #stats-filter-menu-trigger::after {
+    inset: -9px;
+  }
+}
+
+/* Below 1280px the bar has no room for the sign-in chip next to the Preset button: it is in ☰. */
+@media (max-width: 1279px) {
+  .stats-body .topbar .signin-chip {
+    display: none;
+  }
+}
+
 .stats-download-btn img,
 #stats-download-menu img {
   width: 16px;
@@ -199,6 +271,10 @@ button.chip {
   font-size: 24px;
 }
 
+.tile.is-hero .tile-label {
+  color: var(--mut-on-gold-bg);
+}
+
 .tile.chip-filterable {
   cursor: pointer;
 }
@@ -214,6 +290,20 @@ button.chip {
 
 .stats-header-main.is-loading .tile-value {
   opacity: 0.4;
+}
+
+/* "Loading…" in a tile until the numbers come: body text at full strength, in the number's height. */
+.stats-header-main .tile-value[data-i18n="stats.tile.loading"] {
+  opacity: 1;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 24px;
+  color: var(--mut);
+}
+
+.stats-header-main .tile.is-hero .tile-value[data-i18n="stats.tile.loading"] {
+  line-height: 29px;
+  color: var(--mut-on-gold-bg);
 }
 
 /* Row 2: changes and playback */

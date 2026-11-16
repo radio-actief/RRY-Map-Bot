@@ -111,7 +111,7 @@ describe("language choice", () => {
     expect(fetch).toHaveBeenCalledWith("/api/v1/lang", expect.objectContaining({ method: "POST", body: JSON.stringify({ lang: "nl" }) }));
     expect(localStorage.getItem("bemesh.lang")).toBeNull();
     expect(location.search).toBe("?lang=nl&x=1");
-    expect(document.documentElement.lang).toBe("nl-BE");
+    expect(document.documentElement.lang).toBe("nl");
   });
 
   it("choose() ignores a language the site doesn't have", () => {
@@ -127,9 +127,11 @@ describe("translation", () => {
   it("translates into the chosen language and sets <html lang>", async () => {
     await setLang("fr");
     expect(t("page.map")).toBe("Carte");
-    expect(document.documentElement.lang).toBe("fr-FR");
+    // Plain language tags, as in NodeBook: no country (the pages are for Belgium, not France).
+    expect(document.documentElement.lang).toBe("fr");
     await setLang("nl");
     expect(t("page.map")).toBe("Kaart");
+    expect(document.documentElement.lang).toBe("nl");
     await setLang("en");
     expect(t("page.map")).toBe("Map");
     expect(document.documentElement.lang).toBe("en");

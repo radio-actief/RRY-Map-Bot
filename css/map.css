@@ -73,10 +73,18 @@ body.map-page {
   background: url("../img/loader.svg") center / 64px no-repeat;
 }
 
-/* Top bar */
+/* Top bar: the activity chips need the room of a wide screen; below 1440px the bar keeps one row
+ * without them (the totals stay in the map's own chip on a phone). */
 .counts-chip,
 .recent-chip {
   gap: 10px;
+}
+
+@media (max-width: 1439px) {
+  .counts-chip,
+  .recent-chip {
+    display: none;
+  }
 }
 
 .count-item {
@@ -405,10 +413,6 @@ body.map-page {
   }
 }
 
-.leaflet-control-attribution {
-  font-size: 10px;
-}
-
 .leaflet-bottom.leaflet-right {
   margin-right: max(0px, env(safe-area-inset-right, 0px));
   margin-bottom: var(--map-safe-bottom);
@@ -436,13 +440,9 @@ body.map-page {
 
 /* Phone */
 @media (max-width: 600px) {
-  .counts-chip,
-  .recent-chip {
-    display: none;
-  }
-
   .totals-chip {
     display: block;
+    top: 66px;
   }
 
   .search-box,
@@ -452,9 +452,15 @@ body.map-page {
     top: 8px;
   }
 
+  /* The search field and Filters are 44px tap targets. */
+  .search-row .input,
+  .search-box .filter-toggle {
+    min-height: 44px;
+  }
+
   .filter-panel {
-    top: 52px;
-    max-height: calc(100% - 64px);
+    top: 66px;
+    max-height: calc(100% - 78px);
   }
 
   .add-long {

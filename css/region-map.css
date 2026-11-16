@@ -107,6 +107,11 @@ html.region-map-embed .topbar {
   color: var(--mut);
 }
 
+.autocomplete-item:hover code,
+.autocomplete-item.active code {
+  color: var(--mut-on-gold-bg);
+}
+
 /* Region code rows, as in the configurator. */
 .hierarchy-node {
   width: 100%;
@@ -134,6 +139,11 @@ html.region-map-embed .topbar {
 
 .hierarchy-node.active {
   background: var(--gold-bg);
+}
+
+/* "be · country" on the selected row: the muted grey is too faint on cream. */
+.hierarchy-node.active .region-meta {
+  color: var(--mut-on-gold-bg);
 }
 
 .hierarchy-node.indent-1 {

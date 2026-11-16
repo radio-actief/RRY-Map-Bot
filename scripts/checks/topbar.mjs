@@ -25,8 +25,8 @@ export default async function (ctx) {
     await page.waitForSelector(".menu a", { state: "attached" });
     lefts[path] = (await page.locator(".topbar .switcher").boundingBox()).x;
 
-    const buttons = (await page.locator(".topbar button:visible").allTextContents()).map(text);
-    ctx.check(`${name}: last two buttons are ☰ then ◐`, buttons.slice(-2).join(",") === "☰,◐", buttons.join(","));
+    const buttons = await page.locator(".topbar button:visible").evaluateAll((bs) => bs.map((b) => b.querySelector(".bi")?.className.replace(/^bi /, "") || b.textContent.trim()));
+    ctx.check(`${name}: last two buttons are ☰ then theme`, buttons.slice(-2).join(",") === "bi-list,bi-circle-half", buttons.join(","));
 
     const chip = page.locator(".topbar a.signin-chip");
     const href = (await chip.getAttribute("href").catch(() => "")) || "";

@@ -2,7 +2,8 @@
 """Rebuild lib/css/bootstrap-icons.css and its font with only the icons the pages use.
 
 The full Bootstrap Icons set (vendor/bootstrap-icons, not served) is 86 KB of CSS and a 130 KB font;
-the map uses about twenty icons. Run this after using a new icon (`bi-...` in a page or script):
+the tools use about twenty-five icons. Run this after using a new icon (`bi-...` in a page, a script
+or the configurator's source):
 
     python3 scripts/subset-icons.py        # needs fonttools and brotli (pip install fonttools brotli)
 
@@ -14,18 +15,24 @@ import re
 import sys
 
 SOURCES = ('index.html', 'stats.html', 'region-map.html', 'src', 'src/shared')
+# The configurator's own source, every folder below it (its components use icons in the top bar).
+TREES = ('web/configurator/src',)
 ICON = re.compile(r'\bbi-[a-z0-9]+(?:-[a-z0-9]+)*')
 
 
 def used_icons(root):
     """The bi-* icon names written in the pages and their scripts."""
     found = set()
+    files = []
     for source in SOURCES:
         path = os.path.join(root, source)
-        files = [path] if os.path.isfile(path) else [
+        files += [path] if os.path.isfile(path) else [
             os.path.join(path, f) for f in sorted(os.listdir(path)) if f.endswith(('.js', '.mjs', '.html'))]
-        for f in files:
-            found.update(ICON.findall(open(f, encoding='utf-8').read()))
+    for tree in TREES:
+        for folder, _dirs, names in sorted(os.walk(os.path.join(root, tree))):
+            files += [os.path.join(folder, f) for f in sorted(names) if f.endswith(('.ts', '.tsx'))]
+    for f in files:
+        found.update(ICON.findall(open(f, encoding='utf-8').read()))
     return found
 
 

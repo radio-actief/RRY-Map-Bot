@@ -4,12 +4,14 @@
   box-sizing: border-box;
 }
 
+/* Body text 13/18; a ratio, so larger text inside keeps a fitting line height. */
 body {
   margin: 0;
   background: var(--page);
   color: var(--ink);
   font-family: var(--font-ui);
   font-size: 13px;
+  line-height: calc(18 / 13);
 }
 
 /* Keys, call signs and commands. */
@@ -26,15 +28,21 @@ button {
   color: inherit;
 }
 
+/* The ink bar: one row of 44px (the 1px line included) at every width. What doesn't fit moves into
+ * the ☰ menu: the switcher, account and language below 1024px (bemesh-shell.css, each page's own css). */
 .topbar {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 12px;
+  height: 44px;
+  padding: 0 12px;
   background: var(--topbar-bg);
   color: var(--topbar-ink);
   border-bottom: 1px solid var(--topbar-line);
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  flex-shrink: 0;
+  font-size: 12px;
+  line-height: 16px;
   /* Chips, icons and switches on the bar take the bar's dark colours in both themes. */
   --panel: transparent;
   --ink: var(--topbar-ink);
@@ -57,6 +65,7 @@ button {
   font-weight: 800;
   font-size: 14px;
   flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .wordmark b {
@@ -81,18 +90,22 @@ button {
   color: var(--ink);
 }
 
-/* The switcher starts at the same x on every page. */
-@media (min-width: 601px) {
+/* The switcher starts at the same x (212px) in every tool. */
+@media (min-width: 1024px) {
   .topbar .wordmark {
     min-width: 192px;
   }
 }
 
-/* Phone: Orbitron runs wide, so the wordmark steps down to keep the bar on one line. */
+/* Phone: 13px, the same "#BEmesh <page>" text; on a very narrow screen it ends in "…" rather than
+ * pushing the buttons off the bar. */
 @media (max-width: 600px) {
   .topbar .wordmark {
-    font-size: 12px;
-    letter-spacing: -0.02em;
+    flex-shrink: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 13px;
   }
 }
 
@@ -119,6 +132,13 @@ button {
   min-width: 0;
 }
 
+/* Text controls on the bar: Figtree 12/16, 24px high. */
+.topbar .chip {
+  height: 24px;
+  padding: 0 10px;
+  line-height: 16px;
+}
+
 .icon {
   width: 28px;
   height: 28px;
@@ -131,6 +151,40 @@ button {
 .icon.on {
   background: var(--gold-bg);
   border-color: var(--gold);
+}
+
+/* Icon buttons on the bar: a 28px frame around a 16px Bootstrap icon, and a larger hit area
+ * around the frame (32px, 44px on a phone) that takes no room in the row. */
+.topbar .icon {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  padding: 0;
+  color: var(--topbar-ink);
+  font-size: 16px;
+  line-height: 1;
+}
+
+.topbar .icon .bi::before {
+  vertical-align: 0;
+}
+
+.topbar .icon::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+}
+
+/* Phone: 44px hit areas that meet but don't overlap; the frames sit 16px apart. */
+@media (max-width: 600px) {
+  .topbar .icon {
+    margin: 0 4px;
+  }
+
+  .topbar .icon::after {
+    inset: -9px;
+  }
 }
 
 .btn {
@@ -203,6 +257,7 @@ button {
 
 .switcher a {
   padding: 4px 10px;
+  line-height: 16px;
   border-left: 1px solid var(--line);
   background: var(--panel);
   color: inherit;
@@ -226,8 +281,8 @@ button {
   font-weight: 700;
 }
 
-/* Phone: each page shows these links in its own menu instead. */
-@media (max-width: 600px) {
+/* Phone and tablet: each page shows these links in its ☰ menu instead. */
+@media (max-width: 1023px) {
   .switcher {
     display: none;
   }
@@ -312,11 +367,50 @@ button {
 
 .menu-wrap {
   position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
 }
 
+/* Right-aligned under its button, just below the bar; menu-place.js keeps it inside the window. */
 .menu-wrap .menu {
-  top: 34px;
+  top: calc(100% + 12px);
   right: 0;
+}
+
+/* The ☰ menu: the same in every #BEmesh tool. Rows of Figtree 13/18, 32px high (44px on a phone). */
+.page-menu {
+  width: 220px;
+  max-width: calc(100vw - 16px);
+  max-height: calc(100vh - 56px);
+  max-height: calc(100dvh - 56px);
+  overflow-y: auto;
+  /* A swipe that reaches the end of the menu stops there instead of scrolling the page. */
+  overscroll-behavior: contain;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 400;
+}
+
+.page-menu a,
+.page-menu > button,
+.page-menu .menu-logout button {
+  min-height: 32px;
+  padding: 7px 8px;
+  white-space: normal;
+}
+
+.page-menu .menu-user {
+  min-height: 32px;
+  align-items: center;
+}
+
+.page-menu .menu-check {
+  margin-left: auto;
+  font-size: 16px;
+}
+
+.page-menu .lang-switch button {
+  min-height: 32px;
 }
 
 .menu[hidden] {
@@ -335,7 +429,6 @@ button {
 .menu .ext {
   margin-left: auto;
   padding-left: 12px;
-  font-size: 11px;
 }
 
 .menu-user {
@@ -356,39 +449,47 @@ button {
   display: none;
 }
 
-/* The page links are in the ☰ menu on a phone only. */
+/* The tools are in the ☰ menu on a phone and a tablet only (the bar's switcher shows them on a computer). */
 .menu .menu-page {
   display: none;
 }
 
-@media (max-width: 600px) {
+@media (max-width: 1023px) {
   .menu .menu-page {
     display: flex;
-  }
-
-  /* Every row is a 44px tap target on a phone; a long menu scrolls instead of running off screen. */
-  .menu a,
-  .menu button {
-    min-height: 44px;
-  }
-
-  .menu {
-    max-height: calc(100dvh - 56px);
-    overflow-y: auto;
-    /* A swipe that reaches the end of the menu stops there instead of scrolling the page. */
-    overscroll-behavior: contain;
   }
 
   .menu hr.menu-page {
     display: block;
   }
 
-  .signin-chip {
+  /* Sign in is in the ☰ menu here. */
+  .topbar .signin-chip {
     display: none;
   }
 }
 
-/* EN · NL · FR in the top bar; on a phone it moves into the ☰ menu. */
+@media (max-width: 600px) {
+  /* Every row is a 44px tap target on a phone; a long menu scrolls instead of running off screen. */
+  .menu a,
+  .menu button,
+  .page-menu a,
+  .page-menu > button,
+  .page-menu .menu-logout button,
+  .page-menu .menu-user,
+  .page-menu .lang-switch button {
+    min-height: 44px;
+  }
+
+  .menu {
+    max-height: calc(100dvh - 56px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+}
+
+/* EN · NL · FR in the top bar; on a phone and a tablet it moves into the ☰ menu. The selected
+ * language is light on ink, never yellow: the current tool is the bar's only yellow block. */
 .lang-switch {
   display: inline-flex;
   flex-shrink: 0;
@@ -398,11 +499,13 @@ button {
 }
 
 .lang-switch button {
-  padding: 4px 7px;
+  height: 24px;
+  padding: 5px 7px;
   border: 0;
   border-left: 1px solid var(--line);
   background: var(--panel);
   font-size: 11px;
+  line-height: 14px;
   font-weight: 600;
   cursor: pointer;
 }
@@ -417,7 +520,7 @@ button {
 
 .lang-switch button[aria-pressed="true"],
 .lang-switch button[aria-pressed="true"]:hover {
-  background: var(--signal);
+  background: var(--topbar-ink);
   color: var(--topbar-bg);
   font-weight: 700;
 }
@@ -435,6 +538,7 @@ button {
   flex: 1;
   justify-content: center;
   width: auto;
+  height: auto;
   padding: 6px 8px;
   border-radius: 0;
   border-left: 1px solid var(--line);
@@ -444,13 +548,14 @@ button {
   border-left: 0;
 }
 
+/* In the menu: ink on the light glass, light in dark; never yellow. */
 .menu .lang-switch button[aria-pressed="true"],
 .menu .lang-switch button[aria-pressed="true"]:hover {
-  background: var(--signal);
-  color: var(--topbar-bg);
+  background: var(--ink);
+  color: var(--panel);
 }
 
-@media (max-width: 600px) {
+@media (max-width: 1023px) {
   .topbar .lang-switch:not(.menu-lang) {
     display: none;
   }
@@ -483,6 +588,17 @@ button {
   border: 1px solid var(--line);
   border-radius: 8px;
   box-shadow: 0 2px 8px var(--shadow);
+}
+
+/* Leaflet's zoom buttons, credit line and labels take the page font; the credit line is 11px, the
+ * smallest text the tools use. body: the configurator loads leaflet.css after this file. */
+body .leaflet-container {
+  font-family: var(--font-ui);
+}
+
+body .leaflet-container .leaflet-control-attribution {
+  font-size: 11px;
+  line-height: 14px;
 }
 
 /* Leaflet chrome follows the theme (load leaflet.css before this file). */
@@ -743,6 +859,10 @@ button {
 .switcher a[aria-current="page"]:focus-visible,
 .lang-switch button[aria-pressed="true"]:focus-visible {
   outline-color: var(--topbar-bg);
+}
+
+.menu .lang-switch button[aria-pressed="true"]:focus-visible {
+  outline-color: var(--panel);
 }
 
 /* Hover: pale gold with a gold rim in the work area; the dark gold on the bar (set on .topbar).

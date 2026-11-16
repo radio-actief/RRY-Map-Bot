@@ -7,7 +7,7 @@ const FIXTURE = new URL("../../web/configurator/tests/fixtures/parity/admin-pass
 
 export default async function (ctx) {
   const page = await openConfigurator(ctx, { phone: true });
-  const drawer = () => page.locator('.topbar button:has-text("🛠")').tap().then(() => page.waitForSelector(".drawer"));
+  const drawer = () => page.locator('.topbar button:has(.bi-tools)').tap().then(() => page.waitForSelector(".drawer"));
   await drawer();
   await page.locator('.drawer input[type="file"]').setInputFiles({
     name: "backup.json",

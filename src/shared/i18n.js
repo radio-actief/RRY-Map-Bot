@@ -20,7 +20,7 @@
   /** Intl locale per page language. */
   var LOCALES = { en: "en-GB", nl: "nl-BE", fr: "fr-FR" };
   /** Value of <html lang> per page language. */
-  var HTML_LANG = { en: "en", nl: "nl-BE", fr: "fr-FR" };
+  var HTML_LANG = { en: "en", nl: "nl", fr: "fr" };
   /** Each language's own name, for the switch. */
   var NAMES = { en: "English", nl: "Nederlands", fr: "Français" };
 

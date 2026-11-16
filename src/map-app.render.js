@@ -155,29 +155,39 @@ export function render(_ctx, _cache) {
             }), 256 /* UNKEYED_FRAGMENT */))
           ]))
         : _createCommentVNode("v-if", true),
-      _cache[20] || (_cache[20] = _createElementVNode("span", { class: "spacer" }, null, -1 /* CACHED */)),
-      _cache[21] || (_cache[21] = _createElementVNode("span", { "data-account-chip": "" }, null, -1 /* CACHED */)),
-      _cache[22] || (_cache[22] = _createElementVNode("span", { "data-lang-switch": "" }, null, -1 /* CACHED */)),
+      _cache[21] || (_cache[21] = _createElementVNode("span", { class: "spacer" }, null, -1 /* CACHED */)),
+      _cache[22] || (_cache[22] = _createElementVNode("span", { "data-account-chip": "" }, null, -1 /* CACHED */)),
+      _cache[23] || (_cache[23] = _createElementVNode("span", { "data-lang-switch": "" }, null, -1 /* CACHED */)),
       _createElementVNode("span", _hoisted_14, [
         _createElementVNode("button", {
           type: "button",
           class: "icon",
           "data-i18n-attr": "aria-label:menu.label",
           "aria-label": _ctx.t('menu.label')
-        }, "☰", 8 /* PROPS */, _hoisted_15),
+        }, [...(_cache[20] || (_cache[20] = [
+          _createElementVNode("i", {
+            class: "bi bi-list",
+            "aria-hidden": "true"
+          }, null, -1 /* CACHED */)
+        ]))], 8 /* PROPS */, _hoisted_15),
         _createElementVNode("nav", {
-          class: "menu",
+          class: "menu page-menu",
           "data-i18n-attr": "aria-label:menu.label",
           hidden: "",
           "aria-label": _ctx.t('menu.label')
         }, null, 8 /* PROPS */, _hoisted_16)
       ]),
-      _cache[23] || (_cache[23] = _createElementVNode("button", {
+      _cache[24] || (_cache[24] = _createElementVNode("button", {
         type: "button",
         class: "icon",
         "data-theme-toggle": "",
         "aria-label": "Theme"
-      }, " ◐ ", -1 /* CACHED */))
+      }, [
+        _createElementVNode("i", {
+          class: "bi bi-circle-half",
+          "aria-hidden": "true"
+        })
+      ], -1 /* CACHED */))
     ]),
     _createElementVNode("div", _hoisted_17, [
       _createElementVNode("form", {

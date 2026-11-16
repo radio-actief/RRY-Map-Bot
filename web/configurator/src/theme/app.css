@@ -48,6 +48,37 @@
   background: var(--mut);
 }
 
+/* Phone: the connection is a dot in a 28px frame with a 44px hit area; its text stays for screen readers
+ * (the buttons carry the full state in their aria-label, the plain chip in its text). */
+@media (max-width: 600px) {
+  .topbar .chip.conn,
+  .topbar .chip.conn.trunc {
+    position: relative;
+    flex: 0 0 auto;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    margin: 0 4px;
+    padding: 0;
+    border-radius: 8px;
+  }
+
+  .topbar .chip.conn::after {
+    content: "";
+    position: absolute;
+    inset: -9px;
+  }
+
+  .topbar .chip.conn .chip-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
 .stage {
   position: relative;
   flex: 1;
@@ -1546,25 +1577,6 @@ path.map-region-denied {
   .drawer {
     width: 100%;
     border-left: 0;
-  }
-
-  /* One top bar row: the wordmark's tail goes, the chips shorten. */
-  .topbar {
-    flex-wrap: nowrap;
-  }
-
-  .wordmark-tail {
-    display: none;
-  }
-
-  /* The page links move from the top bar into the device drawer. */
-  .topbar .switcher {
-    display: none;
-  }
-
-  /* Sign in is in the ☰ menu here. */
-  .topbar .signin-chip {
-    display: none;
   }
 
   .topbar .chip.trunc {

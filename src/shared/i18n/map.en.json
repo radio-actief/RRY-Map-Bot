@@ -144,5 +144,10 @@
   "map.added.7d": "Nodes added in last 7 days",
   "map.added.7d.short": "7d",
   "map.added.30d": "Nodes added in last 30 days",
-  "map.added.30d.short": "30d"
+  "map.added.30d.short": "30d",
+  "map.plan.showCoverage": "Show coverage",
+  "map.plan.profileFrom": "Profile from here",
+  "map.plan.profileTo": "Profile to here",
+  "map.plan.coverageHere": "Coverage from here",
+  "map.plan.menu": "Map menu"
 }

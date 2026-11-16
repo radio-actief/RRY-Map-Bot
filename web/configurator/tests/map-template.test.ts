@@ -2,13 +2,20 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 // @ts-expect-error plain JS build script
-import { buildMapRender } from "../../../scripts/build-map-template.mjs";
+import { buildMapRender, buildPanelsRender } from "../../../scripts/build-map-template.mjs";
 
 const read = (f: string) => readFileSync(resolve(process.cwd(), f), "utf8");
 
 describe("the map page's precompiled template", () => {
   it("is up to date with index.html (npm run build:map)", () => {
     expect(read("src/map-app.render.js")).toBe(buildMapRender(read("index.html")));
+  });
+
+  it("has the coverage and profile panels up to date with their template (npm run build:map)", () => {
+    const code = read("src/coverage/panels.render.js");
+    expect(code).toBe(buildPanelsRender(read("src/coverage/panels.html")));
+    expect(code).toMatch(/^import \{[^}]+\} from "\.\.\/\.\.\/lib\/vue\.runtime\.esm-browser\.prod\.js"/m);
+    expect(code).not.toMatch(/new Function|eval\(/);
   });
 
   it("needs no eval in the browser and imports the vendored Vue runtime", () => {

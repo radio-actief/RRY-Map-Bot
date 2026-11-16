@@ -146,5 +146,10 @@
   "map.added.7d": "Nœuds ajoutés ces 7 derniers jours",
   "map.added.7d.short": "7 j",
   "map.added.30d": "Nœuds ajoutés ces 30 derniers jours",
-  "map.added.30d.short": "30 j"
+  "map.added.30d.short": "30 j",
+  "map.plan.showCoverage": "Afficher la couverture",
+  "map.plan.profileFrom": "Profil depuis ici",
+  "map.plan.profileTo": "Profil jusqu'ici",
+  "map.plan.coverageHere": "Couverture depuis ici",
+  "map.plan.menu": "Menu de la carte"
 }

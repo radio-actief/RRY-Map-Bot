@@ -510,6 +510,7 @@
   "apply.readAgain": "Lees de repeater opnieuw voor je weer toepast, zodat het script vertrekt van wat er nu op staat.",
   "log.separator": "────────",
   "log.hidden": "(verborgen)",
+  "log.neighboursAgain": "De burentabel kwam onvolledig terug; nog één keer gevraagd.",
   "tools.title": "Toesteltools",
   "tools.device": "Toestel",
   "tools.clock": "Klok",

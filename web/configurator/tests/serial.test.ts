@@ -109,4 +109,25 @@ describe("neighbour table", () => {
     expect(await link.command("neighbors", 2000)).toBe(table);
     expect(await link.command("get a", 2000)).toBe("A");
   });
+
+  it("says whether the table's end arrived: a reply cut off by the timeout is incomplete", async () => {
+    const { link } = await linkTo({ neighbors: "a1b2c3d4:300:28" }, { raw: { "get x": "unused" } });
+    expect(await link.commandReply("neighbors", { timeoutMs: 2000 })).toEqual({ text: "a1b2c3d4:300:28", complete: true });
+    const cut = await linkTo({}, { raw: { neighbors: "neighbors\r\n  -> a1b2c3d4:300:28\n5e6f" } });
+    expect(await cut.link.commandReply("neighbors")).toEqual({ text: "a1b2c3d4:300:28\n5e6f", complete: false });
+  });
+
+  it("no reply at all is empty and incomplete", async () => {
+    const { link } = await linkTo({ neighbors: "" });
+    expect(await link.commandReply("neighbors")).toEqual({ text: "", complete: false });
+  });
+
+  it("a quiet command stays out of the command log", async () => {
+    const { link } = await linkTo({ neighbors: "-none-", "get a": "A" });
+    const seen: string[] = [];
+    link.onCommand((cmd) => seen.push(cmd));
+    await link.commandReply("neighbors", { quiet: true });
+    await link.command("get a");
+    expect(seen).toEqual(["get a"]);
+  });
 });

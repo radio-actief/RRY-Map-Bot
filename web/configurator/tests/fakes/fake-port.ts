@@ -22,8 +22,8 @@ export type FakePortOptions = {
    * late, and the commands after it wait their turn, as on the single-threaded firmware.
    */
   delayMs?: Record<string, number>;
-  /** The exact output for a command, instead of its echo and "->" reply. */
-  raw?: Record<string, string>;
+  /** The exact output for a command, instead of its echo and "->" reply; a list is given in turn (the last one stays). */
+  raw?: Record<string, string | string[]>;
   /** Replies given in turn each time the command comes (an empty one is no reply); the last one stays. */
   sequence?: Record<string, string[]>;
   /** What getInfo() reports: the USB vendor and product id. */
@@ -108,7 +108,8 @@ export class FakePort implements PortLike {
       if (this.opts.disconnectAfter === this.received.length) return this.drop();
       const delay = this.opts.delayMs?.[line] ?? 0;
       if (this.opts.raw && Object.prototype.hasOwnProperty.call(this.opts.raw, line)) {
-        this.emit(this.opts.raw[line], delay);
+        const out = this.opts.raw[line];
+        this.emit(Array.isArray(out) ? (out.length > 1 ? out.shift()! : out[0]) : out, delay);
         continue;
       }
       const turns = this.opts.sequence?.[line];

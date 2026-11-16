@@ -510,6 +510,7 @@
   "apply.readAgain": "Read the repeater again before applying again, so the script starts from what it has now.",
   "log.separator": "────────",
   "log.hidden": "(hidden)",
+  "log.neighboursAgain": "The neighbour table came back short; asked once more.",
   "tools.title": "Device tools",
   "tools.device": "Device",
   "tools.clock": "Clock",

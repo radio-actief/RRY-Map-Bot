@@ -522,6 +522,7 @@
   "apply.readAgain": "Relisez le répéteur avant d'appliquer à nouveau, pour que le script parte de son état actuel.",
   "log.separator": "────────",
   "log.hidden": "(masqué)",
+  "log.neighboursAgain": "La table des voisins est revenue incomplète ; redemandée une fois.",
   "tools.title": "Outils de l'appareil",
   "tools.device": "Appareil",
   "tools.clock": "Horloge",

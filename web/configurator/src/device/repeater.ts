@@ -1,7 +1,8 @@
 import { parseVersion, supportsRegionDef } from "../core/firmware";
 import { regionNamesToAsk, snapshotFromReplies, type DeviceSnapshot } from "../core/plan";
+import { parseNeighbours } from "../core/neighbours";
 import { SETTINGS } from "../core/settings";
-import { expectsDeviceDisconnect, isErrorReply, type SerialLink } from "./serial";
+import { expectsDeviceDisconnect, isErrorReply, type Reply, type SerialLink } from "./serial";
 
 /** What "Read from the device" asks, in this order (verbatim from the old page). */
 export const READ_COMMANDS = [
@@ -58,16 +59,46 @@ export const IDENTITY_READS = ["neighbors", "ver", "get role", "get public.key",
 /** What the read-back after Apply asks: every read Apply can change. */
 export const READ_BACK_COMMANDS = READ_COMMANDS.filter((c) => !IDENTITY_READS.includes(c));
 
+/** How the neighbour table is read: `heard` when neighbours were heard before, `onRetry` when it is asked a second time. */
+export type NeighbourRead = { heard?: boolean; onRetry?: () => void };
+
+/**
+ * A neighbour table reply that came back short: no reply at all, a reply whose closing CRLF did not
+ * arrive before the timeout, or an empty table (`-none-`) after neighbours were heard. The firmware
+ * prints no line count, so these are the only signs. An error reply is an answer, not short.
+ */
+function neighboursShort(reply: Reply, heard: boolean): boolean {
+  if (!reply.text.trim()) return true;
+  if (isErrorReply(reply.text)) return false;
+  if (!reply.complete) return true;
+  return heard && parseNeighbours(reply.text)?.length === 0;
+}
+
+/**
+ * Read the neighbour table (`neighbors`), asking once more when the reply is short (see
+ * neighboursShort). The second try stays out of the command log; `onRetry` says it happened. Its
+ * reply is used unless it brought nothing where the first brought something.
+ */
+export async function readNeighbours(link: SerialLink, { heard = false, onRetry }: NeighbourRead = {}): Promise<string> {
+  const first = await link.commandReply("neighbors");
+  if (!neighboursShort(first, heard) || !link.connected) return first.text;
+  onRetry?.();
+  const again = await link.commandReply("neighbors", { quiet: true });
+  return again.text.trim() || !first.text.trim() ? again.text : first.text;
+}
+
 /**
  * Ask every read command (or `commands`). An error reply, a timeout (empty reply) or a lost link
  * puts the command in `missing`; only good replies reach the parser. Region replies the firmware
  * cut off are completed with `region get <name>` (see regionNamesToAsk); `candidates` names the
- * regions to check when the lists may be cut too.
+ * regions to check when the lists may be cut too. A short neighbour table is asked once more
+ * (see readNeighbours, with `neighbours`).
  */
 export async function readAll(
   link: SerialLink,
   commands: string[] = READ_COMMANDS,
   candidates: (partial: DeviceSnapshot) => string[] = () => [],
+  neighbours: NeighbourRead = {},
 ): Promise<DeviceSnapshot> {
   const replies: Record<string, string> = {};
   const missing: string[] = [];
@@ -77,7 +108,7 @@ export async function readAll(
       continue;
     }
     try {
-      const reply = await link.command(cmd);
+      const reply = cmd === "neighbors" ? await readNeighbours(link, neighbours) : await link.command(cmd);
       // A board without an optional setting answers an error; a timeout is still a missing read.
       if (reply === "" || isErrorReply(reply)) {
         if (reply === "" || !OPTIONAL_READS.includes(cmd)) missing.push(cmd);

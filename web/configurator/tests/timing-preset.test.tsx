@@ -7,6 +7,7 @@ import { SerialLink } from "../src/device/serial";
 import { cancelCount, countNeighbours } from "../src/state/device";
 import { resetPlan, store } from "../src/state/store";
 import { TimingPreset } from "../src/steps/settings/TimingPreset";
+import { t } from "../src/i18n/t";
 import { FakePort, type FakePortOptions } from "./fakes/fake-port";
 
 const FAST = { interCommandDelayMs: 0, bootDrainMs: 0, disconnectSettleMs: 0, replyTimeoutMs: 40, rawQuietMs: 30 };
@@ -191,6 +192,33 @@ describe("countNeighbours", () => {
     await countNeighbours(QUICK);
     expect(port.received.filter((c) => c === "discover.neighbors")).toHaveLength(3);
     expect(store.tune.value).toEqual({ phase: "done", heard: 1, atLeast: false });
+  });
+
+  it("an empty table after neighbours were heard is asked once more, with a muted note in the log", async () => {
+    store.log.value = [];
+    const port = await connect(
+      {},
+      { sequence: { neighbors: [table(nb("aaaaaaaa", 5)), "-none-", table(nb("aaaaaaaa", 5), nb("bbbbbbbb", 2)), table(nb("aaaaaaaa", 5), nb("bbbbbbbb", 2))] } },
+    );
+    await countNeighbours(QUICK);
+    expect(port.received.filter((c) => c === "neighbors")).toHaveLength(4);
+    expect(store.tune.value).toEqual({ phase: "done", heard: 2, atLeast: false });
+    // From the first round on (the clock line before it gets "Unknown command" from this fake).
+    const log = store.log.value.slice(store.log.value.findIndex((l) => l.text === "> discover.neighbors"));
+    expect(log.filter((l) => l.text === "> neighbors")).toHaveLength(3);
+    expect(log.filter((l) => l.text === t("log.neighboursAgain"))).toEqual([{ text: t("log.neighboursAgain"), kind: "muted" }]);
+    expect(log.some((l) => l.kind === "error")).toBe(false);
+  });
+
+  it("a table that comes back without its end is asked once more before it is counted", async () => {
+    const whole = table(nb("aaaaaaaa", 5), nb("bbbbbbbb", 2));
+    const port = await connect(
+      {},
+      { raw: { neighbors: [`neighbors\r\n  -> ${nb("aaaaaaaa", 5)}\nbbbb`, `neighbors\r\n  -> ${whole}\r\n`] } },
+    );
+    await countNeighbours(QUICK);
+    expect(port.received.filter((c) => c === "neighbors")).toHaveLength(3);
+    expect(store.tune.value).toEqual({ phase: "done", heard: 2, atLeast: false });
   });
 
   it("stops early when a round adds nobody new", async () => {

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import read from "./fixtures/read-ronse.json";
 import { FakePort, type FakePortOptions } from "./fakes/fake-port";
 import { SerialLink, isErrorReply } from "../src/device/serial";
-import { READ_BACK_COMMANDS, READ_COMMANDS, apply, checkFirmware, readAll, readCount, run, stoppedApply } from "../src/device/repeater";
+import { READ_BACK_COMMANDS, READ_COMMANDS, apply, checkFirmware, readAll, readCount, readNeighbours, run, stoppedApply } from "../src/device/repeater";
 import { regionReplies, type FwRegion } from "./fakes/region-firmware";
 
 const FAST = { interCommandDelayMs: 0, bootDrainMs: 0, disconnectSettleMs: 0, replyTimeoutMs: 40 };
@@ -316,5 +316,72 @@ describe("stoppedApply", () => {
   it("a region save that got no reply does not count as saved", () => {
     expect(stoppedApply(lines, 5, ["region save"]).regionsUnsaved).toBe(true);
     expect(stoppedApply(lines, 5, ["set name X"]).regionsUnsaved).toBe(false);
+  });
+});
+
+describe("the neighbour table: one more try when it comes back short", () => {
+  const TABLE = "a1b2c3d4:300:28\n5e6f7a8b:7200:-10";
+  const asked = (port: FakePort) => port.received.filter((c) => c === "neighbors").length;
+
+  it("a whole table is asked once", async () => {
+    const { port, link } = await linkTo({ neighbors: TABLE });
+    const onRetry = vi.fn();
+    expect(await readNeighbours(link, { onRetry })).toBe(TABLE);
+    expect(asked(port)).toBe(1);
+    expect(onRetry).not.toHaveBeenCalled();
+  });
+
+  it("a table whose end did not arrive before the timeout is asked again, and the second one is used", async () => {
+    const cut = "neighbors\r\n  -> a1b2c3d4:300:28\n5e6f";
+    const { port, link } = await linkTo({}, undefined, { raw: { neighbors: [cut, `neighbors\r\n  -> ${TABLE}\r\n`] } });
+    const onRetry = vi.fn();
+    expect(await readNeighbours(link, { onRetry })).toBe(TABLE);
+    expect(asked(port)).toBe(2);
+    expect(onRetry).toHaveBeenCalledOnce();
+  });
+
+  it("no reply is asked again once, never more", async () => {
+    const { port, link } = await linkTo({}, undefined, { sequence: { neighbors: ["", "", TABLE] } });
+    expect(await readNeighbours(link)).toBe("");
+    expect(asked(port)).toBe(2);
+  });
+
+  it("an empty table after neighbours were heard is asked again; without them it is believed", async () => {
+    const heard = await linkTo({}, undefined, { sequence: { neighbors: ["-none-", TABLE] } });
+    expect(await readNeighbours(heard.link, { heard: true })).toBe(TABLE);
+    expect(asked(heard.port)).toBe(2);
+    const fresh = await linkTo({}, undefined, { sequence: { neighbors: ["-none-", TABLE] } });
+    expect(await readNeighbours(fresh.link)).toBe("-none-");
+    expect(asked(fresh.port)).toBe(1);
+  });
+
+  it("a second try that brings nothing keeps the part the first one got", async () => {
+    const cut = "neighbors\r\n  -> a1b2c3d4:300:28\n5e6f";
+    const { link } = await linkTo({}, undefined, { raw: { neighbors: [cut, "neighbors\r\n"] } });
+    expect(await readNeighbours(link)).toBe("a1b2c3d4:300:28\n5e6f");
+  });
+
+  it("an error reply is not asked again", async () => {
+    const { port, link } = await linkTo({ neighbors: "Unknown command" });
+    expect(await readNeighbours(link, { heard: true })).toBe("Unknown command");
+    expect(asked(port)).toBe(1);
+  });
+
+  it("the second try stays out of the command log", async () => {
+    const { link } = await linkTo({}, undefined, { sequence: { neighbors: ["", TABLE] } });
+    const seen: Array<string | null> = [];
+    link.onCommand((cmd, reply) => seen.push(`${cmd} -> ${reply}`));
+    await readNeighbours(link);
+    expect(seen).toEqual(["neighbors -> "]);
+  });
+
+  it("the Read asks a table that timed out once more and does not count it missing", async () => {
+    const { port, link } = await linkTo({ ...read }, undefined, { sequence: { neighbors: ["", TABLE] } });
+    const onRetry = vi.fn();
+    const s = await readAll(link, READ_COMMANDS, () => [], { onRetry });
+    expect(asked(port)).toBe(2);
+    expect(onRetry).toHaveBeenCalledOnce();
+    expect(s.missing).not.toContain("neighbors");
+    expect(s.neighbours).toHaveLength(2);
   });
 });

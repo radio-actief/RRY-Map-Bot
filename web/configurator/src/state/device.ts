@@ -9,7 +9,7 @@ import { policyFor, regionsAfterApply } from "../core/regions";
 import { REGION_DEF_MIN_TEXT } from "../core/firmware";
 import { heardWell, neighboursCut, parseNeighbours, type Neighbour } from "../core/neighbours";
 import { pubkeyFromSetReply, type VanityKey } from "../core/vanity";
-import { apply, checkFirmware, IDENTITY_READS, readAll, readCount, READ_BACK_COMMANDS, READ_COMMANDS, run, stoppedApply } from "../device/repeater";
+import { apply, checkFirmware, IDENTITY_READS, readAll, readCount, readNeighbours, READ_BACK_COMMANDS, READ_COMMANDS, run, stoppedApply } from "../device/repeater";
 import {
   expectsDeviceDisconnect,
   isErrorReply,
@@ -94,6 +94,12 @@ function logCommand(cmd: string, rawReply: string | null, error?: string): void 
   else if (expectsDeviceDisconnect(cmd)) answer = { text: t("log.disconnecting"), kind: "ok" };
   else answer = { text: t("log.noReply"), kind: "muted" };
   appendLog(sent, answer);
+}
+
+/** A muted note that the neighbour table came back short and was asked once more (shown when commands are). */
+function noteNeighboursAgain(): void {
+  if ((store.reading.peek() || readingBack) && prefs.get(SHOW_COMMAND_LOG_PREF) !== "1") return;
+  appendLog({ text: t("log.neighboursAgain"), kind: "muted" });
 }
 
 const logged = new WeakSet<SerialLink>();
@@ -316,7 +322,11 @@ export async function readDevice(): Promise<void> {
   store.lastRead.value = null;
   try {
     const places = () => store.data.peek().places ?? [];
-    const snapshot = await readAll(link, READ_COMMANDS, (partial) => regionCandidates(planFromSnapshot(partial, places())));
+    const heard = !!store.snapshot.peek()?.neighbours?.length;
+    const snapshot = await readAll(link, READ_COMMANDS, (partial) => regionCandidates(planFromSnapshot(partial, places())), {
+      heard,
+      onRetry: noteNeighboursAgain,
+    });
     if (!link.connected || store.device.peek().link !== link) {
       store.lastRead.value = { ok: false, reason: t("read.linkLost") };
       return;
@@ -682,8 +692,9 @@ async function listen(link: SerialLink, ms: number, tickMs: number, round: numbe
  * Count the repeaters it hears well, for its timing band (see bandFor). The clock is set first.
  * Each round sends `discover.neighbors` (nearby repeaters answer over the air), listens, then reads
  * `neighbors`; the count is every key prefix heard above SNR 0 in any round. It stops after
- * COUNT_ROUNDS, or sooner when a round adds nobody new. A table cut at the firmware's limit makes
- * the count "at least". The last table also becomes the Read's neighbour list.
+ * COUNT_ROUNDS, or sooner when a round adds nobody new. A short table is asked once more (see
+ * readNeighbours). A table cut at the firmware's limit makes the count "at least". The last table
+ * also becomes the Read's neighbour list.
  */
 export async function countNeighbours({ roundMs = COUNT_ROUND_MS, tickMs = 1000 } = {}): Promise<void> {
   countCancelled = false;
@@ -703,10 +714,17 @@ export async function countNeighbours({ roundMs = COUNT_ROUND_MS, tickMs = 1000 
       const asked = await exchange(link, "discover.neighbors");
       if (!asked.ok) return fail(asked.error);
       if (!(await listen(link, roundMs, tickMs, round))) return idle();
-      const reply = await exchange(link, "neighbors");
+      let reply: string;
+      try {
+        reply = await readNeighbours(link, { heard: heard.size > 0, onRetry: noteNeighboursAgain });
+      } catch (err) {
+        if (countCancelled) return idle();
+        return fail(reasonOf(err));
+      }
       if (countCancelled) return idle();
-      if (!reply.ok) return fail(reply.error);
-      const text = reply.reply.replace(/^\s*>\s*/, "");
+      if (!reply) return fail(t("tools.noReply"));
+      if (isErrorReply(reply)) return fail(reply);
+      const text = reply.replace(/^\s*>\s*/, "");
       const list = parseNeighbours(text);
       if (!list) return fail(text);
       atLeast ||= neighboursCut(text);

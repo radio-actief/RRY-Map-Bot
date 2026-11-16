@@ -53,6 +53,9 @@ export type LinkTiming = {
   rawQuietMs?: number;
 };
 
+/** A reply's text, and whether its end arrived before the timeout. */
+export type Reply = { text: string; complete: boolean };
+
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 /** Commands that reboot, wipe or switch mode, so the USB link drops. */
@@ -142,10 +145,19 @@ export class SerialLink {
 
   /** Send one line and return the reply ("" on timeout). Throws if the link is lost. */
   command(cmd: string, timeoutMs?: number): Promise<string> {
+    return this.commandReply(cmd, { timeoutMs }).then((r) => r.text);
+  }
+
+  /**
+   * Send one line and return the reply with whether its end arrived (a multi-line reply ends in
+   * CRLF; on a timeout the started part comes back incomplete). A `quiet` command is not passed
+   * to the command log (onCommand). Throws if the link is lost.
+   */
+  commandReply(cmd: string, { timeoutMs, quiet = false }: { timeoutMs?: number; quiet?: boolean } = {}): Promise<Reply> {
     const run = this.queue.then(() => this.send(cmd, timeoutMs));
     this.queue = run.catch(() => undefined);
     const line = cmd.trim();
-    if (line && this.taps.length) {
+    if (line && !quiet && this.taps.length) {
       const tell = (reply: string | null, error?: string) => {
         for (const f of this.taps) {
           try {
@@ -156,16 +168,16 @@ export class SerialLink {
         }
       };
       run.then(
-        (reply) => tell(reply),
+        (reply) => tell(reply.text),
         (err) => tell(null, err instanceof Error ? err.message : String(err)),
       );
     }
     return run;
   }
 
-  private async send(cmd: string, timeoutMs?: number): Promise<string> {
+  private async send(cmd: string, timeoutMs?: number): Promise<Reply> {
     const line = cmd.trim();
-    if (!line) return "";
+    if (!line) return { text: "", complete: true };
     if (!this.connected) throw new Error("Serial port is not connected.");
     if (CONTROL_CHAR.test(line)) throw new Error("Line contains a control character; not sent.");
     const bytes = lineBytes(line);
@@ -178,7 +190,7 @@ export class SerialLink {
     if (leaving) {
       await sleep(this.timing.disconnectSettleMs);
       await this.connectionLost();
-      return "";
+      return { text: "", complete: true };
     }
     const reply = await this.waitForReply(line, timeoutMs || this.timing.replyTimeoutMs || commandTimeout(line));
     if (!this.connected) throw new Error("Serial connection lost while waiting for reply.");
@@ -208,7 +220,7 @@ export class SerialLink {
    * an earlier (timed-out) command is never taken. The reply counts once its line ending arrived
    * (a long reply spans several USB packets); `final` (the timeout) takes a started line as it is.
    */
-  private extractReply(line: string, final: boolean): string | null {
+  private extractReply(line: string, final: boolean): Reply | null {
     const echo = this.buffer.indexOf(line + "\r");
     if (echo < 0) return null;
     const after = this.buffer.slice(echo + line.length + 1);
@@ -216,25 +228,26 @@ export class SerialLink {
       const text = after.replace(/^[\r\n]+/, "");
       if (!text) return null;
       this.buffer = "";
-      return text;
+      return { text, complete: true };
     }
     if (MULTI_LINE_REPLY.has(line)) {
       const m = /(?:^|\n)[ \t]*->[ \t]*([\s\S]*?)(\r\n|$)/.exec(after);
       if (!m || (!final && !m[2])) return null;
       this.buffer = after.slice(m.index + m[0].length);
-      return m[1];
+      return { text: m[1], complete: !!m[2] };
     }
     const m = /(?:^|\n)[ \t]*->[ \t]*([^\r\n]*)(\r?\n|\r?$)/.exec(after);
     if (!m || (!final && !m[2].endsWith("\n"))) return null;
     this.buffer = after.slice(m.index + m[0].length);
-    return m[1].trim();
+    return { text: m[1].trim(), complete: m[2].endsWith("\n") };
   }
 
   /** Resolves with the reply to `line`, or "" on timeout or when the link is lost. One waiter at a time. */
-  private waitForReply(line: string, timeoutMs: number): Promise<string> {
+  private waitForReply(line: string, timeoutMs: number): Promise<Reply> {
+    const none: Reply = { text: "", complete: false };
     return new Promise((resolve) => {
       let timer: ReturnType<typeof setTimeout> | undefined;
-      const finish = (reply: string) => {
+      const finish = (reply: Reply) => {
         if (timer) clearTimeout(timer);
         if (quiet) clearTimeout(quiet);
         if (this.waiter === check) this.waiter = null;
@@ -243,18 +256,18 @@ export class SerialLink {
       const raw = RAW_LINES_REPLY.has(line);
       let quiet: ReturnType<typeof setTimeout> | undefined;
       const check = () => {
-        if (!this.connected) return finish("");
+        if (!this.connected) return finish(none);
         if (raw) {
           if (quiet) clearTimeout(quiet);
           if (!this.hasRawText(line)) return;
-          quiet = setTimeout(() => finish(this.extractReply(line, true) ?? ""), this.timing.rawQuietMs ?? RAW_QUIET_MS);
+          quiet = setTimeout(() => finish(this.extractReply(line, true) ?? none), this.timing.rawQuietMs ?? RAW_QUIET_MS);
           return;
         }
         const reply = this.extractReply(line, false);
         if (reply !== null) return finish(reply);
       };
       this.waiter = check;
-      timer = setTimeout(() => finish(this.extractReply(line, true) ?? ""), timeoutMs);
+      timer = setTimeout(() => finish(this.extractReply(line, true) ?? none), timeoutMs);
       check();
     });
   }

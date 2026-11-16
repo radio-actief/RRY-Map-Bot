@@ -2,6 +2,15 @@
 
 What changed in each release of the #BEmesh map, bot and configurator.
 
+## 1.5.0 (2026-11-16)
+
+### Changed
+
+- Signing in from two tabs at once now works in both
+- Logging out from NodeBook asks once instead of twice; only the site's own tools may log you out, and only back to themselves
+- After logging out the map says so, and your other open map tabs follow a sign-in or log out without a reload
+- The log-out and failed sign-in pages have the site's top bar and fonts, with the main button on the right
+
 ## 1.4.1 (2026-11-16)
 
 ### New

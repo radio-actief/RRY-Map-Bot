@@ -2,7 +2,7 @@
 // Copyright (c) 2025 Rastislav Vysoky. See LICENSE in this folder.
 // Changed here: drawn in the #BEmesh house style (colours from the page's CSS variables, see
 // planning.js; a hatched Fresnel zone, masts ending in the A / B discs, the line of sight in the
-// result colour, red only where the terrain rises above it), translated hover texts, and getClearance tells where the path is tightest.
+// result colour, a light red only where the terrain rises above it, with a red top edge), translated hover texts, and getClearance tells where the path is tightest.
 // Point-to-point profile chart: the terrain (raised by the earth's bulge, so the line of sight is
 // straight), trees and buildings on it, the line of sight between the antennas and the first Fresnel zone around it
 
@@ -219,7 +219,20 @@ export function drawProfileChart(canvas, samples, { colors = DEFAULT_COLORS, lab
 		ctx.lineTo(toX(distance), toY(low));
 		ctx.closePath();
 		ctx.fillStyle = theme.blocked;
+		ctx.globalAlpha = 0.35;
 		ctx.fill();
+		ctx.globalAlpha = 1;
+		// its top edge
+		ctx.beginPath();
+		for(const { x, ground, trees, buildings } of samples) {
+			const left = toX(Math.max(0, x - halfStep)), right = toX(Math.min(distance, x + halfStep));
+			const y = toY(ground + Math.max(trees, buildings));
+			ctx.lineTo(left, y);
+			ctx.lineTo(right, y);
+		}
+		ctx.strokeStyle = theme.blocked;
+		ctx.lineWidth = 1.5;
+		ctx.stroke();
 		ctx.restore();
 	}
 

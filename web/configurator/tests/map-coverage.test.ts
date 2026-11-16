@@ -177,6 +177,16 @@ describe("the popup's coverage and profile actions", () => {
   });
 });
 
+describe("the profile's title", () => {
+  it("cuts a long name in the middle", async () => {
+    // @ts-ignore plain JS module of the map page
+    const { middleCut } = await import("../../../src/coverage/planning.js");
+    expect(middleCut("Test RPT Gent-Noord", 14)).toBe("Test RPT…Noord");
+    expect(middleCut("Short", 14)).toBe("Short");
+    expect([...middleCut("A".repeat(40), 28)]).toHaveLength(28);
+  });
+});
+
 describe("the coverage tools' texts", () => {
   it("never break a range or a value from its unit across lines, in any language", () => {
     for (const lang of ["en", "nl", "fr"]) {

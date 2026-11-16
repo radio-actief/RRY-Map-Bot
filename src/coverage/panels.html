@@ -175,13 +175,17 @@
       <button v-if="coverageOpen" type="button" class="plan-switch plan-phone-only" @click="ui.sheet = 'coverage'">
         <span aria-hidden="true">‹&nbsp;</span>{{ t('cov.sheet') }}
       </button>
-      <h2 id="plan-prof-title" class="plan-title plan-title--profile">
+      <h2
+        id="plan-prof-title"
+        class="plan-title plan-title--profile"
+        :aria-label="t('prof.from') + ' ' + profileTitle[0] + (profile.b ? ' ' + t('prof.to') + ' ' + profileTitle[1] : '')"
+      >
         <span class="plan-end" aria-hidden="true">A</span><span class="plan-sr">{{ t('prof.from') }}</span>
-        <b class="plan-end-name">{{ profileTitle[0] }}</b>
+        <b class="plan-end-name" :title="profileTitle[0]">{{ profileTitleShort[0] }}</b>
         <span class="plan-arrow" aria-hidden="true">→</span>
         <template v-if="profile.b">
           <span class="plan-end" aria-hidden="true">B</span><span class="plan-sr">{{ t('prof.to') }}</span>
-          <b class="plan-end-name">{{ profileTitle[1] }}</b>
+          <b class="plan-end-name" :title="profileTitle[1]">{{ profileTitleShort[1] }}</b>
         </template>
         <span v-else class="plan-sr">{{ t('prof.noEnd') }}</span>
       </h2>

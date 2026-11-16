@@ -3,6 +3,7 @@
 // Leaflet and markercluster (lib/) load only here, so WebGL browsers never fetch them.
 import { BASE_MAPS, baseMapIds, rasterAttribution, readBaseMap, storeBaseMap } from "./basemaps.js";
 import { wrapLon } from "./geo.js";
+import { prefersReducedMotion } from "./motion.js";
 
 const base = (path) => new URL(`../../${path}`, import.meta.url).href;
 
@@ -67,7 +68,12 @@ export async function createLeafletEngine(container, { center, zoom, t, attribut
     ],
     layers: tiles[baseId],
     zoomControl: false,
+    // reduced motion: no zoom, fade or marker animation
+    ...(prefersReducedMotion() ? { zoomAnimation: false, fadeAnimation: false, markerZoomAnimation: false } : {}),
   }).setView([center.lat, center.lon], zoom);
+  // a popup's auto-pan pans with animation: not with reduced motion
+  const panBy = map.panBy;
+  map.panBy = (offset, options) => panBy.call(map, offset, prefersReducedMotion() ? { ...options, animate: false } : options);
 
   const layerNames = Object.fromEntries(baseMapIds({ vector: false }).map((id) => [BASE_MAPS[id].label, tiles[id]]));
   map.on("baselayerchange", (ev) => {
@@ -163,7 +169,7 @@ export async function createLeafletEngine(container, { center, zoom, t, attribut
     if (look) lookOf = look;
     shown = nodes.filter((n) => Number.isFinite(Number(n.adv_lat)) && Number.isFinite(Number(n.adv_lon)));
     if (group) map.removeLayer(group);
-    group = L.markerClusterGroup({ disableClusteringAtZoom: clusterUntil || 1, chunkedLoading: true });
+    group = L.markerClusterGroup({ disableClusteringAtZoom: clusterUntil || 1, chunkedLoading: true, animate: !prefersReducedMotion() });
     group.on("click", (e) => {
       const node = markerNode.get(e.layer);
       if (node) nodeClick(node);
@@ -234,7 +240,12 @@ export async function createLeafletEngine(container, { center, zoom, t, attribut
     setView(spot, z) {
       map.setView([spot.lat, spot.lon], z, { animate: false });
     },
+    /** Flies there; with reduced motion it jumps (and is there at once). */
     flyTo(spot, z) {
+      if (prefersReducedMotion()) {
+        map.setView([spot.lat, spot.lon], z, { animate: false });
+        return Promise.resolve();
+      }
       return new Promise((resolve) => {
         map.once("moveend", () => resolve());
         map.flyTo([spot.lat, spot.lon], z);

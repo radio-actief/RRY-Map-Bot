@@ -6,6 +6,7 @@
 import { LngLatBounds, Map as MapLibreMap, Marker, Popup } from "../../lib/maplibre-gl.mjs";
 import { baseMapIds, baseMapLabel, prepareStyle, rasterStyle, readBaseMap, storeBaseMap, styleFor } from "./basemaps.js";
 import { circleRing, clusterMaxZoomFor, dashInLineWidths, fromMapZoom, toMapZoom } from "./geo.js";
+import { prefersReducedMotion } from "./motion.js";
 import { CLUSTER_SIZE, drawClusterImage, drawNodeImage, nodeImageId, parseNodeImageId, readLook } from "./node-images.js";
 
 const MIN_ZOOM = 2;
@@ -69,6 +70,8 @@ export async function createMapLibreEngine(container, { center, zoom, t, attribu
     touchPitch: false,
     rollEnabled: false,
     attributionControl: { customAttribution: attribution },
+    // reduced motion: no fade of labels and tiles, and MapLibre's own moves without animation
+    ...(prefersReducedMotion() ? { fadeDuration: 0, reduceMotion: true } : {}),
     locale: {
       "Popup.Close": t("map.close"),
       "Map.Title": t("page.map"),
@@ -325,8 +328,9 @@ export async function createMapLibreEngine(container, { center, zoom, t, attribu
     for (const leaf of leaves) bounds.extend(leaf.geometry.coordinates);
     const top = Math.max(0, overlayBottom() - container.getBoundingClientRect().top);
     const camera = map.cameraForBounds(bounds, { padding: { top: top + 30, bottom: 40, left: 40, right: 40 }, maxZoom: map.getMaxZoom() });
-    if (!camera || camera.zoom < expansionZoom) map.easeTo({ center: feature.geometry.coordinates, zoom: expansionZoom });
-    else map.easeTo({ center: camera.center, zoom: camera.zoom });
+    const move = prefersReducedMotion() ? "jumpTo" : "easeTo";
+    if (!camera || camera.zoom < expansionZoom) map[move]({ center: feature.geometry.coordinates, zoom: expansionZoom });
+    else map[move]({ center: camera.center, zoom: camera.zoom });
   }
 
   const hitLayers = () => (map.getLayer(NODES) ? [CLUSTERS, NODES] : []);
@@ -380,7 +384,7 @@ export async function createMapLibreEngine(container, { center, zoom, t, attribu
     if (box.left - dx < area.left) dx = box.left - area.left;
     if (box.bottom > area.bottom) dy = box.bottom - area.bottom;
     if (box.top - dy < area.top) dy = box.top - area.top;
-    if (dx || dy) map.panBy([dx, dy], { duration: 200 });
+    if (dx || dy) map.panBy([dx, dy], prefersReducedMotion() ? { animate: false } : { duration: 200 });
   }
 
   function closePopup() {
@@ -656,7 +660,12 @@ export async function createMapLibreEngine(container, { center, zoom, t, attribu
     setView(spot, z) {
       map.jumpTo({ center: lngLat(spot), zoom: toMapZoom(z) });
     },
+    /** Flies there; with reduced motion it jumps (and is there at once). */
     flyTo(spot, z) {
+      if (prefersReducedMotion()) {
+        map.jumpTo({ center: lngLat(spot), zoom: toMapZoom(z) });
+        return Promise.resolve();
+      }
       return new Promise((resolve) => {
         map.once("moveend", () => resolve());
         map.flyTo({ center: lngLat(spot), zoom: toMapZoom(z), maxDuration: 1500, essential: false });

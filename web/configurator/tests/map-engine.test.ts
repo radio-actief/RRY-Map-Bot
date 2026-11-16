@@ -367,3 +367,26 @@ describe("preloading MapLibre", () => {
     expect(links).toEqual(["modulepreload lib/maplibre-gl.mjs", "modulepreload src/map-engine/maplibre-engine.js", "preload lib/css/maplibre-gl.css"]);
   });
 });
+
+// @ts-ignore plain JS module of the map page
+import { prefersReducedMotion } from "../../../src/map-engine/motion.js";
+
+describe("reduced motion", () => {
+  it("follows the browser's prefers-reduced-motion, and is off without matchMedia", () => {
+    const win = (reduce: boolean) => ({ matchMedia: (q: string) => ({ matches: reduce && q === "(prefers-reduced-motion: reduce)" }) });
+    expect(prefersReducedMotion(win(true))).toBe(true);
+    expect(prefersReducedMotion(win(false))).toBe(false);
+    expect(prefersReducedMotion({})).toBe(false);
+    expect(prefersReducedMotion({ matchMedia: () => { throw new Error("x"); } })).toBe(false);
+  });
+
+  it("makes both engines jump instead of fly, and MapLibre fade nothing", () => {
+    const ml = read("src/map-engine/maplibre-engine.js");
+    expect(ml).toMatch(/prefersReducedMotion\(\) \? \{ fadeDuration: 0, reduceMotion: true \}/);
+    expect(ml).toMatch(/if \(prefersReducedMotion\(\)\) \{\s*map\.jumpTo/);
+    expect(ml).toMatch(/prefersReducedMotion\(\) \? "jumpTo" : "easeTo"/);
+    const lf = read("src/map-engine/leaflet-engine.js");
+    expect(lf).toMatch(/if \(prefersReducedMotion\(\)\) \{\s*map\.setView\(\[spot\.lat, spot\.lon\], z, \{ animate: false \}\)/);
+    expect(lf).toMatch(/zoomAnimation: false, fadeAnimation: false, markerZoomAnimation: false/);
+  });
+});

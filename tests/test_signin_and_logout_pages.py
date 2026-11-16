@@ -344,3 +344,11 @@ def test_log_out_everywhere_lands_with_its_own_message(client):
     callback(client, start(client, '/auth/login'))
     r = client.post('/auth/logout-everywhere', headers=SAME)
     assert r.headers['Location'] == '/?logout=everywhere'
+
+
+def test_the_main_action_sits_on_the_right_of_cancel_and_back():
+    client = app_module.app.test_client()
+    page = client.get('/auth/signout').get_data(as_text=True)
+    assert page.index('class="btn" href="/"') < page.index('<button type="submit" class="btn primary"')
+    page = client.get('/auth/failed?reason=failed').get_data(as_text=True)
+    assert page.index('>Back<') < page.index('>Try again<')

@@ -2032,9 +2032,10 @@ def auth_signout():
     next_page = _safe_next(request.args.get('next'))
     action = '/auth/logout' + (f'?next={quote(next_page, safe="")}' if next_page else '')
     form = (
+        # The main action on the right, Cancel to its left, as in the site's dialogs.
+        f'<a class="btn" href="{escape(next_page or "/")}">{escape(texts.get("signout.cancel", "Cancel"))}</a>'
         f'<form method="post" action="{escape(action)}">'
         f'<button type="submit" class="btn primary">{escape(texts.get("menu.logOut", "Log out"))}</button></form>'
-        f'<a class="btn" href="{escape(next_page or "/")}">{escape(texts.get("signout.cancel", "Cancel"))}</a>'
     )
     resp = _card_page(lang, texts, texts.get('signout.title', 'Log out'), [texts.get('signout.text', '')], form)
     # Log out redirects to ?next=; a browser checks that against the form's page policy.
@@ -2066,17 +2067,17 @@ def auth_failed():
         retry = f'/auth/authorize?tool={tool["key"]}&state={tool_state}'
         back = tool['url']
     key = 'signin.notMember' if reason == 'not_member' else 'signin.failed'
-    actions = ''
+    # Back on the left, the main action on the right, as in the site's dialogs.
+    actions = (
+        f'<a class="btn" href="{escape(back)}">{escape(texts.get("signin.back", "Back"))}</a>'
+        f'<a class="btn{"" if reason == "not_member" else " primary"}" href="{escape(retry)}">'
+        f'{escape(texts.get("signin.retry", "Try again"))}</a>'
+    )
     if reason == 'not_member' and DISCORD_SERVER_INVITE_URL.startswith('https://'):
         actions += (
             f'<a class="btn primary" href="{escape(DISCORD_SERVER_INVITE_URL)}" target="_blank" rel="noopener">'
             f'{escape(texts.get("signin.join", "Join the Discord server"))}</a>'
         )
-    actions += (
-        f'<a class="btn{"" if reason == "not_member" else " primary"}" href="{escape(retry)}">'
-        f'{escape(texts.get("signin.retry", "Try again"))}</a>'
-        f'<a class="btn" href="{escape(back)}">{escape(texts.get("signin.back", "Back"))}</a>'
-    )
     text = texts.get(f'signin.{"notMember" if reason == "not_member" else reason}.text', '')
     return _card_page(lang, texts, texts.get(f'{key}.title', 'Sign in'), [text], actions)
 

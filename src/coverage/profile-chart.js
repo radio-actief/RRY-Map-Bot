@@ -2,7 +2,7 @@
 // Copyright (c) 2025 Rastislav Vysoky. See LICENSE in this folder.
 // Changed here: drawn in the #BEmesh house style (colours from the page's CSS variables, see
 // planning.js; a hatched Fresnel zone, masts ending in the A / B discs, the line of sight in the
-// result colour), translated hover texts, and getClearance tells where the path is tightest.
+// result colour, red only where the terrain rises above it), translated hover texts, and getClearance tells where the path is tightest.
 // Point-to-point profile chart: the terrain (raised by the earth's bulge, so the line of sight is
 // straight), trees and buildings on it, the line of sight between the antennas and the first Fresnel zone around it
 
@@ -197,21 +197,31 @@ export function drawProfileChart(canvas, samples, { colors = DEFAULT_COLORS, lab
 	ctx.lineWidth = 1.2;
 	ctx.stroke();
 
-	// where the terrain (or trees) cuts the line of sight
-	ctx.strokeStyle = theme.blocked;
-	ctx.lineWidth = 2.5;
-	ctx.beginPath();
-	let drawing = false;
-	for(const { x, top, los } of samples) {
-		if(top > los) {
-			if(!drawing) ctx.moveTo(toX(x), toY(top));
-			else ctx.lineTo(toX(x), toY(top));
-			drawing = true;
-		} else {
-			drawing = false;
+	// what rises above the line of sight (terrain, trees, buildings): red above it, neutral below
+	const first0 = samples[0], last0 = samples.at(-1);
+	if(samples.some(({ top, los }) => top > los)) {
+		ctx.save();
+		ctx.beginPath();
+		ctx.moveTo(toX(0), toY(first0.los));
+		ctx.lineTo(toX(distance), toY(last0.los));
+		ctx.lineTo(toX(distance), PADDING.top - 1);
+		ctx.lineTo(toX(0), PADDING.top - 1);
+		ctx.closePath();
+		ctx.clip();
+		ctx.beginPath();
+		ctx.moveTo(toX(0), toY(low));
+		for(const { x, ground, trees, buildings } of samples) {
+			const left = toX(Math.max(0, x - halfStep)), right = toX(Math.min(distance, x + halfStep));
+			const y = toY(ground + Math.max(trees, buildings));
+			ctx.lineTo(left, y);
+			ctx.lineTo(right, y);
 		}
+		ctx.lineTo(toX(distance), toY(low));
+		ctx.closePath();
+		ctx.fillStyle = theme.blocked;
+		ctx.fill();
+		ctx.restore();
 	}
-	ctx.stroke();
 
 	// line of sight between the antennas, in the result colour
 	const first = samples[0], last = samples.at(-1);

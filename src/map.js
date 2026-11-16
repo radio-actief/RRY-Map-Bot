@@ -1671,7 +1671,9 @@ const mapMenu = (() => {
     el.setAttribute("aria-label", t("map.plan.menu"));
     const coords = document.createElement("div");
     coords.className = "map-menu__coords";
-    coords.textContent = `${I18N.number(lat, { minimumFractionDigits: 5 })}, ${I18N.number(lon, { minimumFractionDigits: 5 })}`;
+    // "50.89873, 4.28776" in English; with a decimal comma (nl, fr) the two are kept apart by a middle dot
+    const sep = I18N.number(0.5).includes(",") ? " · " : ", ";
+    coords.textContent = `${I18N.number(lat, { minimumFractionDigits: 5 })}${sep}${I18N.number(lon, { minimumFractionDigits: 5 })}`;
     el.append(
       coords,
       item("bi-broadcast", t("map.plan.coverageHere"), () => withPlanning((p) => p.showPointCoverage(lat, lon))),

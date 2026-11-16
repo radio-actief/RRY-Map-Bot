@@ -114,7 +114,9 @@ async function start(host) {
 		error: '',
 	});
 	const profile = reactive(createProfileState());
-	const ui = reactive({ settingsOpen: false, dark: host.isDark(), lang: i18n.lang, phone: false });
+	// sheet: the one a phone shows when both tools are open; coverageMore: the coverage panel's rest on a
+	// desktop, folded away while the profile is open
+	const ui = reactive({ settingsOpen: false, dark: host.isDark(), lang: i18n.lang, phone: false, sheet: 'coverage', coverageMore: false });
 	watch(() => ({ ...coverage.settings }), s => storageSet(SETTINGS_KEY, JSON.stringify(s)));
 	watch(() => coverage.radioPreset, p => storageSet(PRESET_KEY, p));
 	// the popup's profile links read the ends
@@ -176,9 +178,10 @@ async function start(host) {
 	function coverageStyle() {
 		const alphas = cssVar('--plan-veil-alphas').split(/[\s,]+/).map(Number).filter(Number.isFinite);
 		return {
-			rgb: cssRgb(probe, cssVar('--plan-veil') || '#1a202c'),
+			rgb: cssRgb(probe, cssVar('--plan-veil') || '#a21caf'),
 			steps: COVERAGE_STEPS,
-			alphas: alphas.length === COVERAGE_STEPS.length ? alphas : [0.12, 0.24, 0.36, 0.48],
+			alphas: alphas.length === COVERAGE_STEPS.length ? alphas : [0.18, 0.32, 0.46, 0.6],
+			edge: true,
 		};
 	}
 
@@ -468,7 +471,7 @@ async function start(host) {
 		buildings: cssVar('--plan-chart-buildings'),
 		fresnel: cssVar('--plan-chart-fresnel'),
 		los: cssVar(`--plan-result-${profileStatus.value ?? 'unchecked'}`),
-		blocked: cssVar('--plan-result-blocked'),
+		blocked: cssVar('--plan-chart-blocks'),
 		mast: cssVar('--plan-rim'),
 		point: cssVar(`--plan-result-${profileStatus.value ?? 'unchecked'}`),
 		pointText: cssVar('--plan-point-text'),
@@ -685,9 +688,16 @@ async function start(host) {
 		const site = decodeSite(params.cov);
 		if(site?.publicKey) showCoverage(site.publicKey);
 		else if(site) showPointCoverage(site.lat, site.lon);
+		// both in the link: a phone shows the profile's sheet (after the watchers above have run)
+		if(a && b) nextTick(() => { ui.sheet = 'profile'; });
 	}
 
 	// --- the actions the map calls ---
+	// a new profile shows its sheet on a phone, a new coverage its own
+	watch(() => profile.a, (a, previous) => { if(a && !previous) ui.sheet = 'profile'; });
+	watch(() => profile.b, (b, previous) => { if(b && b !== previous) ui.sheet = 'profile'; });
+	watch(() => [coverage.publicKey, coverage.point], ([key, point]) => { if(key || point) ui.sheet = 'coverage'; });
+
 	function showCoverage(publicKey) {
 		coverage.publicKey = String(publicKey).toLowerCase();
 		coverage.point = null;
@@ -737,7 +747,7 @@ async function start(host) {
 	});
 	const legend = computed(() => {
 		void ui.dark; // the colours follow the theme
-		const rgb = cssRgb(probe, cssVar('--plan-veil') || '#1a202c').join(' ');
+		const rgb = cssRgb(probe, cssVar('--plan-veil') || '#a21caf').join(' ');
 		const alphas = cssVar('--plan-veil-alphas').split(/[\s,]+/).map(Number);
 		return COVERAGE_STEPS.map((from, i) => ({
 			label: i + 1 < COVERAGE_STEPS.length ? `${from}–${COVERAGE_STEPS[i + 1]}` : `≥ ${from}`,

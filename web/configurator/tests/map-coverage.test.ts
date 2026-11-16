@@ -177,6 +177,18 @@ describe("the popup's coverage and profile actions", () => {
   });
 });
 
+describe("the coverage tools' texts", () => {
+  it("never break a range or a value from its unit across lines, in any language", () => {
+    for (const lang of ["en", "nl", "fr"]) {
+      const texts = Object.values(JSON.parse(read(`src/shared/i18n/coverage.${lang}.json`))) as string[];
+      for (const text of texts) {
+        expect(text, `${lang}: ${text}`).not.toMatch(/(\d|\}) (dB|m|km|kHz|MHz)\b/);
+        expect(text, `${lang}: ${text}`).not.toMatch(/\d–\d/);
+      }
+    }
+  });
+});
+
 describe("the map page loads the coverage tools only when they are used", () => {
   const mapJs = read("src/map.js");
 

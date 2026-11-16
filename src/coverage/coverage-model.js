@@ -489,8 +489,9 @@ function diffractionLoss(hullD, hullH, n, d, h, wavelength) {
 // the node), the map image for them (PNG blob, coordinates: top left, top right, bottom right,
 // bottom left) and some stats.
 // `rounding`: share of the rounded obstacle loss to add to the knife edges (0..1)
-// `style`: how the page draws the image, { rgb: [r, g, b], steps: [dB, ...] rising, alphas: [0-1, ...] }:
-// one opacity per margin step from the lowest step up; without it the signal colour fades with the margin
+// `style`: how the page draws the image, { rgb: [r, g, b], steps: [dB, ...] rising, alphas: [0-1, ...],
+// edge }: one opacity per margin step from the lowest step up, with `edge` the edge of reach at full
+// opacity; without it the signal colour fades with the margin
 export async function computeCoverageGrid({ lat, lon, settings, radio, rounding = 0, style = null }) {
 	const distance = settings.distanceKm * 1000;
 	const cosLat = Math.cos(lat * Math.PI / 180);
@@ -663,6 +664,20 @@ export async function computeCoverageGrid({ lat, lon, settings, radio, rounding 
 		pixels[i * 4 + 3] = Math.round(255 * (MIN_ALPHA + (MAX_ALPHA - MIN_ALPHA) * strength));
 	}
 	// (the estimate's edge and a directional antenna's direction are map lines: see map.js)
+	// the edge of reach: reached pixels next to unreached ones, at full opacity
+	if(style?.edge) {
+		const reached = i => pixels[i * 4 + 3] > 0;
+		const edge = [];
+		for(let y = 0; y < size; y++) {
+			for(let x = 0; x < size; x++) {
+				const i = y * size + x;
+				if(!reached(i)) continue;
+				if((x > 0 && !reached(i - 1)) || (x < size - 1 && !reached(i + 1)) ||
+					(y > 0 && !reached(i - size)) || (y < size - 1 && !reached(i + size))) edge.push(i);
+			}
+		}
+		for(const i of edge) pixels[i * 4 + 3] = 255;
+	}
 	ctx.putImageData(image, 0, 0);
 
 	const blob = await canvas.convertToBlob({ type: 'image/png' });

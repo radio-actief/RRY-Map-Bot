@@ -1,11 +1,19 @@
 <!-- The coverage and profile panels of the map page (src/coverage/planning.js). Compiled ahead by
      `npm run build:map` into panels.render.js: the page has no template compiler. -->
 <div class="plan-dock" :class="{ 'plan-dock--both': coverageOpen && profile.a }">
-  <section v-if="coverageOpen" class="plan-coverage" :class="{ 'plan-coverage--settings': ui.settingsOpen }" aria-labelledby="plan-cov-title">
+  <section
+    v-if="coverageOpen"
+    class="plan-coverage"
+    :class="{ 'plan-coverage--settings': ui.settingsOpen, 'plan-off-phone': profile.a && ui.sheet === 'profile' }"
+    aria-labelledby="plan-cov-title"
+  >
     <div class="plan-head">
       <i class="bi bi-broadcast plan-head__icon" aria-hidden="true"></i>
       <h2 id="plan-cov-title" class="plan-title">{{ t('cov.titlePrefix') }} <b>{{ coverage.name }}</b></h2>
       <span v-if="coverage.loading" class="plan-spinner" role="status" :aria-label="t('cov.computing')" :title="t('cov.computing')"></span>
+      <button v-if="profile.a" type="button" class="plan-switch plan-phone-only" @click="ui.sheet = 'profile'">
+        {{ t('prof.sheet') }}<span aria-hidden="true">&nbsp;›</span>
+      </button>
       <button type="button" class="plan-icon-btn" :aria-label="t('cov.close')" :title="t('cov.close')" @click="closeCoverage">
         <i class="bi bi-x-lg" aria-hidden="true"></i>
       </button>
@@ -127,22 +135,46 @@
       <template v-else>{{ t('cov.noneInReach') }}</template>
     </p>
     <p v-if="coverage.error" class="plan-error" role="alert">{{ coverage.error }}</p>
-    <div class="plan-notes">
-      <p><b>{{ t('cov.estimate') }}</b> {{ assumptions }}</p>
-      <p>{{ t('cov.outside') }}</p>
+    <button
+      v-if="profile.a"
+      type="button"
+      class="plan-more-toggle plan-desktop-only"
+      :aria-expanded="ui.coverageMore"
+      aria-controls="plan-cov-more"
+      @click="ui.coverageMore = !ui.coverageMore"
+    >
+      {{ ui.coverageMore ? t('cov.less') : t('cov.more') }}
+    </button>
+    <div id="plan-cov-more" class="plan-notes" :class="{ 'plan-collapsed-desktop': profile.a && !ui.coverageMore }">
+      <p><b>{{ t('cov.estimate') }}</b></p>
+      <details class="plan-how">
+        <summary>{{ t('cov.how') }}</summary>
+        <p>{{ assumptions }}</p>
+        <p>{{ t('cov.outside') }}</p>
+        <p>
+          {{ t('cov.credit.landcover') }}
+          <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap</a>
+          (<a href="https://openfreemap.org" target="_blank" rel="noopener noreferrer">OpenFreeMap</a>)
+        </p>
+      </details>
       <p class="plan-credits">
         {{ t('cov.credit.elevation') }}
         <a href="https://mapterhorn.com/attribution" target="_blank" rel="noopener noreferrer">© Mapterhorn</a>,
         <a href="https://github.com/tilezen/joerd/blob/master/docs/attribution.md" target="_blank" rel="noopener noreferrer">Terrain Tiles</a>
-        · {{ t('cov.credit.landcover') }}
-        <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap</a>
-        (<a href="https://openfreemap.org" target="_blank" rel="noopener noreferrer">OpenFreeMap</a>)
       </p>
     </div>
   </section>
 
-  <section v-if="profile.a" class="plan-profile" aria-labelledby="plan-prof-title">
+  <section
+    v-if="profile.a"
+    class="plan-profile"
+    :class="{ 'plan-off-phone': coverageOpen && ui.sheet === 'coverage' }"
+    aria-labelledby="plan-prof-title"
+  >
     <div class="plan-head">
+      <button v-if="coverageOpen" type="button" class="plan-switch plan-phone-only" @click="ui.sheet = 'coverage'">
+        <span aria-hidden="true">‹&nbsp;</span>{{ t('cov.sheet') }}
+      </button>
       <h2 id="plan-prof-title" class="plan-title plan-title--profile">
         <span class="plan-end" aria-hidden="true">A</span><span class="plan-sr">{{ t('prof.from') }}</span>
         <b class="plan-end-name">{{ profileTitle[0] }}</b>
@@ -203,6 +235,7 @@
         <span><i class="plan-key plan-key--buildings"></i>{{ t('prof.legend.buildings') }}</span>
         <span><i class="plan-key plan-key--fresnel"></i>{{ t('prof.legend.fresnel') }}</span>
         <span><i class="plan-key plan-key--los" :class="'plan-key--' + profileStatus"></i>{{ t('prof.legend.los') }}</span>
+        <span><i class="plan-key plan-key--blocks"></i>{{ t('prof.legend.blocks') }}</span>
       </div>
       <div class="plan-summary">
         <span class="plan-status" :class="'plan-status--' + profileStatus">

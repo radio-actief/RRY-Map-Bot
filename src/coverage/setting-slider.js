@@ -1,7 +1,7 @@
 // Adapted from map.meshcore.io (https://github.com/meshcore-dev/map.meshcore.io), MIT License,
 // Copyright (c) 2025 Rastislav Vysoky. See LICENSE in this folder.
-// Changed here: a render function (the page has Vue's runtime only), the #BEmesh slider look: a label
-// row with the value, the slider and a number field for exact values.
+// Changed here: a render function (the page has Vue's runtime only), the #BEmesh slider look: the
+// label, then the slider and a number field for exact values with its unit right after it.
 import { h, ref } from '../../lib/vue.runtime.esm-browser.prod.js';
 
 let nextId = 0;
@@ -40,10 +40,10 @@ export const SettingSlider = {
 			const value = draft.value ?? props.modelValue;
 			const shown = `${props.format(value)}${props.unit === '°' ? '°' : ` ${props.unit}`}${props.compass ? ` ${props.compass(value)}` : ''}`;
 			const fill = `${((value - props.min) / (props.max - props.min)) * 100}%`;
+			const suffix = `${props.unit}${props.compass ? `\u00a0${props.compass(value)}` : ''}`;
 			return h('div', { class: 'plan-slider' }, [
 				h('div', { class: 'plan-slider__row' }, [
 					h('label', { for: id }, props.label),
-					h('output', { for: id, class: 'plan-mono' }, shown),
 				]),
 				h('div', { class: 'plan-slider__controls' }, [
 					h('input', {
@@ -59,6 +59,7 @@ export const SettingSlider = {
 						onChange: commitNumber,
 						onKeydown: e => { if(e.key === 'Enter') e.target.blur(); },
 					}),
+					h('span', { class: ['plan-unit', 'plan-mono', { 'plan-unit--deg': props.unit === '°' }], 'aria-hidden': 'true' }, suffix),
 				]),
 			]);
 		};

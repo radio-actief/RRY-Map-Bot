@@ -93,13 +93,9 @@ const _hoisted_47 = {
   class: "plan-error",
   role: "alert"
 }
-const _hoisted_48 = { class: "plan-notes" }
-const _hoisted_49 = { class: "plan-credits" }
-const _hoisted_50 = {
-  key: 1,
-  class: "plan-profile",
-  "aria-labelledby": "plan-prof-title"
-}
+const _hoisted_48 = ["aria-expanded"]
+const _hoisted_49 = { class: "plan-how" }
+const _hoisted_50 = { class: "plan-credits" }
 const _hoisted_51 = { class: "plan-head" }
 const _hoisted_52 = {
   id: "plan-prof-title",
@@ -172,11 +168,11 @@ export function render(_ctx, _cache) {
     (_ctx.coverageOpen)
       ? (_openBlock(), _createElementBlock("section", {
           key: 0,
-          class: _normalizeClass(["plan-coverage", { 'plan-coverage--settings': _ctx.ui.settingsOpen }]),
+          class: _normalizeClass(["plan-coverage", { 'plan-coverage--settings': _ctx.ui.settingsOpen, 'plan-off-phone': _ctx.profile.a && _ctx.ui.sheet === 'profile' }]),
           "aria-labelledby": "plan-cov-title"
         }, [
           _createElementVNode("div", _hoisted_1, [
-            _cache[21] || (_cache[21] = _createElementVNode("i", {
+            _cache[25] || (_cache[25] = _createElementVNode("i", {
               class: "bi bi-broadcast plan-head__icon",
               "aria-hidden": "true"
             }, null, -1 /* CACHED */)),
@@ -193,13 +189,24 @@ export function render(_ctx, _cache) {
                   title: _ctx.t('cov.computing')
                 }, null, 8 /* PROPS */, _hoisted_3))
               : _createCommentVNode("v-if", true),
+            (_ctx.profile.a)
+              ? (_openBlock(), _createElementBlock("button", {
+                  key: 1,
+                  type: "button",
+                  class: "plan-switch plan-phone-only",
+                  onClick: _cache[0] || (_cache[0] = $event => (_ctx.ui.sheet = 'profile'))
+                }, [
+                  _createTextVNode(_toDisplayString(_ctx.t('prof.sheet')), 1 /* TEXT */),
+                  _cache[23] || (_cache[23] = _createElementVNode("span", { "aria-hidden": "true" }, " ›", -1 /* CACHED */))
+                ]))
+              : _createCommentVNode("v-if", true),
             _createElementVNode("button", {
               type: "button",
               class: "plan-icon-btn",
               "aria-label": _ctx.t('cov.close'),
               title: _ctx.t('cov.close'),
-              onClick: _cache[0] || (_cache[0] = (...args) => (_ctx.closeCoverage && _ctx.closeCoverage(...args)))
-            }, [...(_cache[20] || (_cache[20] = [
+              onClick: _cache[1] || (_cache[1] = (...args) => (_ctx.closeCoverage && _ctx.closeCoverage(...args)))
+            }, [...(_cache[24] || (_cache[24] = [
               _createElementVNode("i", {
                 class: "bi bi-x-lg",
                 "aria-hidden": "true"
@@ -213,9 +220,9 @@ export function render(_ctx, _cache) {
               "aria-expanded": _ctx.ui.settingsOpen,
               "aria-controls": "plan-cov-settings",
               "aria-label": _ctx.t('cov.settingsLabel', { summary: _ctx.summary.join(', ') }),
-              onClick: _cache[1] || (_cache[1] = (...args) => (_ctx.toggleSettings && _ctx.toggleSettings(...args)))
+              onClick: _cache[2] || (_cache[2] = (...args) => (_ctx.toggleSettings && _ctx.toggleSettings(...args)))
             }, [
-              _cache[22] || (_cache[22] = _createElementVNode("i", {
+              _cache[26] || (_cache[26] = _createElementVNode("i", {
                 class: "bi bi-sliders",
                 "aria-hidden": "true"
               }, null, -1 /* CACHED */)),
@@ -242,7 +249,7 @@ export function render(_ctx, _cache) {
                     _withDirectives(_createElementVNode("select", {
                       id: "plan-preset",
                       class: "plan-select",
-                      "onUpdate:modelValue": _cache[2] || (_cache[2] = $event => ((_ctx.coverage.radioPreset) = $event))
+                      "onUpdate:modelValue": _cache[3] || (_cache[3] = $event => ((_ctx.coverage.radioPreset) = $event))
                     }, [
                       (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(_ctx.presets, (preset) => {
                         return (_openBlock(), _createElementBlock("option", {
@@ -273,7 +280,7 @@ export function render(_ctx, _cache) {
               ]),
               _createVNode(_component_setting_slider, _mergeProps({
                 modelValue: _ctx.coverage.settings.txPower,
-                "onUpdate:modelValue": _cache[3] || (_cache[3] = $event => ((_ctx.coverage.settings.txPower) = $event))
+                "onUpdate:modelValue": _cache[4] || (_cache[4] = $event => ((_ctx.coverage.settings.txPower) = $event))
               }, _ctx.sliders.txPower, {
                 label: _ctx.t('cov.txPower'),
                 format: (v) => _ctx.num(v)
@@ -296,14 +303,14 @@ export function render(_ctx, _cache) {
                 ? (_openBlock(), _createElementBlock(_Fragment, { key: 1 }, [
                     _createVNode(_component_setting_slider, _mergeProps({
                       modelValue: _ctx.coverage.settings.beamWidth,
-                      "onUpdate:modelValue": _cache[4] || (_cache[4] = $event => ((_ctx.coverage.settings.beamWidth) = $event))
+                      "onUpdate:modelValue": _cache[5] || (_cache[5] = $event => ((_ctx.coverage.settings.beamWidth) = $event))
                     }, _ctx.sliders.beamWidth, {
                       label: _ctx.t('cov.beamWidth'),
                       format: (v) => _ctx.num(v)
                     }), null, 16 /* FULL_PROPS */, ["modelValue", "label", "format"]),
                     _createVNode(_component_setting_slider, _mergeProps({
                       modelValue: _ctx.coverage.settings.direction,
-                      "onUpdate:modelValue": _cache[5] || (_cache[5] = $event => ((_ctx.coverage.settings.direction) = $event))
+                      "onUpdate:modelValue": _cache[6] || (_cache[6] = $event => ((_ctx.coverage.settings.direction) = $event))
                     }, _ctx.sliders.direction, {
                       label: _ctx.t('cov.direction'),
                       format: (v) => _ctx.num(v),
@@ -313,14 +320,14 @@ export function render(_ctx, _cache) {
                 : _createCommentVNode("v-if", true),
               _createVNode(_component_setting_slider, _mergeProps({
                 modelValue: _ctx.coverage.settings.antennaGain,
-                "onUpdate:modelValue": _cache[6] || (_cache[6] = $event => ((_ctx.coverage.settings.antennaGain) = $event))
+                "onUpdate:modelValue": _cache[7] || (_cache[7] = $event => ((_ctx.coverage.settings.antennaGain) = $event))
               }, _ctx.sliders.antennaGain, {
                 label: _ctx.t('cov.antennaGain'),
                 format: (v) => _ctx.num(v, 1)
               }), null, 16 /* FULL_PROPS */, ["modelValue", "label", "format"]),
               _createVNode(_component_setting_slider, _mergeProps({
                 modelValue: _ctx.coverage.settings.antennaHeight,
-                "onUpdate:modelValue": _cache[7] || (_cache[7] = $event => ((_ctx.coverage.settings.antennaHeight) = $event))
+                "onUpdate:modelValue": _cache[8] || (_cache[8] = $event => ((_ctx.coverage.settings.antennaHeight) = $event))
               }, _ctx.sliders.antennaHeight, {
                 label: _ctx.t('cov.antennaHeight'),
                 format: (v) => _ctx.num(v)
@@ -329,7 +336,7 @@ export function render(_ctx, _cache) {
                 _createElementVNode("input", {
                   type: "checkbox",
                   checked: _ctx.coverage.settings.clutter,
-                  onChange: _cache[8] || (_cache[8] = $event => (_ctx.setSetting('clutter', $event.target.checked)))
+                  onChange: _cache[9] || (_cache[9] = $event => (_ctx.setSetting('clutter', $event.target.checked)))
                 }, null, 40 /* PROPS, NEED_HYDRATION */, _hoisted_25),
                 _createElementVNode("span", null, [
                   _createTextVNode(_toDisplayString(_ctx.t('cov.clutter')), 1 /* TEXT */),
@@ -357,7 +364,7 @@ export function render(_ctx, _cache) {
                 _createElementVNode("input", {
                   type: "checkbox",
                   checked: _ctx.coverage.settings.nodeDisplay === 'reachable',
-                  onChange: _cache[9] || (_cache[9] = $event => (_ctx.setSetting('nodeDisplay', $event.target.checked ? 'reachable' : 'all')))
+                  onChange: _cache[10] || (_cache[10] = $event => (_ctx.setSetting('nodeDisplay', $event.target.checked ? 'reachable' : 'all')))
                 }, null, 40 /* PROPS, NEED_HYDRATION */, _hoisted_32),
                 _createElementVNode("span", null, _toDisplayString(_ctx.t('cov.reachableOnly')), 1 /* TEXT */)
               ]),
@@ -396,7 +403,7 @@ export function render(_ctx, _cache) {
                   _createElementVNode("span", _hoisted_41, _toDisplayString(step.label), 1 /* TEXT */)
                 ]))
               }), 128 /* KEYED_FRAGMENT */)),
-              _cache[23] || (_cache[23] = _createElementVNode("span", { class: "plan-mono" }, "dB", -1 /* CACHED */))
+              _cache[27] || (_cache[27] = _createElementVNode("span", { class: "plan-mono" }, "dB", -1 /* CACHED */))
             ])
           ]),
           (_ctx.coverage.linkCounts)
@@ -405,7 +412,7 @@ export function render(_ctx, _cache) {
                   ? (_openBlock(), _createElementBlock(_Fragment, { key: 0 }, [
                       _createElementVNode("span", _hoisted_43, _toDisplayString(_ctx.t('cov.inReach')), 1 /* TEXT */),
                       _createElementVNode("span", _hoisted_44, [
-                        _cache[24] || (_cache[24] = _createElementVNode("i", {
+                        _cache[28] || (_cache[28] = _createElementVNode("i", {
                           class: "bi bi-reception-4",
                           "aria-hidden": "true"
                         }, null, -1 /* CACHED */)),
@@ -413,7 +420,7 @@ export function render(_ctx, _cache) {
                         _createElementVNode("b", null, _toDisplayString(_ctx.num(_ctx.coverage.linkCounts[3])), 1 /* TEXT */)
                       ]),
                       _createElementVNode("span", _hoisted_45, [
-                        _cache[25] || (_cache[25] = _createElementVNode("i", {
+                        _cache[29] || (_cache[29] = _createElementVNode("i", {
                           class: "bi bi-reception-3",
                           "aria-hidden": "true"
                         }, null, -1 /* CACHED */)),
@@ -421,7 +428,7 @@ export function render(_ctx, _cache) {
                         _createElementVNode("b", null, _toDisplayString(_ctx.num(_ctx.coverage.linkCounts[2])), 1 /* TEXT */)
                       ]),
                       _createElementVNode("span", _hoisted_46, [
-                        _cache[26] || (_cache[26] = _createElementVNode("i", {
+                        _cache[30] || (_cache[30] = _createElementVNode("i", {
                           class: "bi bi-reception-1",
                           "aria-hidden": "true"
                         }, null, -1 /* CACHED */)),
@@ -437,59 +444,92 @@ export function render(_ctx, _cache) {
           (_ctx.coverage.error)
             ? (_openBlock(), _createElementBlock("p", _hoisted_47, _toDisplayString(_ctx.coverage.error), 1 /* TEXT */))
             : _createCommentVNode("v-if", true),
-          _createElementVNode("div", _hoisted_48, [
+          (_ctx.profile.a)
+            ? (_openBlock(), _createElementBlock("button", {
+                key: 2,
+                type: "button",
+                class: "plan-more-toggle plan-desktop-only",
+                "aria-expanded": _ctx.ui.coverageMore,
+                "aria-controls": "plan-cov-more",
+                onClick: _cache[11] || (_cache[11] = $event => (_ctx.ui.coverageMore = !_ctx.ui.coverageMore))
+              }, _toDisplayString(_ctx.ui.coverageMore ? _ctx.t('cov.less') : _ctx.t('cov.more')), 9 /* TEXT, PROPS */, _hoisted_48))
+            : _createCommentVNode("v-if", true),
+          _createElementVNode("div", {
+            id: "plan-cov-more",
+            class: _normalizeClass(["plan-notes", { 'plan-collapsed-desktop': _ctx.profile.a && !_ctx.ui.coverageMore }])
+          }, [
             _createElementVNode("p", null, [
-              _createElementVNode("b", null, _toDisplayString(_ctx.t('cov.estimate')), 1 /* TEXT */),
-              _createTextVNode(" " + _toDisplayString(_ctx.assumptions), 1 /* TEXT */)
+              _createElementVNode("b", null, _toDisplayString(_ctx.t('cov.estimate')), 1 /* TEXT */)
             ]),
-            _createElementVNode("p", null, _toDisplayString(_ctx.t('cov.outside')), 1 /* TEXT */),
-            _createElementVNode("p", _hoisted_49, [
+            _createElementVNode("details", _hoisted_49, [
+              _createElementVNode("summary", null, _toDisplayString(_ctx.t('cov.how')), 1 /* TEXT */),
+              _createElementVNode("p", null, _toDisplayString(_ctx.assumptions), 1 /* TEXT */),
+              _createElementVNode("p", null, _toDisplayString(_ctx.t('cov.outside')), 1 /* TEXT */),
+              _createElementVNode("p", null, [
+                _createTextVNode(_toDisplayString(_ctx.t('cov.credit.landcover')) + " ", 1 /* TEXT */),
+                _cache[31] || (_cache[31] = _createElementVNode("a", {
+                  href: "https://www.openstreetmap.org/copyright",
+                  target: "_blank",
+                  rel: "noopener noreferrer"
+                }, "© OpenStreetMap", -1 /* CACHED */)),
+                _cache[32] || (_cache[32] = _createTextVNode(" (", -1 /* CACHED */)),
+                _cache[33] || (_cache[33] = _createElementVNode("a", {
+                  href: "https://openfreemap.org",
+                  target: "_blank",
+                  rel: "noopener noreferrer"
+                }, "OpenFreeMap", -1 /* CACHED */)),
+                _cache[34] || (_cache[34] = _createTextVNode(") ", -1 /* CACHED */))
+              ])
+            ]),
+            _createElementVNode("p", _hoisted_50, [
               _createTextVNode(_toDisplayString(_ctx.t('cov.credit.elevation')) + " ", 1 /* TEXT */),
-              _cache[27] || (_cache[27] = _createElementVNode("a", {
+              _cache[35] || (_cache[35] = _createElementVNode("a", {
                 href: "https://mapterhorn.com/attribution",
                 target: "_blank",
                 rel: "noopener noreferrer"
               }, "© Mapterhorn", -1 /* CACHED */)),
-              _cache[28] || (_cache[28] = _createTextVNode(", ", -1 /* CACHED */)),
-              _cache[29] || (_cache[29] = _createElementVNode("a", {
+              _cache[36] || (_cache[36] = _createTextVNode(", ", -1 /* CACHED */)),
+              _cache[37] || (_cache[37] = _createElementVNode("a", {
                 href: "https://github.com/tilezen/joerd/blob/master/docs/attribution.md",
                 target: "_blank",
                 rel: "noopener noreferrer"
-              }, "Terrain Tiles", -1 /* CACHED */)),
-              _createTextVNode(" · " + _toDisplayString(_ctx.t('cov.credit.landcover')) + " ", 1 /* TEXT */),
-              _cache[30] || (_cache[30] = _createElementVNode("a", {
-                href: "https://www.openstreetmap.org/copyright",
-                target: "_blank",
-                rel: "noopener noreferrer"
-              }, "© OpenStreetMap", -1 /* CACHED */)),
-              _cache[31] || (_cache[31] = _createTextVNode(" (", -1 /* CACHED */)),
-              _cache[32] || (_cache[32] = _createElementVNode("a", {
-                href: "https://openfreemap.org",
-                target: "_blank",
-                rel: "noopener noreferrer"
-              }, "OpenFreeMap", -1 /* CACHED */)),
-              _cache[33] || (_cache[33] = _createTextVNode(") ", -1 /* CACHED */))
+              }, "Terrain Tiles", -1 /* CACHED */))
             ])
-          ])
+          ], 2 /* CLASS */)
         ], 2 /* CLASS */))
       : _createCommentVNode("v-if", true),
     (_ctx.profile.a)
-      ? (_openBlock(), _createElementBlock("section", _hoisted_50, [
+      ? (_openBlock(), _createElementBlock("section", {
+          key: 1,
+          class: _normalizeClass(["plan-profile", { 'plan-off-phone': _ctx.coverageOpen && _ctx.ui.sheet === 'coverage' }]),
+          "aria-labelledby": "plan-prof-title"
+        }, [
           _createElementVNode("div", _hoisted_51, [
+            (_ctx.coverageOpen)
+              ? (_openBlock(), _createElementBlock("button", {
+                  key: 0,
+                  type: "button",
+                  class: "plan-switch plan-phone-only",
+                  onClick: _cache[12] || (_cache[12] = $event => (_ctx.ui.sheet = 'coverage'))
+                }, [
+                  _cache[38] || (_cache[38] = _createElementVNode("span", { "aria-hidden": "true" }, "‹ ", -1 /* CACHED */)),
+                  _createTextVNode(_toDisplayString(_ctx.t('cov.sheet')), 1 /* TEXT */)
+                ]))
+              : _createCommentVNode("v-if", true),
             _createElementVNode("h2", _hoisted_52, [
-              _cache[35] || (_cache[35] = _createElementVNode("span", {
+              _cache[40] || (_cache[40] = _createElementVNode("span", {
                 class: "plan-end",
                 "aria-hidden": "true"
               }, "A", -1 /* CACHED */)),
               _createElementVNode("span", _hoisted_53, _toDisplayString(_ctx.t('prof.from')), 1 /* TEXT */),
               _createElementVNode("b", _hoisted_54, _toDisplayString(_ctx.profileTitle[0]), 1 /* TEXT */),
-              _cache[36] || (_cache[36] = _createElementVNode("span", {
+              _cache[41] || (_cache[41] = _createElementVNode("span", {
                 class: "plan-arrow",
                 "aria-hidden": "true"
               }, "→", -1 /* CACHED */)),
               (_ctx.profile.b)
                 ? (_openBlock(), _createElementBlock(_Fragment, { key: 0 }, [
-                    _cache[34] || (_cache[34] = _createElementVNode("span", {
+                    _cache[39] || (_cache[39] = _createElementVNode("span", {
                       class: "plan-end",
                       "aria-hidden": "true"
                     }, "B", -1 /* CACHED */)),
@@ -500,7 +540,7 @@ export function render(_ctx, _cache) {
             ]),
             (_ctx.profile.loading)
               ? (_openBlock(), _createElementBlock("span", {
-                  key: 0,
+                  key: 1,
                   class: "plan-spinner",
                   role: "status",
                   "aria-label": _ctx.t('prof.computing'),
@@ -513,8 +553,8 @@ export function render(_ctx, _cache) {
               "aria-label": _ctx.t('prof.swap'),
               title: _ctx.t('prof.swap'),
               disabled: !_ctx.profile.b,
-              onClick: _cache[10] || (_cache[10] = (...args) => (_ctx.swapProfileEnds && _ctx.swapProfileEnds(...args)))
-            }, [...(_cache[37] || (_cache[37] = [
+              onClick: _cache[13] || (_cache[13] = (...args) => (_ctx.swapProfileEnds && _ctx.swapProfileEnds(...args)))
+            }, [...(_cache[42] || (_cache[42] = [
               _createElementVNode("i", {
                 class: "bi bi-arrow-left-right",
                 "aria-hidden": "true"
@@ -525,8 +565,8 @@ export function render(_ctx, _cache) {
               class: "plan-icon-btn",
               "aria-label": _ctx.t('prof.close'),
               title: _ctx.t('prof.close'),
-              onClick: _cache[11] || (_cache[11] = (...args) => (_ctx.closeProfile && _ctx.closeProfile(...args)))
-            }, [...(_cache[38] || (_cache[38] = [
+              onClick: _cache[14] || (_cache[14] = (...args) => (_ctx.closeProfile && _ctx.closeProfile(...args)))
+            }, [...(_cache[43] || (_cache[43] = [
               _createElementVNode("i", {
                 class: "bi bi-x-lg",
                 "aria-hidden": "true"
@@ -539,14 +579,14 @@ export function render(_ctx, _cache) {
           _createElementVNode("div", _hoisted_62, [
             _createVNode(_component_setting_slider, _mergeProps({
               modelValue: _ctx.profile.heightA,
-              "onUpdate:modelValue": _cache[12] || (_cache[12] = $event => ((_ctx.profile.heightA) = $event))
+              "onUpdate:modelValue": _cache[15] || (_cache[15] = $event => ((_ctx.profile.heightA) = $event))
             }, _ctx.sliders.antennaHeight, {
               label: _ctx.t('prof.heightA'),
               format: (v) => _ctx.num(v)
             }), null, 16 /* FULL_PROPS */, ["modelValue", "label", "format"]),
             _createVNode(_component_setting_slider, _mergeProps({
               modelValue: _ctx.profile.heightB,
-              "onUpdate:modelValue": _cache[13] || (_cache[13] = $event => ((_ctx.profile.heightB) = $event))
+              "onUpdate:modelValue": _cache[16] || (_cache[16] = $event => ((_ctx.profile.heightB) = $event))
             }, _ctx.sliders.antennaHeight, {
               label: _ctx.t('prof.heightB'),
               format: (v) => _ctx.num(v)
@@ -555,7 +595,7 @@ export function render(_ctx, _cache) {
               ? (_openBlock(), _createElementBlock("div", _hoisted_63, [
                   _createVNode(_component_setting_slider, _mergeProps({
                     modelValue: _ctx.coverage.settings.direction,
-                    "onUpdate:modelValue": _cache[14] || (_cache[14] = $event => ((_ctx.coverage.settings.direction) = $event))
+                    "onUpdate:modelValue": _cache[17] || (_cache[17] = $event => ((_ctx.coverage.settings.direction) = $event))
                   }, _ctx.sliders.direction, {
                     label: _ctx.t('prof.directionA'),
                     format: (v) => _ctx.num(v),
@@ -566,9 +606,9 @@ export function render(_ctx, _cache) {
                         key: 0,
                         type: "button",
                         class: "btn small plan-aim",
-                        onClick: _cache[15] || (_cache[15] = (...args) => (_ctx.aimAtB && _ctx.aimAtB(...args)))
+                        onClick: _cache[18] || (_cache[18] = (...args) => (_ctx.aimAtB && _ctx.aimAtB(...args)))
                       }, [
-                        _cache[39] || (_cache[39] = _createElementVNode("i", {
+                        _cache[44] || (_cache[44] = _createElementVNode("i", {
                           class: "bi bi-crosshair",
                           "aria-hidden": "true"
                         }, null, -1 /* CACHED */)),
@@ -583,7 +623,7 @@ export function render(_ctx, _cache) {
                   _withDirectives(_createElementVNode("select", {
                     id: "plan-prof-preset",
                     class: "plan-select",
-                    "onUpdate:modelValue": _cache[16] || (_cache[16] = $event => ((_ctx.coverage.radioPreset) = $event))
+                    "onUpdate:modelValue": _cache[19] || (_cache[19] = $event => ((_ctx.coverage.radioPreset) = $event))
                   }, [
                     (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(_ctx.presets, (preset) => {
                       return (_openBlock(), _createElementBlock("option", {
@@ -605,25 +645,25 @@ export function render(_ctx, _cache) {
                   class: "plan-chart",
                   role: "img",
                   "aria-label": _ctx.t('prof.chartLabel'),
-                  onPointermove: _cache[17] || (_cache[17] = (...args) => (_ctx.onChartPointer && _ctx.onChartPointer(...args))),
-                  onPointerdown: _cache[18] || (_cache[18] = (...args) => (_ctx.onChartPointer && _ctx.onChartPointer(...args))),
-                  onPointerleave: _cache[19] || (_cache[19] = (...args) => (_ctx.onChartLeave && _ctx.onChartLeave(...args)))
+                  onPointermove: _cache[20] || (_cache[20] = (...args) => (_ctx.onChartPointer && _ctx.onChartPointer(...args))),
+                  onPointerdown: _cache[21] || (_cache[21] = (...args) => (_ctx.onChartPointer && _ctx.onChartPointer(...args))),
+                  onPointerleave: _cache[22] || (_cache[22] = (...args) => (_ctx.onChartLeave && _ctx.onChartLeave(...args)))
                 }, null, 40 /* PROPS, NEED_HYDRATION */, _hoisted_68),
                 _createElementVNode("div", _hoisted_69, [
                   _createElementVNode("span", null, [
-                    _cache[40] || (_cache[40] = _createElementVNode("i", { class: "plan-key plan-key--terrain" }, null, -1 /* CACHED */)),
+                    _cache[45] || (_cache[45] = _createElementVNode("i", { class: "plan-key plan-key--terrain" }, null, -1 /* CACHED */)),
                     _createTextVNode(_toDisplayString(_ctx.t('prof.legend.terrain')), 1 /* TEXT */)
                   ]),
                   _createElementVNode("span", null, [
-                    _cache[41] || (_cache[41] = _createElementVNode("i", { class: "plan-key plan-key--trees" }, null, -1 /* CACHED */)),
+                    _cache[46] || (_cache[46] = _createElementVNode("i", { class: "plan-key plan-key--trees" }, null, -1 /* CACHED */)),
                     _createTextVNode(_toDisplayString(_ctx.t('prof.legend.trees')), 1 /* TEXT */)
                   ]),
                   _createElementVNode("span", null, [
-                    _cache[42] || (_cache[42] = _createElementVNode("i", { class: "plan-key plan-key--buildings" }, null, -1 /* CACHED */)),
+                    _cache[47] || (_cache[47] = _createElementVNode("i", { class: "plan-key plan-key--buildings" }, null, -1 /* CACHED */)),
                     _createTextVNode(_toDisplayString(_ctx.t('prof.legend.buildings')), 1 /* TEXT */)
                   ]),
                   _createElementVNode("span", null, [
-                    _cache[43] || (_cache[43] = _createElementVNode("i", { class: "plan-key plan-key--fresnel" }, null, -1 /* CACHED */)),
+                    _cache[48] || (_cache[48] = _createElementVNode("i", { class: "plan-key plan-key--fresnel" }, null, -1 /* CACHED */)),
                     _createTextVNode(_toDisplayString(_ctx.t('prof.legend.fresnel')), 1 /* TEXT */)
                   ]),
                   _createElementVNode("span", null, [
@@ -631,6 +671,10 @@ export function render(_ctx, _cache) {
                       class: _normalizeClass(["plan-key plan-key--los", 'plan-key--' + _ctx.profileStatus])
                     }, null, 2 /* CLASS */),
                     _createTextVNode(_toDisplayString(_ctx.t('prof.legend.los')), 1 /* TEXT */)
+                  ]),
+                  _createElementVNode("span", null, [
+                    _cache[49] || (_cache[49] = _createElementVNode("i", { class: "plan-key plan-key--blocks" }, null, -1 /* CACHED */)),
+                    _createTextVNode(_toDisplayString(_ctx.t('prof.legend.blocks')), 1 /* TEXT */)
                   ])
                 ]),
                 _createElementVNode("div", _hoisted_70, [
@@ -661,19 +705,19 @@ export function render(_ctx, _cache) {
                     : _createCommentVNode("v-if", true),
                   _createElementVNode("span", _hoisted_74, _toDisplayString(_ctx.fmt.km(_ctx.profileView.result.distance)), 1 /* TEXT */),
                   _createElementVNode("span", null, [
-                    _cache[44] || (_cache[44] = _createTextVNode("A→B ", -1 /* CACHED */)),
+                    _cache[50] || (_cache[50] = _createTextVNode("A→B ", -1 /* CACHED */)),
                     _createElementVNode("span", _hoisted_75, _toDisplayString(_ctx.fmt.deg(_ctx.profileView.result.bearing)), 1 /* TEXT */),
-                    _cache[45] || (_cache[45] = _createTextVNode(", B→A ", -1 /* CACHED */)),
+                    _cache[51] || (_cache[51] = _createTextVNode(", B→A ", -1 /* CACHED */)),
                     _createElementVNode("span", _hoisted_76, _toDisplayString(_ctx.fmt.deg(_ctx.profileView.result.backBearing)), 1 /* TEXT */)
                   ]),
                   _createElementVNode("span", null, [
-                    _cache[46] || (_cache[46] = _createTextVNode("A ", -1 /* CACHED */)),
+                    _cache[52] || (_cache[52] = _createTextVNode("A ", -1 /* CACHED */)),
                     _createElementVNode("span", _hoisted_77, _toDisplayString(_ctx.fmt.m(_ctx.profileView.result.elevations[0])), 1 /* TEXT */),
-                    _cache[47] || (_cache[47] = _createTextVNode(" + ", -1 /* CACHED */)),
+                    _cache[53] || (_cache[53] = _createTextVNode(" + ", -1 /* CACHED */)),
                     _createElementVNode("span", _hoisted_78, _toDisplayString(_ctx.fmt.m(_ctx.profileView.heights[0])), 1 /* TEXT */),
-                    _cache[48] || (_cache[48] = _createTextVNode(", B ", -1 /* CACHED */)),
+                    _cache[54] || (_cache[54] = _createTextVNode(", B ", -1 /* CACHED */)),
                     _createElementVNode("span", _hoisted_79, _toDisplayString(_ctx.fmt.m(_ctx.profileView.result.elevations.at(-1))), 1 /* TEXT */),
-                    _cache[49] || (_cache[49] = _createTextVNode(" + ", -1 /* CACHED */)),
+                    _cache[55] || (_cache[55] = _createTextVNode(" + ", -1 /* CACHED */)),
                     _createElementVNode("span", _hoisted_80, _toDisplayString(_ctx.fmt.m(_ctx.profileView.heights[1])), 1 /* TEXT */)
                   ]),
                   _createElementVNode("span", null, [
@@ -691,7 +735,7 @@ export function render(_ctx, _cache) {
                             _createTextVNode(" + " + _toDisplayString(_ctx.fmt.db(_ctx.profileView.result.losses.clutterA + _ctx.profileView.result.losses.clutterB)) + " " + _toDisplayString(_ctx.t('prof.loss.clutter')), 1 /* TEXT */)
                           ], 64 /* STABLE_FRAGMENT */))
                         : _createCommentVNode("v-if", true),
-                      _cache[50] || (_cache[50] = _createTextVNode(")", -1 /* CACHED */))
+                      _cache[56] || (_cache[56] = _createTextVNode(")", -1 /* CACHED */))
                     ])
                   ])
                 ]),
@@ -704,7 +748,7 @@ export function render(_ctx, _cache) {
           (_ctx.profile.error)
             ? (_openBlock(), _createElementBlock("p", _hoisted_84, _toDisplayString(_ctx.profile.error), 1 /* TEXT */))
             : _createCommentVNode("v-if", true)
-        ]))
+        ], 2 /* CLASS */))
       : _createCommentVNode("v-if", true)
   ], 2 /* CLASS */))
 }

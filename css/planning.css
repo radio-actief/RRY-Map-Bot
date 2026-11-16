@@ -3,11 +3,11 @@
  * --plan-* variables below: change them here. */
 
 :root {
-  /* Coverage: a "reach veil" in the node rim colour, one opacity per link margin step (0/10/20/30 dB).
-   * --coverage is the fallback colour, should the veil read badly on real tiles. */
+  /* Coverage in its own hue, one opacity per link margin step (0/10/20/30 dB), weakest faintest;
+   * the edge of reach at full opacity. */
   --coverage: #a21caf;
-  --plan-veil: var(--node-rim);
-  --plan-veil-alphas: 0.12 0.24 0.36 0.48;
+  --plan-veil: var(--coverage);
+  --plan-veil-alphas: 0.18 0.32 0.46 0.6;
   --plan-rim: var(--node-rim);
   /* A / B and the line between them: --node before the check, then the result */
   --plan-result-pending: var(--node);
@@ -27,12 +27,14 @@
   --plan-chart-buildings: #94a3b8;
   --plan-chart-fresnel: rgb(17 89 175 / 0.35);
   --plan-chart-tooltip: rgb(255 255 255 / 0.94);
+  /* what rises above the line of sight */
+  --plan-chart-blocks: var(--bad);
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --coverage: #e879f9;
-    --plan-veil-alphas: 0.1 0.2 0.3 0.4;
+    --plan-veil-alphas: 0.22 0.36 0.5 0.64;
     --plan-point-text: #12161f;
     --plan-chart-terrain: #2d3748;
     --plan-chart-trees: rgb(63 185 80 / 0.3);
@@ -44,7 +46,7 @@
 
 :root[data-theme="dark"] {
   --coverage: #e879f9;
-  --plan-veil-alphas: 0.1 0.2 0.3 0.4;
+  --plan-veil-alphas: 0.22 0.36 0.5 0.64;
   --plan-point-text: #12161f;
   --plan-chart-terrain: #2d3748;
   --plan-chart-trees: rgb(63 185 80 / 0.3);
@@ -293,18 +295,18 @@
   top: calc(100% + 6px);
   left: 0;
   width: 310px;
-  max-height: calc(100vh - 220px);
+  /* clear of the profile panel when that's open */
+  max-height: max(200px, calc(100vh - 240px - var(--plan-profile-h, 0px)));
   overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 8px;
   padding: 10px 12px 12px;
-  border: 1px solid var(--glass-line);
+  border: 1px solid var(--line);
   border-radius: 8px;
-  background: var(--glass);
-  box-shadow: var(--glass-shadow);
-  -webkit-backdrop-filter: var(--glass-blur);
-  backdrop-filter: var(--glass-blur);
+  /* solid: no glass on the glass panel */
+  background: var(--panel);
+  box-shadow: 0 6px 20px var(--shadow);
   box-sizing: border-box;
 }
 
@@ -355,9 +357,17 @@
   gap: 8px;
 }
 
-.plan-slider__row output {
+.plan-unit {
+  flex: none;
+  min-width: 2.6em;
   font-size: 12px;
   line-height: 16px;
+}
+
+/* "40°": against the number */
+.plan-unit--deg {
+  min-width: 3.4em;
+  margin-left: -4px;
 }
 
 .plan-slider__controls {
@@ -493,6 +503,7 @@
 }
 
 .plan-legend__step {
+  white-space: nowrap;
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -569,6 +580,69 @@
 
 .plan-notes a {
   color: var(--node);
+}
+
+/* Behind "How this is estimated": the assumptions, the outside services, the land cover credit */
+.plan-how summary {
+  display: flex;
+  align-items: center;
+  min-height: 32px;
+  color: var(--node);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.plan-how > p:first-of-type {
+  margin-top: 0;
+}
+
+/* The rest of the coverage panel while the profile is open (desktop): behind More */
+.plan-more-toggle {
+  min-height: 32px;
+  margin-top: 4px;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: var(--node);
+  font: 600 12px/16px var(--font-ui);
+  cursor: pointer;
+}
+
+/* Phone: switching between the two sheets when both tools are open */
+.plan-switch {
+  flex: none;
+  display: none;
+  align-items: center;
+  min-height: 32px;
+  padding: 4px 10px;
+  border: 1px solid var(--field-line);
+  border-radius: 999px;
+  background: none;
+  color: var(--ink);
+  font: 600 12px/16px var(--font-ui);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+@media (min-width: 601px) {
+  .plan-collapsed-desktop {
+    display: none;
+  }
+}
+
+@media (max-width: 600px) {
+  .plan-desktop-only,
+  .plan-off-phone {
+    display: none !important;
+  }
+
+  .plan-phone-only {
+    display: inline-flex;
+  }
+
+  .plan-switch {
+    min-height: 44px;
+  }
 }
 
 /* ---------- the profile ---------- */
@@ -668,6 +742,10 @@
 .plan-key--fresnel {
   background: repeating-linear-gradient(-45deg, var(--plan-chart-fresnel) 0 1.5px, transparent 1.5px 4px);
   border: 1px solid var(--plan-chart-fresnel);
+}
+
+.plan-key--blocks {
+  background: var(--plan-chart-blocks);
 }
 
 .plan-key--los {
@@ -957,15 +1035,6 @@ path.plan-hover {
     --node: var(--glass-link);
   }
 
-  .plan-dock--both .plan-coverage {
-    flex-basis: 40%;
-    border-radius: 12px 12px 0 0;
-  }
-
-  .plan-dock--both .plan-profile {
-    border-radius: 0;
-  }
-
   .plan-profile {
     padding-bottom: calc(12px + var(--map-safe-bottom, 0px));
   }
@@ -1021,15 +1090,13 @@ path.plan-hover {
 }
 
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .plan-coverage,
-  .plan-settings {
+  .plan-coverage {
     background: var(--panel);
   }
 }
 
 @media (prefers-reduced-transparency: reduce) {
-  .plan-coverage,
-  .plan-settings {
+  .plan-coverage {
     background: var(--panel);
     -webkit-backdrop-filter: none;
     backdrop-filter: none;

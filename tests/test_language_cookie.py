@@ -119,3 +119,27 @@ def test_an_odd_cookie_value_is_ignored(client):
     client.set_cookie('bemesh_lang', 'de')
     page = client.get('/auth/signout', headers={'Accept-Language': 'fr-BE'}).get_data(as_text=True)
     assert '<html lang="fr">' in page
+
+
+# How browsers send their languages (Chrome/Edge/Firefox/Safari, incognito, fingerprint protection)
+
+
+@pytest.mark.parametrize('header, want', [
+    ('de-DE,de;q=0.9,nl-BE;q=0.8,nl;q=0.7', 'nl'),          # Chrome adds language-only entries with q-values
+    ('nl-BE;q=0.5,fr-BE;q=0.9', 'fr'),                       # q order, not written order
+    ('en-US', 'en'),                                         # Firefox fingerprint protection, Safari: one language
+    ('fr-BE', 'fr'),                                         # Chrome incognito: one language
+    ('de-DE', 'en'),
+    ('NL_be', 'nl'), ('FR-be,en;q=0.5', 'fr'),
+    ('*', 'en'), ('*;q=0.9,nl;q=0.8', 'nl'),
+    ('', 'en'), (',,;q=,', 'en'), ('nl;q=0', 'en'), ('nl;q=abc', 'en'),   # a broken entry is dropped
+    (','.join(f'x{i:03d};q=0.9' for i in range(300)) + ',fr;q=0.1', 'fr'),
+])
+def test_the_server_pages_read_every_form_of_browser_language(client, header, want):
+    page = client.get('/auth/signout', headers={'Accept-Language': header}).get_data(as_text=True)
+    assert f'<html lang="{want}">' in page
+
+
+def test_no_language_header_at_all_gives_english(client):
+    r = client.get('/auth/signout', environ_overrides={'HTTP_ACCEPT_LANGUAGE': ''})
+    assert '<html lang="en">' in r.get_data(as_text=True)

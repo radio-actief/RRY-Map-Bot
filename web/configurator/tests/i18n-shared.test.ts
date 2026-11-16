@@ -30,6 +30,27 @@ describe("language choice", () => {
     expect(I18N.pick({}).lang).toBe("en");
   });
 
+  it("reads every form of browser language list: one entry, odd case, underscores, *, empty, long", () => {
+    // Safari and Chrome incognito give one language; Firefox fingerprint protection gives en-US.
+    expect(I18N.pick({ browser: ["fr-BE"] }).lang).toBe("fr");
+    expect(I18N.pick({ browser: ["en-US"] }).lang).toBe("en");
+    expect(I18N.pick({ browser: ["NL_be"] }).lang).toBe("nl");
+    expect(I18N.pick({ browser: ["*", "nl"] }).lang).toBe("nl");
+    expect(I18N.pick({ browser: ["*"] }).lang).toBe("en");
+    expect(I18N.pick({ browser: ["", " ", "fr"] }).lang).toBe("fr");
+    expect(I18N.pick({ browser: null }).lang).toBe("en");
+    expect(I18N.pick({ browser: [...Array.from({ length: 300 }, (_, i) => `x${i}`), "nl-BE"] }).lang).toBe("nl");
+  });
+
+  it("detect() copes with a browser that gives only navigator.language, or nothing", () => {
+    vi.stubGlobal("navigator", { language: "fr-BE" });
+    expect(I18N.detect()).toBe("fr");
+    vi.stubGlobal("navigator", { languages: [], language: "nl" });
+    expect(I18N.detect()).toBe("nl");
+    vi.stubGlobal("navigator", {});
+    expect(I18N.detect()).toBe("en");
+  });
+
   it("the choice shared by the site's tools (cookie bemesh_lang) beats the browser", () => {
     expect(I18N.pick({ cookie: "fr", browser: ["nl-BE"] }).lang).toBe("fr");
     expect(I18N.pick({ cookie: "de", browser: ["nl-BE"] }).lang).toBe("nl");

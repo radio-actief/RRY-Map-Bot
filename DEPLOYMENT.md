@@ -131,10 +131,17 @@ Each tool on its own address keeps its own browser storage, so a fault in one to
 another's or act as the signed-in person there. What that needs:
 
 - Sign-in: `/auth/login?next=` and `/auth/logout?next=` return to a map page or to a listed `url`,
-  exactly. Other tools log out through `GET /auth/signout?next=<their url>`: a page on the map's
-  address with one button that posts to `/auth/logout`. The map's cookies
-  (`bemesh_map_session`, and `rry_oauth` during a sign-in) stay on the map's own host: no other
-  address ever gets them. A tool that needs to know who is signed in asks the map, below.
+  exactly. A map page gets `?logout=success` (`?logout=everywhere` after "Log out everywhere") and
+  says so; a tool gets its address as it is. Up to three sign-ins may wait at once in one browser
+  (two tabs, or a map tab and a tool), each for ten minutes. A shown tool on its own address that
+  asked its own question logs out by posting a form from its page to
+  `<map>/auth/logout?next=<its url>`: the map takes it when the request's `Origin` is that tool's
+  origin and `next` is that tool's listed `url`, exactly; anything else is refused (403). That needs
+  the tools on one site (as the device hub below), or the browser doesn't send the map's cookie with
+  the post. Other tools (and hidden ones) log out through `GET /auth/signout?next=<their url>`: a
+  page on the map's address with Log out and Cancel. The map's cookies (`bemesh_map_session`, and
+  `rry_oauth` during a sign-in) stay on the map's own host: no other address ever gets them. A tool
+  that needs to know who is signed in asks the map, below.
 - The map popup asks NodeBook `GET <nodebook url>api/nodes/<key>` with the visitor's cookies when
   NodeBook is on another address: NodeBook answers with `Access-Control-Allow-Origin: <the map's
   origin>` and `Access-Control-Allow-Credentials: true`. "In your NodeBook" and "Add to NodeBook"

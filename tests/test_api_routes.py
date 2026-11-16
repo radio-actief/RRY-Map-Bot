@@ -143,7 +143,7 @@ class TestAuthNext(unittest.TestCase):
     def test_logout_returns_to_a_tool_page(self):
         r = self.client.post("/auth/logout?next=/stats", headers=SAME_SITE)
         self.assertEqual(r.status_code, 302)
-        self.assertEqual(r.headers["Location"], "/stats")
+        self.assertEqual(r.headers["Location"], "/stats?logout=success")
 
     def test_logout_home_keeps_the_success_flag(self):
         for query in ("?next=/", ""):

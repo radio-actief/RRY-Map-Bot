@@ -10,6 +10,7 @@ import sys
 import os
 import re
 import threading
+import time
 from collections import OrderedDict
 from typing import Optional
 from urllib.parse import urlparse
@@ -145,10 +146,26 @@ def _same_site_only():
     # refuse one), so there is no visitor's cookie to misuse.
     if request.path in TOOL_SERVER_PATHS:
         return None
+    if _logout_from_its_tool():
+        return None
     source = request.headers.get('Origin') or request.headers.get('Referer') or ''
     if urlparse(source).netloc != request.host:
         return jsonify({'error': 'cross_site_request'}), 403
     return None
+
+
+def _logout_from_its_tool():
+    """A log out a shown tool asked for on its own page, after its own question: POST /auth/logout
+    whose Origin is that tool's own address and whose ?next= is that tool's listed address, exactly.
+    The person then goes straight back to that tool. Any other site, a hidden tool, a tool on a path
+    of this site (it passes as this site), or a way back to anywhere else stays refused."""
+    if request.path != '/auth/logout':
+        return False
+    origin = request.headers.get('Origin')
+    nxt = request.args.get('next')
+    if not origin or not nxt:
+        return False
+    return any(tool['url'] == nxt and tool_origins([tool]) == [origin] for tool in shown_tools(SITE_TOOLS))
 
 
 # Compression for every page, script, style and data answer the browser accepts it for (stdlib gzip,
@@ -1488,11 +1505,13 @@ def _after_auth_target(next_page, home_query):
     return '/?' + home_query
 
 
-# A started sign-in (OAuth state and the page to return to) lives in a short-lived signed cookie,
-# not in the server-side session store: anonymous /auth/login requests then create no session
-# files, so they can't push signed-in users' sessions out of the store.
+# Started sign-ins (each with its OAuth state and where it goes afterwards) live in a short-lived
+# signed cookie, not in the server-side session store: anonymous /auth/login requests then create no
+# session files, so they can't push signed-in users' sessions out of the store. Up to
+# OAUTH_MAX_PENDING wait at once (two tabs, or a map tab and a tool), each for OAUTH_MAX_AGE_S.
 OAUTH_COOKIE = 'rry_oauth'
 OAUTH_MAX_AGE_S = 600
+OAUTH_MAX_PENDING = 3
 
 
 def _oauth_serializer():
@@ -1500,16 +1519,59 @@ def _oauth_serializer():
     return URLSafeTimedSerializer(app.config['SECRET_KEY'], salt='oauth-login')
 
 
-def read_oauth_pending(value):
-    """The sign-in started by this browser (``{'state', 'next'}``), or None if missing, forged or too old."""
+def _oauth_entries(value):
+    """The sign-ins in this browser's cookie, oldest first, each a dict with its 'state' and the time
+    'at' it started; also ones that no longer wait (see _waiting). [] if missing, forged or too old."""
     from itsdangerous import BadSignature
     if not value:
-        return None
+        return []
     try:
-        data = _oauth_serializer().loads(value, max_age=OAUTH_MAX_AGE_S)
+        data, signed = _oauth_serializer().loads(value, max_age=OAUTH_MAX_AGE_S, return_timestamp=True)
     except BadSignature:
-        return None
-    return data if isinstance(data, dict) else None
+        return []
+    if isinstance(data, dict) and isinstance(data.get('state'), str):
+        # One sign-in, as the cookie held it before several could wait.
+        data = {'pending': [{**data, 'at': signed.timestamp()}]}
+    entries = data.get('pending') if isinstance(data, dict) else None
+    if not isinstance(entries, list):
+        return []
+    return [e for e in entries[-OAUTH_MAX_PENDING:]
+            if isinstance(e, dict) and isinstance(e.get('state'), str) and isinstance(e.get('at'), (int, float))]
+
+
+def _waiting(entry):
+    """Whether a started sign-in still waits for its callback (it started less than OAUTH_MAX_AGE_S ago)."""
+    return 0 <= time.time() - entry['at'] <= OAUTH_MAX_AGE_S
+
+
+def _same_state(entry, state):
+    import hmac
+    return hmac.compare_digest(entry['state'].encode('utf-8'), state.encode('utf-8'))
+
+
+def read_oauth_pending(value, state=None):
+    """A sign-in started in this browser that still waits: the one with this OAuth state, or the
+    newest; None if there is none (missing, forged or too old)."""
+    entries = [e for e in _oauth_entries(value) if _waiting(e)]
+    if state is None:
+        return entries[-1] if entries else None
+    return next((e for e in entries if _same_state(e, state)), None)
+
+
+def _set_oauth_cookie(resp, entries):
+    """Keeps these sign-ins (the newest OAUTH_MAX_PENDING) in the cookie, or removes it when there are none."""
+    if not entries:
+        resp.delete_cookie(OAUTH_COOKIE, path='/auth/')
+        return
+    resp.set_cookie(
+        OAUTH_COOKIE,
+        _oauth_serializer().dumps({'pending': entries[-OAUTH_MAX_PENDING:]}),
+        max_age=OAUTH_MAX_AGE_S,
+        path='/auth/',
+        secure=app.config['SESSION_COOKIE_SECURE'],
+        httponly=True,
+        samesite='Lax',
+    )
 
 
 @app.route('/auth/login')
@@ -1519,37 +1581,41 @@ def auth_login():
 
 
 def _start_discord_sign_in(pending):
-    """Off to Discord, with the sign-in's state and where it goes afterwards in the signed cookie."""
+    """Off to Discord, with the sign-in's state and where it goes afterwards added to the signed
+    cookie; sign-ins this browser started before keep waiting (the oldest goes beyond the limit)."""
     state = generate_state()
     resp = redirect(get_authorization_url(state=state))
-    resp.set_cookie(
-        OAUTH_COOKIE,
-        _oauth_serializer().dumps({**pending, 'state': state}),
-        max_age=OAUTH_MAX_AGE_S,
-        path='/auth/',
-        secure=app.config['SESSION_COOKIE_SECURE'],
-        httponly=True,
-        samesite='Lax',
-    )
+    entries = _oauth_entries(request.cookies.get(OAUTH_COOKIE))
+    _set_oauth_cookie(resp, [*entries, {**pending, 'state': state, 'at': time.time()}])
     return resp
 
 
 @app.route('/auth/callback')
 def auth_callback():
-    """Handle Discord OAuth2 callback."""
-    resp = _auth_callback(read_oauth_pending(request.cookies.get(OAUTH_COOKIE)))
-    resp.delete_cookie(OAUTH_COOKIE, path='/auth/')
+    """Handle Discord OAuth2 callback: the sign-in with this state finishes (or fails); the other
+    sign-ins this browser started keep waiting."""
+    entries = _oauth_entries(request.cookies.get(OAUTH_COOKIE))
+    state = request.args.get('state')
+    if state:
+        entry = next((e for e in entries if _same_state(e, state)), None)
+    else:
+        # No state (Discord stopped early): the newest sign-in that waits, for its way back.
+        entry = next((e for e in reversed(entries) if _waiting(e)), None)
+    resp = _auth_callback(entry, bool(entry) and _waiting(entry))
+    _set_oauth_cookie(resp, [e for e in entries if e is not entry])
     return resp
 
 
-def _auth_callback(pending):
+def _auth_callback(entry, waiting):
+    """`entry` is this browser's sign-in with the callback's state (or, without a state, the newest
+    waiting one), None when the browser has none; `waiting` whether it still waits."""
     code = request.args.get('code')
     state = request.args.get('state')
     error = request.args.get('error')
-    next_page = _safe_next((pending or {}).get('next'))
+    next_page = _safe_next((entry or {}).get('next'))
     # A sign-in a tool asked for (/auth/authorize): its key and the tool's own state.
-    tool = _sign_in_tool((pending or {}).get('tool'))
-    tool_state = (pending or {}).get('tool_state') if tool else None
+    tool = _sign_in_tool((entry or {}).get('tool'))
+    tool_state = (entry or {}).get('tool_state') if tool else None
     if tool and not _good_tool_state(tool_state):
         tool = tool_state = None
 
@@ -1560,8 +1626,14 @@ def _auth_callback(pending):
     if error:
         return failed('cancelled' if error == 'access_denied' else 'failed')
 
-    # Verify state: no started sign-in in this browser, or one from another tab or too old.
-    if not state or not pending or state != pending.get('state'):
+    # Verify state: a sign-in this browser started that still waits. Else (another browser's, one
+    # that finished already, or too old) it fails, unless this browser is signed in by now: then the
+    # person goes on to where that sign-in was going, or to the map. Nothing is signed in here.
+    if not state or not entry or not waiting or not _same_state(entry, state):
+        if state and is_authenticated():
+            if tool:
+                return _back_to_tool_with_code(tool, tool_state)
+            return redirect(next_page or '/')
         return failed('expired')
 
     # Exchange code for token
@@ -1733,12 +1805,21 @@ def auth_alive():
     return _no_store(jsonify({'alive': True, 'user': user}), 200)
 
 
+def _after_logout_target(next_page, done):
+    """Where log out goes: a map page with ?logout=<done> (the page says it worked), or a listed tool
+    as it is (the tool says so itself). The account page needs a sign-in, so it goes to the map."""
+    if next_page in NEXT_PAGES:
+        page = '/' if next_page == '/account' else next_page
+        return f'{page}?logout={done}'
+    return next_page or f'/?logout={done}'
+
+
 @app.route('/auth/logout', methods=['POST'])
 def auth_logout():
-    """Logout user and clear session. A POST from the map's own pages only, so a link elsewhere
-    can't sign someone out."""
+    """Logout user and clear session. A POST from the map's own pages, or from a shown tool's page
+    back to that tool (_logout_from_its_tool), so a link elsewhere can't sign someone out."""
     session.clear()
-    return redirect(_after_auth_target(_safe_next(request.args.get('next')), 'logout=success'))
+    return redirect(_after_logout_target(_safe_next(request.args.get('next')), 'success'))
 
 
 @app.route('/auth/logout-everywhere', methods=['POST'])
@@ -1755,7 +1836,7 @@ def auth_logout_everywhere():
                 app.session_interface._delete_session(store_id)
                 tool_grants.end_session(store_id)
     session.clear()
-    return redirect('/?logout=success')
+    return redirect('/?logout=everywhere')
 
 
 # The tools that have an account part of their own, and where it is (after the tool's address).
@@ -1856,23 +1937,80 @@ def save_lang():
     return resp
 
 
-def _card_page(lang, title, paragraphs, actions):
-    """A small page on the shared look: one card with a title, some text and its buttons.
-    `actions` is already-escaped HTML; no scripts, so the strict CSP holds."""
+@functools.lru_cache(maxsize=1)
+def _ui_font_file():
+    """The Figtree file the pages preload (its name carries its content hash), from fonts.css."""
+    try:
+        with open(os.path.join(PROJECT_ROOT, 'src', 'shared', 'fonts.css'), encoding='utf-8') as f:
+            found = re.search(r'fonts/(figtree-latin-normal-[0-9a-f]+\.woff2)', f.read())
+    except OSError:
+        return None
+    return found and found.group(1)
+
+
+# The map's own pages in the top bar's switcher, as on every page of the map.
+BAR_PAGES = (('/', 'page.map'), ('/stats', 'page.stats'), ('/region-map', 'page.regionMap'),
+             ('/configurator', 'page.configurator'))
+
+
+def _top_bar(texts):
+    """The site's top bar without the account part (these pages are about signing in and out):
+    the word mark, the map's pages, then the language switch, ☰ and the theme, which
+    src/shared/topbar.js and theme.js fill and run as on the other pages. The site's shown tools
+    join the switcher there."""
     from html import escape
+
+    def text(key, fallback):
+        return escape(texts.get(key, fallback))
+    pages = ''.join(f'<a href="{href}" data-i18n="{key}">{text(key, key)}</a>' for href, key in BAR_PAGES)
+    return (
+        '<header class="topbar">\n'
+        '<span class="wordmark"><b>#BE</b><span>mesh</span></span>\n'
+        f'<nav class="switcher" aria-label="{text("top.pages", "Pages")}" data-i18n-attr="aria-label:top.pages">{pages}</nav>\n'
+        '<span class="spacer"></span>\n'
+        '<span data-lang-switch></span>\n'
+        '<span class="menu-wrap" data-page-menu data-no-account>'
+        f'<button type="button" class="icon" aria-label="{text("menu.label", "Menu")}" data-i18n-attr="aria-label:menu.label">'
+        '<i class="bi bi-list" aria-hidden="true"></i></button>'
+        f'<nav class="menu page-menu" aria-label="{text("menu.label", "Menu")}" data-i18n-attr="aria-label:menu.label" hidden></nav>'
+        '</span>\n'
+        '<button type="button" class="icon" data-theme-toggle aria-label="Theme"><i class="bi bi-circle-half" aria-hidden="true"></i></button>\n'
+        '</header>\n'
+    )
+
+
+# The scripts of the shared top bar, in the order the other pages load them; all from this site.
+AUTH_PAGE_SCRIPTS = ('/src/shared/about.js', '/src/shared/menu-place.js', '/src/shared/topbar.js')
+
+
+def _card_page(lang, texts, title, paragraphs, actions):
+    """A small page on the shared look: the site's top bar, then one card with a title, some text
+    and its buttons. `actions` is already-escaped HTML; no inline scripts, so the strict CSP holds."""
+    from html import escape
+    font = _ui_font_file()
     body = (
         '<!doctype html>\n'
         f'<html lang="{lang}">\n<head>\n<meta charset="utf-8">\n'
-        '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
-        f'<title>{escape(title)}</title>\n'
+        '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n'
+        '<meta name="robots" content="noindex">\n'
+        f'<title>{escape(title)} – #BEmesh</title>\n'
         '<link rel="icon" href="/favicon.ico" sizes="any">\n'
+        + (f'<link rel="preload" href="/src/shared/fonts/{font}" as="font" type="font/woff2" crossorigin>\n' if font else '')
+        + '<link rel="stylesheet" href="/src/shared/fonts.css">\n'
+        '<link rel="stylesheet" href="/lib/css/bootstrap-icons.css">\n'
         '<link rel="stylesheet" href="/src/shared/bemesh-tokens.css">\n'
         '<link rel="stylesheet" href="/src/shared/bemesh-shell.css">\n'
-        '</head>\n<body class="signout-page">\n<main class="card signout">\n'
+        '<script src="/src/shared/i18n.js" data-i18n-page="shared"></script>\n'
+        '<script src="/src/shared/theme.js"></script>\n'
+        '</head>\n<body class="signout-page">\n'
+        + _top_bar(texts)
+        + '<main class="signout-main">\n<section class="card signout">\n'
         f'<h1>{escape(title)}</h1>\n'
         + ''.join(f'<p>{escape(p)}</p>\n' for p in paragraphs if p)
         + f'<div class="signout-actions">{actions}</div>\n'
-        '</main>\n</body>\n</html>\n'
+        '</section>\n</main>\n'
+        + ''.join(f'<script src="{src}"></script>\n' for src in AUTH_PAGE_SCRIPTS)
+        + '</body>\n</html>\n'
     )
     resp = make_response(body, 200)
     resp.mimetype = 'text/html'
@@ -1885,8 +2023,8 @@ def _card_page(lang, title, paragraphs, actions):
 @app.route('/auth/signout')
 def auth_signout():
     """A page on this site with one button that logs out (a POST from here, so the Origin check
-    passes) and then goes to ?next= when it is a map page or a listed tool. The site's tools on
-    other addresses link here to log out."""
+    passes) and then goes to ?next= when it is a map page or a listed tool, and Cancel back there
+    (or to the map). For a tool that can't post the log out itself (see _logout_from_its_tool)."""
     from html import escape
     from urllib.parse import quote
     lang = _page_lang()
@@ -1896,8 +2034,9 @@ def auth_signout():
     form = (
         f'<form method="post" action="{escape(action)}">'
         f'<button type="submit" class="btn primary">{escape(texts.get("menu.logOut", "Log out"))}</button></form>'
+        f'<a class="btn" href="{escape(next_page or "/")}">{escape(texts.get("signout.cancel", "Cancel"))}</a>'
     )
-    resp = _card_page(lang, texts.get('signout.title', 'Log out'), [texts.get('signout.text', '')], form)
+    resp = _card_page(lang, texts, texts.get('signout.title', 'Log out'), [texts.get('signout.text', '')], form)
     # Log out redirects to ?next=; a browser checks that against the form's page policy.
     if CSP_ENABLED and next_page:
         resp.headers['Content-Security-Policy'] = page_policy(tool_origins([{'url': next_page}]))
@@ -1939,7 +2078,7 @@ def auth_failed():
         f'<a class="btn" href="{escape(back)}">{escape(texts.get("signin.back", "Back"))}</a>'
     )
     text = texts.get(f'signin.{"notMember" if reason == "not_member" else reason}.text', '')
-    return _card_page(lang, texts.get(f'{key}.title', 'Sign in'), [text], actions)
+    return _card_page(lang, texts, texts.get(f'{key}.title', 'Sign in'), [text], actions)
 
 
 @app.route('/auth/me')

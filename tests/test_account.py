@@ -214,7 +214,7 @@ def test_log_out_everywhere_ends_every_session_of_the_person_and_no_one_elses():
     assert signed_in(phone) and signed_in(laptop) and signed_in(other)
     r = phone.post('/auth/logout-everywhere', headers=ORIGIN)
     assert r.status_code == 302
-    assert r.headers['Location'] == '/?logout=success'
+    assert r.headers['Location'] == '/?logout=everywhere'
     assert not signed_in(phone)
     assert not signed_in(laptop)
     assert signed_in(other)
@@ -264,7 +264,7 @@ def test_log_out_everywhere_by_link_does_nothing():
 def test_signed_out_log_out_everywhere_just_goes_home():
     r = client().post('/auth/logout-everywhere', headers=ORIGIN)
     assert r.status_code == 302
-    assert r.headers['Location'] == '/?logout=success'
+    assert r.headers['Location'] == '/?logout=everywhere'
 
 
 def test_a_sign_in_after_log_out_everywhere_is_counted_again():

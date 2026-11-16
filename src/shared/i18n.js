@@ -388,7 +388,7 @@
     var wanted = api.lang === "en" ? ["en"] : ["en", api.lang];
     var files = [];
     wanted.forEach(function (l) {
-      ["shared", page].forEach(function (name) {
+      (page === "shared" ? ["shared"] : ["shared", page]).forEach(function (name) {
         files.push(
           fetch(base + name + "." + l + ".json")
             .then(function (r) {

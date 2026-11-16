@@ -1014,16 +1014,22 @@ body .leaflet-container .leaflet-control-attribution {
   box-shadow: 0 0 0 2px var(--node-rim);
 }
 
-/* /auth/signout: the page other tools link to for logging out, one card with one button. */
+/* /auth/signout and /auth/failed: the site's top bar, then one card in the middle of the page. */
 .signout-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+.signout-main {
+  flex: 1;
   display: grid;
   place-items: center;
-  min-height: 100vh;
-  margin: 0;
   padding: 16px;
-  box-sizing: border-box;
 }
 .signout {
+  box-sizing: border-box;
+  width: 100%;
   max-width: 28rem;
   padding: 24px;
 }
@@ -1048,4 +1054,20 @@ body .leaflet-container .leaflet-control-attribution {
 .signout-actions a.btn.primary {
   font-weight: 700;
   color: var(--on-gold);
+}
+.signout-actions .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  box-sizing: border-box;
+  font: inherit;
+}
+.signout-actions .btn.primary {
+  font-weight: 700;
+}
+@media (max-width: 600px) {
+  .signout-actions .btn {
+    min-height: 44px;
+  }
 }

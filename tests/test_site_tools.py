@@ -208,9 +208,18 @@ def test_log_out_returns_to_a_tool_on_its_own_address(full_client):
 
 
 def test_log_out_from_another_tool_is_still_refused(full_client):
-    r = full_client.post('/auth/logout?next=https://nodebook.example/', headers={'Origin': 'https://nodebook.example'})
+    r = full_client.post('/auth/logout?next=https://app.example:8445/', headers={'Origin': 'https://nodebook.example'})
     assert r.status_code == 403
     assert full_client.post('/auth/logout').status_code == 403
+
+
+def no_inline_script(body):
+    """Only scripts of this site by address, no inline code or handlers (the page policy holds)."""
+    import re
+    tags = re.findall(r'<script\b[^>]*>', body, re.I)
+    return (all(re.search(r'\bsrc="/src/shared/[\w-]+\.js"', t) for t in tags)
+            and len(re.findall(r'<script\b[^>]*>\s*</script>', body, re.I)) == len(tags)
+            and 'onclick' not in body.lower())
 
 
 def test_the_sign_out_page_posts_to_log_out_on_this_site(full_client):
@@ -220,7 +229,7 @@ def test_the_sign_out_page_posts_to_log_out_on_this_site(full_client):
     body = r.get_data(as_text=True)
     assert '<form method="post" action="/auth/logout?next=https%3A%2F%2Fnodebook.example%2F"' in body
     assert '<button type="submit"' in body and 'Log out' in body
-    assert '<script' not in body.lower() and 'onclick' not in body.lower()
+    assert no_inline_script(body)
 
 
 def test_the_sign_out_page_drops_an_unlisted_return_address(full_client):
@@ -318,7 +327,7 @@ def test_the_failed_sign_in_page_explains_and_offers_try_again_and_back(full_cli
     assert 'cancelled' in body.lower()
     assert 'href="/auth/login?next=https%3A%2F%2Fnodebook.example%2F"' in body
     assert 'href="https://nodebook.example/"' in body
-    assert '<script' not in body.lower() and 'onclick' not in body.lower()
+    assert no_inline_script(body)
 
 
 def test_the_failed_sign_in_page_drops_unknown_reasons_and_unlisted_return_addresses(full_client):

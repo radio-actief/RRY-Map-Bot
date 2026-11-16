@@ -65,7 +65,7 @@ class TestLogout(unittest.TestCase):
         signed_in(self.client)
         r = self.client.post("/auth/logout?next=/stats", headers={"Origin": "http://localhost"})
         self.assertEqual(r.status_code, 302)
-        self.assertEqual(r.headers["Location"], "/stats")
+        self.assertEqual(r.headers["Location"], "/stats?logout=success")
         with self.client.session_transaction() as sess:
             self.assertNotIn("user_id", sess)
 

@@ -28,7 +28,7 @@ from backend.database import (
 )
 from backend.datetime_utils import normalize_node_timestamps
 from config.config import SITE_TOOLS as config_site_tools, SITE_TOOL_SECRETS as config_site_tool_secrets
-from config.config import LANG_COOKIE_DOMAIN
+from config.config import LANG_COOKIE_DOMAIN, DATABASE_PATH
 from config.site_tools import shown_tools, tool_origins
 from backend.auth import (
     get_authorization_url,
@@ -149,15 +149,15 @@ def _same_site_only():
     return None
 
 
-# Compression and cache lifetimes for the configurator, the data files and the node list
-# (stdlib gzip, no extra dependency). The rest of the site is left as it is.
+# Compression for every page, script, style and data answer the browser accepts it for (stdlib gzip,
+# no extra dependency), and cache lifetimes for the configurator, the data files and the node list.
 GZIP_MIN_BYTES = 1024
 GZIP_TYPES = {
     'application/json', 'application/geo+json', 'application/javascript', 'text/javascript',
     'text/css', 'text/html', 'image/svg+xml', 'text/plain',
 }
-GZIP_CACHE_MAX = 32
-# (path, ETag) -> gzipped body, so a large file is compressed once per version
+GZIP_CACHE_MAX_BYTES = 24 * 1024 * 1024
+# (path, ETag) -> gzipped body, so a file or answer is compressed once per version
 _gzip_cache: "OrderedDict[tuple, bytes]" = OrderedDict()
 _gzip_cache_lock = threading.Lock()  # Flask serves requests on several threads
 
@@ -175,7 +175,7 @@ def _cache_policy(path: str) -> Optional[str]:
         return 'no-cache'
     if path.startswith('/data/'):
         return 'public, max-age=3600'
-    if path == '/api/v1/belgian-nodes':
+    if path in ('/api/v1/belgian-nodes', '/api/v1/node-changes', '/api/v1/sync-history'):
         return 'no-cache'
     return None
 
@@ -243,42 +243,50 @@ def content_security_policy(resp):
 
 @app.after_request
 def compress_and_cache(resp):
-    """Cache-Control and gzip (when the browser accepts it) for the paths of _cache_policy.
+    """gzip (when the browser accepts it) for every text answer of 1 KB or more, and Cache-Control
+    for the paths of _cache_policy.
 
-    A dynamic response gets an ETag of its body and answers a matching If-None-Match with 304.
-    A gzipped body carries the weak form of the same ETag, so either variant revalidates.
+    An answer that may be cached gets an ETag of its body and answers a matching If-None-Match with
+    304. A gzipped body carries the weak form of the same ETag, so either variant revalidates. An
+    answer marked no-store is compressed but neither tagged nor kept.
     """
     policy = _cache_policy(request.path)
-    if policy is None or resp.status_code not in (200, 304):
+    if resp.status_code not in (200, 304):
         return resp
-    resp.headers['Cache-Control'] = policy
+    if policy:
+        resp.headers['Cache-Control'] = policy
+    if resp.mimetype not in GZIP_TYPES:
+        return resp
     resp.vary.add('Accept-Encoding')
-    if (resp.status_code != 200 or request.method not in ('GET', 'HEAD') or resp.mimetype not in GZIP_TYPES
-            or 'Content-Encoding' in resp.headers):
+    if resp.status_code != 200 or request.method not in ('GET', 'HEAD') or 'Content-Encoding' in resp.headers:
         return resp
-    if not resp.get_etag()[0]:
+    private = 'no-store' in (resp.headers.get('Cache-Control') or '')
+    if not private and not resp.get_etag()[0]:
         resp.add_etag()
         resp.make_conditional(request)
         if resp.status_code == 304:
             return resp
     if request.accept_encodings['gzip'] <= 0:
         return resp
-    etag = resp.get_etag()[0]
+    etag = None if private else resp.get_etag()[0]
     key = (request.path, etag)
-    with _gzip_cache_lock:
-        body = _gzip_cache.pop(key, None)
-        if body is not None:
-            _gzip_cache[key] = body  # back in as the most recently used
+    body = None
+    if etag:
+        with _gzip_cache_lock:
+            body = _gzip_cache.pop(key, None)
+            if body is not None:
+                _gzip_cache[key] = body  # back in as the most recently used
     if body is None:
         resp.direct_passthrough = False
         data = resp.get_data()
         if len(data) < GZIP_MIN_BYTES:
             return resp
         body = gzip.compress(data, 6)
-        with _gzip_cache_lock:
-            _gzip_cache[key] = body
-            while len(_gzip_cache) > GZIP_CACHE_MAX:
-                _gzip_cache.popitem(last=False)
+        if etag and len(body) <= GZIP_CACHE_MAX_BYTES:
+            with _gzip_cache_lock:
+                _gzip_cache[key] = body
+                while sum(len(v) for v in _gzip_cache.values()) > GZIP_CACHE_MAX_BYTES:
+                    _gzip_cache.popitem(last=False)
     resp.direct_passthrough = False
     source = resp.response
     resp.set_data(body)
@@ -286,8 +294,46 @@ def compress_and_cache(resp):
         source.close()  # the file send_file opened
     resp.headers['Content-Encoding'] = 'gzip'
     resp.headers.pop('Accept-Ranges', None)
-    resp.set_etag(etag, weak=True)
+    if etag:
+        resp.set_etag(etag, weak=True)
     return resp
+
+
+# The stats page's data (node changes, sync history) only changes when the database does (the sync
+# every half hour, a claim): each answer is built once per database version and kept, per query.
+_STATS_DATA_MAX = 16
+_stats_data_cache: "OrderedDict[tuple, tuple]" = OrderedDict()
+_stats_data_lock = threading.Lock()
+
+
+def _db_stamp():
+    """The database's version as the file system shows it: the modification times of the database
+    and of its write-ahead log (0 when there is none). Any write changes one of them."""
+    def mtime(path):
+        try:
+            return os.stat(path).st_mtime_ns
+        except OSError:
+            return 0
+    return (mtime(DATABASE_PATH), mtime(DATABASE_PATH + '-wal'))
+
+
+def _kept_json(build):
+    """The JSON answer for this request: the kept one while the database is unchanged, else build()
+    and keep it. A failed build raises and keeps nothing."""
+    key = (request.path, tuple(sorted(request.args.items(multi=True))))
+    stamp = _db_stamp()
+    with _stats_data_lock:
+        hit = _stats_data_cache.get(key)
+    if hit and hit[0] == stamp:
+        body = hit[1]
+    else:
+        body = json.dumps(build(), separators=(',', ':')).encode('utf-8')
+        with _stats_data_lock:
+            _stats_data_cache[key] = (stamp, body)
+            _stats_data_cache.move_to_end(key)
+            while len(_stats_data_cache) > _STATS_DATA_MAX:
+                _stats_data_cache.popitem(last=False)
+    return app.response_class(body, mimetype='application/json')
 
 
 def get_all_belgian_nodes():
@@ -1125,13 +1171,12 @@ def node_changes():
             preset = None
         if radio_custom:
             preset = None
-        changes = get_node_changes_since(
+        return _kept_json(lambda: get_node_changes_since(
             since_date=since,
             limit=limit,
             frequency_preset=preset,
             radio_custom=radio_custom,
-        )
-        return jsonify(changes), 200
+        )), 200
     except Exception as e:
         print(f"Error in node_changes endpoint: {e}")
         return jsonify({'error': 'Internal server error'}), 500
@@ -1156,12 +1201,9 @@ def sync_history():
             preset = None
         if radio_custom:
             preset = None
-        history = get_sync_history(
+        return _kept_json(lambda: get_sync_history(
             limit=limit, frequency_preset=preset, radio_custom=radio_custom
-        )
-        resp = make_response(jsonify(history))
-        resp.headers["Cache-Control"] = "no-store"
-        return resp, 200
+        )), 200
     except Exception as e:
         print(f"Error in sync_history endpoint: {e}")
         return jsonify({'error': 'Internal server error'}), 500

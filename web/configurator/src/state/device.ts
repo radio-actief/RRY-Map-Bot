@@ -690,9 +690,11 @@ async function listen(link: SerialLink, ms: number, tickMs: number, round: numbe
 
 /**
  * Count the repeaters it hears well, for its timing band (see bandFor). The clock is set first.
- * Each round sends `discover.neighbors` (nearby repeaters answer over the air), listens, then reads
- * `neighbors`; the count is every key prefix heard above SNR 0 in any round. It stops after
- * COUNT_ROUNDS, or sooner when a round adds nobody new. A short table is asked once more (see
+ * Each round sends `discover.neighbors` (nearby repeaters answer over the air) and listens; the
+ * count is every key prefix heard above SNR 0 in the `neighbors` tables read. It stops after
+ * COUNT_ROUNDS, or sooner when a round adds nobody new. The table is read only where it counts:
+ * after the last round, and after a round whose table can stop the count or is the next round's
+ * yardstick (while nobody was heard, a round cannot stop it). A short table is asked once more (see
  * readNeighbours). A table cut at the firmware's limit makes the count "at least". The last table
  * also becomes the Read's neighbour list.
  */
@@ -714,6 +716,8 @@ export async function countNeighbours({ roundMs = COUNT_ROUND_MS, tickMs = 1000 
       const asked = await exchange(link, "discover.neighbors");
       if (!asked.ok) return fail(asked.error);
       if (!(await listen(link, roundMs, tickMs, round))) return idle();
+      // Nobody heard yet: this table cannot stop the count, and the last round needs no yardstick.
+      if (heard.size === 0 && round === COUNT_ROUNDS - 1) continue;
       let reply: string;
       try {
         reply = await readNeighbours(link, { heard: heard.size > 0, onRetry: noteNeighboursAgain });

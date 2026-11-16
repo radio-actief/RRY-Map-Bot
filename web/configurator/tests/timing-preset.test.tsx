@@ -187,10 +187,11 @@ describe("countNeighbours", () => {
     }
   });
 
-  it("a first round that hears nobody does not stop the count", async () => {
-    const port = await connect({}, { sequence: { neighbors: ["-none-", table(nb("aaaaaaaa", 5)), table(nb("aaaaaaaa", 5))] } });
+  it("a first round that hears nobody does not stop the count, and the next round's table is not read", async () => {
+    // Nobody heard yet: round 2 cannot stop the count, so only round 3's table is read after it.
+    const port = await connect({}, { sequence: { neighbors: ["-none-", table(nb("aaaaaaaa", 5))] } });
     await countNeighbours(QUICK);
-    expect(port.received.filter((c) => c === "discover.neighbors")).toHaveLength(3);
+    expect(port.received.filter((c) => !c.startsWith("time ") && c !== "clock")).toEqual(["discover.neighbors", "neighbors", "discover.neighbors", "discover.neighbors", "neighbors"]);
     expect(store.tune.value).toEqual({ phase: "done", heard: 1, atLeast: false });
   });
 

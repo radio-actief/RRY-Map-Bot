@@ -418,3 +418,49 @@ describe("the region map on the map engine", () => {
     }
   });
 });
+
+describe("map labels in the page language", () => {
+  const OFM = "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf";
+  const VT = "https://tiles.versatiles.org/assets/glyphs/{fontstack}/{range}.pbf";
+  const ofmName = ["case", ["has", "name:nonlatin"], ["concat", ["get", "name:latin"], "\n", ["get", "name:nonlatin"]], ["coalesce", ["get", "name_en"], ["get", "name"]]];
+  const style = (glyphs: string) => ({
+    glyphs,
+    layers: [
+      { id: "place_city", type: "symbol", layout: { "text-field": ofmName, "text-transform": "uppercase" } },
+      { id: "water_name", type: "symbol", "source-layer": "water_name", layout: { "text-field": ["get", "name"] } },
+      { id: "shield", type: "symbol", layout: { "text-field": ["to-string", ["get", "ref"]] } },
+      { id: "house", type: "symbol", layout: { "text-field": "{housenumber}" } },
+    ],
+  });
+
+  it("take the language's name, else the local name, on OpenFreeMap (OpenMapTiles)", () => {
+    expect(basemaps.nameField("tiles.openfreemap.org", "nl")).toEqual(["coalesce", ["get", "name:nl"], ["get", "name"]]);
+    expect(basemaps.nameField("tiles.openfreemap.org", "fr")).toEqual(["coalesce", ["get", "name:fr"], ["get", "name"]]);
+    expect(basemaps.nameField("tiles.openfreemap.org", "en")).toEqual(["coalesce", ["get", "name:en"], ["get", "name_en"], ["get", "name"]]);
+    expect(basemaps.nameField("tiles.openfreemap.org", "de")).toEqual(["get", "name"]);
+    const s = basemaps.localizeLabels(style(OFM), "fr");
+    expect(s.layers.map((l: { layout: Record<string, unknown> }) => l.layout["text-field"])).toEqual([
+      ["coalesce", ["get", "name:fr"], ["get", "name"]],
+      ["coalesce", ["get", "name:fr"], ["get", "name"]],
+      ["to-string", ["get", "ref"]],
+      "{housenumber}",
+    ]);
+  });
+
+  it("on VersaTiles (Shortbread: name, name_en) English where there is one, else the local name", () => {
+    expect(basemaps.nameField("tiles.versatiles.org", "en")).toEqual(["coalesce", ["get", "name_en"], ["get", "name"]]);
+    expect(basemaps.nameField("tiles.versatiles.org", "nl")).toEqual(["get", "name"]);
+    const s = basemaps.localizeLabels(style(VT), "en");
+    expect(s.layers[0].layout["text-field"]).toEqual(["coalesce", ["get", "name_en"], ["get", "name"]]);
+  });
+
+  it("are part of every vector style the map loads, and the tuned dark style writes names as they are", () => {
+    const s = basemaps.prepareStyle("openfreemap", style(OFM), { dark: true, lang: "nl" });
+    expect(s.layers[0].layout).toMatchObject({ "text-field": ["coalesce", ["get", "name:nl"], ["get", "name"]], "text-transform": "none" });
+    const light = basemaps.prepareStyle("openfreemap", style(OFM), { dark: false, lang: "nl" });
+    expect(light.layers[0].layout["text-field"]).toEqual(["coalesce", ["get", "name:nl"], ["get", "name"]]);
+    // the page language changes in place (the configurator): the map loads its style again
+    expect(read("src/map-engine/maplibre-engine.js")).toMatch(/BEmeshI18n\?\.onChange\?\.\(\(\) => loadBase\(\)\)/);
+    expect(read("src/map-engine/maplibre-engine.js")).toMatch(/prepareStyle\(baseId, style, \{ dark, lang: globalThis\.BEmeshI18n\?\.lang \?\? "en" \}\)/);
+  });
+});

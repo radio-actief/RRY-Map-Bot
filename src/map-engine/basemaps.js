@@ -177,6 +177,8 @@ export function tuneDark(style, ink = DARK_INK) {
       else paint["line-color"] = ink.road;
     } else if (layer.type === "symbol" && layer.layout?.["text-field"] !== undefined) {
       const major = MAJOR_PLACES.test(id);
+      // names as written, not in capitals
+      layer.layout["text-transform"] = "none";
       paint["text-color"] = major ? ink.label : ink.minorLabel;
       paint["text-halo-color"] = ink.halo;
       paint["text-halo-width"] = major ? 1.5 : 1;
@@ -187,9 +189,48 @@ export function tuneDark(style, ink = DARK_INK) {
   return style;
 }
 
-/** A fetched vector style, made ours: one label family, and the dark OpenFreeMap in our ink. */
-export function prepareStyle(id, style, { dark }) {
+// ------------------------------------------------------------------ labels in the page language
+// OpenFreeMap's tiles follow OpenMapTiles (name, name:nl, name:fr, name:en, name_en …); VersaTiles'
+// follow Shortbread (name, name_en, name_de). A label takes the page language's name where the tile
+// has one, else the local name.
+const NAME_FIELDS = {
+  "tiles.openfreemap.org": { nl: ["name:nl"], fr: ["name:fr"], en: ["name:en", "name_en"] },
+  "tiles.versatiles.org": { en: ["name_en"] },
+};
+
+/** The text-field for names in a language on a glyph host: a coalesce ending in the local name. */
+export function nameField(host, lang) {
+  const fields = NAME_FIELDS[host]?.[lang] ?? [];
+  return fields.length ? ["coalesce", ...fields.map((f) => ["get", f]), ["get", "name"]] : ["get", "name"];
+}
+
+// a label of a name (not a road number, a house number…): its text-field reads a name property
+const readsName = (field) => /"(name|name_[a-z]+|name:[a-z]+)"|\{name/.test(JSON.stringify(field));
+
+/** Every name label of a style in the page language (`lang`: en, nl or fr). */
+export function localizeLabels(style, lang) {
+  let host = "";
+  try {
+    host = new URL(String(style.glyphs).replace(/[{}]/g, "")).host;
+  } catch {
+    return style;
+  }
+  if (!NAME_FIELDS[host]) return style;
+  const field = nameField(host, lang);
+  for (const layer of style.layers) {
+    const tf = layer.layout?.["text-field"];
+    if (layer.type === "symbol" && tf !== undefined && readsName(tf)) layer.layout["text-field"] = field;
+  }
+  return style;
+}
+
+/**
+ * A fetched vector style, made ours: one label family, names in the page language, and the dark
+ * OpenFreeMap in our ink.
+ */
+export function prepareStyle(id, style, { dark, lang = "en" }) {
   normalizeFonts(style);
+  localizeLabels(style, lang);
   if (id === "openfreemap" && dark) tuneDark(style);
   return style;
 }

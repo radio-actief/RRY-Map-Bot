@@ -273,7 +273,7 @@ export async function createMapLibreEngine(container, { center, zoom, t, attribu
       }
     }
     if (request !== baseRequest) return;
-    if (!fellBack) prepareStyle(baseId, style, { dark });
+    if (!fellBack) prepareStyle(baseId, style, { dark, lang: globalThis.BEmeshI18n?.lang ?? "en" });
     applyStyle(style, fellBack);
   }
 
@@ -666,6 +666,8 @@ export async function createMapLibreEngine(container, { center, zoom, t, attribu
   };
   new MutationObserver(onTheme).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
   matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", onTheme);
+  // the page language changes in place (the configurator): the labels follow
+  const stopLang = globalThis.BEmeshI18n?.onChange?.(() => loadBase());
 
   // every new style gets the nodes as they are now (they may have changed while it loaded)
   map.on("style.load", () => {
@@ -831,6 +833,13 @@ export async function createMapLibreEngine(container, { center, zoom, t, attribu
     addPoints,
     showTooltip,
     hideTooltip,
+    /** Takes the map down (a page that removes its map, as the configurator's views). */
+    remove() {
+      closePopup();
+      shade?.detach();
+      stopLang?.();
+      map.remove();
+    },
   };
 
   function restylable(handle, paint) {

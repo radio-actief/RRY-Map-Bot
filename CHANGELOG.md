@@ -2,6 +2,16 @@
 
 What changed in each release of the #BEmesh map, bot and configurator.
 
+## 1.0.14 (2026-11-16)
+
+### Fixed
+
+- The map's node popup shows owner names and unusual location text as plain text
+
+### Other
+
+- NodeBook and MeshMate can see whether you are signed in on the map without sending you through the sign-in first, so their first page opens faster
+
 ## 1.0.13 (2026-11-16)
 
 ### Other

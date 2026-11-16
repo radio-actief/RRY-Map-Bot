@@ -2,7 +2,7 @@
 
 What changed in each release of the #BEmesh map, bot and configurator.
 
-## 1.4.0 (2026-11-16)
+## 1.4.1 (2026-11-16)
 
 ### New
 

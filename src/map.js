@@ -8,7 +8,7 @@ import {
   nextTick,
   markRaw,
   shallowRef,
-} from "../lib/vue.esm-browser.prod.js";
+} from "../lib/vue.runtime.esm-browser.prod.js";
 import * as ntools from "./node-utils.js";
 // The #app template of index.html, compiled ahead of time (npm run build:map): no eval in the page.
 import { render } from "./map-app.render.js";

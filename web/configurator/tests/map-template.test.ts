@@ -11,9 +11,9 @@ describe("the map page's precompiled template", () => {
     expect(read("src/map-app.render.js")).toBe(buildMapRender(read("index.html")));
   });
 
-  it("needs no eval in the browser and imports the vendored Vue", () => {
+  it("needs no eval in the browser and imports the vendored Vue runtime", () => {
     const code = read("src/map-app.render.js");
-    expect(code).toMatch(/^import \{[^}]+\} from "\.\.\/lib\/vue\.esm-browser\.prod\.js"/m);
+    expect(code).toMatch(/^import \{[^}]+\} from "\.\.\/lib\/vue\.runtime\.esm-browser\.prod\.js"/m);
     expect(code).toMatch(/export function render\(_ctx, _cache\)/);
     expect(code).not.toMatch(/new Function|eval\(/);
     expect(read("src/map.js")).toMatch(/import \{ render \} from "\.\/map-app\.render\.js"/);

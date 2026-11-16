@@ -53,7 +53,7 @@ def test_a_browser_without_gzip_still_gets_the_plain_file(client):
 
 def test_the_gzip_cache_is_bounded_by_size(client, monkeypatch):
     monkeypatch.setattr(app_module, 'GZIP_CACHE_MAX_BYTES', 60_000)
-    for path in ('/src/map.js', '/lib/leaflet.js', '/lib/vue.esm-browser.prod.js', '/src/stats.js'):
+    for path in ('/src/map.js', '/lib/leaflet.js', '/lib/vue.runtime.esm-browser.prod.js', '/src/stats.js'):
         client.get(path, headers=GZ)
     assert sum(len(v) for v in app_module._gzip_cache.values()) <= 60_000
 

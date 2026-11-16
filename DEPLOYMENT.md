@@ -190,6 +190,7 @@ it has had one valid message:
 | `{kind: "bemesh.device", v: 1, type, tool, transport, role, usbVendorId, usbProductId, name, publicKey}`, `type` one of `who`, `held`, `release`, `released`, `busy` | passes it to the channel `bemesh-device`; a `held` one is also kept as the last device (as `setLast` would), so a tool needn't send `setLast` too |
 | `{kind: "bemesh.device.getLast", v: 1}` | answers within 2 s `{kind: "bemesh.device.last", v: 1, last}`: the remembered device (`{transport, usbVendorId, usbProductId, role, name, publicKey, at}`), or `null` when none or older than 12 hours |
 | `{kind: "bemesh.device.setLast", v: 1, last: {transport?, usbVendorId, usbProductId, role, name, publicKey}}` | remembers it, stamped with the current time (`transport` defaults to `usb`) |
+| `{kind: "bemesh.account.query", v: 1}` | answers within 3 s `{kind: "bemesh.account", v: 1, signedIn, name}` from the map's `/auth/me`: `name` is the person's display name (or `null`), nothing else; signed out, an error or no answer in time gives `signedIn: false`. After a query it sends the same message again whenever the state changes: when another tab's hub records a change (`localStorage` `bemesh.account.seen`) and when the page comes back into view. It is a hint for the page; a tool that needs the person signs in through `/auth/authorize`. Hidden tools get no answer (they are not among the hub's origins). |
 
 | From the channel | Hub does |
 | --- | --- |

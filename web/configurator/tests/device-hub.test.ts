@@ -168,3 +168,131 @@ describe("shared device message rules", () => {
     expect(lastFromInput([], NOW)).toBeNull();
   });
 });
+
+/** A hub whose account check is `account`, with the window's storage events and the document's
+ * visibility changes under the test's control. */
+function accountHub(account: () => Promise<unknown>, tools: unknown = TOOLS) {
+  const parent = { postMessage: vi.fn() };
+  const on: Record<string, (e: unknown) => unknown> = {};
+  const docOn: Record<string, () => unknown> = {};
+  const doc = { visibilityState: "visible", addEventListener: (t: string, fn: () => unknown) => (docOn[t] = fn) };
+  const win = {
+    parent,
+    document: doc,
+    location: { origin: MAP, href: `${MAP}/device-hub.html` },
+    addEventListener: (type: string, fn: (e: unknown) => unknown) => (on[type] = fn),
+  };
+  const channel = { postMessage: vi.fn(), onmessage: null };
+  const storage = mem();
+  startHub({ win, channel, storage, tools: Promise.resolve(tools), now: () => NOW, account, accountMs: 50 });
+  const send = (data: unknown, origin = NODEBOOK, source: unknown = parent) => on.message?.({ data, origin, source });
+  const answers = () => parent.postMessage.mock.calls.filter(([d]) => d?.kind === "bemesh.account");
+  const settle = () => new Promise((r) => setTimeout(r, 0));
+  return { parent, storage, send, answers, settle, storageEvent: (key: string) => on.storage?.({ key }), visible: () => docOn.visibilitychange?.() };
+}
+
+const QUERY = { kind: "bemesh.account.query", v: 1 };
+const ANN = { signedIn: true, name: "Ann" };
+
+describe("device hub: who is signed in on the map", () => {
+  it("answers a listed tool with the display name only", async () => {
+    const h = accountHub(async () => ANN);
+    await h.send(QUERY);
+    await h.settle();
+    expect(h.answers()).toEqual([[{ kind: "bemesh.account", v: 1, signedIn: true, name: "Ann" }, NODEBOOK]]);
+  });
+
+  it("answers signed out, and signed out when the check fails or is too slow", async () => {
+    for (const account of [
+      async () => ({ signedIn: false, name: null }),
+      async () => { throw new Error("offline"); },
+      () => new Promise(() => {}),
+      async () => ({ signedIn: "yes", name: "Ann" }),
+    ]) {
+      const h = accountHub(account);
+      await h.send(QUERY);
+      await new Promise((r) => setTimeout(r, 80));
+      const [[msg]] = h.answers();
+      expect(msg).toEqual({ kind: "bemesh.account", v: 1, signedIn: false, name: null });
+    }
+  });
+
+  it("sends a name only when it is plain text", async () => {
+    const h = accountHub(async () => ({ signedIn: true, name: 42, id: "123", handle: "secret" }));
+    await h.send(QUERY);
+    await h.settle();
+    expect(h.answers()[0][0]).toEqual({ kind: "bemesh.account", v: 1, signedIn: true, name: null });
+  });
+
+  it("never answers a tool outside the list, a hidden tool or a window that is not its parent", async () => {
+    const h = accountHub(async () => ANN, [...TOOLS, { key: "x", label: "X", url: "https://hidden.example/", hidden: true }]);
+    await h.send(QUERY, "https://evil.example");
+    await h.send(QUERY, "https://hidden.example");
+    await h.send(QUERY, NODEBOOK, { postMessage: vi.fn() });
+    await h.settle();
+    expect(h.parent.postMessage).not.toHaveBeenCalled();
+  });
+
+  it("tells the tool again when the state changes in another tab, and only then", async () => {
+    let state: unknown = { signedIn: false, name: null };
+    const h = accountHub(async () => state);
+    await h.send(QUERY);
+    await h.settle();
+    h.storageEvent("bemesh.account.seen");
+    await h.settle();
+    expect(h.answers()).toHaveLength(1);
+    state = ANN;
+    h.storageEvent("something.else");
+    await h.settle();
+    expect(h.answers()).toHaveLength(1);
+    h.storageEvent("bemesh.account.seen");
+    await h.settle();
+    expect(h.answers().at(-1)?.[0]).toEqual({ kind: "bemesh.account", v: 1, signedIn: true, name: "Ann" });
+    state = { signedIn: false, name: null };
+    h.visible();
+    await h.settle();
+    expect(h.answers().at(-1)?.[0]).toMatchObject({ signedIn: false });
+    expect(h.answers()).toHaveLength(3);
+  });
+
+  it("records a change so the hubs in the other tabs check too", async () => {
+    const h = accountHub(async () => ANN);
+    await h.send(QUERY);
+    await h.settle();
+    expect(JSON.parse(h.storage.m.get("bemesh.account.seen") ?? "null")).toEqual({ signedIn: true });
+  });
+
+  it("pushes nothing to a tool that never asked", async () => {
+    const h = accountHub(async () => ANN);
+    await h.send({ kind: "bemesh.device.getLast", v: 1 });
+    h.storageEvent("bemesh.account.seen");
+    await h.settle();
+    expect(h.answers()).toHaveLength(0);
+  });
+});
+
+describe("device hub: reading the map's account", () => {
+  // @ts-expect-error plain JS module
+  const load = () => import("../../../src/device-hub.js");
+  const reply = (status: number, body: unknown) => async () => ({ ok: status === 200, json: async () => body });
+
+  it("keeps only the display name from /auth/me", async () => {
+    const { mapAccount } = await load();
+    const me = { authenticated: true, user: { id: "123", username: "ann", global_name: "Ann", avatar: "a1", is_guild_member: true } };
+    expect(await mapAccount(reply(200, me))).toEqual({ signedIn: true, name: "Ann" });
+    expect(await mapAccount(reply(200, { ...me, user: { ...me.user, global_name: null } }))).toEqual({ signedIn: true, name: "ann" });
+  });
+
+  it("is signed out for a signed-out answer or an error", async () => {
+    const { mapAccount } = await load();
+    expect(await mapAccount(reply(200, { authenticated: false }))).toEqual({ signedIn: false, name: null });
+    expect(await mapAccount(reply(500, null))).toEqual({ signedIn: false, name: null });
+  });
+
+  it("asks the map's own address with its cookie, never a cached answer", async () => {
+    const { mapAccount } = await load();
+    const f = vi.fn(reply(200, { authenticated: false }));
+    await mapAccount(f);
+    expect(f).toHaveBeenCalledWith("/auth/me", { credentials: "same-origin", cache: "no-store" });
+  });
+});

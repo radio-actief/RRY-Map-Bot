@@ -5,7 +5,13 @@
  * (GET /api/v1/site-tools) or the map's own. Device messages go onto this address's
  * BroadcastChannel "bemesh-device" (a "held" one is also kept as the last device); getLast and
  * setLast read and write this address's localStorage "bemesh.device.last". From the channel, every device message goes to that page,
- * once the hub knows its origin from its first valid message. The message list is in DEPLOYMENT.md. */
+ * once the hub knows its origin from its first valid message.
+ *
+ * It also tells a listed tool whether someone is signed in on the map ("bemesh.account.query" →
+ * "bemesh.account" {signedIn, name}): the display name only, never an id or anything to sign in
+ * with, and only to its direct parent from a visible listed origin. It says it again when the state
+ * changes: on the record "bemesh.account.seen" another tab's hub (or map page) writes, and when the
+ * page comes back into view. The message list is in DEPLOYMENT.md. */
 import { CHANNEL, isDeviceMessage, LAST_KEY, lastFromInput, readLast } from "./shared/device-message.js";
 import { isToolUrl } from "./shared/site-urls.js";
 
@@ -14,7 +20,7 @@ const isObject = (v) => typeof v === "object" && v !== null && !Array.isArray(v)
 /** Adds the listed tools' origins to `origins`. */
 function addToolOrigins(origins, list, here) {
   for (const tool of Array.isArray(list) ? list : []) {
-    if (!tool || !isToolUrl(tool.url)) continue;
+    if (!tool || tool.hidden || !isToolUrl(tool.url)) continue;
     try {
       origins.add(new URL(tool.url, here).origin);
     } catch {
@@ -29,7 +35,25 @@ function addToolOrigins(origins, list, here) {
  * known yet waits at most `waitMs` for the list, so every answer comes within 2 s. Resolves once
  * the list is in.
  */
-export function startHub({ win, channel, storage, tools, now = Date.now, waitMs = 1500 }) {
+export const ACCOUNT_KEY = "bemesh.account.seen";
+
+/** {signedIn, name} from the account check, or signed out for anything else. */
+function accountState(raw) {
+  if (isObject(raw) && raw.signedIn === true) {
+    return { signedIn: true, name: typeof raw.name === "string" && raw.name ? raw.name.slice(0, 64) : null };
+  }
+  return { signedIn: false, name: null };
+}
+
+/** The map's /auth/me as {signedIn, name}: the person's display name, nothing else. */
+export async function mapAccount(fetchFn = fetch) {
+  const r = await fetchFn("/auth/me", { credentials: "same-origin", cache: "no-store" });
+  const me = r.ok ? await r.json() : null;
+  if (!me || me.authenticated !== true || !isObject(me.user)) return { signedIn: false, name: null };
+  return { signedIn: true, name: me.user.global_name || me.user.username || null };
+}
+
+export function startHub({ win, channel, storage, tools, now = Date.now, waitMs = 1500, account = null, accountMs = 3000 }) {
   const origins = new Set([new URL(win.location.href).origin]);
   const listed = Promise.resolve(tools)
     .catch(() => [])
@@ -54,6 +78,39 @@ export function startHub({ win, channel, storage, tools, now = Date.now, waitMs 
     if (parentOrigin) win.parent.postMessage(data, parentOrigin);
   };
 
+  // Who is signed in: asked by the tool, then told again on every change.
+  let asked = false;
+  let told = null;
+  const checkAccount = async () => {
+    let timer;
+    const state = accountState(
+      await Promise.race([
+        Promise.resolve()
+          .then(() => (account ? account() : null))
+          .catch(() => null),
+        new Promise((r) => (timer = setTimeout(() => r(null), accountMs))),
+      ]),
+    );
+    clearTimeout(timer);
+    const key = JSON.stringify(state);
+    if (asked && key !== told) {
+      told = key;
+      toParent({ kind: "bemesh.account", v: 1, ...state });
+    }
+    try {
+      const seen = JSON.stringify({ signedIn: state.signedIn });
+      if (storage?.getItem(ACCOUNT_KEY) !== seen) storage?.setItem(ACCOUNT_KEY, seen);
+    } catch {
+      /* blocked storage: the other tabs learn it when they look again */
+    }
+  };
+  win.addEventListener("storage", (e) => {
+    if (asked && e && e.key === ACCOUNT_KEY) void checkAccount();
+  });
+  win.document?.addEventListener?.("visibilitychange", () => {
+    if (asked && win.document.visibilityState === "visible") void checkAccount();
+  });
+
   win.addEventListener("message", async (e) => {
     if (!e || e.source !== win.parent || win.parent === win) return;
     if (!(await known(e.origin)) || (parentOrigin && e.origin !== parentOrigin)) return;
@@ -70,6 +127,11 @@ export function startHub({ win, channel, storage, tools, now = Date.now, waitMs 
     } else if (isObject(data) && data.v === 1 && data.kind === "bemesh.device.getLast") {
       parentOrigin = e.origin;
       toParent({ kind: "bemesh.device.last", v: 1, last: readLast(storage, now()) });
+    } else if (isObject(data) && data.v === 1 && data.kind === "bemesh.account.query") {
+      parentOrigin = e.origin;
+      asked = true;
+      told = null; // a query always gets an answer
+      await checkAccount();
     } else if (isObject(data) && data.v === 1 && data.kind === "bemesh.device.setLast") {
       const last = lastFromInput(data.last, now());
       if (!last) return;
@@ -95,5 +157,6 @@ if (typeof document !== "undefined" && document.documentElement.hasAttribute("da
     channel: new BroadcastChannel(CHANNEL),
     storage,
     tools: fetch("/api/v1/site-tools").then((r) => (r.ok ? r.json() : [])),
+    account: () => mapAccount(),
   });
 }

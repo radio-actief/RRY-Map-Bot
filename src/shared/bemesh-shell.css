@@ -630,8 +630,9 @@ button {
 
 /* Open: the disc keeps its own colours, with the pressed ring of an ink control on ink (1px gold,
  * as --pressed-ring is wherever the ink button sits on ink; the bar is ink in both themes). */
-.topbar .account-btn[aria-expanded="true"] {
-  box-shadow: 0 0 0 1px var(--gold);
+.topbar .account-btn[aria-expanded="true"],
+.topbar .icon[aria-expanded="true"] {
+  box-shadow: 0 0 0 1px var(--topbar-open-ring);
 }
 
 .account-initial {

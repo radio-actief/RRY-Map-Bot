@@ -23,7 +23,10 @@ let requested = false;
 function loadAccount() {
   if (requested) return;
   requested = true;
-  const done = (person: Person | null) => (account.value = person);
+  const done = (person: Person | null) => {
+    account.value = person;
+    recordSeen(person !== null);
+  };
   try {
     fetch("/auth/me", { credentials: "include" })
       .then((r) => (r.ok ? r.json() : null))
@@ -34,6 +37,17 @@ function loadAccount() {
       .catch(() => done(null));
   } catch {
     done(null);
+  }
+}
+
+/** Records whether someone is signed in (localStorage "bemesh.account.seen"), only on a change, so
+ * the device hubs of the site's other tools in other tabs hear it (src/device-hub.js). */
+export function recordSeen(signedIn: boolean): void {
+  try {
+    const seen = JSON.stringify({ signedIn });
+    if (localStorage.getItem("bemesh.account.seen") !== seen) localStorage.setItem("bemesh.account.seen", seen);
+  } catch {
+    /* blocked storage: the other tools learn it when they look again */
   }
 }
 

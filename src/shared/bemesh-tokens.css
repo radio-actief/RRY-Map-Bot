@@ -1,6 +1,8 @@
 /* #BEmesh colours: shared by the configurator, the map, stats and region map pages. Radio-Actief house style. */
 :root {
   --gold: #d4a017;
+  /* The open state of a bar button (☰, account): the same gold in both themes, as the bar is ink in both. */
+  --topbar-open-ring: #d4a017;
   /* Gold as text: the dark shade on light backgrounds, where #d4a017 is too faint to read. */
   --gold-text: #7a5c00;
   --gold-bg: #fbf4dc;

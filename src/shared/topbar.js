@@ -105,6 +105,17 @@
     });
   }
 
+  /** Records whether someone is signed in (localStorage "bemesh.account.seen"), only on a change: the
+   * device hubs of the site's other tools, open in other tabs, hear it and tell their page. */
+  function recordSeen(signedIn) {
+    try {
+      var seen = JSON.stringify({ signedIn: signedIn });
+      if (localStorage.getItem("bemesh.account.seen") !== seen) localStorage.setItem("bemesh.account.seen", seen);
+    } catch (e) {
+      /* blocked storage: the other tools learn it when they look again */
+    }
+  }
+
   /** Asks once for the account and the site's tools; the bar redraws as each answer arrives. */
   function load() {
     if (!loaded) {
@@ -113,6 +124,7 @@
         .catch(function () { return null; })
         .then(function (d) {
           state.user = d && d.authenticated && d.user ? d.user : null;
+          recordSeen(state.user !== null);
           render();
           return state.user;
         });

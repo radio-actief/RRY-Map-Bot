@@ -177,3 +177,14 @@ describe("account menu", () => {
     expect(button.getAttribute("aria-expanded")).toBe("false");
   });
 });
+
+describe("the configurator tells the other tools' hubs about a sign-in", () => {
+  it("records whether someone is signed in after /auth/me", async () => {
+    const { recordSeen } = await import("../src/app/AccountMenu");
+    localStorage.removeItem("bemesh.account.seen");
+    recordSeen(true);
+    expect(localStorage.getItem("bemesh.account.seen")).toBe('{"signedIn":true}');
+    recordSeen(false);
+    expect(localStorage.getItem("bemesh.account.seen")).toBe('{"signedIn":false}');
+  });
+});

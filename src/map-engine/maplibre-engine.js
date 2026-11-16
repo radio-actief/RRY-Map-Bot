@@ -5,7 +5,7 @@
 // map pans to make room for it, as Leaflet's does.
 import { LngLatBounds, Map as MapLibreMap, Marker, Popup } from "../../lib/maplibre-gl.mjs";
 import { baseMapIds, baseMapLabel, prepareStyle, rasterStyle, readBaseMap, storeBaseMap, styleFor } from "./basemaps.js";
-import { circleRing, clusterMaxZoomFor, dashInLineWidths, fromMapZoom, toMapZoom } from "./geo.js";
+import { boundsOfGeoJSON, circleRing, clusterMaxZoomFor, dashInLineWidths, fromMapZoom, toMapZoom } from "./geo.js";
 import { prefersReducedMotion } from "./motion.js";
 import { CLUSTER_SIZE, drawClusterImage, drawNodeImage, nodeImageId, parseNodeImageId, readLook } from "./node-images.js";
 
@@ -54,6 +54,7 @@ const spotOf = (ll) => ({ lat: ll.lat, lon: ll.lng });
 
 export async function createMapLibreEngine(container, { center, zoom, t, attribution }) {
   await loadCss();
+  container.classList.add("bemesh-map");
   const shadeApi = window.BEmeshMapShade;
   let baseId = readBaseMap(globalThis.localStorage, { vector: true });
   let dark = (shadeApi?.shade?.() ?? "light") === "dark";
@@ -88,8 +89,10 @@ export async function createMapLibreEngine(container, { center, zoom, t, attribu
 
   // ------------------------------------------------------------------ overlays kept across styles
   // A base map change replaces the whole style: the page's own sources and layers are put back into
-  // every new one (transformStyle), in this order: images, paths, node markers.
-  const overlays = new Map(); // id -> { source, layers: [layer], kind: "image" | "path" }
+  // every new one (transformStyle), in this order: images, areas (GeoJSON polygons), paths, points,
+  // then the node markers.
+  const overlays = new Map(); // id -> { source, layers: [layer], kind: "image" | "area" | "path" | "points" }
+  const RANK = { image: 0, area: 1, path: 2, points: 3 };
   let overlaySeq = 0;
   let nodeData = { type: "FeatureCollection", features: [] };
   let clusterMaxZoom = clusterMaxZoomFor(11);
@@ -131,7 +134,7 @@ export async function createMapLibreEngine(container, { center, zoom, t, attribu
       },
     ];
   }
-  const orderedOverlays = () => [...overlays.values()].sort((a, b) => (a.kind === b.kind ? a.seq - b.seq : a.kind === "image" ? -1 : 1));
+  const orderedOverlays = () => [...overlays.values()].sort((a, b) => RANK[a.kind] - RANK[b.kind] || a.seq - b.seq);
 
   // (a canvas source holds an element, which a style document can't: those go in once it is loaded)
   function withOverlays(style) {
@@ -153,13 +156,10 @@ export async function createMapLibreEngine(container, { center, zoom, t, attribu
     }
   }
 
-  /** The id of the first layer above an overlay of this kind (images under paths under nodes). */
+  /** The id of the first layer above an overlay of this kind (images, areas, paths, points, nodes). */
   function beforeIdFor(kind) {
-    if (kind === "image") {
-      const firstPath = orderedOverlays().find((o) => o.kind === "path");
-      if (firstPath) return firstPath.layers()[0].id;
-    }
-    return NODES;
+    const above = orderedOverlays().find((o) => RANK[o.kind] > RANK[kind] && map.getLayer(o.layers()[0].id));
+    return above ? above.layers()[0].id : NODES;
   }
 
   function addOverlay(kind, source, layers) {
@@ -187,15 +187,34 @@ export async function createMapLibreEngine(container, { center, zoom, t, attribu
   probeSvg.setAttribute("aria-hidden", "true");
   probeSvg.style.cssText = "position:absolute;width:0;height:0;overflow:hidden;visibility:hidden";
   container.append(probeSvg);
-  function pathColours(className) {
+  /**
+   * A path's look as Leaflet would draw it: the options as SVG attributes, which the CSS class may
+   * override (as on Leaflet's own SVG paths).
+   */
+  function pathColours(className, options = {}) {
     const path = document.createElementNS(svgNs, "path");
+    const attrs = {
+      stroke: options.color ?? "#3388ff",
+      "stroke-opacity": options.opacity ?? 1,
+      "stroke-width": options.weight ?? 3,
+      fill: options.fillColor ?? options.color ?? "#3388ff",
+      "fill-opacity": options.fillOpacity ?? 0.2,
+    };
+    if (options.dashArray) attrs["stroke-dasharray"] = options.dashArray;
+    for (const [k, v] of Object.entries(attrs)) path.setAttribute(k, String(v));
     if (className) path.setAttribute("class", className);
     probeSvg.append(path);
     const cs = getComputedStyle(path);
+    const num = (v, fallback) => (Number.isFinite(parseFloat(v)) ? parseFloat(v) : fallback);
     const out = {
       stroke: cs.stroke && cs.stroke !== "none" ? cs.stroke : "#3388ff",
-      strokeOpacity: Number(cs.strokeOpacity) || 1,
+      strokeOpacity: cs.stroke === "none" ? 0 : num(cs.strokeOpacity, 1),
+      strokeWidth: num(cs.strokeWidth, options.weight ?? 3),
+      dashArray: cs.strokeDasharray && cs.strokeDasharray !== "none" ? cs.strokeDasharray : null,
       fill: cs.fill && cs.fill !== "none" ? cs.fill : "#3388ff",
+      fillOpacity: cs.fill === "none" ? 0 : num(cs.fillOpacity, 0.2),
+      // a fill of url(#pattern): the configurator's hatching of denied regions
+      hatch: /^url\(/.test(cs.fill || ""),
     };
     path.remove();
     return out;
@@ -278,7 +297,9 @@ export async function createMapLibreEngine(container, { center, zoom, t, attribu
     const lookNow = theme;
     const data = rest.startsWith("c|")
       ? await drawClusterImage(Number(rest.slice(2)), lookNow)
-      : await drawNodeImage(parseNodeImageId(rest), lookNow);
+      : rest.startsWith("h|")
+        ? drawHatch(rest.slice(2))
+        : await drawNodeImage(parseNodeImageId(rest), lookNow);
     if (Number(m[1]) !== gen || map.hasImage(id)) return;
     map.addImage(id, data, { pixelRatio: globalThis.devicePixelRatio || 1 });
     genImages.add(id);
@@ -294,6 +315,7 @@ export async function createMapLibreEngine(container, { center, zoom, t, attribu
       map.setLayoutProperty(NODES, "icon-image", nodeIconExpr());
       map.setLayoutProperty(CLUSTERS, "icon-image", clusterIconExpr());
     }
+    for (const o of overlays.values()) for (const layer of o.layers()) if (layer.layout?.["icon-image"] && map.getLayer(layer.id)) map.setLayoutProperty(layer.id, "icon-image", layer.layout["icon-image"]);
     for (const id of old) if (map.hasImage(id)) map.removeImage(id);
     restylePaths();
   }
@@ -320,8 +342,8 @@ export async function createMapLibreEngine(container, { center, zoom, t, attribu
     map.getSource(NODES)?.setData(nodeData);
   }
 
-  async function zoomIntoCluster(feature) {
-    const source = map.getSource(NODES);
+  async function zoomIntoCluster(feature, sourceId = NODES) {
+    const source = map.getSource(sourceId);
     const id = feature.properties.cluster_id;
     const [leaves, expansionZoom] = await Promise.all([source.getClusterLeaves(id, Infinity, 0), source.getClusterExpansionZoom(id)]);
     const bounds = new LngLatBounds();
@@ -334,11 +356,21 @@ export async function createMapLibreEngine(container, { center, zoom, t, attribu
   }
 
   const hitLayers = () => (map.getLayer(NODES) ? [CLUSTERS, NODES] : []);
+  /** The topmost feature of the page's interactive overlays (areas, points) at a point, with its overlay. */
+  function hitOverlay(point) {
+    const owners = new Map();
+    for (const o of orderedOverlays()) for (const id of o.hitLayers?.() ?? []) if (map.getLayer(id)) owners.set(id, o);
+    if (!owners.size) return null;
+    const feature = map.queryRenderedFeatures(point, { layers: [...owners.keys()] })[0];
+    return feature ? { feature, overlay: owners.get(feature.layer.id) } : null;
+  }
   map.on("click", (e) => {
     const layers = hitLayers();
     const feature = layers.length ? map.queryRenderedFeatures(e.point, { layers })[0] : null;
     if (!feature) {
       closePopup();
+      const hit = hitOverlay(e.point);
+      if (hit) hit.overlay.click?.(hit.feature, { lat: e.lngLat.lat, lon: e.lngLat.lng });
       return;
     }
     if (feature.layer.id === CLUSTERS) zoomIntoCluster(feature).catch((err) => console.error(err));
@@ -348,12 +380,27 @@ export async function createMapLibreEngine(container, { center, zoom, t, attribu
     }
   });
   const canvas = map.getCanvas();
+  let hovered = null;
   map.on("mousemove", (e) => {
     const layers = hitLayers();
     const feature = layers.length ? map.queryRenderedFeatures(e.point, { layers })[0] : null;
     const node = feature?.layer.id === NODES ? shownNodes[feature.properties.i] : null;
-    canvas.style.cursor = feature ? "pointer" : "";
+    const hit = feature ? null : hitOverlay(e.point);
+    const keyOf = (h) => h && `${h.feature.layer.id}|${h.feature.properties?.cluster_id ?? h.feature.properties?.i ?? h.feature.id}`;
+    if (hovered && keyOf(hovered) !== keyOf(hit)) {
+      hovered.overlay.hover?.(null);
+      hovered = null;
+    }
+    if (hit && !hovered) {
+      hovered = hit;
+      hit.overlay.hover?.(hit.feature, { lat: e.lngLat.lat, lon: e.lngLat.lng });
+    }
+    canvas.style.cursor = feature || hit?.overlay.click ? "pointer" : "";
     canvas.title = node?.adv_name ?? "";
+  });
+  canvas.addEventListener("mouseleave", () => {
+    hovered?.overlay.hover?.(null);
+    hovered = null;
   });
 
   // ------------------------------------------------------------------ popup
@@ -399,11 +446,11 @@ export async function createMapLibreEngine(container, { center, zoom, t, attribu
     done?.();
   }
 
-  function openPopup(spot, { html, className = "", width, onContent, onClose } = {}) {
+  function openPopup(spot, { html, className = "", width, minWidth, maxWidth, offset = 16, onContent, onClose } = {}) {
     closePopup();
     const p = new Popup({
       anchor: "bottom",
-      offset: [0, -16],
+      offset: [0, -offset],
       maxWidth: "none",
       className: `bemesh-popup ${className}`.trim(),
       closeOnClick: false,
@@ -427,6 +474,8 @@ export async function createMapLibreEngine(container, { center, zoom, t, attribu
     p.addTo(map);
     // border-box: the card itself keeps the given width inside its 1px border, as on Leaflet
     if (width) content().style.width = `${width + 2}px`;
+    if (minWidth) content().style.minWidth = `${minWidth + 2}px`;
+    if (maxWidth) content().style.maxWidth = `${maxWidth + 2}px`;
     onContent?.(content());
     keepPopupInView();
     if ("ResizeObserver" in window) {
@@ -778,6 +827,10 @@ export async function createMapLibreEngine(container, { center, zoom, t, attribu
     addMarker(spot, options) {
       return createMark(spot, options);
     },
+    addGeoJSON,
+    addPoints,
+    showTooltip,
+    hideTooltip,
   };
 
   function restylable(handle, paint) {
@@ -879,6 +932,248 @@ export async function createMapLibreEngine(container, { center, zoom, t, attribu
       },
     };
   }
+
+  // ------------------------------------------------------------------ GeoJSON areas, points, tooltips
+  /** Diagonal hatching (the configurator's denied regions), as a repeating pattern image. */
+  function drawHatch(color) {
+    const dpr = globalThis.devicePixelRatio || 1;
+    const size = 8;
+    const c = document.createElement("canvas");
+    c.width = c.height = Math.ceil(size * dpr);
+    const ctx = c.getContext("2d");
+    ctx.scale(dpr, dpr);
+    ctx.strokeStyle = color;
+    ctx.globalAlpha = 0.55;
+    ctx.lineWidth = 3;
+    for (const o of [-size, 0, size]) {
+      ctx.beginPath();
+      ctx.moveTo(o, size);
+      ctx.lineTo(o + size, 0);
+      ctx.stroke();
+    }
+    return ctx.getImageData(0, 0, c.width, c.height);
+  }
+
+  /**
+   * Polygons (and their outlines) from GeoJSON, as Leaflet's L.geoJSON draws them: `style(feature)`
+   * gives Leaflet's path options (color, weight, opacity, fill, fillColor, fillOpacity, dashArray,
+   * className: a class's CSS wins, as on Leaflet's SVG). `label(feature)` and `labelAt(feature)` show
+   * a tooltip on hover; `onClick(feature, spot)`. The handle can select features (a thicker outline).
+   */
+  function addGeoJSON(data, { style = () => ({}), label, labelAt, onClick, interactive = Boolean(onClick || label) } = {}) {
+    const originals = data?.type === "FeatureCollection" ? data.features : Array.isArray(data) ? data : [data];
+    let looks = [];
+    const build = () => {
+      looks = originals.map((f) => {
+        const o = { fill: true, ...style(f) };
+        const c = pathColours(o.className, o);
+        return { ...c, fill: o.fill !== false && c.fillOpacity > 0, fillColor: c.fill, dash: o.dashArray ?? c.dashArray };
+      });
+      const hatch = getComputedStyle(document.documentElement).getPropertyValue("--bad").trim() || "#c62828";
+      return {
+        type: "FeatureCollection",
+        features: originals.map((f, i) => ({
+          type: "Feature",
+          id: i,
+          geometry: f.geometry ?? f,
+          properties: {
+            i,
+            fc: looks[i].fill ? looks[i].fillColor : "rgba(0,0,0,0)",
+            fo: looks[i].fill ? looks[i].fillOpacity : 0,
+            pat: looks[i].hatch && looks[i].fill ? `g${gen}|h|${hatch}` : "",
+            lc: looks[i].stroke,
+            lo: looks[i].strokeOpacity,
+            lw: looks[i].strokeWidth,
+            dash: looks[i].dash ? 1 : 0,
+          },
+        })),
+      };
+    };
+    let fc = build();
+    const firstDash = looks.find((l) => l.dash);
+    const dash = firstDash ? dashInLineWidths(firstDash.dash, firstDash.strokeWidth) : null;
+    const hoverOn = ["boolean", ["feature-state", "hover"], false];
+    const selectedOn = ["boolean", ["feature-state", "selected"], false];
+    const handle = addOverlay(
+      "area",
+      () => ({ type: "geojson", data: fc }),
+      (id) => [
+        {
+          id: `${id}-fill`,
+          type: "fill",
+          source: id,
+          filter: ["==", ["get", "pat"], ""],
+          paint: {
+            "fill-color": ["get", "fc"],
+            // a hovered area shows a little stronger
+            "fill-opacity": interactive ? ["case", hoverOn, ["min", 1, ["+", ["get", "fo"], 0.12]], ["get", "fo"]] : ["get", "fo"],
+          },
+        },
+        { id: `${id}-hatch`, type: "fill", source: id, filter: ["!=", ["get", "pat"], ""], paint: { "fill-pattern": ["get", "pat"] } },
+        {
+          id: `${id}-line`,
+          type: "line",
+          source: id,
+          filter: ["==", ["get", "dash"], 0],
+          layout: { "line-join": "round", "line-cap": "round" },
+          paint: { "line-color": ["get", "lc"], "line-opacity": ["get", "lo"], "line-width": ["case", selectedOn, ["+", ["get", "lw"], 1.5], ["get", "lw"]] },
+        },
+        {
+          id: `${id}-dash`,
+          type: "line",
+          source: id,
+          filter: ["==", ["get", "dash"], 1],
+          layout: { "line-join": "round" },
+          paint: { "line-color": ["get", "lc"], "line-opacity": ["get", "lo"], "line-width": ["get", "lw"], ...(dash ? { "line-dasharray": dash } : {}) },
+        },
+      ],
+    );
+    const o = handle._overlay;
+    let selected = new Set();
+    const setState = (i, state) => {
+      if (map.getSource(o.id)) map.setFeatureState({ source: o.id, id: i }, state);
+    };
+    if (interactive) {
+      o.hitLayers = () => [`${o.id}-fill`, `${o.id}-hatch`];
+      o.hover = (feature, spot) => {
+        if (!feature) {
+          if (o.hoverId != null) setState(o.hoverId, { hover: false });
+          o.hoverId = null;
+          hideTooltip();
+          return;
+        }
+        o.hoverId = feature.properties.i;
+        setState(o.hoverId, { hover: true });
+        const f = originals[o.hoverId];
+        const text = label?.(f);
+        if (text) showTooltip(labelAt?.(f) ?? spot, text);
+      };
+      if (onClick) o.click = (feature, spot) => onClick(originals[feature.properties.i], spot);
+    }
+    // feature states go with a new style: put the selection back
+    const reselect = () => selected.forEach((i) => setState(i, { selected: true }));
+    map.on("style.load", reselect);
+    const restyle = {
+      restyle() {
+        fc = build();
+        map.getSource(o.id)?.setData(fc);
+      },
+    };
+    styledPaths.add(restyle);
+    const remove = handle.remove;
+    return {
+      remove() {
+        styledPaths.delete(restyle);
+        map.off("style.load", reselect);
+        if (hovered?.overlay === o) {
+          hideTooltip();
+          hovered = null;
+        }
+        remove();
+      },
+      /** Outlines these features thicker (a feature test, or null for none). */
+      select(test) {
+        selected.forEach((i) => setState(i, { selected: false }));
+        selected = new Set(test ? originals.flatMap((f, i) => (test(f) ? [i] : [])) : []);
+        reselect();
+      },
+      bounds: () => boundsOfGeoJSON(originals),
+    };
+  }
+
+  /**
+   * Points drawn as circles (Leaflet's circleMarker options: radius, color, weight, fillColor,
+   * fillOpacity), clustered when `cluster` ({ radius }) is given, in the gold bubbles of the map
+   * page. `label(point)` on hover, `onClick(point)`; points are { lat, lon, ... }.
+   */
+  function addPoints(points, { style = {}, cluster = null, label, onClick } = {}) {
+    const st = { radius: 10, color: "#3388ff", weight: 3, fillColor: style.color ?? "#3388ff", fillOpacity: 0.2, ...style };
+    const fc = {
+      type: "FeatureCollection",
+      features: points.map((p, i) => ({ type: "Feature", id: i, geometry: { type: "Point", coordinates: [Number(p.lon), Number(p.lat)] }, properties: { i } })),
+    };
+    const handle = addOverlay(
+      "points",
+      () => ({
+        type: "geojson",
+        data: fc,
+        ...(cluster ? { cluster: true, clusterRadius: cluster.radius ?? CLUSTER_RADIUS, clusterMaxZoom: toMapZoom(18) - 1 } : {}),
+      }),
+      (id) => [
+        {
+          id: `${id}-circle`,
+          type: "circle",
+          source: id,
+          filter: ["!", ["has", "point_count"]],
+          paint: {
+            "circle-radius": st.radius,
+            "circle-color": st.fillColor,
+            "circle-opacity": st.fillOpacity,
+            "circle-stroke-color": st.color,
+            "circle-stroke-width": st.weight,
+          },
+        },
+        ...(cluster
+          ? [{
+              id: `${id}-clusters`,
+              type: "symbol",
+              source: id,
+              filter: ["has", "point_count"],
+              layout: { "icon-image": clusterIconExpr(), "icon-allow-overlap": true, "icon-ignore-placement": true },
+            }]
+          : []),
+      ],
+    );
+    const o = handle._overlay;
+    o.hitLayers = () => [`${o.id}-clusters`, `${o.id}-circle`];
+    o.hover = (feature) => {
+      if (!feature || feature.properties.point_count) return hideTooltip();
+      const p = points[feature.properties.i];
+      const text = label?.(p);
+      if (text) showTooltip({ lat: Number(p.lat), lon: Number(p.lon) }, text, { offset: st.radius + 2 });
+    };
+    o.click = (feature) => {
+      if (feature.properties.point_count) {
+        zoomIntoCluster(feature, o.id).catch((err) => console.error(err));
+        return;
+      }
+      const p = points[feature.properties.i];
+      if (p) onClick?.(p, { lat: Number(p.lat), lon: Number(p.lon) });
+    };
+    return {
+      remove() {
+        if (hovered?.overlay === o) {
+          hideTooltip();
+          hovered = null;
+        }
+        handle.remove();
+      },
+    };
+  }
+
+  // One tooltip at a time, above its spot (Leaflet's tooltip look: .bemesh-tooltip in map-engine.css)
+  const tooltip = document.createElement("div");
+  tooltip.className = "bemesh-tooltip";
+  tooltip.setAttribute("role", "tooltip");
+  tooltip.hidden = true;
+  container.append(tooltip);
+  let tooltipAt = null;
+  function placeTooltip() {
+    if (!tooltipAt) return;
+    const p = map.project(lngLat(tooltipAt.spot));
+    tooltip.style.transform = `translate(${Math.round(p.x)}px, ${Math.round(p.y - tooltipAt.offset)}px) translate(-50%, -100%)`;
+  }
+  function showTooltip(spot, text, { offset = 10 } = {}) {
+    tooltip.textContent = text;
+    tooltip.hidden = false;
+    tooltipAt = { spot, offset };
+    placeTooltip();
+  }
+  function hideTooltip() {
+    tooltip.hidden = true;
+    tooltipAt = null;
+  }
+  map.on("move", placeTooltip);
 
   return engine;
 }

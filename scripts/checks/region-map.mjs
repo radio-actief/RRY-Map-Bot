@@ -1,7 +1,27 @@
 // Region map: top bar, panel controls, province layer, and no horizontal scroll on a phone.
+// The map is MapLibre's where the browser has WebGL, Leaflet's without: the checks take either.
+
+/** How many areas (provinces, gewesten, countries) the map draws. */
+const areaCount = (page) =>
+  page.evaluate(() => {
+    const m = window.bemeshMap;
+    if (!m) return 0;
+    if (m.kind !== "maplibre") return document.querySelectorAll(".leaflet-overlay-pane path.leaflet-interactive").length;
+    const layers = m.map.getStyle().layers.map((l) => l.id).filter((id) => /^bemesh-o\d+-fill$/.test(id));
+    return new Set(m.map.queryRenderedFeatures({ layers }).map((f) => f.properties.i)).size;
+  });
+const waitForAreas = (page) => page.waitForFunction(() => window.bemeshMap && document.querySelector("#counter-text")?.textContent, null, { timeout: 15000 }).then(() => page.waitForTimeout(800)).catch(() => {});
+/** A click on the map at a place (inside the area there). */
+async function clickAt(page, spot) {
+  const p = await page.evaluate((s) => window.bemeshMap.project(s), spot);
+  const box = await page.locator("#region-map-container").boundingBox();
+  await page.mouse.click(box.x + p.x, box.y + p.y);
+}
+const POPUP = ":is(.leaflet-popup, .bemesh-popup)";
+
 export default async function (ctx) {
   const page = await ctx.open("/region-map");
-  await page.waitForSelector(".leaflet-overlay-pane path", { timeout: 8000 }).catch(() => {});
+  await waitForAreas(page);
 
   const wordmark = await page.locator(".topbar .wordmark").first().textContent().catch(() => "");
   ctx.check("region map: wordmark", (wordmark || "").replace(/\s+/g, " ").trim() === "#BEmesh region map", wordmark);
@@ -22,8 +42,8 @@ export default async function (ctx) {
   ctx.check("region map: Belgium row shows be and a number", /\bbe\b/.test(be) && /\d/.test(be), be.trim());
   const eu = (await page.locator(`.hierarchy-node[data-code="eu"] .region-meta`).first().innerText().catch(() => "")) || "";
   ctx.check("region map: the EU row reads wider region", eu.trim() === "eu · wider region", eu.trim());
-  const paths = await page.locator(".leaflet-overlay-pane path").count();
-  ctx.check("region map: at least 10 province paths", paths >= 10, String(paths));
+  const paths = await areaCount(page);
+  ctx.check("region map: at least 10 province areas", paths >= 10, String(paths));
   ctx.check("region map: search stays empty after load", (await input.inputValue().catch(() => "x")) === "");
 
   await page.getByRole("button", { name: "Gewesten" }).click();
@@ -38,14 +58,14 @@ export default async function (ctx) {
     await p.close();
   }
 
-  // Dark mode: the Leaflet popup wrapper and tip follow the theme, not Leaflet's white.
+  // Dark mode: the popup frame and tip follow the theme, not the map library's white.
   const dark = await ctx.open("/region-map", { scheme: "dark" });
-  await dark.waitForSelector(".leaflet-overlay-pane path", { timeout: 8000 }).catch(() => {});
-  await dark.locator(".leaflet-overlay-pane path").first().click({ force: true });
-  await dark.waitForSelector(".leaflet-popup-content-wrapper", { timeout: 5000 }).catch(() => {});
+  await waitForAreas(dark);
+  await clickAt(dark, { lat: 51.05, lon: 3.72 });
+  await dark.waitForSelector(":is(.leaflet-popup-content-wrapper, .bemesh-popup .maplibregl-popup-content)", { timeout: 5000 }).catch(() => {});
   const bg = await dark.evaluate(() => {
-    const w = document.querySelector(".leaflet-popup-content-wrapper");
-    const t = document.querySelector(".leaflet-popup-tip");
+    const w = document.querySelector(".leaflet-popup-content-wrapper, .bemesh-popup .maplibregl-popup-content");
+    const t = document.querySelector(".leaflet-popup-tip, .bemesh-popup .maplibregl-popup-tip");
     return { wrapper: w && getComputedStyle(w).backgroundColor, tip: t && getComputedStyle(t).backgroundColor };
   });
   const notWhite = (c) => !!c && c !== "rgb(255, 255, 255)";
@@ -103,15 +123,16 @@ export default async function (ctx) {
   // The gewest popup lists its provinces as short name / code rows, not one squeezed column.
   await back.locator('.hierarchy-node[data-code="be"]').click();
   await back.getByRole("button", { name: "Gewesten" }).click();
-  await back.waitForTimeout(500);
-  const shapes = back.locator(".leaflet-overlay-pane path.leaflet-interactive");
+  await back.waitForTimeout(800);
+  // Flanders, between Ghent and Antwerp (no location point there to catch the click)
   let popup = null;
-  for (let i = 0; i < (await shapes.count()) && !popup; i++) {
-    const box = await shapes.nth(i).boundingBox();
-    if (!box) continue;
-    await back.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  for (const spot of [{ lat: 51.12, lon: 4.05 }, { lat: 50.4, lon: 4.9 }]) {
+    await clickAt(back, spot);
     await back.waitForTimeout(300);
-    if (await back.locator(".leaflet-popup").count()) popup = back.locator(".leaflet-popup");
+    if (await back.locator(POPUP).count()) {
+      popup = back.locator(POPUP).first();
+      break;
+    }
   }
   const popupText = popup ? await popup.innerText() : "";
   const popupHeight = popup ? (await popup.boundingBox()).height : 0;

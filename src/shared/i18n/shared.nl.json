@@ -79,5 +79,13 @@
   "mapShade.toDarkFollows": "Donkere kaart (volgt het thema)",
   "mapShade.toLightFollows": "Lichte kaart (volgt het thema)",
   "account.title": "Account",
-  "account.label": "Account: {name}"
+  "account.label": "Account: {name}",
+  "map.close": "Sluiten",
+  "map.baseMap": "Achtergrondkaart",
+  "map.baseMapFallback": "De kaartstijl kon niet laden: OpenStreetMap wordt getoond.",
+  "map.baseMapDown": "stijl niet geladen",
+  "map.base.streets": "Straten",
+  "map.attributionToggle": "Bronnen van de kaart",
+  "map.tiles": "Tegels",
+  "map.sources": "Bronnen"
 }

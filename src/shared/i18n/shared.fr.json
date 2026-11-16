@@ -79,5 +79,13 @@
   "mapShade.toDarkFollows": "Carte sombre (suit le thème)",
   "mapShade.toLightFollows": "Carte claire (suit le thème)",
   "account.title": "Compte",
-  "account.label": "Compte : {name}"
+  "account.label": "Compte : {name}",
+  "map.close": "Fermer",
+  "map.baseMap": "Fond de carte",
+  "map.baseMapFallback": "Le style de carte n’a pas pu être chargé : OpenStreetMap est affiché.",
+  "map.baseMapDown": "style non chargé",
+  "map.base.streets": "Rues",
+  "map.attributionToggle": "Crédits de la carte",
+  "map.tiles": "Tuiles",
+  "map.sources": "Sources"
 }

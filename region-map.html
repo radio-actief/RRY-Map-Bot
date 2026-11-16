@@ -18,11 +18,10 @@
     <link rel="preload" href="./src/shared/fonts/figtree-latin-normal-4ba7d3d096.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="./src/shared/fonts.css" />
     <link rel="stylesheet" href="./lib/css/bootstrap-icons.css" />
-    <link rel="stylesheet" href="./lib/css/leaflet.css" />
-    <link rel="stylesheet" href="./lib/css/MarkerCluster.css" />
-    <link rel="stylesheet" href="./lib/css/MarkerCluster.Default.css" />
+    <link rel="preconnect" href="https://tiles.openfreemap.org" crossorigin />
     <link rel="stylesheet" href="./src/shared/bemesh-tokens.css" />
     <link rel="stylesheet" href="./src/shared/bemesh-shell.css" />
+    <link rel="stylesheet" href="./src/shared/map-engine.css" />
     <link rel="stylesheet" href="./css/region-map.css" />
     <script src="./src/shared/i18n.js" data-i18n-page="region-map"></script>
     <script src="./src/shared/theme.js"></script>
@@ -106,14 +105,12 @@
       </div>
     </div>
 
-    <script src="./lib/leaflet.js"></script>
-    <script src="./lib/leaflet.markercluster.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@turf/turf@7.2.0/turf.min.js"></script>
     <script src="./src/shared/be-regions.js"></script>
     <script src="./src/shared/about.js"></script>
     <script src="./src/shared/menu-place.js"></script>
     <script src="./src/shared/topbar.js"></script>
     <script src="./src/shared/map-shade.js"></script>
-    <script src="./src/region-map.js"></script>
+    <script type="module" src="./src/region-map.js"></script>
   </body>
 </html>

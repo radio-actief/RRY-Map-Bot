@@ -79,5 +79,13 @@
   "mapShade.toDarkFollows": "Dark map (follows the theme)",
   "mapShade.toLightFollows": "Light map (follows the theme)",
   "account.title": "Account",
-  "account.label": "Account: {name}"
+  "account.label": "Account: {name}",
+  "map.close": "Close",
+  "map.baseMap": "Base map",
+  "map.baseMapFallback": "The map style could not be loaded: showing OpenStreetMap.",
+  "map.baseMapDown": "style not loaded",
+  "map.base.streets": "Streets",
+  "map.attributionToggle": "Map credits",
+  "map.tiles": "Tiles",
+  "map.sources": "Sources"
 }

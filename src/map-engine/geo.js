@@ -102,3 +102,26 @@ export function distanceKm(a, b) {
   const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * d) * Math.cos(b.lat * d) * Math.sin(dLon / 2) ** 2;
   return (2 * EARTH * Math.asin(Math.min(1, Math.sqrt(h)))) / 1000;
 }
+
+/** [[south, west], [north, east]] around a GeoJSON object (feature, collection or geometry); null when empty. */
+export function boundsOfGeoJSON(geojson) {
+  let s = Infinity, w = Infinity, n = -Infinity, e = -Infinity;
+  const visit = (c) => {
+    if (typeof c?.[0] === "number") {
+      const [lon, lat] = c;
+      if (lat < s) s = lat;
+      if (lat > n) n = lat;
+      if (lon < w) w = lon;
+      if (lon > e) e = lon;
+    } else if (Array.isArray(c)) c.forEach(visit);
+  };
+  const walk = (g) => {
+    if (!g) return;
+    if (g.type === "FeatureCollection") g.features?.forEach(walk);
+    else if (g.type === "Feature") walk(g.geometry);
+    else if (g.type === "GeometryCollection") g.geometries?.forEach(walk);
+    else visit(g.coordinates);
+  };
+  (Array.isArray(geojson) ? geojson : [geojson]).forEach(walk);
+  return Number.isFinite(s) ? [[s, w], [n, e]] : null;
+}

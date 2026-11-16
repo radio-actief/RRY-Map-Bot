@@ -390,3 +390,31 @@ describe("reduced motion", () => {
     expect(lf).toMatch(/zoomAnimation: false, fadeAnimation: false, markerZoomAnimation: false/);
   });
 });
+
+describe("the region map on the map engine", () => {
+  it("bounds GeoJSON features, collections and geometries", () => {
+    const poly = { type: "Polygon", coordinates: [[[3, 50], [5, 50], [5, 51.5], [3, 51.5], [3, 50]]] };
+    expect(geo.boundsOfGeoJSON(poly)).toEqual([[50, 3], [51.5, 5]]);
+    const fc = { type: "FeatureCollection", features: [{ type: "Feature", geometry: poly }, { type: "Feature", geometry: { type: "Point", coordinates: [6, 49] } }] };
+    expect(geo.boundsOfGeoJSON(fc)).toEqual([[49, 3], [51.5, 6]]);
+    expect(geo.boundsOfGeoJSON({ type: "FeatureCollection", features: [] })).toBeNull();
+  });
+
+  it("loads no map library itself: the engine brings MapLibre, or Leaflet without WebGL", () => {
+    const html = read("region-map.html");
+    expect(html).not.toMatch(/leaflet|maplibre/i);
+    expect(html).toMatch(/<script type="module" src="\.\/src\/region-map\.js"><\/script>/);
+    expect(html).toMatch(/src\/shared\/map-engine\.css/);
+    const js = read("src/region-map.js");
+    expect(js).toMatch(/import \{ createMapEngine, preloadEngine \} from "\.\/map-engine\/index\.js"/);
+    expect(js).not.toMatch(/\bL\.[a-zA-Z]|window\.L\b/);
+  });
+
+  it("finds the engine's texts in the shared messages, which every tool page loads", () => {
+    const shared = JSON.parse(read("src/shared/i18n/shared.en.json"));
+    for (const f of ["src/map-engine/maplibre-engine.js", "src/map-engine/leaflet-engine.js", "src/map-engine/basemaps.js"]) {
+      const keys = [...read(f).matchAll(/\bt\(\s*"([\w.-]+)"/g)].map((m) => m[1]);
+      expect(keys.filter((k) => !(k in shared)), f).toEqual([]);
+    }
+  });
+});

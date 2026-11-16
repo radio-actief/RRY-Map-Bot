@@ -1,3 +1,21 @@
+// The region map: region codes (eu, be, be-* and the neighbouring countries) on the map engine of the
+// map page (src/map-engine/: MapLibre, or Leaflet without WebGL), with Turf for the province areas
+// when their outlines can't be loaded.
+import { createMapEngine, preloadEngine } from "./map-engine/index.js";
+import { boundsOf, boundsOfGeoJSON } from "./map-engine/geo.js";
+
+// The data and MapLibre's files start loading now, side by side.
+preloadEngine();
+const dataLoaded = loadData();
+
+function loadData() {
+  const json = (name, fallback) =>
+    fetch(window.RRYRegions.rryDataUrl(name))
+      .then((r) => (r.ok ? r.json().catch(() => fallback) : fallback))
+      .catch(() => fallback);
+  return Promise.all([json("be-locode.json", []), json("be-provinces.geojson", null), json("be-gewesten.geojson", null), json("countries.geojson", null)]);
+}
+
       // Runs once src/shared/i18n.js has the page language's messages and has translated the static page.
       window.BEmeshI18n.ready.then(function (I18N) {
         var tr = I18N.t;
@@ -30,12 +48,14 @@
         let map = null;
         let markerCluster = null;
         let provincesLayer = null;
+        /** The region the search or the tree picked (its outline is drawn thicker). */
+        let selectedCode = "";
         let overlayMode = "provinces";
         let showPlaces = true;
         let currentSearch = "";
         let lastMatches = [];
         let autocompleteIndex = -1;
-        const belgiumCenter = [50.5, 4.35];
+        const belgiumCenter = { lat: 50.5, lon: 4.35 };
         const belgiumZoom = 8;
 
         function normalize(s) {
@@ -249,64 +269,26 @@
           );
         }
 
-        var REGION_LOCODE_POPUP_OPTS = {
-          /* Leaflet measures content width with nowrap; minWidth avoids a 1-char-wide box */
-          minWidth: 280,
-          maxWidth: 400,
-          className: "region-locode-popup",
-        };
-
-        var REGION_MAP_TOOLTIP_OPTS = {
-          permanent: false,
-          direction: "auto",
-          className: "region-map-tooltip",
-        };
+        /** A region popup (place, province, gewest or country) at a spot. */
+        function openRegionPopup(spot, html, offset) {
+          map.openPopup(spot, {
+            html: html,
+            className: "region-locode-popup",
+            minWidth: 280,
+            maxWidth: 400,
+            offset: offset || 0,
+          });
+        }
 
         /**
-         * Show province name tooltip fixed above the provincial capital (not under the cursor),
-         * so it stays readable while moving over the polygon.
+         * Where an area's name shows on hover: above the provincial capital (not under the cursor),
+         * so it stays readable while moving over the polygon; else the middle of the area.
          */
-        function attachProvinceHoverTooltip(layer, provinceCode, name) {
-          var code = provinceCode;
-          var label = name || PROVINCE_NAMES[code] || GEWEST_NAMES[code] || code;
-          var cap = PROVINCE_CAPITAL_LATLNG[code];
-          function clearTip() {
-            if (layer._rmProvinceHoverTip && map) {
-              try {
-                map.removeLayer(layer._rmProvinceHoverTip);
-              } catch (e) {
-                /* ignore */
-              }
-              layer._rmProvinceHoverTip = null;
-            }
-          }
-          layer.on("mouseover", function () {
-            if (layer._rmProvinceHoverTip || !map) return;
-            var latlng;
-            try {
-              if (cap && cap.length >= 2) {
-                latlng = L.latLng(cap[0], cap[1]);
-              } else if (layer.getBounds && layer.getBounds().isValid()) {
-                latlng = layer.getBounds().getCenter();
-              }
-            } catch (e2) {
-              latlng = null;
-            }
-            if (!latlng) return;
-            var tip = L.tooltip(
-              Object.assign({}, REGION_MAP_TOOLTIP_OPTS, {
-                direction: "top",
-                sticky: false,
-                offset: L.point(0, -10),
-              }),
-            )
-              .setContent(label)
-              .setLatLng(latlng)
-              .addTo(map);
-            layer._rmProvinceHoverTip = tip;
-          });
-          layer.on("mouseout", clearTip);
-          layer.on("remove", clearTip);
+        function labelSpot(feature) {
+          var cap = PROVINCE_CAPITAL_LATLNG[feature.properties && feature.properties.code];
+          if (cap && cap.length >= 2) return { lat: cap[0], lon: cap[1] };
+          var b = boundsOfGeoJSON(feature);
+          return b ? { lat: (b[0][0] + b[1][0]) / 2, lon: (b[0][1] + b[1][1]) / 2 } : null;
         }
 
         function locationMatchesQuery(loc, q) {
@@ -425,58 +407,45 @@
           };
         }
 
+        var pad = function (px) {
+          return { top: px, bottom: px, left: px, right: px };
+        };
+
         function boundsFromProvinceGeoCode(pc) {
           if (!provinceBoundariesFC || !provinceBoundariesFC.features)
             return null;
-          var i;
-          for (i = 0; i < provinceBoundariesFC.features.length; i++) {
-            var f = provinceBoundariesFC.features[i];
-            if (f.properties && f.properties.code === pc) {
-              try {
-                var tmp = L.geoJSON(f);
-                var b = tmp.getBounds();
-                tmp.remove();
-                if (b && b.isValid()) return b;
-              } catch (e) {}
-            }
-          }
-          return null;
+          var f = provinceBoundariesFC.features.find(function (x) {
+            return x.properties && x.properties.code === pc;
+          });
+          return f ? boundsOfGeoJSON(f) : null;
         }
 
         function fitAllProvincesBounds() {
           if (!map) return;
-          if (
-            provinceBoundariesFC &&
-            provinceBoundariesFC.features &&
-            provinceBoundariesFC.features.length
-          ) {
-            try {
-              var ly = L.geoJSON(provinceBoundariesFC);
-              var bb = ly.getBounds();
-              ly.remove();
-              if (bb && bb.isValid()) {
-                map.fitBounds(bb, { padding: [24, 24] });
-                return;
-              }
-            } catch (e2) {}
-          }
-          map.setView(belgiumCenter, belgiumZoom);
+          var bb = provinceBoundariesFC && provinceBoundariesFC.features && provinceBoundariesFC.features.length ? boundsOfGeoJSON(provinceBoundariesFC) : null;
+          if (bb) map.fitBounds(bb, pad(24));
+          else map.setView(belgiumCenter, belgiumZoom);
         }
 
         function fitProvincePolygonBounds(pc) {
           var b = boundsFromProvinceGeoCode(pc);
-          if (b && map && b.isValid()) map.fitBounds(b, { padding: [20, 20] });
+          if (b && map) map.fitBounds(b, pad(20));
         }
 
         function fitCountryBounds(code) {
           var f = countryFeature(code);
-          if (!f || !map) return;
-          try {
-            var tmp = L.geoJSON(f);
-            var b = tmp.getBounds();
-            tmp.remove();
-            if (b && b.isValid()) map.fitBounds(b, { padding: [20, 20] });
-          } catch (e) {}
+          var b = f ? boundsOfGeoJSON(f) : null;
+          if (b && map) map.fitBounds(b, pad(20));
+        }
+
+        /** The picked province, gewest or country gets a thicker outline. */
+        function selectArea(code) {
+          selectedCode = (code || "").trim().toLowerCase();
+          if (provincesLayer) {
+            provincesLayer.select(selectedCode ? function (f) {
+              return f.properties && f.properties.code === selectedCode;
+            } : null);
+          }
         }
 
         /** Press the borders button that matches overlayMode. */
@@ -506,31 +475,46 @@
           else if (overlayMode === "countries") setOverlayMode("provinces");
         }
 
-        function addCircleMarkersToContainer(container, matched) {
-          matched.forEach(function (loc) {
-            var circle = L.circleMarker([loc.lat, loc.lon], {
-              radius: 6,
-              fillColor: "#2563eb",
-              color: "#1d4ed8",
-              weight: 1,
-              fillOpacity: 0.9,
-            });
-            circle.bindPopup(locodePopupHtml(loc), REGION_LOCODE_POPUP_OPTS);
-            circle.bindTooltip(
-              placeName(loc) || "—",
-              REGION_MAP_TOOLTIP_OPTS,
-            );
-            container.addLayer(circle);
+        /** The location points: blue dots, clustered above 50, a name on hover and the codes on a click. */
+        function showPoints(matched) {
+          if (markerCluster) {
+            markerCluster.remove();
+            markerCluster = null;
+          }
+          if (!showPlaces || !matched.length) return;
+          markerCluster = map.addPoints(matched, {
+            style: { radius: 6, fillColor: "#2563eb", color: "#1d4ed8", weight: 1, fillOpacity: 0.9 },
+            cluster: matched.length > 50 ? { radius: 55 } : null,
+            label: function (loc) {
+              return placeName(loc) || "—";
+            },
+            onClick: function (loc, spot) {
+              openRegionPopup(spot, locodePopupHtml(loc), 6);
+            },
+          });
+        }
+
+        /** An area layer: the borders of the current mode, with their name on hover and codes on a click. */
+        function addAreas(fc, popupHtml, nameOf) {
+          return map.addGeoJSON(fc, {
+            style: function (feat) {
+              return getOverlayStyle(feat.properties.code);
+            },
+            label: function (feat) {
+              var c = feat.properties.code;
+              return nameOf ? nameOf(c) : PROVINCE_NAMES[c] || GEWEST_NAMES[c] || c;
+            },
+            labelAt: labelSpot,
+            onClick: function (feat, spot) {
+              openRegionPopup(spot, popupHtml(feat.properties.code));
+            },
           });
         }
 
         function updateOverlays() {
-          if (markerCluster) {
-            map.removeLayer(markerCluster);
-            markerCluster = null;
-          }
+          if (!map) return;
           if (provincesLayer) {
-            map.removeLayer(provincesLayer);
+            provincesLayer.remove();
             provincesLayer = null;
           }
           if (overlayMode === "provinces") {
@@ -539,20 +523,7 @@
               provinceBoundariesFC.features &&
               provinceBoundariesFC.features.length
             ) {
-              provincesLayer = L.geoJSON(provinceBoundariesFC, {
-                style: function (feat) {
-                  return getOverlayStyle(feat.properties.code);
-                },
-                onEachFeature: function (feat, layer) {
-                  var c = feat.properties.code;
-                  attachProvinceHoverTooltip(layer, c);
-                  layer.bindPopup(
-                    provinceLocodePopupHtml(c),
-                    REGION_LOCODE_POPUP_OPTS,
-                  );
-                },
-              });
-              map.addLayer(provincesLayer);
+              provincesLayer = addAreas(provinceBoundariesFC, provinceLocodePopupHtml);
             } else if (typeof turf !== "undefined") {
               var areas = buildProvinceAreas();
               var features = [];
@@ -563,35 +534,11 @@
                   var props = feat.properties
                     ? Object.assign({}, feat.properties, { code: code })
                     : { code: code };
-                  var f =
-                    turf && turf.feature
-                      ? turf.feature(geom, props)
-                      : {
-                          type: "Feature",
-                          geometry: geom,
-                          properties: props,
-                        };
-                  features.push(f);
+                  features.push({ type: "Feature", geometry: geom, properties: props });
                 }
               }
               if (features.length) {
-                provincesLayer = L.geoJSON(
-                  { type: "FeatureCollection", features: features },
-                  {
-                    style: function (f) {
-                      return getOverlayStyle(f.properties.code);
-                    },
-                    onEachFeature: function (f, layer) {
-                      var pc = f.properties.code;
-                      attachProvinceHoverTooltip(layer, pc);
-                      layer.bindPopup(
-                        provinceLocodePopupHtml(pc),
-                        REGION_LOCODE_POPUP_OPTS,
-                      );
-                    },
-                  },
-                );
-                map.addLayer(provincesLayer);
+                provincesLayer = addAreas({ type: "FeatureCollection", features: features }, provinceLocodePopupHtml);
               }
             }
           } else if (overlayMode === "countries") {
@@ -608,27 +555,9 @@
                     (b.properties.code === "eu") - (a.properties.code === "eu")
                   );
                 });
-              provincesLayer = L.geoJSON(
-                { type: "FeatureCollection", features: countryFeatures },
-                {
-                  style: function (feat) {
-                    return getOverlayStyle(feat.properties.code);
-                  },
-                  onEachFeature: function (feat, layer) {
-                    var c = feat.properties.code;
-                    attachProvinceHoverTooltip(
-                      layer,
-                      c,
-                      countryName(c) + " (" + c + ")",
-                    );
-                    layer.bindPopup(
-                      countryPopupHtml(c),
-                      REGION_LOCODE_POPUP_OPTS,
-                    );
-                  },
-                },
-              );
-              map.addLayer(provincesLayer);
+              provincesLayer = addAreas({ type: "FeatureCollection", features: countryFeatures }, countryPopupHtml, function (c) {
+                return countryName(c) + " (" + c + ")";
+              });
             }
           } else if (overlayMode === "gewesten") {
             if (
@@ -636,38 +565,11 @@
               gewestBoundariesFC.features &&
               gewestBoundariesFC.features.length
             ) {
-              provincesLayer = L.geoJSON(gewestBoundariesFC, {
-                style: function (feat) {
-                  return getOverlayStyle(feat.properties.code);
-                },
-                onEachFeature: function (feat, layer) {
-                  var c = feat.properties.code;
-                  attachProvinceHoverTooltip(layer, c);
-                  layer.bindPopup(
-                    gewestPopupHtml(c),
-                    REGION_LOCODE_POPUP_OPTS,
-                  );
-                },
-              });
-              map.addLayer(provincesLayer);
+              provincesLayer = addAreas(gewestBoundariesFC, gewestPopupHtml);
             }
           }
-          if (showPlaces && lastMatches.length) {
-            var useCluster =
-              typeof L.markerClusterGroup === "function" &&
-              lastMatches.length > 50;
-            if (useCluster) {
-              markerCluster = L.markerClusterGroup({
-                maxClusterRadius: 55,
-                chunkedLoading: lastMatches.length > 400,
-              });
-              addCircleMarkersToContainer(markerCluster, lastMatches);
-            } else {
-              markerCluster = L.featureGroup();
-              addCircleMarkersToContainer(markerCluster, lastMatches);
-            }
-            map.addLayer(markerCluster);
-          }
+          selectArea(selectedCode);
+          showPoints(lastMatches);
         }
 
         function matchLocations(query) {
@@ -802,6 +704,7 @@
           var normCode = (code || "").trim().toLowerCase();
           var t = type || "";
           followSearchBorders(normCode);
+          selectArea(normCode);
           if (t === "province" || PROVINCE_CODES.indexOf(normCode) >= 0) {
             fitProvincePolygonBounds(normCode);
           } else if (isForeignRegion(normCode)) {
@@ -855,47 +758,17 @@
 
         function updateMap(matched) {
           if (!map) return;
-          if (markerCluster) {
-            map.removeLayer(markerCluster);
-            markerCluster = null;
-          }
-          if (!showPlaces || !matched.length) {
-            updateCounter(matched ? matched.length : 0);
-            if (matched && matched.length === 1) {
-              map.setView([matched[0].lat, matched[0].lon], 12);
-            } else if (matched && matched.length > 1 && matched.length < 30) {
-              var b = L.latLngBounds(
-                matched.map(function (l) {
-                  return [l.lat, l.lon];
-                }),
-              );
-              map.fitBounds(b, { padding: [30, 30] });
-            }
-            return;
-          }
-          var useCluster =
-            typeof L.markerClusterGroup === "function" && matched.length > 50;
-          if (useCluster) {
-            markerCluster = L.markerClusterGroup({
-              maxClusterRadius: 55,
-              chunkedLoading: matched.length > 400,
-            });
-            addCircleMarkersToContainer(markerCluster, matched);
-          } else {
-            markerCluster = L.featureGroup();
-            addCircleMarkersToContainer(markerCluster, matched);
-          }
-          map.addLayer(markerCluster);
-          updateCounter(matched.length);
-          if (matched.length === 1) {
-            map.setView([matched[0].lat, matched[0].lon], 12);
-          } else if (matched.length < 30) {
-            var bounds = L.latLngBounds(
-              matched.map(function (l) {
-                return [l.lat, l.lon];
-              }),
+          showPoints(matched || []);
+          updateCounter(matched ? matched.length : 0);
+          if (matched && matched.length === 1) {
+            map.setView({ lat: matched[0].lat, lon: matched[0].lon }, 12);
+          } else if (matched && matched.length > 1 && matched.length < 30) {
+            map.fitBounds(
+              boundsOf(matched.map(function (l) {
+                return { lat: l.lat, lon: l.lon };
+              })),
+              pad(30),
             );
-            map.fitBounds(bounds, { padding: [30, 30] });
           }
         }
 
@@ -953,22 +826,16 @@
         }
 
         function init() {
-          L.Control.Zoom.prototype.options.zoomInTitle = tr("zoom.in");
-          L.Control.Zoom.prototype.options.zoomOutTitle = tr("zoom.out");
-          map = L.map("region-map-container").setView(
-            belgiumCenter,
-            belgiumZoom,
-          );
-          var osmTiles = L.tileLayer(
-            "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-            {
-              className: "osm-tiles",
-              attribution:
-                '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-            },
-          ).addTo(map);
-          window.BEmeshMapShade.attach(L, map, osmTiles, {
-            position: "topleft",
+          // The map: MapLibre (or Leaflet without WebGL), with the map page's base maps and controls.
+          var mapReady = createMapEngine(document.getElementById("region-map-container"), {
+            center: belgiumCenter,
+            zoom: belgiumZoom,
+            t: tr,
+            attribution: "",
+          }).then(function (engine) {
+            map = window.bemeshMap = engine;
+            document.getElementById("region-map-container").dataset.engine = engine.kind;
+            return engine;
           });
 
           document
@@ -980,22 +847,22 @@
               var expanded = !panel.classList.contains("collapsed");
               this.setAttribute("aria-expanded", expanded ? "true" : "false");
               window.setTimeout(function () {
-                if (map) map.invalidateSize({ animate: false });
+                if (map) map.resize();
               }, 280);
             });
 
           window.addEventListener("resize", function () {
-            if (map) map.invalidateSize({ animate: false });
+            if (map) map.resize();
           });
           var rmVV = window.visualViewport;
           if (rmVV) {
             rmVV.addEventListener("resize", function () {
-              if (map) map.invalidateSize({ animate: false });
+              if (map) map.resize();
             });
           }
           window.addEventListener("orientationchange", function () {
             window.setTimeout(function () {
-              if (map) map.invalidateSize({ animate: false });
+              if (map) map.resize();
             }, 400);
           });
 
@@ -1086,41 +953,9 @@
             }
           });
 
-          Promise.all([
-            fetch(rryDataUrl("be-locode.json"))
-              .then(function (r) {
-                if (!r.ok) return [];
-                return r.json().catch(function () {
-                  return [];
-                });
-              })
-              .then(function (data) {
-                return Array.isArray(data) ? data : [];
-              }),
-            fetch(rryDataUrl("be-provinces.geojson")).then(function (r) {
-              if (!r.ok) return null;
-              return r.json().catch(function () {
-                return null;
-              });
-            }),
-            fetch(rryDataUrl("be-gewesten.geojson")).then(function (r) {
-              if (!r.ok) return null;
-              return r.json().catch(function () {
-                return null;
-              });
-            }),
-            fetch(rryDataUrl("countries.geojson"))
-              .then(function (r) {
-                if (!r.ok) return null;
-                return r.json().catch(function () {
-                  return null;
-                });
-              })
-              .catch(function () {
-                return null;
-              }),
-          ])
-            .then(function (results) {
+          Promise.all([dataLoaded, mapReady])
+            .then(function (both) {
+              var results = both[0];
               locations = results[0] || [];
               provinceBoundariesFC = results[1];
               gewestBoundariesFC = results[2];
@@ -1131,9 +966,10 @@
               updateOverlays();
               /* Same as clicking hierarchy indent-0 Belgium (be) */
               runCodeSearch("be", "country", true);
-              if (map) map.invalidateSize({ animate: false });
+              if (map) map.resize();
             })
-            .catch(function () {
+            .catch(function (e) {
+              console.error(e);
               locations = [];
               provinceBoundariesFC = null;
               gewestBoundariesFC = null;

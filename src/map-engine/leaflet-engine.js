@@ -2,7 +2,7 @@
 // map as it was before MapLibre, with the same interface as ./maplibre-engine.js (see ./index.js).
 // Leaflet and markercluster (lib/) load only here, so WebGL browsers never fetch them.
 import { BASE_MAPS, baseMapIds, rasterAttribution, readBaseMap, storeBaseMap } from "./basemaps.js";
-import { wrapLon } from "./geo.js";
+import { boundsOfGeoJSON, wrapLon } from "./geo.js";
 import { prefersReducedMotion } from "./motion.js";
 
 const base = (path) => new URL(`../../${path}`, import.meta.url).href;
@@ -47,16 +47,17 @@ const ICON_OPTIONS = { iconSize: [32, 32], iconAnchor: [17, 17], popupAnchor: [0
 export async function createLeafletEngine(container, { center, zoom, t, attribution }) {
   await loadLeaflet();
   const L = window.L;
+  container.classList.add("bemesh-map");
 
   const tiles = {
     osm: L.tileLayer(BASE_MAPS.osm.raster.tiles, {
       maxZoom: 19,
       className: "osm-tiles",
-      attribution: `${rasterAttribution("osm", t)} | ${attribution}`,
+      attribution: [rasterAttribution("osm", t), attribution].filter(Boolean).join(" | "),
     }),
     satellite: L.tileLayer(BASE_MAPS.satellite.raster.tiles, {
       maxZoom: 18,
-      attribution: `${rasterAttribution("satellite", t)} | ${attribution}`,
+      attribution: [rasterAttribution("satellite", t), attribution].filter(Boolean).join(" | "),
     }),
   };
   const baseId = readBaseMap(globalThis.localStorage, { vector: false });
@@ -192,16 +193,16 @@ export async function createLeafletEngine(container, { center, zoom, t, attribut
     done?.();
   });
 
-  function openPopup(spot, { html, className = "", width, onContent, onClose } = {}) {
+  function openPopup(spot, { html, className = "", width, minWidth, maxWidth, offset = 16, onContent, onClose } = {}) {
     if (popup) map.closePopup(popup);
-    const size = width ? { minWidth: Math.min(300, width), maxWidth: width } : {};
+    const size = width ? { minWidth: Math.min(300, width), maxWidth: width } : { ...(minWidth ? { minWidth } : {}), ...(maxWidth ? { maxWidth } : {}) };
     const p = L.popup({
       ...size,
       className,
       autoPanPaddingTopLeft: [10, 100],
       autoPanPaddingBottomRight: [10, 10],
       // a marker's popup: popupAnchor [0, -16] and the popup's own offset [0, 7]
-      offset: [0, -9],
+      offset: [0, 7 - offset],
     })
       .setLatLng([spot.lat, spot.lon])
       .setContent(html);
@@ -218,6 +219,68 @@ export async function createLeafletEngine(container, { center, zoom, t, attribut
       popupResize.observe(p.getElement());
     }
     return p;
+  }
+
+  // ------------------------------------------------------------------ GeoJSON areas, points, tooltips
+  let tip = null;
+  function showTooltip(spot, text, { offset = 10 } = {}) {
+    hideTooltip();
+    tip = L.tooltip({ direction: "top", offset: L.point(0, -offset), className: "region-map-tooltip bemesh-leaflet-tooltip" })
+      .setContent(text)
+      .setLatLng([spot.lat, spot.lon])
+      .addTo(map);
+  }
+  function hideTooltip() {
+    tip?.remove();
+    tip = null;
+  }
+
+  function addGeoJSON(data, { style = () => ({}), label, labelAt, onClick, interactive = Boolean(onClick || label) } = {}) {
+    const selected = new Set();
+    const base = new Map();
+    const layer = L.geoJSON(data, {
+      interactive,
+      style: (f) => {
+        const st = style(f);
+        base.set(f, st);
+        return st;
+      },
+      onEachFeature: (f, l) => {
+        if (label) {
+          l.on("mouseover", (e) => showTooltip(labelAt?.(f) ?? { lat: e.latlng.lat, lon: e.latlng.lng }, label(f)));
+          l.on("mouseout", hideTooltip);
+          l.on("remove", hideTooltip);
+        }
+        if (onClick) l.on("click", (e) => onClick(f, { lat: e.latlng.lat, lon: wrapLon(e.latlng.lng) }));
+      },
+    }).addTo(map);
+    return {
+      remove: () => layer.remove(),
+      select(test) {
+        selected.clear();
+        layer.eachLayer((l) => {
+          const st = base.get(l.feature) ?? {};
+          const on = Boolean(test?.(l.feature));
+          if (on) selected.add(l.feature);
+          l.setStyle({ weight: (st.weight ?? 3) + (on ? 1.5 : 0) });
+        });
+      },
+      bounds: () => boundsOfGeoJSON(data),
+    };
+  }
+
+  function addPoints(points, { style = {}, cluster = null, label, onClick } = {}) {
+    const group = cluster && L.markerClusterGroup
+      ? L.markerClusterGroup({ maxClusterRadius: cluster.radius ?? 80, chunkedLoading: points.length > 400, animate: !prefersReducedMotion() })
+      : L.featureGroup();
+    for (const p of points) {
+      const m = L.circleMarker([Number(p.lat), Number(p.lon)], style);
+      if (label) m.bindTooltip(label(p), { className: "region-map-tooltip", direction: "auto" });
+      if (onClick) m.on("click", () => onClick(p, { lat: Number(p.lat), lon: Number(p.lon) }));
+      group.addLayer(m);
+    }
+    group.addTo(map);
+    return { remove: () => group.remove() };
   }
 
   const engine = {
@@ -315,6 +378,10 @@ export async function createLeafletEngine(container, { center, zoom, t, attribut
       const layer = L.circleMarker([spot.lat, spot.lon], { pane: "planMarks", interactive: false, fillOpacity: 1, ...style }).addTo(map);
       return { remove: () => layer.remove() };
     },
+    addGeoJSON,
+    addPoints,
+    showTooltip,
+    hideTooltip,
     addMarker(spot, { html = "", className = "", size = [20, 20], anchor, draggable = false, title = "", interactive = true } = {}) {
       const icon = (h, c) => L.divIcon({ className: c, html: h, iconSize: size, iconAnchor: anchor ?? [size[0] / 2, size[1] / 2] });
       let current = { html, className };

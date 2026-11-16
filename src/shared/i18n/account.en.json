@@ -1,0 +1,19 @@
+{
+  "account.pageTitle": "Account – #BEmesh",
+  "account.wordmark": "mesh account",
+  "account.loading": "Loading…",
+  "account.failed": "Your account couldn't be loaded. Try again in a moment.",
+  "account.noNodes": "You haven't claimed a node yet. Open your node on the map and choose Claim.",
+  "account.openMap": "Open the map",
+  "account.unnamed": "Unnamed node",
+  "account.showOnMap": "Show {name} on the map",
+  "account.type.1": "Client",
+  "account.type.2": "Repeater",
+  "account.type.3": "Room Server",
+  "account.type.4": "Sensor",
+  "account.tools": "Your tools",
+  "account.nodebook": "My NodeBook fleet",
+  "account.logOutEverywhere": "Log out everywhere",
+  "account.everywhereHint": "Also on your other devices.",
+  "account.heading": "#BEmesh account"
+}

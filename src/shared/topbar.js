@@ -1,6 +1,9 @@
-/* The top bar's account chip, language switch and ☰ menu, shared by the map, stats and region map pages.
- * Fills [data-account-chip], [data-lang-switch] and [data-page-menu] (a wrapper holding the ☰ button and
- * an empty .menu) in the page language (src/shared/i18n.js).
+/* The top bar's account chip, language switch and ☰ menu, shared by the map, stats, region map and
+ * account pages. Fills [data-account-chip], [data-lang-switch] and [data-page-menu] (a wrapper holding
+ * the ☰ button and an empty .menu) in the page language (src/shared/i18n.js).
+ * Signed out, [data-account-chip] holds "Sign in with Discord"; signed in, the account button: a circle
+ * with the person's initial that opens a small menu (name, My nodes, Account, Log out). On a phone the
+ * account is in ☰ only (bemesh-shell.css).
  * The menu shows what is known at once: the tool pages, the outside links (LINKS, a copy of
  * bemesh-links.json), About and the language switch. Sign in or the account follows GET /auth/me.
  * Tools the site runs besides the map (GET /api/v1/site-tools, e.g. NodeBook, on a path of this site
@@ -16,6 +19,8 @@
     ["/configurator", "page.configurator"],
   ];
   var OWN_KEYS = ["map", "stats", "regionMap", "configurator"];
+  /** The site's account page: not a tool, so no link of the switcher is current there. */
+  var ACCOUNT = "/account";
   // A copy of bemesh-links.json (this file is a classic script), so the menu needs no request.
   var LINKS = [
     { key: "link.radioActief", label: "Radio-Actief Website", href: "https://radio-actief.be", title: "Radio-Actief website" },
@@ -45,6 +50,8 @@
     "menu.signInHint": "Sign in to claim your node. Having trouble? Reach Radio-Actief on Discord or open an issue on GitHub.",
     "menu.logOut": "Log out",
     "menu.myNodes": "My nodes",
+    "account.title": "Account",
+    "account.label": "Account: {name}",
     "lang.label": "Language",
   };
 
@@ -54,6 +61,31 @@
     if (i18n && i18n.has(key)) return i18n.t(key);
     return fallback != null ? fallback : FALLBACK[key] || key;
   }
+
+  /** Text with {placeholders} in the page language; the English text when the layer is not there. */
+  function tp(key, params) {
+    var i18n = window.BEmeshI18n;
+    if (i18n && i18n.has(key)) return i18n.t(key, params);
+    return String(FALLBACK[key] || key).replace(/\{(\w+)\}/g, function (m, k) {
+      return params && params[k] != null ? String(params[k]) : m;
+    });
+  }
+
+  /** The person's name as Discord shows it: the display name, else the user name. */
+  function displayName(user) {
+    return String(user.global_name || user.username || "");
+  }
+
+  /** The first letter of the name, upper case (one character, also for a letter outside the BMP). */
+  function initialOf(name) {
+    var first = Array.from(name.trim())[0];
+    return first ? first.toLocaleUpperCase() : "?";
+  }
+
+  /** Where Log out returns to: this page, or the map from the account page (it needs a sign-in). */
+  function afterLogout(here) {
+    return here === ACCOUNT ? "/" : here;
+  }
   var myNodes = null;
   var loaded = null;
   /** What the bar shows: user is undefined until /auth/me has answered, null when signed out. */
@@ -61,6 +93,7 @@
 
   function pagePath() {
     var p = location.pathname.replace(/\/+$/, "") || "/";
+    if (p === ACCOUNT) return p;
     return PAGES.some(function (x) { return x[0] === p; }) ? p : "/";
   }
 
@@ -117,7 +150,15 @@
   }
 
   function fillChip(slot, user, here) {
+    var old = slot.querySelector("[data-account-menu]");
+    var wasOpen = !!(old && !old.querySelector(".menu").hidden);
     slot.textContent = "";
+    if (user) {
+      var wrap = accountButton(user, here);
+      slot.appendChild(wrap);
+      if (wasOpen) setOpen(wrap, true, false);
+      return;
+    }
     if (user !== null) return;
     var a = link("/auth/login?next=" + here, "", "chip signin-chip");
     a.title = t("menu.signInHint");
@@ -127,6 +168,52 @@
     a.appendChild(icon);
     a.appendChild(el("span", "signin-text", t("menu.signIn")));
     slot.appendChild(a);
+  }
+
+  /** Log out of this browser: a POST from this page (the server refuses a logout by link or from another site). */
+  function logoutForm(here) {
+    var out = el("form", "menu-logout");
+    out.method = "post";
+    out.setAttribute("action", "/auth/logout?next=" + afterLogout(here));
+    var outBtn = el("button", null, t("menu.logOut"));
+    outBtn.type = "submit";
+    out.appendChild(outBtn);
+    return out;
+  }
+
+  /**
+   * Signed in: in the sign-in chip's place, a 28px circle with the person's initial (no picture) that
+   * opens a small menu: the name, My nodes, Account and Log out. Opened like ☰ (menu-place.js keeps it
+   * in the window; only a keyboard opening moves the focus in).
+   */
+  function accountButton(user, here) {
+    var name = displayName(user);
+    var wrap = el("span", "menu-wrap account-wrap");
+    wrap.setAttribute("data-account-menu", "");
+    var btn = el("button", "icon account-btn");
+    btn.type = "button";
+    btn.id = "account-toggle";
+    btn.setAttribute("aria-label", tp("account.label", { name: name }));
+    btn.title = name;
+    var circle = el("span", "account-initial", initialOf(name));
+    circle.setAttribute("aria-hidden", "true");
+    btn.appendChild(circle);
+    var menu = el("nav", "menu account-menu");
+    menu.id = "account-menu";
+    menu.setAttribute("aria-label", t("account.title"));
+    var who = el("div", "menu-user");
+    who.appendChild(el("span", null, name));
+    menu.appendChild(who);
+    menu.appendChild(link(ACCOUNT + "#my-nodes", t("menu.myNodes"), "menu-account-nodes"));
+    var page = link(ACCOUNT, t("account.title"), "menu-account");
+    if (here === ACCOUNT) page.setAttribute("aria-current", "page");
+    menu.appendChild(page);
+    menu.appendChild(el("hr"));
+    menu.appendChild(logoutForm(here));
+    wrap.appendChild(btn);
+    wrap.appendChild(menu);
+    wire(wrap);
+    return wrap;
   }
 
   /** A listed tool's link text: its translated page.<key>, else the label the site gave. */
@@ -208,14 +295,10 @@
         mine.hidden = true;
         row.appendChild(mine);
         menu.appendChild(row);
-        // A POST from this page: the server refuses a logout by link or from another site.
-        var out = el("form", "menu-logout");
-        out.method = "post";
-        out.setAttribute("action", "/auth/logout?next=" + here);
-        var outBtn = el("button", null, t("menu.logOut"));
-        outBtn.type = "submit";
-        out.appendChild(outBtn);
-        menu.appendChild(out);
+        var page = link(ACCOUNT, t("account.title"), "menu-account");
+        if (here === ACCOUNT) page.setAttribute("aria-current", "page");
+        menu.appendChild(page);
+        menu.appendChild(logoutForm(here));
       } else {
         menu.appendChild(link("/auth/login?next=" + here, t("menu.signIn"), "menu-signin"));
       }
@@ -272,13 +355,21 @@
     });
   }
 
+  /** The ☰ menus and the account menu: one open at a time. */
+  var WRAPS = "[data-page-menu], [data-account-menu]";
+
   function openWrap() {
-    return document.querySelector("[data-page-menu] .menu:not([hidden])");
+    return document.querySelector("[data-page-menu] .menu:not([hidden]), [data-account-menu] .menu:not([hidden])");
   }
 
   function setOpen(wrap, open, byKeyboard) {
     var btn = wrap.querySelector("button");
     var menu = wrap.querySelector(".menu");
+    if (open) {
+      document.querySelectorAll(WRAPS).forEach(function (w) {
+        if (w !== wrap) setOpen(w, false);
+      });
+    }
     menu.hidden = !open;
     btn.setAttribute("aria-expanded", open ? "true" : "false");
     if (!open) return;
@@ -292,7 +383,7 @@
   }
 
   function closeMenus() {
-    document.querySelectorAll("[data-page-menu]").forEach(function (w) { setOpen(w, false); });
+    document.querySelectorAll(WRAPS).forEach(function (w) { setOpen(w, false); });
   }
 
   function wire(wrap) {
@@ -304,6 +395,7 @@
     var menu = wrap.querySelector(".menu");
     btn.id = btn.id || "menu-toggle";
     menu.id = menu.id || "page-menu";
+    // Rows of the ☰ menu's size: 32px, 44px on a phone.
     menu.classList.add("page-menu");
     btn.setAttribute("aria-haspopup", "true");
     btn.setAttribute("aria-controls", menu.id);

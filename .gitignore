@@ -133,4 +133,6 @@ rry-map-bot.env
 
 # Sign-in sessions and the key that signs them (made by the API in the data directory)
 data/sessions/
+data/session-index/
+data/tool-grants/
 data/.flask_secret_key

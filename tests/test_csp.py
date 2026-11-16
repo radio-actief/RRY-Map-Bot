@@ -118,7 +118,7 @@ class _Inline(HTMLParser):
                 self.found.append(f'{tag} {name}={value}')
 
 
-@pytest.mark.parametrize('page', ['index.html', 'stats.html', 'region-map.html', 'device-hub.html', 'web/configurator/index.html'])
+@pytest.mark.parametrize('page', ['index.html', 'stats.html', 'region-map.html', 'account.html', 'device-hub.html', 'web/configurator/index.html'])
 def test_no_page_has_inline_script(page):
     parser = _Inline()
     with open(os.path.join(ROOT, page), encoding='utf-8') as f:

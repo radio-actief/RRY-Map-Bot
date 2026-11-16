@@ -1,0 +1,136 @@
+/* The account page: a column of cards under the shared #BEmesh top bar. */
+.account-main {
+  display: grid;
+  gap: 12px;
+  width: 100%;
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+.account-card h1,
+.account-card h2 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 700;
+}
+
+.account-card p {
+  margin: 0;
+}
+
+/* The person's Discord name, as Discord shows it. */
+.account-name {
+  font-size: 20px;
+  line-height: 24px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.account-name .muted {
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 400;
+}
+
+/* Nodes and tools: one link per row, 32px high (44px on a phone). */
+.account-list {
+  margin: 0 -12px;
+  padding: 0;
+  list-style: none;
+}
+
+.account-list[hidden] {
+  display: none;
+}
+
+.account-list li + li {
+  border-top: 1px solid var(--line);
+}
+
+.account-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 32px;
+  padding: 7px 12px;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.account-row-name {
+  margin-right: auto;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.account-row .muted,
+.account-row-go {
+  flex-shrink: 0;
+}
+
+.account-row-go {
+  color: var(--mut);
+  font-size: 12px;
+}
+
+@media (hover: hover) {
+  .account-row:hover {
+    background: var(--gold-bg);
+  }
+}
+
+.account-row:focus-visible {
+  outline-offset: -2px;
+}
+
+.account-empty {
+  display: grid;
+  justify-items: start;
+  gap: 12px;
+}
+
+.account-empty[hidden] {
+  display: none;
+}
+
+.account-empty .btn,
+.account-out .btn {
+  color: var(--ink);
+  text-decoration: none;
+  line-height: 18px;
+}
+
+/* Log out, and Log out everywhere with its line under it. */
+.account-out {
+  display: grid;
+  gap: 12px;
+}
+
+.account-out form {
+  display: grid;
+  justify-items: start;
+  gap: 4px;
+  margin: 0;
+}
+
+.account-out p {
+  font-size: 12px;
+  line-height: 16px;
+}
+
+@media (max-width: 600px) {
+  .account-row,
+  .account-empty .btn,
+  .account-out .btn {
+    min-height: 44px;
+  }
+
+  .account-empty .btn,
+  .account-out .btn {
+    display: inline-flex;
+    align-items: center;
+  }
+}

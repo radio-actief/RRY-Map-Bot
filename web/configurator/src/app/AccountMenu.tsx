@@ -10,25 +10,37 @@ import { store } from "../state/store";
 import { HERE, PAGES, siteTools, toolText } from "./pages";
 
 const PAGE = "/configurator";
+/** The site's one account page, on the map. */
+const ACCOUNT = "/account";
 
-/** The signed-in user, null when signed out, undefined until /auth/me has answered. */
-const account = signal<string | null | undefined>(undefined);
+/** A signed-in person: the Discord user name and the name Discord shows (display name, else user name). */
+type Person = { username: string; name: string };
+
+/** The signed-in person, null when signed out, undefined until /auth/me has answered. */
+const account = signal<Person | null | undefined>(undefined);
 let requested = false;
 
 function loadAccount() {
   if (requested) return;
   requested = true;
-  const done = (name: string | null) => (account.value = name);
+  const done = (person: Person | null) => (account.value = person);
   try {
     fetch("/auth/me", { credentials: "include" })
       .then((r) => (r.ok ? r.json() : null))
-      .then((d: { authenticated?: boolean; user?: { username?: string } } | null) =>
-        done(d?.authenticated && d.user?.username ? d.user.username : null),
-      )
+      .then((d: { authenticated?: boolean; user?: { username?: string; global_name?: string | null } } | null) => {
+        const username = d?.authenticated ? d.user?.username : undefined;
+        done(username ? { username, name: d?.user?.global_name || username } : null);
+      })
       .catch(() => done(null));
   } catch {
     done(null);
   }
+}
+
+/** The first letter of the name, upper case (one character, also for a letter outside the BMP). */
+export function initialOf(name: string): string {
+  const first = Array.from(name.trim())[0];
+  return first ? first.toLocaleUpperCase() : "?";
 }
 
 /** Forgets the fetched account so the next render asks again (for tests). */
@@ -73,18 +85,16 @@ function shownRows(menu: HTMLElement): HTMLElement[] {
 }
 
 /**
- * The sign-in chip (signed out only), the language switch and the ☰ menu, in the order every #BEmesh
- * tool uses: the tools (phone and tablet only), the outside links, About, sign in or the account,
- * the language (phone and tablet only). The account joins once /auth/me has answered.
+ * A menu that opens under its button in the top bar (☰, the account): it stays inside the window
+ * (menu-place.js), only a keyboard opening moves the focus in, and a press outside or Escape closes it.
  */
-export function AccountMenu() {
+function usePopup() {
   const [open, setOpen] = useState(false);
   const wrap = useRef<HTMLSpanElement>(null);
   const button = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLElement>(null);
   /** Opened with Enter or Space: the focus moves to the first row (a tap leaves no ring there). */
   const byKeyboard = useRef(false);
-  useEffect(loadAccount, []);
   useLayoutEffect(() => {
     if (!open || !menu.current) return;
     window.BEmeshMenu.place(menu.current);
@@ -120,16 +130,78 @@ export function AccountMenu() {
       document.removeEventListener("keydown", escape);
     };
   }, [open]);
-
-  const user = account.value;
   const toggle = (e: MouseEvent) => {
-    if (!open) store.drawerOpen.value = false;
     // A click from Enter or Space has no pointer behind it (detail 0).
     byKeyboard.current = !open && e.detail === 0;
     setOpen(!open);
   };
+  return { open, setOpen, wrap, button, menu, toggle };
+}
+
+/**
+ * Signed in: in the sign-in chip's place, a 28px circle with the person's initial (no picture) that
+ * opens a small menu: the name, My nodes, Account and Log out. On a phone the account is in ☰ only.
+ */
+export function AccountButton({ person }: { person: Person }) {
+  const { open, wrap, button, menu, toggle } = usePopup();
+  return (
+    <span class="menu-wrap account-wrap" ref={wrap}>
+      <button
+        type="button"
+        class="icon account-btn"
+        id="account-toggle"
+        ref={button}
+        title={person.name}
+        aria-label={t("account.label", { name: person.name })}
+        aria-haspopup="true"
+        aria-controls="account-menu"
+        aria-expanded={open}
+        onClick={(e) => {
+          if (!open) store.drawerOpen.value = false;
+          toggle(e);
+        }}
+      >
+        <span class="account-initial" aria-hidden="true">
+          {initialOf(person.name)}
+        </span>
+      </button>
+      <nav class="menu page-menu account-menu" id="account-menu" ref={menu} aria-label={t("account.title")} hidden={!open}>
+        <div class="menu-user">
+          <span>{person.name}</span>
+        </div>
+        <a class="menu-account-nodes" href={`${ACCOUNT}#my-nodes`}>
+          {t("menu.myNodes")}
+        </a>
+        <a class="menu-account" href={ACCOUNT}>
+          {t("account.title")}
+        </a>
+        <hr />
+        <form class="menu-logout" method="post" action={`/auth/logout?next=${PAGE}`}>
+          <button type="submit">{t("menu.logOut")}</button>
+        </form>
+      </nav>
+    </span>
+  );
+}
+
+/**
+ * The sign-in chip (signed out) or the account button (signed in), the language switch and the ☰
+ * menu, in the order every #BEmesh tool uses: the tools (phone and tablet only), the outside links,
+ * About, sign in or the account, the language (phone and tablet only). The account joins once
+ * /auth/me has answered.
+ */
+export function AccountMenu() {
+  const { open, setOpen, wrap, button, menu, toggle: toggleMenu } = usePopup();
+  useEffect(loadAccount, []);
+
+  const user = account.value;
+  const toggle = (e: MouseEvent) => {
+    if (!open) store.drawerOpen.value = false;
+    toggleMenu(e);
+  };
   return (
     <>
+      {user ? <AccountButton person={user} /> : null}
       {user === null ? (
         <a class="chip signin-chip" href={`/auth/login?next=${PAGE}`} title={t("menu.signInHint")} aria-label={t("menu.signIn")}>
           <i class="bi bi-person-circle" aria-hidden="true" />
@@ -182,11 +254,14 @@ export function AccountMenu() {
             {t("about.menu")}
           </button>
           {user === undefined ? null : <hr />}
-          {typeof user === "string" ? (
+          {user ? (
             <>
               <div class="menu-user">
-                <span>@{user}</span>
+                <span>@{user.username}</span>
               </div>
+              <a class="menu-account" href={ACCOUNT}>
+                {t("account.title")}
+              </a>
               {/* A POST from this page: the server refuses a logout by link or from another site. */}
               <form class="menu-logout" method="post" action={`/auth/logout?next=${PAGE}`}>
                 <button type="submit">{t("menu.logOut")}</button>

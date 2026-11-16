@@ -194,7 +194,7 @@ def test_sign_in_never_returns_to_an_unlisted_address(full_client, nxt):
     assert _pending_next(full_client) is None
 
 
-@pytest.mark.parametrize('nxt', ['/', '/stats', '/region-map', '/configurator'])
+@pytest.mark.parametrize('nxt', ['/', '/stats', '/region-map', '/configurator', '/account'])
 def test_sign_in_still_returns_to_the_map_pages(full_client, nxt):
     full_client.get('/auth/login', query_string={'next': nxt})
     assert _pending_next(full_client) == nxt

@@ -604,6 +604,35 @@ button {
   }
 }
 
+/* Signed in: the account button in the sign-in chip's place. A 28px circle with the person's
+ * initial, light on the ink bar (never yellow: the current tool is the bar's only yellow block), in
+ * the icon buttons' hit area (32px, 44px on a phone). On a phone the account is in ☰ only. */
+.topbar .account-btn {
+  border-radius: 50%;
+  border-color: var(--topbar-ink);
+  background: var(--topbar-ink);
+  color: var(--topbar-bg);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.topbar .account-btn[aria-expanded="true"] {
+  background: var(--gold-bg);
+  border-color: var(--gold);
+  color: var(--topbar-ink);
+}
+
+.account-initial {
+  line-height: 1;
+}
+
+@media (max-width: 600px) {
+  .topbar .account-wrap {
+    display: none;
+  }
+}
+
 /* A panel floating on a Leaflet map. */
 .map-float {
   position: absolute;
@@ -898,6 +927,10 @@ body .leaflet-container .leaflet-control-attribution {
   .signin-chip:hover {
     background: var(--gold-bg);
     border-color: var(--gold);
+  }
+
+  .topbar .account-btn:hover {
+    color: var(--topbar-ink);
   }
 
   .btn.primary:hover:not(:disabled, [aria-disabled="true"]) {

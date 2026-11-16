@@ -12,6 +12,7 @@ const SCOPES = {
   map: (l) => join(SHARED, `map.${l}.json`),
   stats: (l) => join(SHARED, `stats.${l}.json`),
   "region-map": (l) => join(SHARED, `region-map.${l}.json`),
+  account: (l) => join(SHARED, `account.${l}.json`),
   configurator: (l) => join(root, `web/configurator/src/i18n/${l}.json`),
 };
 const LOCALES = { nl: "nl-BE", fr: "fr-FR" };

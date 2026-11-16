@@ -12,6 +12,7 @@ const SCOPES: Record<string, (lang: string) => string> = {
   map: (l) => `${SHARED}/map.${l}.json`,
   stats: (l) => `${SHARED}/stats.${l}.json`,
   "region-map": (l) => `${SHARED}/region-map.${l}.json`,
+  account: (l) => `${SHARED}/account.${l}.json`,
   configurator: (l) => resolve(__dirname, `../src/i18n/${l}.json`),
 };
 const read = (file: string): Record<string, string> => JSON.parse(readFileSync(file, "utf8"));
@@ -105,8 +106,24 @@ describe("English", () => {
   const has = (dict: Record<string, string>, key: string) => key in dict || `${key}_other` in dict;
 
   it("has every key the tool pages use", () => {
-    const en = { ...read(SCOPES.shared("en")), ...read(SCOPES.map("en")), ...read(SCOPES.stats("en")), ...read(SCOPES["region-map"]("en")) };
-    const files = ["index.html", "stats.html", "region-map.html", "src/map.js", "src/stats.js", "src/region-map.js", "src/shared/topbar.js"];
+    const en = {
+      ...read(SCOPES.shared("en")),
+      ...read(SCOPES.map("en")),
+      ...read(SCOPES.stats("en")),
+      ...read(SCOPES["region-map"]("en")),
+      ...read(SCOPES.account("en")),
+    };
+    const files = [
+      "index.html",
+      "stats.html",
+      "region-map.html",
+      "account.html",
+      "src/map.js",
+      "src/stats.js",
+      "src/region-map.js",
+      "src/account.js",
+      "src/shared/topbar.js",
+    ];
     const missing = files.flatMap((f) => usedKeys(`${ROOT}/${f}`).filter((k) => !has(en, k)).map((k) => `${f}: ${k}`));
     expect(missing).toEqual([]);
   });

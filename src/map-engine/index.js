@@ -41,6 +41,10 @@ export function webglAvailable(doc = globalThis.document) {
   }
 }
 
+/** The answer for this page, asked once (each try makes a context). */
+let webglOnce = null;
+const webglForPage = () => (webglOnce ??= webglAvailable());
+
 const loaders = {
   maplibre: () => import("./maplibre-engine.js").then((m) => m.createMapLibreEngine),
   leaflet: () => import("./leaflet-engine.js").then((m) => m.createLeafletEngine),
@@ -48,7 +52,7 @@ const loaders = {
 
 let maplibreModule = null;
 /** Starts fetching MapLibre (when the browser can run it) without starting the map. */
-export function preloadEngine({ webgl = webglAvailable } = {}) {
+export function preloadEngine({ webgl = webglForPage } = {}) {
   if (!maplibreModule && webgl()) maplibreModule = loaders.maplibre();
   return maplibreModule;
 }
@@ -57,7 +61,7 @@ export function preloadEngine({ webgl = webglAvailable } = {}) {
  * The map in `container`: MapLibre, or Leaflet without WebGL or when MapLibre can't start.
  * `options`: { center: {lat, lon}, zoom, t, i18n, attribution } (zoom as the page counts it).
  */
-export async function createMapEngine(container, options, { webgl = webglAvailable, load = loaders } = {}) {
+export async function createMapEngine(container, options, { webgl = webglForPage, load = loaders } = {}) {
   if (webgl()) {
     try {
       const create = await (load === loaders ? (maplibreModule ??= load.maplibre()) : load.maplibre());

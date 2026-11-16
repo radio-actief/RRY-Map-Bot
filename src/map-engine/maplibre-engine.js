@@ -128,15 +128,24 @@ export async function createMapLibreEngine(container, { center, zoom, t, attribu
   }
   const orderedOverlays = () => [...overlays.values()].sort((a, b) => (a.kind === b.kind ? a.seq - b.seq : a.kind === "image" ? -1 : 1));
 
+  // (a canvas source holds an element, which a style document can't: those go in once it is loaded)
   function withOverlays(style) {
     const sources = { ...style.sources, [NODES]: nodeSource() };
     const layers = [...style.layers];
     for (const o of orderedOverlays()) {
+      if (o.kind === "image") continue;
       sources[o.id] = o.source();
       layers.push(...o.layers());
     }
     layers.push(...nodeLayers());
     return { ...style, sources, layers };
+  }
+  function addImagesToStyle() {
+    for (const o of orderedOverlays()) {
+      if (o.kind !== "image" || map.getSource(o.id)) continue;
+      map.addSource(o.id, o.source());
+      for (const layer of o.layers()) map.addLayer(layer, beforeIdFor("image"));
+    }
   }
 
   /** The id of the first layer above an overlay of this kind (images under paths under nodes). */
@@ -502,16 +511,16 @@ export async function createMapLibreEngine(container, { center, zoom, t, attribu
 
   // the base map choice: a button that opens a list of radio buttons
   const layers = document.createElement("div");
-  layers.className = "map-ctrl map-layers";
+  layers.className = "map-ctrl map-basemap";
   const layersToggle = document.createElement("button");
   layersToggle.type = "button";
-  layersToggle.className = "map-layers__toggle";
+  layersToggle.className = "map-basemap__toggle";
   layersToggle.setAttribute("aria-label", t("map.baseMap"));
   layersToggle.setAttribute("aria-expanded", "false");
   layersToggle.title = t("map.baseMap");
   layersToggle.innerHTML = '<i class="bi bi-layers" aria-hidden="true"></i>';
   const list = document.createElement("fieldset");
-  list.className = "map-layers__list";
+  list.className = "map-basemap__list";
   list.hidden = true;
   const legend = document.createElement("legend");
   legend.textContent = t("map.baseMap");
@@ -589,7 +598,10 @@ export async function createMapLibreEngine(container, { center, zoom, t, attribu
   matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", onTheme);
 
   // every new style gets the nodes as they are now (they may have changed while it loaded)
-  map.on("style.load", () => map.getSource(NODES)?.setData(nodeData));
+  map.on("style.load", () => {
+    map.getSource(NODES)?.setData(nodeData);
+    addImagesToStyle();
+  });
   // on a narrow map the credit line starts folded (its button opens it), not over the controls
   map.once("load", () => {
     const credit = container.querySelector(".maplibregl-ctrl-attrib.maplibregl-compact-show");

@@ -890,8 +890,10 @@ a.node-popup__source-icon {
   background: var(--gold-bg);
 }
 
-/* .leaflet-container: Leaflet's own link colour would win over a single class. */
-.leaflet-container .node-popup__discord-user {
+/* .leaflet-container: Leaflet's own link colour would win over a single class (and on the MapLibre
+ * map the browser's link colour would). */
+.leaflet-container .node-popup__discord-user,
+.bemesh-popup .node-popup__discord-user {
   font-weight: 600;
   font-size: 0.875rem;
   color: var(--glass-link);
@@ -1857,7 +1859,8 @@ time {
   min-width: 288px;
   max-width: 386px;
   overflow: visible;
-  font: inherit;
+  /* Leaflet's popup text size and line height, which the card's own sizes build on */
+  font: 13px/1.3 var(--font-ui);
 }
 
 /* The tip: a glass triangle (the content's border would show through a translucent square) */
@@ -1910,7 +1913,7 @@ time {
 }
 
 .map-ctrl--bar button,
-.map-layers__toggle {
+.map-basemap__toggle {
   display: grid;
   place-items: center;
   width: 36px;
@@ -1936,7 +1939,7 @@ time {
 
 @media (hover: hover) {
   .map-ctrl--bar button:hover:not(:disabled),
-  .map-layers__toggle:hover {
+  .map-basemap__toggle:hover {
     background: var(--gold-bg);
   }
 }
@@ -1946,12 +1949,12 @@ time {
 }
 
 /* The base map list opens above its button */
-.map-layers {
+.map-basemap {
   display: flex;
   flex-direction: column-reverse;
 }
 
-.map-layers__list {
+.map-basemap__list {
   display: grid;
   gap: 4px;
   min-width: 150px;
@@ -1961,11 +1964,11 @@ time {
   border-bottom: 1px solid var(--line);
 }
 
-.map-layers__list[hidden] {
+.map-basemap__list[hidden] {
   display: none;
 }
 
-.map-layers__list legend {
+.map-basemap__list legend {
   float: left;
   width: 100%;
   margin: 0 0 2px;
@@ -1974,7 +1977,7 @@ time {
   font-size: 11px;
 }
 
-.map-layers__list label {
+.map-basemap__list label {
   display: flex;
   align-items: center;
   gap: 6px;

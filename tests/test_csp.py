@@ -19,6 +19,8 @@ TOOLS = [
     {'key': 'docs', 'label': 'Docs', 'url': '/docs/'},
 ]
 PAGES = ['/', '/stats', '/region-map', '/configurator', '/auth/signout']
+# The map's coverage and profile tools: terrain, forests and buildings while they compute
+PLANNING_DATA = ['https://tiles.mapterhorn.com', 'https://tiles.openfreemap.org']
 
 
 @pytest.fixture
@@ -61,7 +63,7 @@ def test_every_page_allows_scripts_from_this_site_only(client, path):
 @pytest.mark.parametrize('path', PAGES)
 def test_every_page_may_reach_the_listed_tools(client, path):
     p = policy(get_page(client, path))
-    assert p['connect-src'] == ["'self'", 'https://nodebook.example', 'https://app.example:8445']
+    assert p['connect-src'] == ["'self'", 'https://nodebook.example', 'https://app.example:8445', *PLANNING_DATA]
     # Log out on this site returns to a tool on its own address.
     assert p['form-action'] == ["'self'", 'https://nodebook.example', 'https://app.example:8445']
 
@@ -79,8 +81,16 @@ def test_every_page_loads_its_fonts_tiles_and_qr_codes(client, path):
 def test_without_tools_the_pages_reach_this_site_only(monkeypatch):
     monkeypatch.setattr(app_module, 'SITE_TOOLS', [])
     p = policy(app_module.app.test_client().get('/'))
-    assert p['connect-src'] == ["'self'"]
+    assert p['connect-src'] == ["'self'", *PLANNING_DATA]
     assert p['form-action'] == ["'self'"]
+
+
+def test_the_coverage_tools_reach_their_two_tile_services_only(client):
+    p = policy(client.get('/'))
+    extra = [s for s in p['connect-src'] if s not in ("'self'", 'https://nodebook.example', 'https://app.example:8445')]
+    assert extra == PLANNING_DATA
+    assert 'blob:' in p['img-src']  # the coverage image
+    assert 'worker-src' not in p and "'self'" == p['script-src'][0]  # the worker is a script of this site
 
 
 def test_data_and_the_device_hub_get_no_page_policy(client):

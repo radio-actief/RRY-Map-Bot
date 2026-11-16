@@ -207,6 +207,9 @@ CSP_CDN_SCRIPTS = (
     'https://cdn.jsdelivr.net/npm/@turf/turf@7.2.0/turf.min.js',
 )
 # Images: map tiles, and QR codes drawn as data: URLs.
+# The map's coverage and profile tools fetch terrain (Mapterhorn) and forests and buildings
+# (OpenFreeMap) while they compute, from the page and from their worker (a script of this site).
+CSP_PLANNING_DATA = ('https://tiles.mapterhorn.com', 'https://tiles.openfreemap.org')
 CSP_IMAGES = (
     "'self'", 'data:', 'blob:',
     'https://tile.openstreetmap.org', 'https://*.tile.openstreetmap.org', 'https://server.arcgisonline.com',
@@ -225,7 +228,7 @@ def page_policy(form_to=()):
         ("style-src", ["'self'", "'unsafe-inline'"]),
         ("font-src", ["'self'"]),
         ("img-src", list(CSP_IMAGES)),
-        ("connect-src", ["'self'", *tools]),
+        ("connect-src", ["'self'", *tools, *CSP_PLANNING_DATA]),
         ("form-action", ["'self'", *dict.fromkeys([*tools, *form_to])]),
         ("object-src", ["'none'"]),
         ("base-uri", ["'self'"]),

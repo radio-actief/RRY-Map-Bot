@@ -212,6 +212,13 @@ CSP_CDN_SCRIPTS = (
 # The map's coverage and profile tools fetch terrain (Mapterhorn) and forests and buildings
 # (OpenFreeMap) while they compute, from the page and from their worker (a script of this site).
 CSP_PLANNING_DATA = ('https://tiles.mapterhorn.com', 'https://tiles.openfreemap.org')
+# The map page's base maps on MapLibre, which fetches styles, tiles, sprites and glyphs: OpenFreeMap
+# (the default), VersaTiles, and the raster tiles of OpenStreetMap and Esri (the Leaflet map loads
+# those two as images). Its worker is a script of this site, as the coverage tools' is.
+CSP_MAP_TILES = (
+    'https://tiles.openfreemap.org', 'https://tiles.versatiles.org',
+    'https://tile.openstreetmap.org', 'https://server.arcgisonline.com',
+)
 CSP_IMAGES = (
     "'self'", 'data:', 'blob:',
     'https://tile.openstreetmap.org', 'https://*.tile.openstreetmap.org', 'https://server.arcgisonline.com',
@@ -230,7 +237,7 @@ def page_policy(form_to=()):
         ("style-src", ["'self'", "'unsafe-inline'"]),
         ("font-src", ["'self'"]),
         ("img-src", list(CSP_IMAGES)),
-        ("connect-src", ["'self'", *tools, *CSP_PLANNING_DATA]),
+        ("connect-src", ["'self'", *tools, *dict.fromkeys([*CSP_PLANNING_DATA, *CSP_MAP_TILES])]),
         ("form-action", ["'self'", *dict.fromkeys([*tools, *form_to])]),
         ("object-src", ["'none'"]),
         ("base-uri", ["'self'"]),

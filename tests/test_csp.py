@@ -19,8 +19,11 @@ TOOLS = [
     {'key': 'docs', 'label': 'Docs', 'url': '/docs/'},
 ]
 PAGES = ['/', '/stats', '/region-map', '/configurator', '/auth/signout']
-# The map's coverage and profile tools: terrain, forests and buildings while they compute
+# The map's coverage and profile tools: terrain, forests and buildings while they compute; then the
+# map page's base maps (MapLibre fetches styles, tiles, sprites and glyphs)
 PLANNING_DATA = ['https://tiles.mapterhorn.com', 'https://tiles.openfreemap.org']
+MAP_TILES = ['https://tiles.versatiles.org', 'https://tile.openstreetmap.org', 'https://server.arcgisonline.com']
+REMOTE = [*PLANNING_DATA, *MAP_TILES]
 
 
 @pytest.fixture
@@ -63,7 +66,7 @@ def test_every_page_allows_scripts_from_this_site_only(client, path):
 @pytest.mark.parametrize('path', PAGES)
 def test_every_page_may_reach_the_listed_tools(client, path):
     p = policy(get_page(client, path))
-    assert p['connect-src'] == ["'self'", 'https://nodebook.example', 'https://app.example:8445', *PLANNING_DATA]
+    assert p['connect-src'] == ["'self'", 'https://nodebook.example', 'https://app.example:8445', *REMOTE]
     # Log out on this site returns to a tool on its own address.
     assert p['form-action'] == ["'self'", 'https://nodebook.example', 'https://app.example:8445']
 
@@ -81,16 +84,27 @@ def test_every_page_loads_its_fonts_tiles_and_qr_codes(client, path):
 def test_without_tools_the_pages_reach_this_site_only(monkeypatch):
     monkeypatch.setattr(app_module, 'SITE_TOOLS', [])
     p = policy(app_module.app.test_client().get('/'))
-    assert p['connect-src'] == ["'self'", *PLANNING_DATA]
+    assert p['connect-src'] == ["'self'", *REMOTE]
     assert p['form-action'] == ["'self'"]
 
 
-def test_the_coverage_tools_reach_their_two_tile_services_only(client):
+def test_the_map_and_its_coverage_tools_reach_their_tile_services_only(client):
     p = policy(client.get('/'))
     extra = [s for s in p['connect-src'] if s not in ("'self'", 'https://nodebook.example', 'https://app.example:8445')]
-    assert extra == PLANNING_DATA
+    assert extra == REMOTE
     assert 'blob:' in p['img-src']  # the coverage image
-    assert 'worker-src' not in p and "'self'" == p['script-src'][0]  # the worker is a script of this site
+    # MapLibre's worker and the coverage tools' worker are scripts of this site: no worker-src, no blob:
+    assert 'worker-src' not in p and "'self'" == p['script-src'][0]
+    assert 'blob:' not in p['script-src']
+
+
+def test_the_base_maps_load_only_from_hosts_the_policy_allows():
+    import re
+    with open(os.path.join(ROOT, 'src', 'map-engine', 'basemaps.js'), encoding='utf-8') as f:
+        src = f.read()
+    # styles and tiles (the credit line's link to openstreetmap.org/copyright is a plain link)
+    hosts = {h for h in re.findall(r'https://([a-z0-9.-]+)/', src) if h != 'www.openstreetmap.org'}
+    assert hosts == {s.removeprefix('https://') for s in ['https://tiles.openfreemap.org', *MAP_TILES]}
 
 
 def test_data_and_the_device_hub_get_no_page_policy(client):

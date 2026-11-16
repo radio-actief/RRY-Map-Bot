@@ -25,7 +25,7 @@
   "stats.custom.crRange": "CR moet tussen 4 en 9 liggen.",
   "stats.custom.atLeastOne": "Vul minstens één van Freq., SF, BW of CR in (de rest is optioneel).",
   "stats.download": "JSON downloaden",
-  "stats.type.1": "Client",
+  "stats.type.1": "Companion",
   "stats.type.2": "Repeater",
   "stats.type.3": "Room server",
   "stats.type.4": "Sensor",

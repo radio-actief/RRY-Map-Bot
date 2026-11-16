@@ -62,7 +62,7 @@ describe("the account page", () => {
     expect($("account-name").textContent).toBe("Ann");
     const links = Array.from($("account-nodes").querySelectorAll("a"));
     expect(links.map((a) => [a.querySelector(".account-row-name")!.textContent, a.querySelector(".muted")?.textContent, a.getAttribute("href")])).toEqual([
-      ["Ann <img src=x>", "Client", `/?node=${"b2".repeat(32)}`],
+      ["Ann <img src=x>", "Companion", `/?node=${"b2".repeat(32)}`],
       ["Unnamed node", "Repeater", `/?node=${"a1".repeat(32)}`],
     ]);
     expect(links[0].title).toBe("Show Ann <img src=x> on the map");
@@ -79,7 +79,9 @@ describe("the account page", () => {
     const empty = $("account-nodes-empty");
     expect(empty.hidden).toBe(false);
     expect(empty.querySelector("p")!.textContent).toBe("You haven't claimed a node yet. Open your node on the map and choose Claim.");
-    expect(empty.querySelector("a")!.getAttribute("href")).toBe("/");
+    const open = empty.querySelector("a")!;
+    expect([open.getAttribute("href"), open.className]).toEqual(["/", "btn primary"]);
+    expect(empty.querySelectorAll("a, button").length).toBe(1);
   });
 
   it("links each tool's account part; NodeBook as My NodeBook fleet", async () => {
@@ -117,6 +119,9 @@ describe("the account page", () => {
     ]);
     const everywhere = forms[1].querySelector("button")!;
     expect($(everywhere.getAttribute("aria-describedby")!).textContent).toBe("Also on your other devices.");
+    // Side by side, the line under the pair (stacked on a phone in css/account.css).
+    expect(forms[0].parentElement).toBe(forms[1].parentElement);
+    expect(forms[0].parentElement!.nextElementSibling!.id).toBe("account-everywhere-hint");
   });
 });
 

@@ -139,6 +139,32 @@ function usePopup() {
 }
 
 /**
+ * The account group, the same in the account menu and in ☰: the name (the @handle under it when it
+ * differs), My nodes, Account, then Log out.
+ */
+function AccountRows({ person }: { person: Person }) {
+  return (
+    <>
+      <div class="menu-user">
+        <span class="menu-name">{person.name}</span>
+        {person.username !== person.name ? <span class="menu-handle">@{person.username}</span> : null}
+      </div>
+      <a class="menu-account-nodes" href={`${ACCOUNT}#my-nodes`}>
+        <span>{t("menu.myNodes")}</span>
+      </a>
+      <a class="menu-account" href={ACCOUNT}>
+        {t("account.title")}
+      </a>
+      <hr />
+      {/* A POST from this page: the server refuses a logout by link or from another site. */}
+      <form class="menu-logout" method="post" action={`/auth/logout?next=${PAGE}`}>
+        <button type="submit">{t("menu.logOut")}</button>
+      </form>
+    </>
+  );
+}
+
+/**
  * Signed in: in the sign-in chip's place, a 28px circle with the person's initial (no picture) that
  * opens a small menu: the name, My nodes, Account and Log out. On a phone the account is in ☰ only.
  */
@@ -166,19 +192,7 @@ export function AccountButton({ person }: { person: Person }) {
         </span>
       </button>
       <nav class="menu page-menu account-menu" id="account-menu" ref={menu} aria-label={t("account.title")} hidden={!open}>
-        <div class="menu-user">
-          <span>{person.name}</span>
-        </div>
-        <a class="menu-account-nodes" href={`${ACCOUNT}#my-nodes`}>
-          {t("menu.myNodes")}
-        </a>
-        <a class="menu-account" href={ACCOUNT}>
-          {t("account.title")}
-        </a>
-        <hr />
-        <form class="menu-logout" method="post" action={`/auth/logout?next=${PAGE}`}>
-          <button type="submit">{t("menu.logOut")}</button>
-        </form>
+        <AccountRows person={person} />
       </nav>
     </span>
   );
@@ -256,16 +270,7 @@ export function AccountMenu() {
           {user === undefined ? null : <hr />}
           {user ? (
             <>
-              <div class="menu-user">
-                <span>@{user.username}</span>
-              </div>
-              <a class="menu-account" href={ACCOUNT}>
-                {t("account.title")}
-              </a>
-              {/* A POST from this page: the server refuses a logout by link or from another site. */}
-              <form class="menu-logout" method="post" action={`/auth/logout?next=${PAGE}`}>
-                <button type="submit">{t("menu.logOut")}</button>
-              </form>
+              <AccountRows person={user} />
             </>
           ) : user === null ? (
             <a class="menu-signin" href={`/auth/login?next=${PAGE}`}>{t("menu.signIn")}</a>

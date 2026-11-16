@@ -103,16 +103,25 @@
   line-height: 18px;
 }
 
-/* Log out, and Log out everywhere with its line under it. */
+/* The empty state's one action: the filled gold button. */
+.account-empty .btn.primary {
+  color: var(--on-gold);
+}
+
+/* Log out and Log out everywhere side by side, the line about other devices under the pair;
+ * stacked on a phone. */
 .account-out {
   display: grid;
-  gap: 12px;
+  gap: 8px;
+}
+
+.account-out-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .account-out form {
-  display: grid;
-  justify-items: start;
-  gap: 4px;
   margin: 0;
 }
 
@@ -122,6 +131,11 @@
 }
 
 @media (max-width: 600px) {
+  .account-out-actions {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
   .account-row,
   .account-empty .btn,
   .account-out .btn {

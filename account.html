@@ -48,7 +48,7 @@
         <ul class="account-list" id="account-nodes" hidden></ul>
         <div class="account-empty" id="account-nodes-empty" hidden>
           <p data-i18n="account.noNodes">You haven't claimed a node yet. Open your node on the map and choose Claim.</p>
-          <a class="btn" href="/" data-i18n="account.openMap">Open the map</a>
+          <a class="btn primary" href="/" data-i18n="account.openMap">Open the map</a>
         </div>
       </section>
       <section class="card account-card" id="account-tools-card" aria-labelledby="account-tools-title" hidden>
@@ -56,13 +56,15 @@
         <ul class="account-list" id="account-tools"></ul>
       </section>
       <section class="card account-card account-out">
-        <form method="post" action="/auth/logout">
-          <button type="submit" class="btn" data-i18n="menu.logOut">Log out</button>
-        </form>
-        <form method="post" action="/auth/logout-everywhere">
-          <button type="submit" class="btn" aria-describedby="account-everywhere-hint" data-i18n="account.logOutEverywhere">Log out everywhere</button>
-          <p class="muted" id="account-everywhere-hint" data-i18n="account.everywhereHint">Also on your other devices.</p>
-        </form>
+        <div class="account-out-actions">
+          <form method="post" action="/auth/logout">
+            <button type="submit" class="btn" data-i18n="menu.logOut">Log out</button>
+          </form>
+          <form method="post" action="/auth/logout-everywhere">
+            <button type="submit" class="btn" aria-describedby="account-everywhere-hint" data-i18n="account.logOutEverywhere">Log out everywhere</button>
+          </form>
+        </div>
+        <p class="muted" id="account-everywhere-hint" data-i18n="account.everywhereHint">Also on your other devices.</p>
       </section>
     </main>
 

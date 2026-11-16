@@ -182,6 +182,29 @@
   }
 
   /**
+   * The account group, the same in the account menu and in ☰: the name (the @handle under it when
+   * it differs), My nodes (with the count once the map knows it), Account, then Log out.
+   */
+  function accountRows(menu, user, here) {
+    var name = displayName(user);
+    var who = el("div", "menu-user");
+    who.appendChild(el("span", "menu-name", name));
+    if (user.username && user.username !== name) who.appendChild(el("span", "menu-handle", "@" + user.username));
+    menu.appendChild(who);
+    var nodes = link(ACCOUNT + "#my-nodes", "", "menu-account-nodes");
+    nodes.appendChild(el("span", null, t("menu.myNodes")));
+    var count = el("span", "menu-mynodes");
+    count.hidden = true;
+    nodes.appendChild(count);
+    menu.appendChild(nodes);
+    var page = link(ACCOUNT, t("account.title"), "menu-account");
+    if (here === ACCOUNT) page.setAttribute("aria-current", "page");
+    menu.appendChild(page);
+    menu.appendChild(el("hr"));
+    menu.appendChild(logoutForm(here));
+  }
+
+  /**
    * Signed in: in the sign-in chip's place, a 28px circle with the person's initial (no picture) that
    * opens a small menu: the name, My nodes, Account and Log out. Opened like ☰ (menu-place.js keeps it
    * in the window; only a keyboard opening moves the focus in).
@@ -201,15 +224,7 @@
     var menu = el("nav", "menu account-menu");
     menu.id = "account-menu";
     menu.setAttribute("aria-label", t("account.title"));
-    var who = el("div", "menu-user");
-    who.appendChild(el("span", null, name));
-    menu.appendChild(who);
-    menu.appendChild(link(ACCOUNT + "#my-nodes", t("menu.myNodes"), "menu-account-nodes"));
-    var page = link(ACCOUNT, t("account.title"), "menu-account");
-    if (here === ACCOUNT) page.setAttribute("aria-current", "page");
-    menu.appendChild(page);
-    menu.appendChild(el("hr"));
-    menu.appendChild(logoutForm(here));
+    accountRows(menu, user, here);
     wrap.appendChild(btn);
     wrap.appendChild(menu);
     wire(wrap);
@@ -289,16 +304,7 @@
     if (user !== undefined) {
       menu.appendChild(el("hr"));
       if (user) {
-        var row = el("div", "menu-user");
-        row.appendChild(el("span", null, "@" + user.username));
-        var mine = el("span", "menu-mynodes");
-        mine.hidden = true;
-        row.appendChild(mine);
-        menu.appendChild(row);
-        var page = link(ACCOUNT, t("account.title"), "menu-account");
-        if (here === ACCOUNT) page.setAttribute("aria-current", "page");
-        menu.appendChild(page);
-        menu.appendChild(logoutForm(here));
+        accountRows(menu, user, here);
       } else {
         menu.appendChild(link("/auth/login?next=" + here, t("menu.signIn"), "menu-signin"));
       }
@@ -346,12 +352,9 @@
   }
 
   function showMyNodes() {
-    document.querySelectorAll("[data-page-menu] .menu-mynodes").forEach(function (m) {
+    document.querySelectorAll(".menu-mynodes").forEach(function (m) {
       m.hidden = myNodes == null;
-      m.textContent = "";
-      if (myNodes == null) return;
-      m.appendChild(document.createTextNode(t("menu.myNodes") + " "));
-      m.appendChild(el("b", null, String(myNodes)));
+      m.textContent = myNodes == null ? "" : String(myNodes);
     });
   }
 

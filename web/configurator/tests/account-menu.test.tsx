@@ -32,12 +32,21 @@ describe("account menu", () => {
     for (const a of links) expect(a.getAttribute("href")).toBe("/auth/login?next=/configurator");
   });
 
-  it("signed in shows @tester, Account and Log out in ☰, and no chip", async () => {
-    mockMe({ authenticated: true, user: { id: "1", username: "tester" } });
+  it("signed in, ☰ has the account group of the account menu: name (@handle under it), My nodes, Account, Log out; no chip", async () => {
+    mockMe({ authenticated: true, user: { id: "1", username: "tester", global_name: "Tess" } });
     render(<AccountMenu />);
-    await screen.findByText("@tester");
-    const account = document.querySelector("#page-menu a.menu-account")!;
-    expect([account.textContent, account.getAttribute("href")]).toEqual(["Account", "/account"]);
+    await screen.findAllByText("@tester");
+    const group = (menu: Element) => {
+      const user = menu.querySelector(".menu-user")!;
+      const out: string[] = [`${user.querySelector(".menu-name")!.textContent} / ${user.querySelector(".menu-handle")?.textContent}`];
+      for (let el = user.nextElementSibling; el && !el.classList.contains("menu-lang"); el = el.nextElementSibling) {
+        out.push(el.tagName === "HR" ? "|" : el.tagName === "FORM" ? `${el.textContent} → ${el.getAttribute("action")}` : `${el.textContent} ${el.getAttribute("href")}`);
+      }
+      return out;
+    };
+    const want = ["Tess / @tester", "My nodes /account#my-nodes", "Account /account", "|", "Log out → /auth/logout?next=/configurator"];
+    expect(group(document.getElementById("page-menu")!)).toEqual(want);
+    expect(group(document.getElementById("account-menu")!)).toEqual(want);
     // Log out is a POST (a link elsewhere can't sign someone out), in ☰ and in the account menu.
     const outs = screen.getAllByRole("button", { name: "Log out", hidden: true });
     expect(outs.length).toBe(2);

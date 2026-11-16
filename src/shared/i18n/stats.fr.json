@@ -25,7 +25,7 @@
   "stats.custom.crRange": "Le CR doit être compris entre 4 et 9.",
   "stats.custom.atLeastOne": "Saisissez au moins une valeur parmi Fréq., SF, BW ou CR (les autres sont facultatives).",
   "stats.download": "Télécharger le JSON",
-  "stats.type.1": "Client",
+  "stats.type.1": "Companion",
   "stats.type.2": "Répéteur",
   "stats.type.3": "Room server",
   "stats.type.4": "Capteur",

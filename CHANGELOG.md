@@ -2,6 +2,16 @@
 
 What changed in each release of the #BEmesh map, bot and configurator.
 
+## 1.4.0 (2026-11-16)
+
+### New
+
+- The configurator's maps (Place, Regions, Companion and the mini map in Settings) run on the same new map engine as the map and the region map, with the same base maps, buttons and place names in your language
+
+### Changed
+
+- In the Regions view only the most specific allowed area is filled; wider allowed areas keep their green outline, so the map stays readable
+
 ## 1.3.0 (2026-11-16)
 
 ### New

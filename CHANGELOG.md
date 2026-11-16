@@ -2,6 +2,14 @@
 
 What changed in each release of the #BEmesh map, bot and configurator.
 
+## 1.0.15 (2026-11-16)
+
+### Changed
+
+- A new top bar on the map, stats, region map and configurator: always one row, clearer icons, bigger buttons on a phone, and the same ☰ menu everywhere, which now stays on screen
+- The page names and the stats page are fully translated in Dutch and French
+- On a phone the page links, sign-in and language are in the ☰ menu
+
 ## 1.0.14 (2026-11-16)
 
 ### Fixed

@@ -7,7 +7,7 @@ async function dragClosesMenu(page) {
   await page.locator("#menu-toggle").click();
   await page.waitForTimeout(150);
   const openBefore = await page.locator("#page-menu").isVisible();
-  const box = await page.locator(".leaflet-container").first().boundingBox();
+  const box = await page.locator("#map, .leaflet-container").first().boundingBox();
   const x = box.x + 40;
   const y = box.y + box.height - 60;
   await page.mouse.move(x, y);

@@ -25,7 +25,12 @@ export default async function (ctx) {
     setup: (p) => p.route("**/api/v1/belgian-nodes", (r) => r.fulfill({ contentType: "application/json", body: JSON.stringify(nodes) })),
   });
   await page.waitForTimeout(1500);
-  const markers = await page.locator(".leaflet-marker-icon").count();
+  // Leaflet draws an element per marker; MapLibre draws them on its canvas (count what it rendered)
+  const markers = await page.evaluate(() => {
+    const m = window.bemeshMap;
+    if (m?.kind !== "maplibre") return document.querySelectorAll(".leaflet-marker-icon").length;
+    return new Set(m.map.queryRenderedFeatures({ layers: ["bemesh-nodes"] }).map((f) => f.properties.i)).size;
+  });
   ctx.check("map nameless: every node draws, also one without a name", markers === 3, String(markers));
 
   const box = page.locator(".search-row .input");

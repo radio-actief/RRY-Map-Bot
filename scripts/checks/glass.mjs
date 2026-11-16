@@ -61,7 +61,22 @@ export default async function (ctx) {
   for (const scheme of ["light", "dark"]) {
     const n = `glass (${scheme})`;
     const page = await ctx.open("/", { scheme, setup: withNodes });
-    await page.waitForSelector(".svg-node-icon", { timeout: 10000 }).catch(() => {});
+    await page.waitForSelector("#map[data-engine]", { timeout: 15000 }).catch(() => {});
+    // MapLibre draws the markers on its canvas from the same CSS (src/map-engine/node-images.js):
+    // there, look at the rule on an element of the classes it reads
+    const maplibre = (await page.locator("#map").getAttribute("data-engine")) === "maplibre";
+    if (maplibre) {
+      await page.evaluate(() => {
+        for (const [cls, tag] of [["node-marker node-icon svg-node-icon update-none", "div"], ["node-marker node-icon update-none", "img"]]) {
+          const el = document.createElement(tag);
+          el.className = cls;
+          el.style.cssText = "position:absolute;width:32px;height:32px;left:-99px";
+          document.getElementById("map").append(el);
+        }
+      });
+    } else {
+      await page.waitForSelector(".svg-node-icon", { timeout: 10000 }).catch(() => {});
+    }
 
     ctx.check(`${n}: map search box is glass`, isGlass(await look(page, ".search-box"), scheme), JSON.stringify(await look(page, ".search-box")));
     const bar = await look(page, ".topbar");
@@ -93,9 +108,15 @@ export default async function (ctx) {
     await page.keyboard.press("Escape");
 
     // A node popup is glass, and its card lets the glass show through.
-    await page.locator(".svg-node-icon").first().click();
-    await page.waitForSelector(".leaflet-popup-content-wrapper", { timeout: 10000 }).catch(() => {});
-    const popup = await look(page, ".leaflet-popup-content-wrapper");
+    const frame = maplibre ? ".bemesh-popup .maplibregl-popup-content" : ".leaflet-popup-content-wrapper";
+    if (maplibre) {
+      await page.fill("#search-nodes-input", "Glass node 1");
+      await page.locator(".search-results li").first().click();
+    } else {
+      await page.locator(".svg-node-icon").first().click();
+    }
+    await page.waitForSelector(frame, { timeout: 10000 }).catch(() => {});
+    const popup = await look(page, frame);
     const card = await look(page, ".node-popup");
     ctx.check(`${n}: a node popup is glass`, isGlass(popup, scheme) && card && card.bg === "rgba(0, 0, 0, 0)", JSON.stringify({ popup, card: card && card.bg }));
     ctx.check(`${n}: no page errors`, !page.errors.length, page.errors.join("; "));
@@ -173,7 +194,8 @@ export default async function (ctx) {
 
   // The map credit line is solid in dark, so its text and focus ring read.
   const credit = await ctx.open("/", { scheme: "dark", setup: withNodes });
-  const at = await look(credit, ".leaflet-control-attribution");
+  await credit.waitForSelector("#map[data-engine]", { timeout: 15000 }).catch(() => {});
+  const at = await look(credit, ".leaflet-control-attribution, .maplibregl-ctrl-attrib");
   ctx.check("glass: the map credit line is solid in dark", at && at.bg === PANEL.dark, JSON.stringify(at));
   // Filters on the glass search box: no fill of its own, a field border.
   const ft = await look(credit, ".search-box .filter-toggle");

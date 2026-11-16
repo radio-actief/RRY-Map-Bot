@@ -1,4 +1,6 @@
 // Dark map tiles: follows the theme, the switch on the map overrides it, one key shared by every map.
+// The map page on MapLibre (WebGL) swaps its style instead of filtering tiles: there the checks read
+// the style's shade (#map data-base-shade) where the Leaflet maps' read the tile filter.
 import { mockStats } from "./fixtures/mock-stats.mjs";
 
 const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg==", "base64");
@@ -42,23 +44,34 @@ export default async function (ctx) {
   for (const pg of pages) {
     const n = `map shade ${pg.name}`;
     let page = await ctx.open(pg.path, { scheme: "light", setup: setupFor(pg) });
-    await page.waitForSelector(`${pg.map} .osm-tiles`, { timeout: 10000 }).catch(() => {});
+    await page.waitForSelector(`${pg.map} .osm-tiles, ${pg.map}[data-base-shade]`, { timeout: 15000 }).catch(() => {});
+    const vector = (await page.locator(`${pg.map}[data-engine="maplibre"]`).count()) === 1;
+    const styleShade = () => page.locator(pg.map).getAttribute("data-base-shade");
     const btn = page.locator(`${pg.map} .map-shade-button`);
     ctx.check(`${n}: light and following, no map-dark`, !(await dark(page, pg.map)));
     ctx.check(`${n}: switch labelled Dark map (follows the theme)`,
       (await btn.count()) === 1 && (await btn.getAttribute("aria-label")) === "Dark map (follows the theme)", await btn.getAttribute("aria-label").catch(() => "none"));
-    const filter0 = await page.locator(`${pg.map} .osm-tiles`).first().evaluate((e) => getComputedStyle(e).filter).catch(() => "");
-    ctx.check(`${n}: light tiles are unfiltered`, filter0 === "none", filter0);
+    if (vector) {
+      ctx.check(`${n}: the light style`, (await styleShade()) === "light", await styleShade());
+    } else {
+      const filter0 = await page.locator(`${pg.map} .osm-tiles`).first().evaluate((e) => getComputedStyle(e).filter).catch(() => "");
+      ctx.check(`${n}: light tiles are unfiltered`, filter0 === "none", filter0);
+    }
 
     const toggle = page.locator("[data-theme-toggle]:visible").first();
     await toggle.click(); // light
     await toggle.click(); // dark
     await settle(page);
     ctx.check(`${n}: dark theme gives map-dark`, await dark(page, pg.map));
-    const filter1 = await page.locator(`${pg.map} .osm-tiles`).first().evaluate((e) => getComputedStyle(e).filter).catch(() => "");
-    ctx.check(`${n}: dark tiles have an invert filter`, filter1.includes("invert"), filter1);
-    const imgs = await page.locator(`${pg.map} .osm-tiles img`).count();
-    ctx.check(`${n}: tile images exist under the filtered layer`, imgs > 0, String(imgs));
+    if (vector) {
+      await page.waitForTimeout(1500);
+      ctx.check(`${n}: the dark style`, (await styleShade()) === "dark", await styleShade());
+    } else {
+      const filter1 = await page.locator(`${pg.map} .osm-tiles`).first().evaluate((e) => getComputedStyle(e).filter).catch(() => "");
+      ctx.check(`${n}: dark tiles have an invert filter`, filter1.includes("invert"), filter1);
+      const imgs = await page.locator(`${pg.map} .osm-tiles img`).count();
+      ctx.check(`${n}: tile images exist under the filtered layer`, imgs > 0, String(imgs));
+    }
     ctx.check(`${n}: label flips to Light map (follows the theme)`, (await btn.getAttribute("aria-label")) === "Light map (follows the theme)");
 
     await btn.click();
@@ -70,7 +83,23 @@ export default async function (ctx) {
     ctx.check(`${n}: second click is dark again`, await dark(page, pg.map));
     ctx.check(`${n}: key removed (follows)`, (await stored(page)) === null, String(await stored(page)));
 
-    if (pg.tiles) {
+    if (pg.tiles && vector) {
+      // MapLibre decodes tiles strictly (the stand-in PNG above fails, and the map would fall back to
+      // OpenStreetMap): Esri's own tiles here
+      await page.unroute("**/server.arcgisonline.com/**");
+      await page.locator(".map-basemap__toggle").click();
+      await page.locator('.map-basemap__list input[value="satellite"]').check();
+      await page.waitForFunction(() => window.bemeshMap.map.getStyle()?.layers?.some((l) => l.id === "base"), null, { timeout: 8000 }).catch(() => {});
+      ctx.check(`${n}: still a dark map on the satellite layer`, await dark(page, pg.map));
+      // (the style leaves an empty paint out)
+      const paint = await page.evaluate(() => {
+        const base = window.bemeshMap.map.getStyle().layers.find((l) => l.id === "base");
+        return base ? base.paint ?? {} : null;
+      });
+      const baseMap = await page.locator(pg.map).getAttribute("data-base-map");
+      ctx.check(`${n}: the satellite layer is never darkened`, baseMap === "satellite" && !!paint && !("raster-brightness-max" in paint), `${baseMap} ${JSON.stringify(paint)}`);
+      await page.evaluate(() => localStorage.removeItem("baseMapSelected"));
+    } else if (pg.tiles) {
       await page.evaluate(() => {
         const radios = document.querySelectorAll(".leaflet-control-layers-base input[type=radio]");
         radios[1].click();
@@ -84,7 +113,7 @@ export default async function (ctx) {
     await page.close();
 
     page = await ctx.open(pg.path, { scheme: "light", setup: setupFor(pg, "dark") });
-    await page.waitForSelector(`${pg.map} .osm-tiles`, { timeout: 10000 }).catch(() => {});
+    await page.waitForSelector(`${pg.map} .osm-tiles, ${pg.map}[data-base-shade]`, { timeout: 15000 }).catch(() => {});
     ctx.check(`${n}: stored dark on the light theme gives a dark map`, await dark(page, pg.map));
     ctx.check(`${n}: override label is Light map`, (await page.locator(`${pg.map} .map-shade-button`).getAttribute("aria-label")) === "Light map");
     ctx.check(`${n}: reload has no page errors`, !page.errors.length, page.errors.join("; "));

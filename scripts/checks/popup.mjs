@@ -1,4 +1,7 @@
 // Node popup: compact (no taller than 420px), every field still there, no text under 11px.
+// The popup's frame: MapLibre's (WebGL) or Leaflet's (no WebGL), whichever the browser got.
+const FRAME = ":is(.leaflet-popup-content-wrapper, .bemesh-popup .maplibregl-popup-content)";
+const CLOSE = ":is(.leaflet-popup-close-button, .bemesh-popup .maplibregl-popup-close-button)";
 const key = (i) => (i + 1).toString(16).padStart(2, "0").repeat(32);
 const day = 86400000;
 const node = {
@@ -61,7 +64,7 @@ export default async function (ctx) {
     const n = `popup (${size})`;
     const page = await ctx.open(`/?node=${node.public_key}`, { width, height, setup });
     await page.waitForSelector(".node-popup img.node-qr", { timeout: 10000 }).catch(() => {});
-    const box = await page.locator(".leaflet-popup-content-wrapper").boundingBox();
+    const box = await page.locator(FRAME).boundingBox();
     ctx.check(`${n}: no taller than 420px`, !!box && box.height <= 420, box ? `${Math.round(box.height)}px` : "no popup");
 
     const text = (await page.locator(".node-popup").innerText()).replace(/\s+/g, " ");
@@ -110,7 +113,7 @@ export default async function (ctx) {
     ctx.check(`${n}: every analyzer menu item can be tapped`, items.length === 2 && items.every((i) => i.reachable), JSON.stringify(items));
     if (width < 600) {
       ctx.check(`${n}: analyzer menu items are at least 44px on a phone`, items.every((i) => i.h >= 44), JSON.stringify(items));
-      const close = await pop.locator(".leaflet-popup-close-button").boundingBox();
+      const close = await pop.locator(CLOSE).boundingBox();
       ctx.check(`${n}: the popup close × is at least 44px on a phone`, !!close && close.width >= 44 && close.height >= 44, JSON.stringify(close));
     }
     await pop.close();
@@ -128,12 +131,12 @@ export default async function (ctx) {
   for (const scheme of ["light", "dark"]) {
     const page = await ctx.open(`/?node=${node.public_key}`, { scheme, setup });
     await page.waitForSelector(".node-popup__discord-user", { timeout: 10000 }).catch(() => {});
-    const c = await page.evaluate(() => ({
-      glass: getComputedStyle(document.querySelector(".leaflet-popup-content-wrapper")).backgroundColor,
+    const c = await page.evaluate((frame) => ({
+      glass: getComputedStyle(document.querySelector(frame)).backgroundColor,
       links: [...document.querySelectorAll(".node-popup a:not(.node-popup-action), .node-popup .copyable")]
         .filter((el) => el.getClientRects().length && el.textContent.trim() && !el.closest(".node-qr-card, .coords-menu"))
         .map((el) => ({ text: el.textContent.trim().slice(0, 16), fg: getComputedStyle(el).color })),
-    }));
+    }), FRAME);
     const weak = c.links
       .map((l) => ({ ...l, ratio: Math.min(contrast(parse(l.fg), over(c.glass, [255, 255, 255])), contrast(parse(l.fg), over(c.glass, [0, 0, 0]))) }))
       .filter((l) => l.ratio < 4.5);
@@ -143,10 +146,10 @@ export default async function (ctx) {
     // The "Custom" radio label is secondary text on glass: 4.5:1 over any map.
     const free = await ctx.open(`/?node=${unclaimed.public_key}`, { scheme, setup });
     await free.waitForSelector(".node-popup__chip-hint--lead", { timeout: 10000 }).catch(() => {});
-    const h = await free.evaluate(() => ({
+    const h = await free.evaluate((frame) => ({
       fg: getComputedStyle(document.querySelector(".node-popup__chip-hint--lead")).color,
-      glass: getComputedStyle(document.querySelector(".leaflet-popup-content-wrapper")).backgroundColor,
-    }));
+      glass: getComputedStyle(document.querySelector(frame)).backgroundColor,
+    }), FRAME);
     const r = Math.min(contrast(parse(h.fg), over(h.glass, [255, 255, 255])), contrast(parse(h.fg), over(h.glass, [0, 0, 0])));
     ctx.check(`popup (${scheme}): the "Custom" label reaches 4.5:1 on glass`, r >= 4.5, `${r.toFixed(2)}:1 ${JSON.stringify(h)}`);
     await free.close();

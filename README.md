@@ -3,7 +3,8 @@
 A Discord bot and web map for **Belgian MeshCore nodes**, syncing from
 [`https://map.meshcore.io/api/v1/nodes`](https://map.meshcore.io/api/v1/nodes).
 
-The web app shows every active Belgian node on a Leaflet map with stats,
+The web app shows every active Belgian node on a map (MapLibre GL JS with
+vector base maps; Leaflet for browsers without WebGL) with stats,
 an activity timeline, and historical playback. The Discord bot lets users
 search the directory and claim ownership of their own nodes.
 

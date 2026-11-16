@@ -148,8 +148,8 @@ export default async function (ctx) {
 
   // A node popup and a Brussels municipality in French.
   const pop = await ctx.open(`/?node=${key}&lang=fr`, { setup: setup("/") });
-  await pop.waitForSelector(".leaflet-popup", { timeout: 10000 }).catch(() => {});
-  const popup = text(await pop.locator(".leaflet-popup").first().textContent().catch(() => ""));
+  await pop.waitForSelector(".node-popup", { timeout: 10000 }).catch(() => {});
+  const popup = text(await pop.locator(".node-popup").first().textContent().catch(() => ""));
   ctx.check("i18n: the node popup in French, with Elsene as Ixelles", popup.includes("Revendiquer") && popup.includes("Ixelles") && popup.includes("Radio"), popup.slice(0, 200));
   await pop.close();
 

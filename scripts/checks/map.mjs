@@ -1,4 +1,5 @@
 // Main map: top bar, counts, auth states, search, filters, add button, and no horizontal scroll on a phone.
+// The map is MapLibre's where the browser has WebGL, Leaflet's without: the checks take either.
 const text = (s) => (s || "").replace(/\s+/g, " ").trim();
 
 // The local database is empty, so the page gets a small synthetic node list.
@@ -33,7 +34,7 @@ const withNodes = (extra) => async (p) => {
 
 export default async function (ctx) {
   const page = await ctx.open("/", { setup: withNodes() });
-  await page.waitForSelector(".leaflet-marker-icon", { timeout: 10000 }).catch(() => {});
+  await page.waitForSelector("#map[data-engine]", { timeout: 15000 }).catch(() => {});
 
   const wordmark = await page.locator(".topbar .wordmark").first().textContent().catch(() => "");
   ctx.check("map: wordmark", text(wordmark) === "#BEmesh map", wordmark);
@@ -110,12 +111,12 @@ export default async function (ctx) {
     await p.close();
   }
 
-  // Dark mode: a node popup's wrapper and tip follow the theme, not Leaflet's white.
+  // Dark mode: a node popup's wrapper and tip follow the theme, not the map library's white.
   const dark = await ctx.open(`/?node=${nodes[0].public_key}`, { scheme: "dark", setup: withNodes() });
-  await dark.waitForSelector(".leaflet-popup-tip", { timeout: 10000 }).catch(() => {});
+  await dark.waitForSelector(":is(.leaflet-popup-tip, .bemesh-popup .maplibregl-popup-tip)", { timeout: 10000 }).catch(() => {});
   const bg = await dark.evaluate(() => {
-    const w = document.querySelector(".leaflet-popup-content-wrapper");
-    const t = document.querySelector(".leaflet-popup-tip");
+    const w = document.querySelector(".leaflet-popup-content-wrapper, .bemesh-popup .maplibregl-popup-content");
+    const t = document.querySelector(".leaflet-popup-tip, .bemesh-popup .maplibregl-popup-tip");
     return { wrapper: w && getComputedStyle(w).backgroundColor, tip: t && getComputedStyle(t).backgroundColor };
   });
   const notWhite = (c) => !!c && c !== "rgb(255, 255, 255)";
@@ -144,18 +145,20 @@ export default async function (ctx) {
   ctx.check("map: zero-match filters show Clear filters", await none.locator("#node-filter").getByRole("button", { name: "Clear filters" }).isVisible());
   await none.close();
 
-  // The layers icon is inverted the same way for system dark and chosen dark.
-  const invert = async (scheme, attr) => {
+  // The layers icon follows system dark and chosen dark alike (Leaflet's image is inverted, MapLibre's
+  // icon takes the text colour).
+  const layersLook = async (scheme, attr) => {
     const p = await ctx.open("/", { scheme, setup: withNodes(async (pg) => { if (attr) await pg.addInitScript((a) => localStorage.setItem("configurator.theme", a), attr); }) });
-    await p.waitForSelector(".leaflet-control-layers-toggle", { timeout: 10000 });
-    const f = await p.locator(".leaflet-control-layers-toggle").evaluate((el) => getComputedStyle(el).filter);
+    const sel = ":is(.leaflet-control-layers-toggle, .map-basemap__toggle)";
+    await p.waitForSelector(sel, { timeout: 15000 });
+    const look = await p.locator(sel).evaluate((el) => (el.classList.contains("map-basemap__toggle") ? getComputedStyle(el).color : getComputedStyle(el).filter));
     await p.close();
-    return f;
+    return look;
   };
-  const sysDark = await invert("dark", null);
-  const chosenDark = await invert("light", "dark");
-  const sysLight = await invert("light", null);
-  ctx.check("map: layers icon inverted in system dark and chosen dark, not in light", sysDark === chosenDark && sysDark.includes("invert") && !sysLight.includes("invert"), `${sysDark} | ${chosenDark} | ${sysLight}`);
+  const sysDark = await layersLook("dark", null);
+  const chosenDark = await layersLook("light", "dark");
+  const sysLight = await layersLook("light", null);
+  ctx.check("map: layers icon follows system dark and chosen dark, not light", sysDark === chosenDark && sysDark !== sysLight, `${sysDark} | ${chosenDark} | ${sysLight}`);
 
   // Signed in on a phone, ☰ shows the user's node count under @user (the top-bar chip is hidden there).
   const me = (extra) => withNodes(async (p) => {
@@ -186,9 +189,9 @@ export default async function (ctx) {
         await pg.route("**/api/v1/belgian-nodes", (r) => r.fulfill({ contentType: "application/json", body: JSON.stringify(list) }));
       },
     });
-    await p.waitForSelector(".leaflet-marker-icon", { timeout: 10000 }).catch(() => {});
-    await p.waitForSelector(".leaflet-popup", { timeout: 4000 }).catch(() => {});
-    const popup = text(await p.locator(".leaflet-popup").first().textContent({ timeout: 500 }).catch(() => ""));
+    await p.waitForSelector("#map[data-engine]", { timeout: 15000 }).catch(() => {});
+    await p.waitForSelector(".node-popup", { timeout: 4000 }).catch(() => {});
+    const popup = text(await p.locator(".node-popup").first().textContent({ timeout: 500 }).catch(() => ""));
     const errors = [...p.errors];
     await p.close();
     return { popup, errors };
@@ -203,18 +206,20 @@ export default async function (ctx) {
 
   // Opening the layers panel leaves the zoom bar its own width.
   const zoom = await ctx.open("/", { setup: withNodes() });
-  const zoomWidth = () => zoom.locator(".leaflet-control-zoom").evaluate((e) => Math.round(e.getBoundingClientRect().width));
+  await zoom.waitForSelector("#map[data-engine]", { timeout: 15000 }).catch(() => {});
+  const zoomBar = ":is(.leaflet-control-zoom, .map-ctrl--bar:has(> button + button))";
+  const zoomWidth = () => zoom.locator(zoomBar).evaluate((e) => Math.round(e.getBoundingClientRect().width));
   const before = await zoomWidth();
-  const toggle = await zoom.locator(".leaflet-control-layers-toggle").boundingBox();
+  const toggle = await zoom.locator(":is(.leaflet-control-layers-toggle, .map-basemap__toggle)").boundingBox();
   await zoom.mouse.move(toggle.x + toggle.width / 2, toggle.y + toggle.height / 2);
   await zoom.waitForTimeout(400);
-  const open = await zoom.locator(".leaflet-control-layers-expanded").count();
+  const open = await zoom.locator(":is(.leaflet-control-layers-expanded, .map-basemap.open)").count();
   const after = await zoomWidth();
   ctx.check("map: the layers panel opens", open === 1);
   ctx.check("map: the zoom bar keeps its width with the layers panel open", before > 0 && after === before, `${before} -> ${after}`);
   await zoom.mouse.move(700, 400);
   await zoom.waitForTimeout(400);
-  const layersWidth = await zoom.locator(".leaflet-control-layers").evaluate((e) => Math.round(e.getBoundingClientRect().width));
+  const layersWidth = await zoom.locator(":is(.leaflet-control-layers, .map-basemap)").evaluate((e) => Math.round(e.getBoundingClientRect().width));
   ctx.check("map: the zoom bar and the closed layers button are equally wide", layersWidth === before, `${before} / ${layersWidth}`);
   await zoom.close();
 }

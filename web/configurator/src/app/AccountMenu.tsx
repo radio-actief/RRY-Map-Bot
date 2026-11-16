@@ -131,8 +131,9 @@ export function AccountMenu() {
   return (
     <>
       {user === null ? (
-        <a class="chip signin-chip" href={`/auth/login?next=${PAGE}`} title={t("menu.signInHint")}>
-          {t("menu.signIn")}
+        <a class="chip signin-chip" href={`/auth/login?next=${PAGE}`} title={t("menu.signInHint")} aria-label={t("menu.signIn")}>
+          <i class="bi bi-person-circle" aria-hidden="true" />
+          <span class="signin-text">{t("menu.signIn")}</span>
         </a>
       ) : null}
       <LangSwitch />

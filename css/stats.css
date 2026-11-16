@@ -100,12 +100,6 @@ button.chip {
   }
 }
 
-/* Below 1280px the bar has no room for the sign-in chip next to the Preset button: it is in ☰. */
-@media (max-width: 1279px) {
-  .stats-body .topbar .signin-chip {
-    display: none;
-  }
-}
 
 .stats-download-btn img,
 #stats-download-menu img {
@@ -217,6 +211,13 @@ button.chip {
 
 .stats-error {
   color: var(--bad);
+}
+
+/* No sync history yet: an empty state, not an error. */
+.stats-error.is-empty {
+  color: var(--mut);
+  font-size: 13px;
+  line-height: 18px;
 }
 
 /* Row 1: number tiles */

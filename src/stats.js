@@ -243,10 +243,11 @@
 
         const topdayGrowth = document.getElementById("stats-topday-growth");
 
-        function showError(msg) {
+        function showError(msg, { empty = false } = {}) {
           loadingEl.style.display = "none";
           contentEl.style.display = "none";
           errorEl.textContent = msg;
+          errorEl.classList.toggle("is-empty", empty);
           errorEl.style.display = "block";
         }
         function hideStatsError() {
@@ -955,9 +956,7 @@
             });
           loadingEl.style.display = "none";
           if (!history || history.length === 0) {
-            showError(
-              tr("stats.noHistory"),
-            );
+            showError(tr("stats.noHistory"), { empty: true });
             return;
           }
 
@@ -989,9 +988,7 @@
             });
 
           if (dailyRows.length === 0) {
-            showError(
-              tr("stats.noHistory"),
-            );
+            showError(tr("stats.noHistory"), { empty: true });
             return;
           }
 

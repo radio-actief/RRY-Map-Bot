@@ -119,8 +119,13 @@
   function fillChip(slot, user, here) {
     slot.textContent = "";
     if (user !== null) return;
-    var a = link("/auth/login?next=" + here, t("menu.signIn"), "chip signin-chip");
+    var a = link("/auth/login?next=" + here, "", "chip signin-chip");
     a.title = t("menu.signInHint");
+    a.setAttribute("aria-label", t("menu.signIn"));
+    var icon = el("i", "bi bi-person-circle");
+    icon.setAttribute("aria-hidden", "true");
+    a.appendChild(icon);
+    a.appendChild(el("span", "signin-text", t("menu.signIn")));
     slot.appendChild(a);
   }
 

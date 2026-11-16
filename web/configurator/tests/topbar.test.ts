@@ -195,7 +195,7 @@ describe("the top bar's texts", () => {
     const [en, nl, fr] = ["en", "nl", "fr"].map((l) => dict(`src/shared/i18n/stats.${l}.json`));
     expect([en["stats.presetAll"], nl["stats.presetAll"], fr["stats.presetAll"]]).toEqual(["Preset: All", "Preset: Alle", "Préréglage : Tous"]);
     expect([en["stats.tile.loading"], nl["stats.tile.loading"], fr["stats.tile.loading"]]).toEqual(["Loading…", "Laden…", "Chargement…"]);
-    expect([fr["stats.type.plural.1"], fr["stats.tile.3"]]).toEqual(["Compagnons", "Salons"]);
+    expect([fr["stats.type.plural.1"], fr["stats.tile.3"]]).toEqual(["Companions", "Rooms"]);
     const html = read("stats.html");
     expect(html).toContain('<span id="stats-preset-label" data-i18n="stats.presetAll">');
     expect(html).not.toMatch(/class="tile-value"[^>]*>—/);

@@ -579,6 +579,31 @@ button {
   border-color: var(--gold);
 }
 
+/* The sign-in chip: below 1280 px it is a framed icon button in the same place, on every page. */
+.signin-chip .bi {
+  display: none;
+}
+
+@media (max-width: 1279px) {
+  .topbar .signin-chip {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    justify-content: center;
+    border-radius: 8px;
+    border: 1px solid #4a5568;
+    position: relative;
+  }
+  .topbar .signin-chip .signin-text {
+    display: none;
+  }
+  .topbar .signin-chip .bi {
+    display: inline-block;
+    font-size: 16px;
+    color: #edf2f7;
+  }
+}
+
 /* A panel floating on a Leaflet map. */
 .map-float {
   position: absolute;

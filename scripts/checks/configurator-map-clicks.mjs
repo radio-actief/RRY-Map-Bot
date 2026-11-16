@@ -38,8 +38,14 @@ export default async function (ctx) {
   const before = await regionStates(page);
   // Off every drawn region area, so the click only reaches the map.
   await page.locator(".map-canvas").evaluate((el) => el.querySelectorAll("path").forEach((p) => (p.style.pointerEvents = "none")));
+  // (on the MapLibre map, which draws the regions on its canvas: a spot off them, far out at sea,
+  // and back to the same view to compare the pin)
+  const view = await page.evaluate(() => (window.bemeshMap?.kind === "maplibre" ? { c: window.bemeshMap.getCenter(), z: window.bemeshMap.getZoom() } : null));
+  if (view) await page.evaluate(() => window.bemeshMap.setView({ lat: 54.5, lon: 2.5 }, 9));
   await page.mouse.click(at(160, 100).x, at(160, 100).y);
   await page.waitForTimeout(300);
+  if (view) await page.evaluate((v) => window.bemeshMap.setView(v.c, v.z), view);
+  await page.waitForTimeout(100);
   ctx.check(`${n}: a click on Regions leaves the pin`, (await pinBox(page)) === placed, `${placed} → ${await pinBox(page)}`);
   ctx.check(`${n}: a click on Regions leaves the regions`, (await regionStates(page)) === before);
 

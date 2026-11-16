@@ -119,7 +119,8 @@ function typeImage(type) {
   let p = typeImages.get(type);
   if (!p) {
     const img = new Image();
-    img.src = new URL(`../../img/node_types/${type}.svg`, import.meta.url).href;
+    // (joined, not a literal: a bundler leaves the site's icons where they are)
+    img.src = new URL("../../img/node_types/" + type + ".svg", import.meta.url).href;
     p = img.decode().then(() => img);
     p.catch(() => typeImages.delete(type));
     typeImages.set(type, p);

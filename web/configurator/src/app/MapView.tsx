@@ -1,76 +1,63 @@
 /**
- * The Leaflet map: location pin, 25 km ring, nearby nodes, borders and (Regions step) region colours.
+ * The map: location pin, 25 km ring, nearby nodes, borders and (Regions step) region colours, on the
+ * tool pages' map engine (./map-engine: MapLibre, or Leaflet without WebGL).
  * On the Companion page it shows no repeater pin or nodes, only the area of the region in focus.
  */
-import * as L from "leaflet";
-import "leaflet/dist/leaflet.css";
-import type { GeoJsonObject } from "geojson";
-import { useEffect, useMemo, useRef } from "preact/hooks";
-import "../../../../src/shared/map-shade.js";
+import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { GEWEST_NAMES } from "../core/be-regions";
 import { municipalityAt, nodesWithin, NEIGHBOR_RADIUS_KM, roundCoord, type LatLon } from "../core/geo";
 import { regionsByState } from "../core/regions";
 import { t } from "../i18n/t";
 import { isWide, municipalities as municipalityList, setLocation, store } from "../state/store";
 import { settleAfterKeyboard } from "../../../../src/shared/viewport-settle.js";
+import { boundsOfGeoJSON } from "../../../../src/map-engine/geo.js";
 import { centreInView, fitInView } from "./map-insets";
+import { createMap, type AreaLayer, type Bounds, type GeoFeature, type MapEngine, type Mark, type Removable } from "./map-engine";
 
-export const TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
-export const ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
-const BELGIUM: L.LatLngTuple = [50.6, 4.6];
+const BELGIUM: LatLon = { lat: 50.6, lon: 4.6 };
 const PIN_ZOOM = 11;
 
-declare global {
-  interface Window {
-    BEmeshMapShade: { attach(l: typeof L, map: L.Map, tiles: L.TileLayer, opts?: { position?: L.ControlPosition }): () => void };
-  }
-}
-
-type Feature = { type: "Feature"; properties?: Record<string, unknown>; geometry: unknown };
+type Feature = GeoFeature;
 const featuresOf = (data: unknown): Feature[] =>
   Array.isArray(data) ? (data as Feature[]) : ((data as { features?: Feature[] } | undefined)?.features ?? []);
-
-const asLatLng = (p: LatLon): L.LatLngTuple => [p.lat, p.lon];
 
 /** The phone sheet's height change takes 0.25s (app.css); refit after it. */
 const SHEET_SETTLE_MS = 300;
 
-/** The gold location pin. */
-export const pinIcon = (): L.DivIcon =>
-  L.divIcon({ className: "map-pin", html: "<span></span>", iconSize: [28, 36], iconAnchor: [14, 36] });
+/** The gold location pin (css: .map-pin). */
+export const PIN = { className: "map-pin", html: "<span></span>", size: [28, 36] as [number, number], anchor: [14, 36] as [number, number] };
 
-function nodeIcon(type: number): L.DivIcon {
+/** A repeater (▲) or room server (■) near the pin, its name on hover. */
+const nodeMark = (type: number, name: string) => {
   const repeater = type === 2;
-  return L.divIcon({
+  return {
     className: `map-node ${repeater ? "map-node-repeater" : "map-node-room"}`,
     html: repeater ? "▲" : "■",
-    iconSize: [18, 18],
-  });
-}
+    size: [18, 18] as [number, number],
+    interactive: false,
+    tooltip: name,
+  };
+};
 
-/** GeoJSON options are handed to each path, so className applies at creation; the typings omit it. */
-const pathClass = (className: string, extra: L.GeoJSONOptions = {}): L.GeoJSONOptions =>
-  ({ className, interactive: false, ...extra }) as L.GeoJSONOptions;
-
-function tooltipFor(name: string): HTMLElement {
-  const el = document.createElement("span");
-  el.textContent = name;
-  return el;
-}
+const removeAll = (list: Removable[]) => {
+  for (const item of list.splice(0)) item.remove();
+};
 
 export function MapView() {
   const host = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<L.Map | null>(null);
+  const mapRef = useRef<MapEngine | null>(null);
+  /** Bumped once the map is in, so the drawing effects run (the engine loads on its own). */
+  const [ready, setReady] = useState(0);
   /** The outlined area's bounds, refitted when the phone sheet changes height. */
-  const focusBounds = useRef<L.LatLngBounds | null>(null);
-  const groups = useRef<{
-    nodes: L.LayerGroup;
-    borders: L.LayerGroup;
-    highlight: L.LayerGroup;
-    regions: L.LayerGroup;
-    focus: L.LayerGroup;
-  } | null>(null);
-  const pin = useRef<{ marker: L.Marker; ring: L.Circle } | null>(null);
+  const focusBounds = useRef<Bounds | null>(null);
+  const drawn = useRef<{ nodes: Removable[]; borders: Removable[]; highlight: Removable[]; regions: Removable[]; focus: Removable[] }>({
+    nodes: [],
+    borders: [],
+    highlight: [],
+    regions: [],
+    focus: [],
+  });
+  const pin = useRef<{ marker: Mark; ring: Removable } | null>(null);
   const fromMap = useRef<unknown>(null);
 
   const plan = store.plan.value;
@@ -102,33 +89,30 @@ export function MapView() {
   }, [municipalities, data.countries, data.provinces, data.gewesten]);
 
   useEffect(() => {
-    // Zoom sits top right under the shade switch: the docked panel covers the map's left edge.
-    const map = L.map(host.current!, { zoomControl: false });
+    let alive = true;
+    let detachKeyboard = () => {};
     const start = store.plan.peek().location;
-    map.setView(start ? asLatLng(start) : BELGIUM, start ? PIN_ZOOM : 8);
-    const tiles = L.tileLayer(TILE_URL, { attribution: ATTRIBUTION, maxZoom: 19, className: "osm-tiles" }).addTo(map);
-    const detachShade = window.BEmeshMapShade.attach(L, map, tiles, { position: "topright" });
-    L.control.zoom({ position: "topright", zoomInTitle: t("zoom.in"), zoomOutTitle: t("zoom.out") }).addTo(map);
-    groups.current = {
-      borders: L.layerGroup().addTo(map),
-      highlight: L.layerGroup().addTo(map),
-      regions: L.layerGroup().addTo(map),
-      nodes: L.layerGroup().addTo(map),
-      focus: L.layerGroup().addTo(map),
-    };
-    // Only Place moves the pin with a click: elsewhere a stray click would silently change the regions.
-    map.on("click", (e: L.LeafletMouseEvent) => {
-      if (store.step.peek() === "place" && store.task.peek() === "repeater") pick(e.latlng.lat, e.latlng.lng);
-    });
-    mapRef.current = map;
-    // The phone keyboard changes the visible height: re-measure, and undo a shifted page once it closes.
-    const detachKeyboard = settleAfterKeyboard(() => map.invalidateSize({ animate: false }));
+    // Controls bottom left, beside the docked panel (top right on a phone: app.css).
+    createMap(host.current!, { center: start ?? BELGIUM, zoom: start ? PIN_ZOOM : 8 })
+      .then((map) => {
+        if (!alive) return map.remove();
+        // Only Place moves the pin with a click: elsewhere a stray click would silently change the regions.
+        map.on("click", (e) => {
+          if (store.step.peek() === "place" && store.task.peek() === "repeater") pick(e.lat, e.lon);
+        });
+        mapRef.current = map;
+        // the page's map, for the browser checks (as on the map page and the region map)
+        (window as unknown as { bemeshMap?: MapEngine }).bemeshMap = map;
+        // The phone keyboard changes the visible height: re-measure, and undo a shifted page once it closes.
+        detachKeyboard = settleAfterKeyboard(() => map.resize());
+        setReady((n) => n + 1);
+      })
+      .catch((e) => console.error("The map could not start", e));
     return () => {
+      alive = false;
       detachKeyboard();
-      detachShade();
-      map.remove();
+      mapRef.current?.remove();
       mapRef.current = null;
-      groups.current = null;
       pin.current = null;
     };
   }, []);
@@ -150,72 +134,63 @@ export function MapView() {
       pin.current = null;
       return;
     }
-    const ll = asLatLng(location);
+    const ring = () => map.addCircle(location, NEIGHBOR_RADIUS_KM * 1000, { className: "map-ring", dashArray: "6 6", fill: false });
     if (pin.current) {
-      pin.current.marker.setLatLng(ll);
-      pin.current.ring.setLatLng(ll);
+      pin.current.marker.setLatLng(location);
+      pin.current.ring.remove();
+      pin.current.ring = ring();
     } else {
-      const marker = L.marker(ll, { draggable: true, title: t("map.pin"), icon: pinIcon() }).addTo(map);
+      const marker = map.addMarker(location, { ...PIN, draggable: true, title: t("map.pin") });
       marker.on("dragend", () => {
         const p = marker.getLatLng();
-        pick(p.lat, p.lng);
+        pick(p.lat, p.lon);
       });
-      const ring = L.circle(ll, {
-        radius: NEIGHBOR_RADIUS_KM * 1000,
-        className: "map-ring",
-        dashArray: "6 6",
-        fill: false,
-        interactive: false,
-      }).addTo(map);
-      pin.current = { marker, ring };
+      pin.current = { marker, ring: ring() };
     }
     // A searched place or "use my location": centre it where the panel doesn't cover it.
-    if (location !== fromMap.current) centreInView(map, ll, Math.max(map.getZoom?.() ?? 0, PIN_ZOOM));
-  }, [location]);
+    if (location !== fromMap.current) centreInView(map, location, Math.max(map.getZoom(), PIN_ZOOM));
+  }, [location, ready]);
 
   // Repeaters and room servers near the pin.
   useEffect(() => {
-    const g = groups.current?.nodes;
-    if (!g) return;
-    g.clearLayers();
+    const map = mapRef.current;
+    if (!map) return;
+    removeAll(drawn.current.nodes);
     if (!layers.nodes) return;
-    for (const n of nearby) {
-      L.marker([n.adv_lat, n.adv_lon], { icon: nodeIcon(n.type), keyboard: false })
-        .bindTooltip(tooltipFor(n.adv_name))
-        .addTo(g);
-    }
-  }, [nearby, layers.nodes]);
+    for (const n of nearby) drawn.current.nodes.push(map.addMarker({ lat: n.adv_lat, lon: n.adv_lon }, nodeMark(n.type, n.adv_name)));
+  }, [nearby, layers.nodes, ready]);
 
   // Country, province and gewest outlines; they do not change with the pin.
   useEffect(() => {
-    const g = groups.current?.borders;
-    if (!g) return;
-    g.clearLayers();
+    const map = mapRef.current;
+    if (!map) return;
+    removeAll(drawn.current.borders);
     if (!layers.borders) return;
     // The European Union shares most of its edge with the countries; only its fill is drawn.
-    for (const f of featuresOf(data.countries).filter((f) => f.properties?.code !== "eu")) {
-      L.geoJSON(f as GeoJsonObject, pathClass("map-outline-country", { style: () => ({ fill: false, weight: 2 }) })).addTo(g);
+    const countries = featuresOf(data.countries).filter((f) => f.properties?.code !== "eu");
+    if (countries.length) {
+      drawn.current.borders.push(map.addGeoJSON(countries, { style: () => ({ className: "map-outline-country", fill: false, weight: 2 }), interactive: false }));
     }
     for (const c of [data.provinces, data.gewesten]) {
-      if (c) L.geoJSON(c as GeoJsonObject, pathClass("map-outline", { style: () => ({ fill: false, weight: 1 }) })).addTo(g);
+      if (c) drawn.current.borders.push(map.addGeoJSON(c, { style: () => ({ className: "map-outline", fill: false, weight: 1 }), interactive: false }));
     }
-  }, [layers.borders, data.countries, data.provinces, data.gewesten]);
+  }, [layers.borders, data.countries, data.provinces, data.gewesten, ready]);
 
   // The municipality under the pin.
   useEffect(() => {
-    const g = groups.current?.highlight;
-    if (!g) return;
-    g.clearLayers();
+    const map = mapRef.current;
+    if (!map) return;
+    removeAll(drawn.current.highlight);
     if (!layers.borders) return;
     const match = location && municipalities.length ? municipalityAt(location, municipalities) : null;
-    if (match) L.geoJSON(match as unknown as GeoJsonObject, pathClass("map-municipality")).addTo(g);
-  }, [layers.borders, municipalities, location]);
+    if (match) drawn.current.highlight.push(map.addGeoJSON(match, { style: () => ({ className: "map-municipality" }), interactive: false }));
+  }, [layers.borders, municipalities, location, ready]);
 
   // Regions step: allowed / denied region polygons; a click on one shows its row (and a second click lets go).
   useEffect(() => {
-    const g = groups.current?.regions;
-    if (!g) return;
-    g.clearLayers();
+    const map = mapRef.current;
+    if (!map) return;
+    removeAll(drawn.current.regions);
     if (companion || step !== "regions" || !plan.regions) return;
     const { allowed, denied } = regionsByState(plan.regions);
     // Largest area first (eu, country, gewest, province, municipality), so a smaller area stays visible on top.
@@ -223,32 +198,44 @@ export function MapView() {
     const cities = new Set((municipalities as unknown as Feature[]).map((f) => String(f.properties?.city_code)));
     const level = (code: string) =>
       cities.has(code) ? 2 : GEWEST_NAMES[code] ? 0 : code === "eu" ? -2 : countryCodes.has(code) ? -1 : 1;
+    // The fill of allowed areas: country and wider, province and gewest, municipality. Only the most
+    // specific allowed level on the map is filled; the wider allowed areas keep their outline.
+    const tier = (code: string) => (level(code) <= -1 ? "wide" : level(code) >= 2 ? "municipality" : "area");
+    const RANK = { wide: 0, area: 1, municipality: 2 };
+    const shown = allowed.filter((code) => areas.has(code));
+    const finest = Math.max(-1, ...shown.map((code) => RANK[tier(code)]));
+    const allowedClass = (code: string) =>
+      RANK[tier(code)] < finest ? "map-region-allowed map-region-outline" : `map-region-allowed map-region-${tier(code)}`;
     const wanted = [
       ...denied.map((code) => ({ code, className: "map-region-denied" })),
-      ...allowed.map((code) => ({ code, className: "map-region-allowed" })),
+      ...allowed.map((code) => ({ code, className: allowedClass(code) })),
     ].sort((a, b) => level(a.code) - level(b.code));
-    for (const { code, className } of wanted) {
-      for (const f of areas.get(code) ?? []) {
-        L.geoJSON(f as GeoJsonObject, pathClass(className, { interactive: true }))
-          .on("click", () => (store.regionFocus.value = store.regionFocus.peek() === code ? null : code))
-          .addTo(g);
-      }
-    }
-  }, [companion, step, plan.regions, municipalities, areas, data.countries]);
+    const look = new Map<Feature, { code: string; className: string }>();
+    for (const w of wanted) for (const f of areas.get(w.code) ?? []) look.set(f, w);
+    if (!look.size) return;
+    drawn.current.regions.push(
+      map.addGeoJSON([...look.keys()], {
+        style: (f) => ({ className: look.get(f)?.className }),
+        onClick: (f) => {
+          const code = look.get(f)?.code ?? null;
+          store.regionFocus.value = store.regionFocus.peek() === code ? null : code;
+        },
+      }),
+    );
+  }, [companion, step, plan.regions, municipalities, areas, data.countries, ready]);
 
   // Regions step: the focused row's area; Companion page: the region of the place or channel. Outlined, with the map zoomed to it.
   useEffect(() => {
-    const g = groups.current?.focus;
-    if (!g) return;
-    g.clearLayers();
+    const map = mapRef.current;
+    removeAll(drawn.current.focus);
     focusBounds.current = null;
-    if (!focus) return;
+    if (!map || !focus) return;
     const fs = areas.get(focus);
     if (!fs?.length) return;
-    const layers = fs.map((f) => L.geoJSON(f as GeoJsonObject, pathClass("map-region-focus")).addTo(g));
-    const bounds = layers.slice(1).reduce((b, l) => b.extend(l.getBounds()), layers[0].getBounds());
-    const map = mapRef.current;
-    if (!map) return;
+    const layer: AreaLayer = map.addGeoJSON(fs, { style: () => ({ className: "map-region-focus" }), interactive: false });
+    drawn.current.focus.push(layer);
+    const bounds = boundsOfGeoJSON(fs);
+    if (!bounds) return;
     focusBounds.current = bounds;
     // The panel covers part of the map (docked on the left, the phone sheet below): fit into what
     // stays visible. A full sheet comes down to half first, so the area isn't a speck in a strip,
@@ -259,7 +246,7 @@ export function MapView() {
       store.sheet.value = "half";
       return true;
     });
-  }, [focus, areas, companion]);
+  }, [focus, areas, companion, ready]);
 
   // The sheet moved (by hand, or lowered above): refit the outlined area once, after the sheet's
   // own animation. Never moves the sheet itself, so a sheet raised by hand stays raised.
@@ -271,9 +258,9 @@ export function MapView() {
     return () => clearTimeout(id);
   }, [sheetHeight]);
 
-  // The container is hidden on the wide steps (Advanced, Send); Leaflet must re-measure when it comes back.
+  // The container is hidden on the wide steps (Advanced, Send); the map must re-measure when it comes back.
   useEffect(() => {
-    if (!hidden) mapRef.current?.invalidateSize();
+    if (!hidden) mapRef.current?.resize();
   }, [hidden]);
 
   const nodesFailed = failed.has("nodes");

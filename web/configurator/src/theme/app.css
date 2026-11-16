@@ -367,7 +367,8 @@
   z-index: 0;
 }
 
-.map-canvas {
+/* .map-container: MapLibre's stylesheet (loaded with the map) sets its own position on the canvas host. */
+.map-container > .map-canvas {
   position: absolute;
   inset: 0;
   z-index: 0;
@@ -394,9 +395,35 @@
   position: absolute;
 }
 
-/* The shade switch sits under the layer switches; the docked panel covers the left edge. */
-.map-container .leaflet-top.leaflet-right {
-  margin-top: 84px;
+/* The map's controls (shade, zoom, base map; MapLibre's .map-ctrls, Leaflet's corner without WebGL):
+ * bottom left, beside the docked panel; on a phone top right, under the layer switches, clear of
+ * the sheet. */
+.stage:has(.panel.docked) .map-container .map-ctrls,
+.stage:has(.panel.docked) .map-container .leaflet-bottom.leaflet-left {
+  left: 370px;
+}
+
+.stage:has(.panel.docked .step-companion) .map-container .map-ctrls,
+.stage:has(.panel.docked .step-companion) .map-container .leaflet-bottom.leaflet-left {
+  left: 430px;
+}
+
+@media (max-width: 1000px) {
+  .stage:has(.panel.docked .step-companion) .map-container .map-ctrls,
+  .stage:has(.panel.docked .step-companion) .map-container .leaflet-bottom.leaflet-left {
+    left: 390px;
+  }
+}
+
+@media (max-width: 767px) {
+  .stage .map-container .map-ctrls,
+  .stage .map-container .leaflet-bottom.leaflet-left {
+    top: 94px;
+    right: max(10px, env(safe-area-inset-right, 0px));
+    bottom: auto;
+    left: auto;
+    align-items: flex-end;
+  }
 }
 
 .map-layers {
@@ -495,11 +522,45 @@ path.map-region-focus {
   fill-opacity: 0.15;
 }
 
+/* Allowed regions: the 2px --ok outline carries the meaning. Only the most specific allowed level is
+ * filled, lighter for the wider areas (MapView sets the level's class); the wider ones are outlined. */
+:root {
+  --map-allowed-wide: 0.08;
+  --map-allowed-area: 0.14;
+  --map-allowed-municipality: 0.2;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --map-allowed-wide: 0.12;
+    --map-allowed-area: 0.18;
+    --map-allowed-municipality: 0.26;
+  }
+}
+
+:root[data-theme="dark"] {
+  --map-allowed-wide: 0.12;
+  --map-allowed-area: 0.18;
+  --map-allowed-municipality: 0.26;
+}
+
 path.map-region-allowed {
   stroke: var(--ok);
   stroke-width: 2;
   fill: var(--ok);
-  fill-opacity: 0.25;
+  fill-opacity: var(--map-allowed-area);
+}
+
+path.map-region-allowed.map-region-wide {
+  fill-opacity: var(--map-allowed-wide);
+}
+
+path.map-region-allowed.map-region-municipality {
+  fill-opacity: var(--map-allowed-municipality);
+}
+
+path.map-region-allowed.map-region-outline {
+  fill: none;
 }
 
 path.map-region-denied {
@@ -1151,7 +1212,7 @@ path.map-region-denied {
   overflow: hidden;
 }
 
-.mini-map-canvas {
+.mini-map > .mini-map-canvas {
   position: absolute;
   inset: 0;
 }

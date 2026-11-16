@@ -19,8 +19,8 @@
   margin: 0 !important;
 }
 
-.bemesh-map .leaflet-bottom.leaflet-left .leaflet-bar,
-.bemesh-map .leaflet-bottom.leaflet-left .leaflet-control-layers,
+.bemesh-map .leaflet-control-container .leaflet-bar,
+.bemesh-map .leaflet-control-container .leaflet-control-layers,
 .map-ctrl {
   background: var(--glass) !important;
   color: var(--ink);
@@ -31,7 +31,7 @@
   backdrop-filter: var(--glass-blur);
 }
 
-.bemesh-map .leaflet-bottom.leaflet-left .leaflet-bar a,
+.bemesh-map .leaflet-control-container .leaflet-bar a,
 .map-ctrl--bar button,
 .map-basemap__toggle,
 .bemesh-map .leaflet-control-layers-toggle {
@@ -54,38 +54,38 @@
   transition: background-color var(--dur) ease-out;
 }
 
-.bemesh-map .leaflet-bottom.leaflet-left .leaflet-bar a:first-child,
+.bemesh-map .leaflet-control-container .leaflet-bar a:first-child,
 .map-ctrl--bar button:first-child {
   border-radius: 7px 7px 0 0;
 }
 
-.bemesh-map .leaflet-bottom.leaflet-left .leaflet-bar a:last-child,
+.bemesh-map .leaflet-control-container .leaflet-bar a:last-child,
 .map-ctrl--bar button:last-child,
 .map-basemap__toggle,
 .bemesh-map .leaflet-control-layers-toggle {
   border-radius: 0 0 7px 7px;
 }
 
-.bemesh-map .leaflet-bottom.leaflet-left .leaflet-bar a:only-child,
+.bemesh-map .leaflet-control-container .leaflet-bar a:only-child,
 .map-ctrl--bar button:only-child,
 .map-basemap:not(.open) .map-basemap__toggle,
 .bemesh-map .leaflet-control-layers-toggle {
   border-radius: 7px;
 }
 
-.bemesh-map .leaflet-bottom.leaflet-left .leaflet-bar a + a,
+.bemesh-map .leaflet-control-container .leaflet-bar a + a,
 .map-ctrl--bar button + button {
   border-top: 1px solid var(--glass-line) !important;
 }
 
-.bemesh-map .leaflet-bottom.leaflet-left .leaflet-bar a.leaflet-disabled,
+.bemesh-map .leaflet-control-container .leaflet-bar a.leaflet-disabled,
 .map-ctrl--bar button:disabled {
   opacity: 0.5;
   cursor: default;
 }
 
 @media (hover: hover) {
-  .bemesh-map .leaflet-bottom.leaflet-left .leaflet-bar a:hover:not(.leaflet-disabled),
+  .bemesh-map .leaflet-control-container .leaflet-bar a:hover:not(.leaflet-disabled),
   .map-ctrl--bar button:hover:not(:disabled),
   .map-basemap__toggle:hover,
   .bemesh-map .leaflet-control-layers-toggle:hover {
@@ -93,23 +93,23 @@
   }
 }
 
-.bemesh-map .leaflet-bottom.leaflet-left .leaflet-bar a:focus-visible,
+.bemesh-map .leaflet-control-container .leaflet-bar a:focus-visible,
 .map-ctrl button:focus-visible {
   outline-offset: -2px;
 }
 
 /* No backdrop-filter, or less transparency asked for: solid controls. */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .bemesh-map .leaflet-bottom.leaflet-left .leaflet-bar,
-  .bemesh-map .leaflet-bottom.leaflet-left .leaflet-control-layers,
+  .bemesh-map .leaflet-control-container .leaflet-bar,
+  .bemesh-map .leaflet-control-container .leaflet-control-layers,
   .map-ctrl {
     background: var(--panel) !important;
   }
 }
 
 @media (prefers-reduced-transparency: reduce) {
-  .bemesh-map .leaflet-bottom.leaflet-left .leaflet-bar,
-  .bemesh-map .leaflet-bottom.leaflet-left .leaflet-control-layers,
+  .bemesh-map .leaflet-control-container .leaflet-bar,
+  .bemesh-map .leaflet-control-container .leaflet-control-layers,
   .map-ctrl {
     background: var(--panel) !important;
     -webkit-backdrop-filter: none;
@@ -124,7 +124,7 @@
     gap: 10px;
   }
 
-  .bemesh-map .leaflet-bottom.leaflet-left .leaflet-bar a::after,
+  .bemesh-map .leaflet-control-container .leaflet-bar a::after,
   .map-ctrl--bar button::after,
   .map-basemap__toggle::after,
   .bemesh-map .leaflet-control-layers-toggle::after {
@@ -133,12 +133,12 @@
     inset: 0 -4px;
   }
 
-  .bemesh-map .leaflet-bottom.leaflet-left .leaflet-bar a:first-child::after,
+  .bemesh-map .leaflet-control-container .leaflet-bar a:first-child::after,
   .map-ctrl--bar button:first-child::after {
     top: -4px;
   }
 
-  .bemesh-map .leaflet-bottom.leaflet-left .leaflet-bar a:last-child::after,
+  .bemesh-map .leaflet-control-container .leaflet-bar a:last-child::after,
   .map-ctrl--bar button:last-child::after,
   .map-basemap__toggle::after,
   .bemesh-map .leaflet-control-layers-toggle::after {
@@ -221,7 +221,8 @@
   color: var(--app-text, #1a1917);
 }
 
-/* Controls, bottom left: map shade, zoom, base map (as the Leaflet map's stack; their look is
+/* Controls, bottom left (or top right, where a panel covers the left): map shade, zoom, base map
+ * (as the Leaflet map's stack; their look is
  * with the Leaflet controls' above) */
 .map-ctrls {
   position: absolute;
@@ -232,6 +233,18 @@
   flex-direction: column;
   align-items: flex-start;
   gap: 6px;
+}
+
+.map-ctrls--top-right {
+  top: 10px;
+  right: max(10px, env(safe-area-inset-right, 0px));
+  bottom: auto;
+  left: auto;
+  align-items: flex-end;
+}
+
+.bemesh-map .leaflet-top.leaflet-right .leaflet-control {
+  margin: 0 0 6px 0;
 }
 
 /* The style host is down: a small ⚠ on the base map button */
@@ -348,7 +361,7 @@
 }
 
 @media (max-width: 600px) {
-  .map-ctrls,
+  .map-ctrls:not(.map-ctrls--top-right),
   .bemesh-map .leaflet-bottom.leaflet-left {
     bottom: calc(34px + var(--map-safe-bottom, 0px));
   }

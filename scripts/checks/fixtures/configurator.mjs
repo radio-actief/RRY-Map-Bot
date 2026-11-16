@@ -48,3 +48,51 @@ export async function searchPlace(page, query, { tap = false } = {}) {
 
 /** The step's Next button in the panel footer. */
 export const next = (page) => page.locator(".panel-foot .btn.primary");
+
+/**
+ * The map's areas drawn with a class (path.<cls> on the Leaflet map; on the MapLibre map, which draws
+ * on its canvas, the rendered features of that class): how many, and their box on the page.
+ */
+export function areas(page, cls) {
+  return page.evaluate((cls) => {
+    const m = window.bemeshMap;
+    const host = document.querySelector(".map-canvas")?.getBoundingClientRect();
+    let boxes = [];
+    if (m?.kind === "maplibre") {
+      const layers = m.map.getStyle().layers.map((l) => l.id).filter((id) => /^bemesh-o\d+-(fill|hatch|line|dash)$/.test(id));
+      const fs = m.map.queryRenderedFeatures({ layers }).filter((f) => String(f.properties.cls).split(/\s+/).includes(cls));
+      const ids = new Set();
+      for (const f of fs) {
+        ids.add(f.properties.i);
+        const pts = [];
+        const walk = (c) => (typeof c[0] === "number" ? pts.push(m.project({ lat: c[1], lon: c[0] })) : c.forEach(walk));
+        walk(f.geometry.coordinates);
+        const xs = pts.map((p) => p.x + host.left);
+        const ys = pts.map((p) => p.y + host.top);
+        boxes.push({ left: Math.min(...xs), top: Math.min(...ys), right: Math.max(...xs), bottom: Math.max(...ys) });
+      }
+      boxes.count = ids.size;
+    } else {
+      boxes = [...document.querySelectorAll(`path.${cls}`)].map((p) => p.getBoundingClientRect());
+      boxes.count = boxes.length;
+    }
+    if (!boxes.length) return { count: 0, box: null };
+    const box = {
+      x: Math.min(...boxes.map((b) => b.left)),
+      y: Math.min(...boxes.map((b) => b.top)),
+      right: Math.max(...boxes.map((b) => b.right)),
+      bottom: Math.max(...boxes.map((b) => b.bottom)),
+    };
+    return { count: boxes.count, box: { x: box.x, y: box.y, width: box.right - box.x, height: box.bottom - box.y } };
+  }, cls);
+}
+
+/** Waits until the map shows an area of that class. */
+export async function waitForArea(page, cls, timeout = 15000) {
+  const t0 = Date.now();
+  while (Date.now() - t0 < timeout) {
+    if ((await areas(page, cls)).count > 0) return;
+    await page.waitForTimeout(200);
+  }
+  throw new Error(`no ${cls} on the map`);
+}

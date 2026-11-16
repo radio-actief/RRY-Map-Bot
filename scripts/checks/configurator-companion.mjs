@@ -1,6 +1,6 @@
 // Configurator Companion page: /join and /visit, the channels for Oostende, QR codes, Open in app,
 // the four-step guide, phone width without sideways scroll, dark theme, Dutch and French.
-import { stub } from "./fixtures/configurator.mjs";
+import { areas, stub } from "./fixtures/configurator.mjs";
 
 const OOSTENDE_LINK = "meshcore://channel/add?name=%23oostende&secret=a10656e857573cb63f14932cfe377368&region_scope=be-vwv";
 const BEMESH_LINK = "meshcore://channel/add?name=%23bemesh&secret=4e92675e10b4a5b3df305e86a6f4f8fa&region_scope=be";
@@ -82,7 +82,7 @@ export default async function (ctx) {
   ctx.check(`${n}: the QR code opens large`, big?.width >= 200, String(big?.width));
   await page.locator("dialog[open]").getByRole("button", { name: "Close" }).first().click();
 
-  const focus = await page.locator("path.map-region-focus").count();
+  const focus = (await areas(page, "map-region-focus")).count;
   ctx.check(`${n}: the map outlines the place's province`, focus > 0, String(focus));
 
   await page.getByRole("button", { name: /View this first/ }).click();
@@ -128,7 +128,7 @@ export default async function (ctx) {
       await phone.locator('li.channel[aria-label="#bruxelles"] .region-shape').tap();
       await phone.waitForTimeout(400);
       const half = await phone.locator(".panel.sheet").evaluate((el) => el.classList.contains("half"));
-      const outlined = await phone.locator("path.map-region-focus").count();
+      const outlined = (await areas(phone, "map-region-focus")).count;
       ctx.check(`${n}: 390 px: a channel's small map lowers the sheet to show its region`, half && outlined > 0, `${half} ${outlined}`);
     }
     ctx.check(`${n}: 390 px ${scheme}: no page errors`, !phone.errors.length, phone.errors.join("; "));

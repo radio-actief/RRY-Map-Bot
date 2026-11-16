@@ -75,6 +75,15 @@ export class FakeLayer {
   eachLayer(fn: (l: FakeLayer) => void) {
     this.children.forEach(fn);
   }
+  panes = new Map<string, HTMLElement>();
+  createPane(name: string) {
+    const el = document.createElement("div");
+    this.panes.set(name, el);
+    return el;
+  }
+  getPane(name: string) {
+    return this.panes.get(name);
+  }
 }
 
 export const created: FakeLayer[] = [];
@@ -120,6 +129,14 @@ export const control = (o: { position?: string } = {}) => {
       return c;
     },
   };
+  return c;
+};
+/** L.control.layers: a layer of kind "layers" with a container holding its toggle. */
+(control as any).layers = (base: unknown, overlays: unknown, o: Record<string, any> = {}) => {
+  const c = new FakeLayer("layers", [base, overlays], o);
+  const el = document.createElement("div");
+  el.innerHTML = '<a class="leaflet-control-layers-toggle" href="#"></a>';
+  (c as any).getContainer = () => el;
   return c;
 };
 /** L.control.zoom: a layer of kind "zoom" holding its options (position, titles). */

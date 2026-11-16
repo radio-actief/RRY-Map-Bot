@@ -3,7 +3,8 @@ import { resolve } from "node:path";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/preact";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("leaflet", async () => await import("./fakes/leaflet"));
+// The map engine (MapLibre, or Leaflet without WebGL) is recorded, not drawn.
+vi.mock("../src/app/map-engine", async () => await import("./fakes/map-engine"));
 
 import { floodAdvertHoursFor, recommendedForAll } from "../src/core/blocks";
 import { applyCheckup, checkupLines } from "../src/core/checkup";
@@ -12,7 +13,7 @@ import { policyFor } from "../src/core/regions";
 import type { Place } from "../src/core/search";
 import { Connect } from "../src/steps/Connect";
 import { resetPlan, store } from "../src/state/store";
-import { resetFake } from "./fakes/leaflet";
+import { resetFakeEngine } from "./fakes/map-engine";
 import read from "./fixtures/read-ronse.json";
 
 const PLACES: Place[] = JSON.parse(readFileSync(resolve(__dirname, "../../../data/be-locode.json"), "utf8"));
@@ -45,7 +46,7 @@ function afterRead(plan: Plan) {
 }
 
 beforeEach(() => {
-  resetFake();
+  resetFakeEngine();
   resetPlan(defaultPlan());
   store.snapshot.value = null;
   store.lastRead.value = null;

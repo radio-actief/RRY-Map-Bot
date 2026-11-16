@@ -57,10 +57,12 @@ let maplibreModule = null;
  */
 export function preloadEngine(doc = globalThis.document, { webgl = webglForPage } = {}) {
   if (!doc?.head || !webgl()) return;
+  // (joined, not literals: a bundler would copy the files as assets; the pages that preload serve them)
+  const at = (path) => new URL("./" + path, import.meta.url).href;
   const files = [
-    ["modulepreload", new URL("../../lib/maplibre-gl.mjs", import.meta.url).href],
-    ["modulepreload", new URL("./maplibre-engine.js", import.meta.url).href],
-    ["preload", new URL("../../lib/css/maplibre-gl.css", import.meta.url).href, "style"],
+    ["modulepreload", at("../../lib/maplibre-gl.mjs")],
+    ["modulepreload", at("maplibre-engine.js")],
+    ["preload", at("../../lib/css/maplibre-gl.css"), "style"],
   ];
   for (const [rel, href, as] of files) {
     if (doc.head.querySelector(`link[href="${href}"]`)) continue;

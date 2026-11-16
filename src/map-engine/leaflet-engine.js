@@ -5,7 +5,9 @@ import { BASE_MAPS, baseMapIds, rasterAttribution, readBaseMap, storeBaseMap } f
 import { boundsOfGeoJSON, wrapLon } from "./geo.js";
 import { prefersReducedMotion } from "./motion.js";
 
-const base = (path) => new URL(`../../${path}`, import.meta.url).href;
+// (joined, not one literal: a bundler, as the configurator's Vite build, then leaves the site's own
+// files where they are instead of copying every file it could match)
+const base = (path) => new URL("../../" + path, import.meta.url).href;
 
 function loadScript(src) {
   return new Promise((resolve, reject) => {
@@ -44,9 +46,13 @@ function loadLeaflet() {
 
 const ICON_OPTIONS = { iconSize: [32, 32], iconAnchor: [17, 17], popupAnchor: [0, -16] };
 
-export async function createLeafletEngine(container, { center, zoom, t, attribution }) {
-  await loadLeaflet();
-  const L = window.L;
+/**
+ * options as the MapLibre engine's, and `leaflet`: a Leaflet module to use (the configurator bundles
+ * its own) instead of loading lib/leaflet.js.
+ */
+export async function createLeafletEngine(container, { center, zoom, t, attribution, controls: controlsAt = "bottom-left", interactive = true, leaflet = null }) {
+  if (!leaflet) await loadLeaflet();
+  const L = leaflet ?? window.L;
   container.classList.add("bemesh-map");
 
   const tiles = {
@@ -69,6 +75,7 @@ export async function createLeafletEngine(container, { center, zoom, t, attribut
     ],
     layers: tiles[baseId],
     zoomControl: false,
+    ...(interactive ? {} : { dragging: false, scrollWheelZoom: false, doubleClickZoom: false, boxZoom: false, keyboard: false, touchZoom: false }),
     // reduced motion: no zoom, fade or marker animation
     ...(prefersReducedMotion() ? { zoomAnimation: false, fadeAnimation: false, markerZoomAnimation: false } : {}),
   }).setView([center.lat, center.lon], zoom);
@@ -82,24 +89,36 @@ export async function createLeafletEngine(container, { center, zoom, t, attribut
     if (id) storeBaseMap(globalThis.localStorage, id);
   });
   // map type (layers) above zoom in/out, bottom left
-  // the same icons as the MapLibre map's controls (css/map.css gives them its glass look)
-  const layersControl = L.control.layers(layerNames, null, { position: "bottomleft" }).addTo(map);
-  const toggle = layersControl.getContainer()?.querySelector(".leaflet-control-layers-toggle");
-  if (toggle) {
-    toggle.innerHTML = '<i class="bi bi-layers" aria-hidden="true"></i>';
-    toggle.setAttribute("aria-label", t("map.baseMap"));
-    toggle.title = t("map.baseMap");
+  // the same icons as the MapLibre map's controls (src/shared/map-engine.css gives them its glass
+  // look), top to bottom: map shade, zoom, base map; bottom corners stack upwards, top ones down
+  const corner = controlsAt === "top-right" ? "topright" : "bottomleft";
+  const addLayers = () => {
+    const layersControl = L.control.layers(layerNames, null, { position: corner }).addTo(map);
+    const toggle = layersControl.getContainer?.()?.querySelector(".leaflet-control-layers-toggle");
+    if (toggle) {
+      toggle.innerHTML = '<i class="bi bi-layers" aria-hidden="true"></i>';
+      toggle.setAttribute("aria-label", t("map.baseMap"));
+      toggle.title = t("map.baseMap");
+    }
+  };
+  const addZoom = () =>
+    L.control
+      .zoom({
+        position: corner,
+        zoomInText: '<i class="bi bi-plus-lg" aria-hidden="true"></i>',
+        zoomOutText: '<i class="bi bi-dash-lg" aria-hidden="true"></i>',
+        zoomInTitle: t("zoom.in"),
+        zoomOutTitle: t("zoom.out"),
+      })
+      .addTo(map);
+  let detachShade = null;
+  const addShade = () => {
+    detachShade = window.BEmeshMapShade?.attach(L, map, tiles.osm, { position: corner, icons: true }) ?? null;
+  };
+  if (interactive && controlsAt) {
+    if (corner === "topright") [addShade, addZoom, addLayers].forEach((f) => f());
+    else [addLayers, addZoom, addShade].forEach((f) => f());
   }
-  L.control
-    .zoom({
-      position: "bottomleft",
-      zoomInText: '<i class="bi bi-plus-lg" aria-hidden="true"></i>',
-      zoomOutText: '<i class="bi bi-dash-lg" aria-hidden="true"></i>',
-      zoomInTitle: t("zoom.in"),
-      zoomOutTitle: t("zoom.out"),
-    })
-    .addTo(map);
-  window.BEmeshMapShade?.attach(L, map, tiles.osm, { position: "bottomleft", icons: true });
 
   // the coverage image under the node markers, the planning marks over them
   map.createPane("planCoverage").style.zIndex = 350;
@@ -112,6 +131,7 @@ export async function createLeafletEngine(container, { center, zoom, t, attribut
     for (const fn of listeners.get(type) ?? []) fn(payload);
   };
   for (const type of ["movestart", "moveend", "zoomstart", "zoomend"]) map.on(type, () => emit(type));
+  map.on("click", (ev) => emit("click", { lat: ev.latlng.lat, lon: wrapLon(ev.latlng.lng) }));
   // a long press on a touch screen is a contextmenu too (Leaflet makes one on iOS)
   map.on("contextmenu", (ev) => {
     const oe = ev.originalEvent;
@@ -222,11 +242,17 @@ export async function createLeafletEngine(container, { center, zoom, t, attribut
   }
 
   // ------------------------------------------------------------------ GeoJSON areas, points, tooltips
+  /** Text as a text node: names come from the data, never as HTML. */
+  const asText = (text) => {
+    const el = document.createElement("span");
+    el.textContent = text;
+    return el;
+  };
   let tip = null;
   function showTooltip(spot, text, { offset = 10 } = {}) {
     hideTooltip();
     tip = L.tooltip({ direction: "top", offset: L.point(0, -offset), className: "region-map-tooltip bemesh-leaflet-tooltip" })
-      .setContent(text)
+      .setContent(asText(text))
       .setLatLng([spot.lat, spot.lon])
       .addTo(map);
   }
@@ -275,7 +301,7 @@ export async function createLeafletEngine(container, { center, zoom, t, attribut
       : L.featureGroup();
     for (const p of points) {
       const m = L.circleMarker([Number(p.lat), Number(p.lon)], style);
-      if (label) m.bindTooltip(label(p), { className: "region-map-tooltip", direction: "auto" });
+      if (label) m.bindTooltip(asText(label(p)), { className: "region-map-tooltip", direction: "auto" });
       if (onClick) m.on("click", () => onClick(p, { lat: Number(p.lat), lon: Number(p.lon) }));
       group.addLayer(m);
     }
@@ -382,7 +408,12 @@ export async function createLeafletEngine(container, { center, zoom, t, attribut
     addPoints,
     showTooltip,
     hideTooltip,
-    addMarker(spot, { html = "", className = "", size = [20, 20], anchor, draggable = false, title = "", interactive = true } = {}) {
+    /** Takes the map down (a page that removes its map, as the configurator's views). */
+    remove() {
+      detachShade?.();
+      map.remove();
+    },
+    addMarker(spot, { html = "", className = "", size = [20, 20], anchor, draggable = false, title = "", interactive = true, tooltip = "" } = {}) {
       const icon = (h, c) => L.divIcon({ className: c, html: h, iconSize: size, iconAnchor: anchor ?? [size[0] / 2, size[1] / 2] });
       let current = { html, className };
       const m = L.marker([spot.lat, spot.lon], {
@@ -391,10 +422,12 @@ export async function createLeafletEngine(container, { center, zoom, t, attribut
         draggable,
         title,
         alt: title,
-        interactive,
+        // a mark with a name on hover must take the pointer, not the keyboard
+        interactive: interactive || Boolean(tooltip),
         keyboard: interactive,
         riseOnHover: interactive,
       }).addTo(map);
+      if (tooltip) m.bindTooltip(asText(tooltip));
       return {
         get element() {
           return m.getElement();

@@ -207,21 +207,22 @@ describe("choosing the map engine", () => {
     return el;
   };
   const calls: string[] = [];
-  const load = (maplibre: () => unknown) => ({
-    maplibre: async () => async () => { calls.push("maplibre"); return maplibre(); },
-    leaflet: async () => async () => { calls.push("leaflet"); return { kind: "leaflet" }; },
-  });
+  const load = (maplibre: () => unknown) =>
+    ({
+      maplibre: async () => async () => { calls.push("maplibre"); return maplibre(); },
+      leaflet: async () => async () => { calls.push("leaflet"); return { kind: "leaflet" }; },
+    }) as never;
 
   it("uses MapLibre where WebGL 2 works", async () => {
     calls.length = 0;
-    const engine = await createMapEngine(container(), {}, { webgl: () => true, load: load(() => ({ kind: "maplibre" })) });
+    const engine = await createMapEngine(container(), {} as never, { webgl: () => true, load: load(() => ({ kind: "maplibre" })) });
     expect(engine.kind).toBe("maplibre");
     expect(calls).toEqual(["maplibre"]);
   });
 
   it("loads only the Leaflet map without WebGL", async () => {
     calls.length = 0;
-    const engine = await createMapEngine(container(), {}, { webgl: () => false, load: load(() => ({ kind: "maplibre" })) });
+    const engine = await createMapEngine(container(), {} as never, { webgl: () => false, load: load(() => ({ kind: "maplibre" })) });
     expect(engine.kind).toBe("leaflet");
     expect(calls).toEqual(["leaflet"]);
   });
@@ -229,7 +230,7 @@ describe("choosing the map engine", () => {
   it("falls back to the Leaflet map, on a clean container, when MapLibre fails to start", async () => {
     calls.length = 0;
     const el = container();
-    const engine = await createMapEngine(el, {}, {
+    const engine = await createMapEngine(el, {} as never, {
       webgl: () => true,
       load: load(() => {
         el.classList.add("maplibregl-map");
@@ -415,6 +416,24 @@ describe("the region map on the map engine", () => {
     for (const f of ["src/map-engine/maplibre-engine.js", "src/map-engine/leaflet-engine.js", "src/map-engine/basemaps.js"]) {
       const keys = [...read(f).matchAll(/\bt\(\s*"([\w.-]+)"/g)].map((m) => m[1]);
       expect(keys.filter((k) => !(k in shared)), f).toEqual([]);
+    }
+  });
+});
+
+describe("the configurator's maps on the map engine", () => {
+  it("draw through src/app/map-engine.ts, which loads MapLibre or (without WebGL) the bundled Leaflet only when a map is made", () => {
+    for (const f of ["web/configurator/src/app/MapView.tsx", "web/configurator/src/steps/settings/MiniMap.tsx", "web/configurator/src/app/map-insets.ts"]) {
+      expect(read(f), f).not.toMatch(/from "leaflet"|import \* as L\b|\bL\.[a-zA-Z]/);
+    }
+    const wrapper = read("web/configurator/src/app/map-engine.ts");
+    expect(wrapper).not.toMatch(/^import[^;]*from "leaflet"/m);
+    expect(wrapper).toMatch(/import\("leaflet"\)/);
+    expect(wrapper).toMatch(/import\("\.\.\/\.\.\/\.\.\/\.\.\/src\/map-engine\/maplibre-engine\.js"\)/);
+  });
+
+  it("keep the site's own files out of the bundle: the engine joins their paths instead of naming them in one literal", () => {
+    for (const f of ["src/map-engine/leaflet-engine.js", "src/map-engine/node-images.js", "src/map-engine/index.js"]) {
+      expect(read(f), f).not.toMatch(/new URL\(`[^`]*\$\{/);
     }
   });
 });

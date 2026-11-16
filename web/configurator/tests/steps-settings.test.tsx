@@ -3,7 +3,8 @@ import { resolve } from "node:path";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/preact";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("leaflet", async () => await import("./fakes/leaflet"));
+// The map engine (MapLibre, or Leaflet without WebGL) is recorded, not drawn.
+vi.mock("../src/app/map-engine", async () => await import("./fakes/map-engine"));
 
 import { BLOCKS, isBlockRecommended } from "../src/core/blocks";
 import { ACL_MAX, type AclEntry } from "../src/core/acl";
@@ -12,14 +13,14 @@ import type { Place } from "../src/core/search";
 import { Regions } from "../src/steps/Regions";
 import { SettingsStep } from "../src/steps/SettingsStep";
 import { canApply, chooseLocation, resetPlan, stepStatus, store, visited } from "../src/state/store";
-import { ofKind, resetFake } from "./fakes/leaflet";
+import { engines, resetFakeEngine } from "./fakes/map-engine";
 
 const PLACES: Place[] = JSON.parse(readFileSync(resolve(__dirname, "../../../data/be-locode.json"), "utf8"));
 const MUNIS = JSON.parse(readFileSync(resolve(__dirname, "fixtures/municipalities-3.json"), "utf8"));
 const RONSE = PLACES.find((p) => p.city_code === "beron")!;
 
 beforeEach(() => {
-  resetFake();
+  resetFakeEngine();
   resetPlan(defaultPlan());
   store.snapshot.value = null;
   store.deviceRegions.value = undefined;
@@ -326,15 +327,16 @@ describe("Settings step", () => {
     expect(store.step.value).toBe("send");
   });
 
-  it("draws a static mini map with the pin once Leaflet has loaded", async () => {
+  it("draws a still mini map with the pin once the map has loaded", async () => {
     chooseLocation({ type: "city", label: "Ronse", place: RONSE } as never);
     render(<SettingsStep />);
     expect(document.querySelector(".mini-map")).not.toBeNull();
-    await waitFor(() => expect(ofKind("map").length).toBe(1));
-    const map = ofKind("map")[0];
-    expect(map.options.dragging).toBe(false);
-    expect(map.options.scrollWheelZoom).toBe(false);
-    expect(ofKind("marker").length).toBe(1);
+    await waitFor(() => expect(engines.filter((e) => e.options.interactive === false).length).toBe(1));
+    const map = engines.find((e) => e.options.interactive === false)!;
+    expect(map.options.controls).toBe(false);
+    await waitFor(() => expect(map.live().marks.length).toBe(1));
+    expect(map.live().marks[0].options.interactive).toBe(false);
+    expect(map.views.at(-1)?.zoom).toBe(12);
   });
 
   it("shows the five blocks as cards in order, with the all button by the title and each card's in its header", () => {

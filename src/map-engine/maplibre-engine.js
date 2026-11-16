@@ -3,9 +3,9 @@
 // Parts follow map.meshcore.io's MapLibre map (MIT, see src/coverage/LICENSE): the page's zoom on
 // 256 px tiles, cluster zoom-in, panning the popup into view. The popup opens above its node and the
 // map pans to make room for it, as Leaflet's does.
-import { LngLatBounds, Map as MapLibreMap, Marker, Popup } from "../../lib/maplibre-gl.mjs";
+import { LngLatBounds, Map as MapLibreMap, Marker, Popup, setWorkerUrl } from "../../lib/maplibre-gl.mjs";
 import { baseMapIds, baseMapLabel, prepareStyle, rasterStyle, readBaseMap, storeBaseMap, styleFor } from "./basemaps.js";
-import { boundsOfGeoJSON, circleRing, clusterMaxZoomFor, dashInLineWidths, fromMapZoom, toMapZoom } from "./geo.js";
+import { boundsOfGeoJSON, circleRing, clusterMaxZoomFor, wrapLon, dashInLineWidths, fromMapZoom, toMapZoom } from "./geo.js";
 import { prefersReducedMotion } from "./motion.js";
 import { CLUSTER_SIZE, drawClusterImage, drawNodeImage, nodeImageId, parseNodeImageId, readLook } from "./node-images.js";
 
@@ -52,7 +52,15 @@ async function fetchStyle(url) {
 const lngLat = ({ lat, lon }) => [lon, lat];
 const spotOf = (ll) => ({ lat: ll.lat, lon: ll.lng });
 
-export async function createMapLibreEngine(container, { center, zoom, t, attribution }) {
+// The worker next to the library (named here, so a bundler that moves this file, as the configurator's
+// Vite build does, still finds it)
+setWorkerUrl(new URL("../../lib/maplibre-gl-worker.mjs", import.meta.url).href);
+
+/**
+ * options: { center, zoom, t, attribution, controls: "bottom-left" (default) | "top-right" | false,
+ * interactive: false for a still map (no controls, no gestures) }
+ */
+export async function createMapLibreEngine(container, { center, zoom, t, attribution, controls: controlsAt = "bottom-left", interactive = true }) {
   await loadCss();
   container.classList.add("bemesh-map");
   const shadeApi = window.BEmeshMapShade;
@@ -70,7 +78,8 @@ export async function createMapLibreEngine(container, { center, zoom, t, attribu
     pitchWithRotate: false,
     touchPitch: false,
     rollEnabled: false,
-    attributionControl: { customAttribution: attribution },
+    attributionControl: attribution ? { customAttribution: attribution } : {},
+    interactive,
     // reduced motion: no fade of labels and tiles, and MapLibre's own moves without animation
     ...(prefersReducedMotion() ? { fadeDuration: 0, reduceMotion: true } : {}),
     locale: {
@@ -370,7 +379,9 @@ export async function createMapLibreEngine(container, { center, zoom, t, attribu
     if (!feature) {
       closePopup();
       const hit = hitOverlay(e.point);
-      if (hit) hit.overlay.click?.(hit.feature, { lat: e.lngLat.lat, lon: e.lngLat.lng });
+      if (hit?.overlay.click) hit.overlay.click(hit.feature, { lat: e.lngLat.lat, lon: e.lngLat.lng });
+      // a click on the map itself (not on a mark of its own)
+      else if (!e.originalEvent?.target?.closest?.(".maplibregl-marker, .maplibregl-popup")) emit("click", { lat: e.lngLat.lat, lon: wrapLon(e.lngLat.lng) });
       return;
     }
     if (feature.layer.id === CLUSTERS) zoomIntoCluster(feature).catch((err) => console.error(err));
@@ -557,7 +568,7 @@ export async function createMapLibreEngine(container, { center, zoom, t, attribu
   // ------------------------------------------------------------------ controls (bottom left)
   // top to bottom as on the Leaflet map: map shade, zoom, base map
   const controls = document.createElement("div");
-  controls.className = "map-ctrls";
+  controls.className = controlsAt === "top-right" ? "map-ctrls map-ctrls--top-right" : "map-ctrls";
   const zoomBar = document.createElement("div");
   zoomBar.className = "map-ctrl map-ctrl--bar";
   const zoomButton = (icon, label, fn) => {
@@ -645,7 +656,7 @@ export async function createMapLibreEngine(container, { center, zoom, t, attribu
   const shadeBar = document.createElement("div");
   shadeBar.className = "map-ctrl map-ctrl--bar map-shade-control";
   controls.append(shadeBar, zoomBar, layers);
-  container.append(controls);
+  if (controlsAt && interactive) container.append(controls);
   for (const ev of ["mousedown", "dblclick", "wheel", "touchstart", "contextmenu"]) {
     controls.addEventListener(ev, (e) => e.stopPropagation(), { passive: ev !== "contextmenu" });
   }
@@ -861,13 +872,15 @@ export async function createMapLibreEngine(container, { center, zoom, t, attribu
     return handle;
   }
 
-  function pathOverlay(data, { className = "", weight = 3, dashArray = null, lineCap = "round" } = {}) {
-    let colours = pathColours(className);
-    const dash = dashInLineWidths(dashArray, weight);
+  function pathOverlay(data, { className = "", weight = 3, dashArray = null, lineCap = "round", color, opacity } = {}) {
+    // the options as Leaflet's path attributes; the class's CSS (stroke, stroke-width…) wins over them
+    const look = () => pathColours(className, { weight, dashArray, color, opacity });
+    let colours = look();
+    const dash = dashInLineWidths(colours.dashArray ?? dashArray, colours.strokeWidth);
     const paint = () => ({
       "line-color": colours.stroke,
       "line-opacity": colours.strokeOpacity,
-      "line-width": weight,
+      "line-width": colours.strokeWidth,
       ...(dash ? { "line-dasharray": dash } : {}),
     });
     const handle = addOverlay(
@@ -876,14 +889,14 @@ export async function createMapLibreEngine(container, { center, zoom, t, attribu
       (id) => [{ id, type: "line", source: id, layout: { "line-cap": lineCap === "round" ? "round" : "butt", "line-join": "round" }, paint: paint() }],
     );
     return restylable(handle, () => {
-      colours = pathColours(className);
+      colours = look();
       const { "line-dasharray": _d, ...rest } = paint();
       return rest;
     });
   }
 
   /** An HTML mark over the map, as Leaflet's divIcon marker: size and anchor in px. */
-  function createMark(spot, { html = "", className = "", size = [20, 20], anchor, draggable = false, title = "", interactive = true } = {}) {
+  function createMark(spot, { html = "", className = "", size = [20, 20], anchor, draggable = false, title = "", interactive = true, tooltip = "" } = {}) {
     const el = document.createElement("div");
     el.className = "map-mark";
     const [w, h] = size;
@@ -906,11 +919,16 @@ export async function createMapLibreEngine(container, { center, zoom, t, attribu
     if (interactive) {
       el.tabIndex = 0;
       el.setAttribute("role", "button");
-    } else {
+    } else if (!tooltip) {
       el.style.pointerEvents = "none";
     }
     const marker = new Marker({ element: el, anchor: "top-left", offset: [-ax, -ay], draggable }).setLngLat(lngLat(spot)).addTo(map);
     el.classList.toggle("map-mark--draggable", draggable);
+    if (tooltip) {
+      // a name on hover, above the mark (as Leaflet's bindTooltip)
+      el.addEventListener("mouseenter", () => showTooltip(spotOf(marker.getLngLat()), tooltip, { offset: ay }));
+      el.addEventListener("mouseleave", hideTooltip);
+    }
     const handlers = new Map();
     for (const type of ["drag", "dragend", "dragstart"]) {
       marker.on(type, () => {
@@ -976,7 +994,7 @@ export async function createMapLibreEngine(container, { center, zoom, t, attribu
       looks = originals.map((f) => {
         const o = { fill: true, ...style(f) };
         const c = pathColours(o.className, o);
-        return { ...c, fill: o.fill !== false && c.fillOpacity > 0, fillColor: c.fill, dash: o.dashArray ?? c.dashArray };
+        return { ...c, fill: o.fill !== false && c.fillOpacity > 0, fillColor: c.fill, dash: o.dashArray ?? c.dashArray, cls: o.className ?? "" };
       });
       const hatch = getComputedStyle(document.documentElement).getPropertyValue("--bad").trim() || "#c62828";
       return {
@@ -987,6 +1005,8 @@ export async function createMapLibreEngine(container, { center, zoom, t, attribu
           geometry: f.geometry ?? f,
           properties: {
             i,
+            // the class it was drawn with (checks and tools can find an area by it)
+            cls: looks[i].cls,
             fc: looks[i].fill ? looks[i].fillColor : "rgba(0,0,0,0)",
             fo: looks[i].fill ? looks[i].fillOpacity : 0,
             pat: looks[i].hatch && looks[i].fill ? `g${gen}|h|${hatch}` : "",
@@ -1018,7 +1038,8 @@ export async function createMapLibreEngine(container, { center, zoom, t, attribu
             "fill-opacity": interactive ? ["case", hoverOn, ["min", 1, ["+", ["get", "fo"], 0.12]], ["get", "fo"]] : ["get", "fo"],
           },
         },
-        { id: `${id}-hatch`, type: "fill", source: id, filter: ["!=", ["get", "pat"], ""], paint: { "fill-pattern": ["get", "pat"] } },
+        // (with the fill's opacity, as Leaflet's fill-opacity dims an SVG pattern too)
+        { id: `${id}-hatch`, type: "fill", source: id, filter: ["!=", ["get", "pat"], ""], paint: { "fill-pattern": ["get", "pat"], "fill-opacity": ["get", "fo"] } },
         {
           id: `${id}-line`,
           type: "line",

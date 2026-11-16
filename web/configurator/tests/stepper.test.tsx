@@ -3,19 +3,20 @@ import { resolve } from "node:path";
 import { cleanup, fireEvent, render, screen } from "@testing-library/preact";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("leaflet", async () => await import("./fakes/leaflet"));
+// The map engine (MapLibre, or Leaflet without WebGL) is recorded, not drawn.
+vi.mock("../src/app/map-engine", async () => await import("./fakes/map-engine"));
 
 import { Panel } from "../src/app/Panel";
 import { Stepper } from "../src/app/Stepper";
 import { defaultPlan } from "../src/core/plan";
 import type { Place } from "../src/core/search";
 import { isWide, NUMBERED, resetPlan, stepNumber, STEPS, store, visited } from "../src/state/store";
-import { resetFake } from "./fakes/leaflet";
+import { resetFakeEngine } from "./fakes/map-engine";
 
 const PLACES: Place[] = JSON.parse(readFileSync(resolve(__dirname, "../../../data/be-locode.json"), "utf8"));
 
 beforeEach(() => {
-  resetFake();
+  resetFakeEngine();
   resetPlan(defaultPlan());
   store.data.value = { failed: new Set(), places: PLACES };
   store.device.value = { status: "none", link: null, firmware: null };

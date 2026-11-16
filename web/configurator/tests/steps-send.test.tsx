@@ -3,7 +3,8 @@ import { resolve } from "node:path";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/preact";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("leaflet", async () => await import("./fakes/leaflet"));
+// The map engine (MapLibre, or Leaflet without WebGL) is recorded, not drawn.
+vi.mock("../src/app/map-engine", async () => await import("./fakes/map-engine"));
 
 /** Switches for the two cases the real modules can't produce: an empty script and an apply() that throws. */
 const force = vi.hoisted(() => ({ emptyScript: false, applyThrows: false, extraLine: "" }));
@@ -37,7 +38,7 @@ import { AccessList } from "../src/steps/settings/AccessList";
 import { connectUsb, disconnectUsb, readDevice, sendConsole } from "../src/state/device";
 import { chooseLocation, dirty, prefs, resetPlan, store } from "../src/state/store";
 import { FakePort } from "./fakes/fake-port";
-import { resetFake } from "./fakes/leaflet";
+import { resetFakeEngine } from "./fakes/map-engine";
 import read from "./fixtures/read-ronse.json";
 
 const PLACES: Place[] = JSON.parse(readFileSync(resolve(__dirname, "../../../data/be-locode.json"), "utf8"));
@@ -88,7 +89,7 @@ async function connectApp(replies: Record<string, string>, opts: { disconnectAft
 let writeText: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
-  resetFake();
+  resetFakeEngine();
   resetPlan(defaultPlan());
   store.snapshot.value = null;
   store.deviceRegions.value = undefined;

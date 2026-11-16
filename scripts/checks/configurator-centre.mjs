@@ -1,6 +1,6 @@
 // Configurator: a chosen place lands in the middle of the part of the map you can see, not behind
 // the step panel (the phone sheet below, the docked panel on the left).
-import { openConfigurator, searchPlace, stub } from "./fixtures/configurator.mjs";
+import { areas, openConfigurator, searchPlace, stub, waitForArea } from "./fixtures/configurator.mjs";
 
 /** The pin's tip against the centre of the map area the panel leaves visible. */
 const offset = (page) =>
@@ -17,22 +17,20 @@ const offset = (page) =>
   });
 
 /** Share of the visible map (above the sheet) the focused outline fills, and the sheet's state. */
-const outlineFill = (page) =>
-  page.evaluate(() => {
+const outlineFill = async (page) => {
+  const focus = await areas(page, "map-region-focus");
+  return page.evaluate((fb) => {
     const map = document.querySelector(".map-canvas").getBoundingClientRect();
     const sheet = document.querySelector(".panel.sheet");
     const bottom = sheet ? Math.min(map.bottom, sheet.getBoundingClientRect().top) : map.bottom;
     const visible = (bottom - map.top) * map.width;
-    let box = null;
-    for (const p of document.querySelectorAll("path.map-region-focus")) {
-      const r = p.getBoundingClientRect();
-      box = box ? { l: Math.min(box.l, r.left), t: Math.min(box.t, r.top), r: Math.max(box.r, r.right), b: Math.max(box.b, r.bottom) } : { l: r.left, t: r.top, r: r.right, b: r.bottom };
-    }
+    const box = fb ? { l: fb.x, t: fb.y, r: fb.x + fb.width, b: fb.y + fb.height } : null;
     if (!box) return { fill: 0, w: 0, h: 0, sheet: sheet?.className };
     const w = Math.max(0, Math.min(box.r, map.right) - Math.max(box.l, map.left));
     const h = Math.max(0, Math.min(box.b, bottom) - Math.max(box.t, map.top));
     return { fill: Math.round((100 * w * h) / visible), w: Math.round(w), h: Math.round(h), visible: `${Math.round(map.width)}x${Math.round(bottom - map.top)}`, sheet: sheet?.className };
-  });
+  }, focus.box);
+};
 
 export default async function (ctx) {
   // Companion page on a phone: the sheet stays full after picking a place (the channels are what
@@ -50,7 +48,7 @@ export default async function (ctx) {
     await box.tap();
     await box.fill("Oostende");
     await page.getByRole("option").first().tap();
-    await page.waitForSelector("path.map-region-focus");
+    await waitForArea(page, "map-region-focus");
     await page.waitForTimeout(800);
     const before = await outlineFill(page);
     ctx.check(`${n}: the sheet stays full with the channels`, /\bfull\b/.test(before.sheet || ""), JSON.stringify(before));

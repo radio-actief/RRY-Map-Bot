@@ -3,7 +3,8 @@ import { resolve } from "node:path";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/preact";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("leaflet", async () => await import("./fakes/leaflet"));
+// The map engine (MapLibre, or Leaflet without WebGL) is recorded, not drawn.
+vi.mock("../src/app/map-engine", async () => await import("./fakes/map-engine"));
 
 import { MapView } from "../src/app/MapView";
 import { Panel } from "../src/app/Panel";
@@ -18,7 +19,7 @@ import { Place } from "../src/steps/Place";
 import { Send } from "../src/steps/Send";
 import { canApply, placeChosen, placeLeft, resetPlan, setLocation, stepStatus, store } from "../src/state/store";
 import { FakePort } from "./fakes/fake-port";
-import { ofKind, resetFake } from "./fakes/leaflet";
+import { engines, resetFakeEngine } from "./fakes/map-engine";
 import read from "./fixtures/read-ronse.json";
 
 const PLACES: PlaceRow[] = JSON.parse(readFileSync(resolve(__dirname, "../../../data/be-locode.json"), "utf8"));
@@ -38,7 +39,7 @@ const node = (name: string, lat: number, lon: number, type = 2) => ({
 });
 
 beforeEach(() => {
-  resetFake();
+  resetFakeEngine();
   resetPlan(defaultPlan());
   store.snapshot.value = null;
   store.deviceRegions.value = undefined;
@@ -484,14 +485,15 @@ describe("Place step", () => {
     expect(screen.getByText(/borders didn't load. Use the search/)).toBeTruthy();
   });
 
-  it("a map pick outside Belgium keeps the location, leaves the anchor null and says so", () => {
+  it("a map pick outside Belgium keeps the location, leaves the anchor null and says so", async () => {
     render(
       <>
         <MapView />
         <Place />
       </>,
     );
-    act(() => ofKind("map")[0].fire("click", { latlng: { lat: 51.6, lng: 2.5 } }));
+    await act(async () => {});
+    act(() => engines[0].fire("click", { lat: 51.6, lon: 2.5 }));
     expect(store.plan.value.location).toEqual({ lat: 51.6, lon: 2.5 });
     expect(store.plan.value.anchor).toBeNull();
     expect(screen.getByText(/outside Belgium/)).toBeTruthy();

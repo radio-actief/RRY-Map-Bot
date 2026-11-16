@@ -74,10 +74,10 @@ export function circleRing({ lat, lon }, meters, steps = 128) {
   return ring;
 }
 
-/** A Leaflet-style dash pattern ("6 4", in pixels) as MapLibre's, in line widths. */
+/** A Leaflet-style dash pattern ("6 4", or as computed: "6px, 4px") as MapLibre's, in line widths. */
 export function dashInLineWidths(dashArray, weight) {
   if (!dashArray) return null;
-  const parts = String(dashArray).split(/[\s,]+/).map(Number).filter((n) => Number.isFinite(n) && n >= 0);
+  const parts = String(dashArray).split(/[\s,]+/).filter(Boolean).map(parseFloat).filter((n) => Number.isFinite(n) && n >= 0);
   if (!parts.length || !(weight > 0)) return null;
   return parts.map((n) => n / weight);
 }

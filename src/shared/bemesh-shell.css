@@ -1071,3 +1071,37 @@ body .leaflet-container .leaflet-control-attribution {
     min-height: 44px;
   }
 }
+
+/* A short word after something happened (logged out): a snackbar on ink, bottom centre, for 6 s,
+ * like the map's notice when a map style can't load. */
+.bemesh-toast {
+  position: fixed;
+  z-index: 2000;
+  left: 50%;
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: max-content;
+  max-width: calc(100% - 32px);
+  box-sizing: border-box;
+  padding: 10px 14px;
+  background: var(--topbar-bg);
+  color: var(--topbar-ink);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px var(--shadow);
+  font: 13px/18px var(--font-ui);
+}
+.bemesh-toast .bi {
+  flex: none;
+  font-size: 16px;
+}
+.bemesh-toast[hidden] {
+  display: none;
+}
+@media (max-width: 600px) {
+  .bemesh-toast {
+    bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+  }
+}

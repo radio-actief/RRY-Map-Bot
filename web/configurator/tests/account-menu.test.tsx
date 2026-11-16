@@ -188,3 +188,74 @@ describe("the configurator tells the other tools' hubs about a sign-in", () => {
     expect(localStorage.getItem("bemesh.account.seen")).toBe('{"signedIn":false}');
   });
 });
+
+describe("the configurator follows the site's other tabs", () => {
+  it("a log out or sign-in in another tab re-asks /auth/me and redraws the account button or chip", async () => {
+    let me: unknown = { authenticated: true, user: { id: "1", username: "tester", global_name: "Tess" } };
+    let asked = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        asked++;
+        return { ok: true, json: async () => me };
+      }),
+    );
+    render(<AccountMenu />);
+    await screen.findByRole("button", { name: "Account: Tess" });
+    expect(asked).toBe(1);
+    me = { authenticated: false };
+    window.dispatchEvent(new StorageEvent("storage", { key: "bemesh.account.seen", newValue: '{"signedIn":false}' }));
+    await waitFor(() => expect(document.querySelector(".signin-chip")).toBeTruthy());
+    expect(screen.queryByRole("button", { name: "Account: Tess" })).toBeNull();
+    me = { authenticated: true, user: { id: "1", username: "tester", global_name: "Tess" } };
+    window.dispatchEvent(new StorageEvent("storage", { key: "bemesh.account.seen", newValue: '{"signedIn":true}' }));
+    await screen.findByRole("button", { name: "Account: Tess" });
+    window.dispatchEvent(new StorageEvent("storage", { key: "configurator.theme", newValue: "dark" }));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(asked).toBe(3);
+  });
+
+  it("stops listening when it is gone", async () => {
+    let asked = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        asked++;
+        return { ok: true, json: async () => ({ authenticated: false }) };
+      }),
+    );
+    render(<AccountMenu />);
+    await waitFor(() => expect(document.querySelector(".signin-chip")).toBeTruthy());
+    cleanup();
+    // Preact runs an unmounted component's effect clean-ups after the next paint.
+    await new Promise((r) => setTimeout(r, 50));
+    window.dispatchEvent(new StorageEvent("storage", { key: "bemesh.account.seen", newValue: '{"signedIn":true}' }));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(asked).toBe(1);
+  });
+});
+
+describe("the configurator after a log out", () => {
+  afterEach(() => {
+    document.querySelectorAll(".bemesh-toast").forEach((t) => t.remove());
+    history.replaceState(null, "", "/");
+  });
+
+  it("says so once and takes the word out of the address", async () => {
+    mockMe({ authenticated: false });
+    history.replaceState(null, "", "/configurator?logout=success");
+    render(<AccountMenu />);
+    const toast = await waitFor(() => document.querySelector<HTMLElement>(".bemesh-toast")!);
+    expect(toast.getAttribute("role")).toBe("status");
+    expect(toast.textContent).toBe("You're logged out.");
+    expect(location.pathname + location.search).toBe("/configurator");
+  });
+
+  it("says nothing without the word", async () => {
+    mockMe({ authenticated: false });
+    history.replaceState(null, "", "/configurator");
+    render(<AccountMenu />);
+    await waitFor(() => expect(document.querySelector(".signin-chip")).toBeTruthy());
+    expect(document.querySelector(".bemesh-toast")).toBeNull();
+  });
+});

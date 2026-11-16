@@ -10,6 +10,10 @@
  * or on its own address) join the page links in the top bar's .switcher and the menu when they
  * arrive; a site that only runs the map lists none. The map's own pages in that list are not shown twice.
  * The menu opens right-aligned under ☰ and stays inside the window (src/shared/menu-place.js).
+ * A ☰ marked [data-no-account] leaves the account out (the sign-out and failed pages under /auth/).
+ * When another tab signs in or out (localStorage "bemesh.account.seen" changes), the bar asks
+ * /auth/me again and redraws. After a log out (?logout= in the address) it shows the word of
+ * src/shared/logout-notice.js when the page loads that file.
  * The configurator renders the same menu in AccountMenu.tsx. */
 (function () {
   var PAGES = [
@@ -94,6 +98,8 @@
   function pagePath() {
     var p = location.pathname.replace(/\/+$/, "") || "/";
     if (p === ACCOUNT) return p;
+    // The sign-out and failed pages are none of the pages.
+    if (p.indexOf("/auth/") === 0) return null;
     return PAGES.some(function (x) { return x[0] === p; }) ? p : "/";
   }
 
@@ -105,29 +111,37 @@
     });
   }
 
+  var SEEN = "bemesh.account.seen";
+
   /** Records whether someone is signed in (localStorage "bemesh.account.seen"), only on a change: the
-   * device hubs of the site's other tools, open in other tabs, hear it and tell their page. */
+   * device hubs of the site's other tools, open in other tabs, hear it and tell their page, and so
+   * do the map's other tabs (see the storage listener below). */
   function recordSeen(signedIn) {
     try {
       var seen = JSON.stringify({ signedIn: signedIn });
-      if (localStorage.getItem("bemesh.account.seen") !== seen) localStorage.setItem("bemesh.account.seen", seen);
+      if (localStorage.getItem(SEEN) !== seen) localStorage.setItem(SEEN, seen);
     } catch (e) {
       /* blocked storage: the other tools learn it when they look again */
     }
   }
 
+  /** Asks who is signed in; the bar redraws with the answer. */
+  function askMe() {
+    return fetch("/auth/me", { credentials: "include" })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .catch(function () { return null; })
+      .then(function (d) {
+        state.user = d && d.authenticated && d.user ? d.user : null;
+        recordSeen(state.user !== null);
+        render();
+        return state.user;
+      });
+  }
+
   /** Asks once for the account and the site's tools; the bar redraws as each answer arrives. */
   function load() {
     if (!loaded) {
-      var me = fetch("/auth/me", { credentials: "include" })
-        .then(function (r) { return r.ok ? r.json() : null; })
-        .catch(function () { return null; })
-        .then(function (d) {
-          state.user = d && d.authenticated && d.user ? d.user : null;
-          recordSeen(state.user !== null);
-          render();
-          return state.user;
-        });
+      var me = askMe();
       var tools = fetch("/api/v1/site-tools")
         .then(function (r) { return r.ok ? r.json() : []; })
         .catch(function () { return []; })
@@ -172,7 +186,7 @@
       return;
     }
     if (user !== null) return;
-    var a = link("/auth/login?next=" + here, "", "chip signin-chip");
+    var a = link("/auth/login?next=" + (here || "/"), "", "chip signin-chip");
     a.title = t("menu.signInHint");
     a.setAttribute("aria-label", t("menu.signIn"));
     var icon = el("i", "bi bi-person-circle");
@@ -186,7 +200,7 @@
   function logoutForm(here) {
     var out = el("form", "menu-logout");
     out.method = "post";
-    out.setAttribute("action", "/auth/logout?next=" + afterLogout(here));
+    out.setAttribute("action", "/auth/logout?next=" + afterLogout(here || "/"));
     var outBtn = el("button", null, t("menu.logOut"));
     outBtn.type = "submit";
     out.appendChild(outBtn);
@@ -312,13 +326,13 @@
       });
       menu.appendChild(about);
     }
-    var user = state.user;
+    var user = wrap.hasAttribute("data-no-account") ? undefined : state.user;
     if (user !== undefined) {
       menu.appendChild(el("hr"));
       if (user) {
         accountRows(menu, user, here);
       } else {
-        menu.appendChild(link("/auth/login?next=" + here, t("menu.signIn"), "menu-signin"));
+        menu.appendChild(link("/auth/login?next=" + (here || "/"), t("menu.signIn"), "menu-signin"));
       }
     }
     var langRow = langSwitch("lang-switch menu-lang");
@@ -443,8 +457,16 @@
     // The page language's texts arrive after the first draw.
     return Promise.all([loaded, ready]).then(function () {
       render();
+      if (window.BEmeshLogoutNotice) window.BEmeshLogoutNotice.run();
     });
   }
+
+  // Signed in or out in another tab of the site (the map's pages, the configurator, a tool's device
+  // hub): ask again, so this tab's account button or sign-in chip follows without a reload.
+  window.addEventListener("storage", function (e) {
+    if (e.key !== SEEN) return;
+    askMe();
+  });
 
   // A press outside the open menu closes it right away, also when it starts a map drag (a drag
   // gives no click, so the menu would stay open over the panning map). The click below still puts

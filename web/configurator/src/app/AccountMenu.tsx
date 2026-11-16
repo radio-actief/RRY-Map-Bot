@@ -5,6 +5,8 @@ import links from "../../../../src/shared/bemesh-links.json";
 import "../../../../src/shared/about.js";
 // Side effect: src/shared/menu-place.js sets window.BEmeshMenu, which keeps the menu inside the window.
 import "../../../../src/shared/menu-place.js";
+// Side effect: src/shared/logout-notice.js sets window.BEmeshLogoutNotice, the word after a log out.
+import "../../../../src/shared/logout-notice.js";
 import { I18N, lang, t } from "../i18n/t";
 import { store } from "../state/store";
 import { HERE, PAGES, siteTools, toolText } from "./pages";
@@ -40,12 +42,15 @@ function loadAccount() {
   }
 }
 
+const SEEN = "bemesh.account.seen";
+
 /** Records whether someone is signed in (localStorage "bemesh.account.seen"), only on a change, so
- * the device hubs of the site's other tools in other tabs hear it (src/device-hub.js). */
+ * the device hubs of the site's other tools and the map's other tabs hear it (src/device-hub.js,
+ * src/shared/topbar.js). */
 export function recordSeen(signedIn: boolean): void {
   try {
     const seen = JSON.stringify({ signedIn });
-    if (localStorage.getItem("bemesh.account.seen") !== seen) localStorage.setItem("bemesh.account.seen", seen);
+    if (localStorage.getItem(SEEN) !== seen) localStorage.setItem(SEEN, seen);
   } catch {
     /* blocked storage: the other tools learn it when they look again */
   }
@@ -55,6 +60,14 @@ export function recordSeen(signedIn: boolean): void {
 export function initialOf(name: string): string {
   const first = Array.from(name.trim())[0];
   return first ? first.toLocaleUpperCase() : "?";
+}
+
+/** Signed in or out in another tab of the site: ask /auth/me again, so the account button or the
+ * sign-in chip follows without a reload. */
+function onStorage(e: StorageEvent) {
+  if (e.key !== SEEN) return;
+  requested = false;
+  loadAccount();
 }
 
 /** Forgets the fetched account so the next render asks again (for tests). */
@@ -221,6 +234,12 @@ export function AccountButton({ person }: { person: Person }) {
 export function AccountMenu() {
   const { open, setOpen, wrap, button, menu, toggle: toggleMenu } = usePopup();
   useEffect(loadAccount, []);
+  useEffect(() => {
+    // The page's texts are loaded before the configurator renders: the word after a log out is in its language.
+    window.BEmeshLogoutNotice.run();
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
 
   const user = account.value;
   const toggle = (e: MouseEvent) => {

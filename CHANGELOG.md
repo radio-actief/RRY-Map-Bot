@@ -2,6 +2,17 @@
 
 What changed in each release of the #BEmesh map, bot and configurator.
 
+## 1.0.10 (2026-11-16)
+
+### Changed
+
+- The site starts in your browser's language. When you pick a language, the site remembers it for a year. A language you picked before this release gives way to your browser's language once
+- You sign in to the map once more after this release: the sign-in now stays on the map's own address
+
+### Other
+
+- Groundwork for signing in to NodeBook through the map and sharing the language choice with NodeBook and MeshMate; nothing changes on this site yet
+
 ## 1.0.9 (2026-11-15)
 
 ### New

@@ -1455,6 +1455,20 @@ def site_tools():
     return jsonify(shown_tools(SITE_TOOLS)), 200
 
 
+@app.route('/api/v1/site-links', methods=['GET'])
+def site_links():
+    """The ☰ menu's outside links (src/shared/bemesh-links.json) in menu order, each with its label and
+    title in every site language, so the other tools' menus show the same links."""
+    with open(os.path.join(PROJECT_ROOT, 'src', 'shared', 'bemesh-links.json'), encoding='utf-8') as f:
+        links = json.load(f)
+    texts = {lang: _shared_messages(lang) for lang in SIGNOUT_LANGS}
+    return jsonify([{
+        'key': link['key'], 'href': link['href'],
+        'label': {lang: texts[lang].get(link['key'], link['label']) for lang in SIGNOUT_LANGS},
+        'title': {lang: texts[lang].get(link['key'] + '.title', link.get('title', '')) for lang in SIGNOUT_LANGS},
+    } for link in links]), 200
+
+
 def _after_auth_target(next_page, home_query):
     """Where to send the user after a successful sign in or out."""
     if next_page and next_page != '/':

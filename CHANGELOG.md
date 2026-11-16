@@ -2,6 +2,15 @@
 
 What changed in each release of the #BEmesh map, bot and configurator.
 
+## 1.2.0 (2026-11-16)
+
+### New
+
+- The map runs on a new map engine (MapLibre, as the official MeshCore map): sharp maps at every zoom, a calm grey map in light and a dark map in the site's colours. In the layers menu you can also pick Streets, VersaTiles, OpenStreetMap or Satellite. Browsers without WebGL keep the previous map
+- "Nodes in view" in the Filters panel lists the nodes on screen, so you can open them with the keyboard too
+- Bigger map buttons on a phone
+- The map's base maps come from OpenFreeMap by default; the other choices from VersaTiles, OpenStreetMap and Esri, only when you pick them
+
 ## 1.1.1 (2026-11-16)
 
 ### Fixed

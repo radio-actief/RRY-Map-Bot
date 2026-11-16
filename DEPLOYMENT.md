@@ -115,6 +115,12 @@ address: `https://host[:port]/path/`, ending in `/`, with no user name, query or
 out. The list may name the map's own pages (`map`, `stats`, `regionMap`, `configurator`); the bars
 show those once. Unset: the map's pages only. `GET /api/v1/site-tools` serves the list to anyone.
 
+An entry with `"hidden": true` is a tool people can sign in to and come back to (sign-in,
+`next=`, its sign-out page) before visitors see it, so it can be tried on its own address first:
+`GET /api/v1/site-tools`, the top bar, the ☰ menu, the popup, the page security policy and the
+device hub leave it out. Hidden is not secret: an address that names the tool's key leads to it, as
+its sign-in must. Remove `"hidden"` to show it.
+
 ```
 SITE_TOOLS_JSON=[{"key":"map","label":"Map","url":"https://map.example/"},
   {"key":"nodebook","label":"NodeBook","url":"https://nodebook.example/"},

@@ -29,7 +29,7 @@ from backend.database import (
 from backend.datetime_utils import normalize_node_timestamps
 from config.config import SITE_TOOLS as config_site_tools, SITE_TOOL_SECRETS as config_site_tool_secrets
 from config.config import LANG_COOKIE_DOMAIN
-from config.site_tools import tool_origins
+from config.site_tools import shown_tools, tool_origins
 from backend.auth import (
     get_authorization_url,
     exchange_code_for_token,
@@ -213,10 +213,12 @@ CSP_IMAGES = (
 )
 
 
-def page_policy():
-    """The Content-Security-Policy of the map's pages and the configurator. The listed tools on their
-    own address may be asked for data (the popup's NodeBook lookup) and are where log out may return."""
-    tools = tool_origins(SITE_TOOLS)
+def page_policy(form_to=()):
+    """The Content-Security-Policy of the map's pages and the configurator. The shown tools on their
+    own address may be asked for data (the popup's NodeBook lookup) and are where log out may return;
+    `form_to` adds origins a page's form may lead to (the sign-out page of a hidden tool). Hidden tools
+    are named nowhere else."""
+    tools = tool_origins(shown_tools(SITE_TOOLS))
     directives = [
         ("default-src", ["'self'"]),
         ("script-src", ["'self'", *CSP_CDN_SCRIPTS]),
@@ -224,7 +226,7 @@ def page_policy():
         ("font-src", ["'self'", 'https://fonts.gstatic.com']),
         ("img-src", list(CSP_IMAGES)),
         ("connect-src", ["'self'", *tools]),
-        ("form-action", ["'self'", *tools]),
+        ("form-action", ["'self'", *dict.fromkeys([*tools, *form_to])]),
         ("object-src", ["'none'"]),
         ("base-uri", ["'self'"]),
     ]
@@ -1408,7 +1410,7 @@ def _safe_next(value):
 @app.route('/api/v1/site-tools', methods=['GET'])
 def site_tools():
     """The tools this site runs besides the map, for the pages' tool switcher; [] when none."""
-    return jsonify(SITE_TOOLS), 200
+    return jsonify(shown_tools(SITE_TOOLS)), 200
 
 
 def _after_auth_target(next_page, home_query):
@@ -1771,7 +1773,11 @@ def auth_signout():
         f'<form method="post" action="{escape(action)}">'
         f'<button type="submit" class="btn primary">{escape(texts.get("menu.logOut", "Log out"))}</button></form>'
     )
-    return _card_page(lang, texts.get('signout.title', 'Log out'), [texts.get('signout.text', '')], form)
+    resp = _card_page(lang, texts.get('signout.title', 'Log out'), [texts.get('signout.text', '')], form)
+    # Log out redirects to ?next=; a browser checks that against the form's page policy.
+    if CSP_ENABLED and next_page:
+        resp.headers['Content-Security-Policy'] = page_policy(tool_origins([{'url': next_page}]))
+    return resp
 
 
 @app.route('/auth/failed')
@@ -2077,7 +2083,7 @@ def device_hub_page():
     """The device hub: the site's tools on other addresses frame it to share the device convention
     with the configurator (src/device-hub.js). Only the listed tools and the map may frame it."""
     resp = send_from_directory(PROJECT_ROOT, 'device-hub.html')
-    ancestors = ' '.join(["'self'"] + tool_origins(SITE_TOOLS))
+    ancestors = ' '.join(["'self'"] + tool_origins(shown_tools(SITE_TOOLS)))
     resp.headers['Content-Security-Policy'] = f"default-src 'self'; frame-ancestors {ancestors}"
     # A tool that isolates itself (COEP require-corp, e.g. for threads in a web app) may still frame it.
     resp.headers['Cross-Origin-Resource-Policy'] = 'cross-origin'

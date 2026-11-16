@@ -42,8 +42,8 @@ def _is_tool_url(url):
 
 
 def parse_site_tools(raw):
-    """[{key, label, url}] from the setting's JSON; entries that are not a plain path on this site or
-    a plain https address are left out."""
+    """[{key, label, url[, hidden]}] from the setting's JSON; entries that are not a plain path on this
+    site or a plain https address are left out. "hidden": true (only that) is kept as hidden: True."""
     if not raw:
         return []
     try:
@@ -63,8 +63,17 @@ def parse_site_tools(raw):
             continue
         if not _is_tool_url(url):
             continue
-        tools.append({'key': key, 'label': label.strip(), 'url': url})
+        tool = {'key': key, 'label': label.strip(), 'url': url}
+        # Hidden: people can sign in to it and come back to it, but no page shows or names it.
+        if entry.get('hidden') is True:
+            tool['hidden'] = True
+        tools.append(tool)
     return tools
+
+
+def shown_tools(tools):
+    """The tools the pages may show: the list without the hidden ones, as {key, label, url}."""
+    return [{k: t[k] for k in ('key', 'label', 'url')} for t in tools if not t.get('hidden')]
 
 
 def tool_origins(tools):

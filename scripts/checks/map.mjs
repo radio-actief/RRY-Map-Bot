@@ -69,10 +69,16 @@ export default async function (ctx) {
   const segs = await panel.locator(".segmented").evaluateAll((els) => els.map((e) => [...e.querySelectorAll("button")].map((b) => b.textContent.trim()).join(",")));
   ctx.check("map: Source segment", segs.includes("All,App,Uploader"), segs.join("|"));
   ctx.check("map: Discord segment", segs.includes("All,Claimed,Unclaimed"), segs.join("|"));
-  const more = panel.locator("details");
+  const more = panel.locator("details:not(.in-view)");
   ctx.check("map: More disclosure", (await more.count()) === 1 && text(await more.locator("summary").textContent()) === "More");
   await more.locator("summary").click();
   ctx.check("map: More holds date, city and zoom inputs", (await more.locator('input[type="date"]').count()) === 2 && (await more.locator("#city-filter-input").count()) === 1 && (await more.locator("#clustering-zoom-slider").count()) === 1);
+  // Nodes in view: the keyboard's way to the nodes, a list of buttons sorted by name
+  await panel.locator("details.in-view summary").click();
+  await panel.locator(".in-view-row").first().waitFor({ timeout: 5000 }).catch(() => {});
+  const inView = await panel.locator(".in-view-row").count();
+  ctx.check("map: Nodes in view lists the nodes on screen", inView > 0 && inView <= 50, String(inView));
+  await panel.locator("details.in-view summary").click();
   await page.locator('#node-filter .segmented button:has-text("Claimed")').first().click();
   ctx.check("map: Filters button shows active", text(await page.locator('button[aria-controls="node-filter"]').textContent()).includes("Filters active"));
   ctx.check("map: Clear filters shown", await panel.getByRole("button", { name: "Clear filters" }).isVisible());

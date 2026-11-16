@@ -6,7 +6,11 @@ FROM node:22-slim AS web
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY web/ web/
+# What the configurator imports from the tool pages: the shared code, the map engine, and the
+# MapLibre build it loads (tests/test_dockerfile.py checks this list against the imports).
 COPY src/shared/ src/shared/
+COPY src/map-engine/ src/map-engine/
+COPY lib/ lib/
 RUN npm ci && npm run build
 
 # Stage 2: runtime

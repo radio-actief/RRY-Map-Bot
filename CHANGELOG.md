@@ -2,6 +2,17 @@
 
 What changed in each release of the #BEmesh map, bot and configurator.
 
+## 1.3.0 (2026-11-16)
+
+### New
+
+- The region map runs on the same new map engine as the map, with the same base maps and buttons; the province or country you pick gets a clear outline
+- Place names on the maps follow your language: Brussel, Bruxelles or Brussels
+
+### Changed
+
+- If your device asks for less motion, the maps no longer animate
+
 ## 1.2.0 (2026-11-16)
 
 ### New

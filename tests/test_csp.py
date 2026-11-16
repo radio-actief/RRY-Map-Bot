@@ -69,8 +69,8 @@ def test_every_page_may_reach_the_listed_tools(client, path):
 @pytest.mark.parametrize('path', PAGES)
 def test_every_page_loads_its_fonts_tiles_and_qr_codes(client, path):
     p = policy(get_page(client, path))
-    assert p['style-src'] == ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com']
-    assert p['font-src'] == ["'self'", 'https://fonts.gstatic.com']
+    assert p['style-src'] == ["'self'", "'unsafe-inline'"]
+    assert p['font-src'] == ["'self'"]  # the fonts are the site's own (src/shared/fonts.css)
     for source in ("'self'", 'data:', 'https://tile.openstreetmap.org', 'https://*.tile.openstreetmap.org',
                    'https://server.arcgisonline.com'):
         assert source in p['img-src']

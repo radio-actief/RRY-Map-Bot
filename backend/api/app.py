@@ -169,8 +169,8 @@ def _cache_policy(path: str) -> Optional[str]:
     list revalidate on every visit (ETag, so an unchanged one costs a 304); the data files are
     reused for an hour, then revalidated.
     """
-    if path.startswith('/configurator/assets/'):
-        return 'public, max-age=31536000, immutable'
+    if path.startswith(('/configurator/assets/', '/src/shared/fonts/', '/lib/css/fonts/')):
+        return 'public, max-age=31536000, immutable'  # names carry their content hash
     if path in ('/configurator', '/configurator/', '/configurator/index.html'):
         return 'no-cache'
     if path.startswith('/data/'):
@@ -222,8 +222,8 @@ def page_policy(form_to=()):
     directives = [
         ("default-src", ["'self'"]),
         ("script-src", ["'self'", *CSP_CDN_SCRIPTS]),
-        ("style-src", ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com']),
-        ("font-src", ["'self'", 'https://fonts.gstatic.com']),
+        ("style-src", ["'self'", "'unsafe-inline'"]),
+        ("font-src", ["'self'"]),
         ("img-src", list(CSP_IMAGES)),
         ("connect-src", ["'self'", *tools]),
         ("form-action", ["'self'", *dict.fromkeys([*tools, *form_to])]),

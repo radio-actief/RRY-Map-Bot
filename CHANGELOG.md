@@ -2,6 +2,14 @@
 
 What changed in each release of the #BEmesh map, bot and configurator.
 
+## 1.0.12 (2026-11-16)
+
+### Faster
+
+- The stats page loads about five times less data and shows its charts much sooner
+- Every page, its scripts and its styles are sent compressed, so the map, the region map and the configurator load faster, most of all on a phone
+- The fonts now come from this site instead of Google, so your browser no longer contacts Google when you open a page
+
 ## 1.0.11 (2026-11-16)
 
 ### Changed

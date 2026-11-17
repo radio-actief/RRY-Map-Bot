@@ -361,3 +361,33 @@ def shared_claims() -> List[Dict]:
     return [{'public_key': r['public_key'], 'role': r['role'], 'discord_id': str(r['discord_id']),
              'display_name': r['display_name'], 'since': format_utc_iso(r['since']) if r['since'] else None}
             for r in rows]
+
+
+def node_status(public_key: str, discord_id: str) -> Dict:
+    """A node as one of our own tools may see it for the signed-in person: {'status'} with
+    'not_on_map' (unknown or inactive), 'unclaimed', 'yours' (they own it), 'managed' (they manage
+    it) or 'claimed' (someone else owns it; then 'owner_name' when that owner shows their name)."""
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT b.is_active, b.discord_owner_id, b.discord_owner_name, ps.show_name "
+            "FROM belgian_nodes b LEFT JOIN person_settings ps ON ps.discord_id = b.discord_owner_id "
+            "WHERE b.public_key = ?",
+            (public_key,),
+        ).fetchone()
+        if not row or not row['is_active']:
+            return {'status': 'not_on_map'}
+        owner = str(row['discord_owner_id'] or '')
+        if owner and owner == str(discord_id):
+            return {'status': 'yours'}
+        if conn.execute("SELECT 1 FROM node_managers WHERE public_key = ? AND discord_id = ?",
+                        (public_key, str(discord_id))).fetchone():
+            return {'status': 'managed'}
+        if not owner:
+            return {'status': 'unclaimed'}
+        answer = {'status': 'claimed'}
+        if row['show_name'] != 0 and row['discord_owner_name']:
+            answer['owner_name'] = row['discord_owner_name']
+        return answer
+    finally:
+        conn.close()

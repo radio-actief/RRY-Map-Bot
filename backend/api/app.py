@@ -134,7 +134,7 @@ Session(app)
 CORS(app, resources={r"/api/v1/*": {"origins": "*"}}, supports_credentials=False, send_wildcard=True)
 
 
-TOOL_SERVER_PATHS = ('/auth/token', '/auth/alive')
+TOOL_SERVER_PATHS = ('/auth/token', '/auth/alive', '/auth/claimed', '/auth/node')
 
 
 def _partner_subject_key():
@@ -1902,6 +1902,55 @@ def auth_alive():
     if not user or not _tool_may_know(key, user):
         return _no_store(jsonify({'alive': False}), 200)
     return _no_store(jsonify({'alive': True, 'user': _user_for_tool(key, user)}), 200)
+
+
+def _own_tool_call():
+    """(tool key, body) of a server-to-server call from one of our own tools, else (None, the
+    response): see _tool_call; a partner is refused (403)."""
+    call, refused = _tool_call()
+    if refused:
+        return None, refused
+    if _is_partner(call[0]):
+        return None, _no_store(jsonify({'error': 'unauthorized_client'}), 403)
+    return call, None
+
+
+def _handle_person(key, body):
+    """The person behind the call's handle while its map session is signed in, else None."""
+    record = tool_grants.find_handle(key, body.get('handle'))
+    return record and _signed_in_user(record['store_id'], record['user_id'])
+
+
+@app.route('/auth/claimed', methods=['POST'])
+def auth_claimed():
+    """One of our own tools asks which active nodes the person behind a handle owns or manages:
+    {"alive": true, "nodes": [{public_key, name, type, lat, lon, role: "owner"|"manager"}]}. A dead
+    or unknown handle: 200 {"alive": false}, as /auth/alive answers it."""
+    call, refused = _own_tool_call()
+    if refused:
+        return refused
+    user = _handle_person(*call)
+    if not user:
+        return _no_store(jsonify({'alive': False}), 200)
+    return _no_store(jsonify({'alive': True, 'nodes': claims.nodes_of(user['id'])}), 200)
+
+
+@app.route('/auth/node', methods=['POST'])
+def auth_node():
+    """One of our own tools asks about one node for the person behind a handle: {"alive": true,
+    "status": "not_on_map"|"unclaimed"|"yours"|"managed"|"claimed"[, "owner_name"]}. owner_name only
+    for "claimed", and only when that owner shows their name. A key that isn't 64 hex: 400; a dead
+    or unknown handle: 200 {"alive": false}."""
+    call, refused = _own_tool_call()
+    if refused:
+        return refused
+    public_key = claims.normalize_key(call[1].get('public_key'))
+    if not public_key:
+        return _no_store(jsonify({'error': 'invalid_request'}), 400)
+    user = _handle_person(*call)
+    if not user:
+        return _no_store(jsonify({'alive': False}), 200)
+    return _no_store(jsonify({'alive': True, **claims.node_status(public_key, user['id'])}), 200)
 
 
 def _after_logout_target(next_page, done):

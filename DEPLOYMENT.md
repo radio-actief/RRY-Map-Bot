@@ -184,7 +184,18 @@ people in through the map. Its own sessions stay its own; it never sees the map'
    session that made the code is signed in, else `{"alive": false}` (signed out, expired, or signed
    in again, which gives a new session).
 
-The tool calls 2 and 3 on the map's internal address. Codes and handles are kept in the data
+4. Our own tools (not partners) may also ask, with the same header, about the person behind a
+   handle, so they need no Discord ids from the public node list:
+   - `POST /auth/claimed` `{"tool", "handle"}`: `{"alive": true, "nodes": [{"public_key", "name",
+     "type", "lat", "lon", "role": "owner"|"manager"}]}`, the active nodes the person owns or manages.
+   - `POST /auth/node` `{"tool", "handle", "public_key"}`: `{"alive": true, "status": "not_on_map"|
+     "unclaimed"|"yours"|"managed"|"claimed"}`, plus `"owner_name"` for `claimed` when that owner
+     shows their name. A `public_key` that isn't 64 hex characters: 400 `{"error": "invalid_request"}`.
+   - A dead or unknown handle (or one of another tool) answers 200 `{"alive": false}`, as
+     `/auth/alive` does; a partner gets 403 `{"error": "unauthorized_client"}`; a wrong secret 401;
+     a browser call 400.
+
+The tool calls 2, 3 and 4 on the map's internal address. Codes and handles are kept in the data
 directory (`tool-grants/`) under their SHA-256, never in clear.
 
 Device hub messages, all with `v: 1`. The tool's page posts them to the frame with

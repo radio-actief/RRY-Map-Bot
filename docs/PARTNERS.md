@@ -103,3 +103,10 @@ see the map's cookie.
 
 Calls 4 and 5 are server to server: a request with an `Origin` header or a cookie is refused
 (400), a wrong secret gets 401.
+
+## Not for partners: the site's own tools
+
+The #BEmesh site's own tools (NodeBook, MeshMate) use the same sign-in with today's answer, and two
+more server-to-server calls with their handle: `POST /auth/claimed` (the nodes the person owns or
+manages) and `POST /auth/node` (how one node stands for the person). A partner's secret gets 403
+there. They are described in the map's `DEPLOYMENT.md`.

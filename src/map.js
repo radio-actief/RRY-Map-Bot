@@ -1516,6 +1516,8 @@ const mapReady = afterFirstPaint().then(() => createMapEngine(document.getElemen
   zoom: params.zoom,
   t,
   attribution: appAttribution,
+  // zoomed out, the earth is a globe (MapLibre only: the Leaflet map stays flat)
+  globe: true,
 })).then((engine) => {
   mapEngine = window.bemeshMap = engine;
   document.getElementById("map").dataset.engine = engine.kind;

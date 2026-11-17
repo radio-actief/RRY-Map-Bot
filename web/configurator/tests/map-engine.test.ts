@@ -483,3 +483,59 @@ describe("map labels in the page language", () => {
     expect(read("src/map-engine/maplibre-engine.js")).toMatch(/prepareStyle\(baseId, style, \{ dark, lang: globalThis\.BEmeshI18n\?\.lang \?\? "en" \}\)/);
   });
 });
+
+describe("the globe on the map page", () => {
+  it("is MapLibre's globe zoomed out, and the flat map from zoom 6 (Belgium on a phone) up", () => {
+    expect(geo.GLOBE_UNTIL_ZOOM).toBe(5);
+    expect(geo.FLAT_FROM_ZOOM).toBe(6);
+    // MapLibre's zooms (512 px tiles): one level lower than the page's
+    expect(geo.globeProjection()).toEqual({ type: ["interpolate", ["linear"], ["zoom"], 4, "vertical-perspective", 5, "mercator"] });
+    // the start view (zoom 9) and the clustering zooms are on the flat map
+    expect(geo.FLAT_FROM_ZOOM).toBeLessThan(7);
+  });
+
+  it("gives a style the projection and drops its sky (no atmosphere or glow), leaving the style itself alone", () => {
+    const style = { version: 8, sky: { "atmosphere-blend": 0.8 }, sources: { a: {} }, layers: [{ id: "bg" }] };
+    const out = geo.globeStyle(style);
+    expect(out.projection).toEqual(geo.globeProjection());
+    expect("sky" in out).toBe(false);
+    expect(out.sources).toBe(style.sources);
+    expect(out.layers).toBe(style.layers);
+    expect(style).toEqual({ version: 8, sky: { "atmosphere-blend": 0.8 }, sources: { a: {} }, layers: [{ id: "bg" }] });
+  });
+
+  it("is an option of the MapLibre engine, off unless asked, and part of every style it loads", () => {
+    const ml = read("src/map-engine/maplibre-engine.js");
+    expect(ml).toMatch(/interactive = true, globe = false \}\) \{/);
+    expect(ml).toMatch(/return \{ \.\.\.\(globe \? globeStyle\(style\) : style\), sources, layers \};/);
+    // the zoom limit stays the flat map's; the zoom-out button follows MapLibre's limit for the spot
+    expect(ml).toMatch(/minZoom: toMapZoom\(MIN_ZOOM\),/);
+    expect(ml).toMatch(/zoomOut\.disabled = map\.getZoom\(\) <= map\.getMinZoom\(globe\);/);
+    // no added movement: the projection follows the zoom, nothing is animated for it
+    expect(ml).not.toMatch(/setProjection|setSky|atmosphere/);
+  });
+
+  it("is asked for by the map page only: the region map, the configurator and the Leaflet map stay flat", () => {
+    expect(read("src/map.js")).toMatch(/attribution: appAttribution,\s*(\/\/[^\n]*\n\s*)?globe: true,/);
+    expect(read("src/region-map.js")).not.toMatch(/globe/i);
+    expect(read("web/configurator/src/app/map-engine.ts")).not.toMatch(/globe/i);
+    expect(read("src/map-engine/leaflet-engine.js")).not.toMatch(/globe|projection/i);
+  });
+
+  it("has plain ink around the earth in both themes: no gradient, glow or stars", () => {
+    const css = read("src/shared/map-engine.css");
+    const rule = /\.bemesh-map\.bemesh-map--space \{([^}]*)\}/.exec(css);
+    expect(rule?.[1].trim()).toBe("background: var(--code-bg);");
+    // --code-bg is the same ink in the light and the dark theme
+    const tokens = read("src/shared/bemesh-tokens.css");
+    expect(tokens.match(/--code-bg:\s*#12161f;/g)).toHaveLength(1);
+    expect(read("src/map-engine/maplibre-engine.js")).toMatch(/classList\.toggle\("bemesh-map--space", map\.getZoom\(\) < toMapZoom\(FLAT_FROM_ZOOM\)\)/);
+  });
+
+  it("takes no click beside the earth for a spot, and closes a popup whose spot turned to the far side", () => {
+    const ml = read("src/map-engine/maplibre-engine.js");
+    expect(ml).toMatch(/else if \(onEarth\(e\.point\) && /);
+    expect(ml).toMatch(/function menuAt\(point, clientX, clientY, touch, originalEvent\) \{\s*if \(!onEarth\(point\)\) return;/);
+    expect(ml).toMatch(/if \(popup && !inSight\(popup\.getLngLat\(\)\)\) closePopup\(\);/);
+  });
+});

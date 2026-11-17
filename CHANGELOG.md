@@ -2,6 +2,12 @@
 
 What changed in each release of the #BEmesh map, bot and configurator.
 
+## 1.10.0 (2026-11-17)
+
+### Changed
+
+- If you show your name with your nodes, partner tools such as the ON8AR analyzer can now link your name to your Discord profile, so people can send you a message. Hide your name, or stop sharing with partner tools, on your account page or with /privacy in Discord, and the link goes away
+
 ## 1.9.1 (2026-11-17)
 
 ### Changed

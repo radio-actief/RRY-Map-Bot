@@ -238,7 +238,10 @@ export function AccountMenu() {
     // The page's texts are loaded before the configurator renders: the word after a log out is in its language.
     window.BEmeshLogoutNotice.run();
     window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
+    // A late unmount (a test run closing its page) may come after the window is gone.
+    return () => {
+      if (typeof window !== "undefined") window.removeEventListener("storage", onStorage);
+    };
   }, []);
 
   const user = account.value;

@@ -2,6 +2,12 @@
 
 What changed in each release of the #BEmesh map, bot and configurator.
 
+## 1.8.0 (2026-11-17)
+
+### New
+
+- Zoom the map out and the earth now shows as a globe, as on the official MeshCore map. From Belgium level inward the map is the same flat map as before. The region map and the configurator are unchanged
+
 ## 1.7.0 (2026-11-17)
 
 ### New

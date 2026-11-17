@@ -2,6 +2,12 @@
 
 What changed in each release of the #BEmesh map, bot and configurator.
 
+## 1.6.1 (2026-11-17)
+
+### Fixed
+
+- The public node list and other public answers no longer contain owners' Discord account numbers; the "send a message" link to an owner shows only for signed-in members, and only when the owner shows their name
+
 ## 1.6.0 (2026-11-17)
 
 ### New

@@ -1,6 +1,8 @@
 /* The account page: a column of cards under the shared #BEmesh top bar. */
 .account-main {
   display: grid;
+  /* One column that never grows past the page (a long invitation link stays inside its card). */
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
   width: 100%;
   max-width: 560px;
@@ -258,6 +260,7 @@
 /* Under a node: its managers and the owner's or manager's actions, indented like the row's text. */
 .account-node-tools {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   justify-items: start;
   gap: 6px;
   padding: 0 12px 10px;
@@ -311,7 +314,9 @@
 }
 
 .account-invite-link {
-  flex: 1;
+  /* Takes the room the Copy button leaves, never more: a long link scrolls inside the field. */
+  flex: 1 1 0;
+  width: 0;
   min-width: 0;
   padding: 3px 8px;
   border: 1px solid var(--field-line);

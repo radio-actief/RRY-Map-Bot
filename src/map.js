@@ -14,7 +14,7 @@ import { render } from "./map-app.render.js";
 import { copyText } from "./shared/clipboard.js";
 import { settleAfterKeyboard } from "./shared/viewport-settle.js";
 import { nodebookApiUrl, nodebookFetchInit, nodebookState, toolLinksHtml } from "./site-tools.js";
-import { coordsFallbackHtml, isClaimed, ownerBlockHtml, ownerHtml, planningActionsHtml, typeLabelHtml } from "./popup-safe.js";
+import { coordsFallbackHtml, isClaimed, myRole, ownerBlockHtml, ownerHtml, planningActionsHtml, typeLabelHtml } from "./popup-safe.js";
 import { createMapEngine, preloadEngine } from "./map-engine/index.js";
 import { distanceKm, roundCoord, wrapLon } from "./map-engine/geo.js";
 
@@ -1293,14 +1293,7 @@ function getTable(node, authState = null, nodes = []) {
         if (isUnclaimed) {
           footerCenter = `<a href="#" role="button" class="node-popup-action node-popup-action--claim" data-popup-action="claim" data-public-key="${publicKey}">${escapeAttrHtml(t("map.claim"))}</a>`;
         } else {
-          const nodeOwnerId = node.discord_owner_id;
-          const currentUserId = authState.user?.id;
-
-          if (
-            nodeOwnerId &&
-            currentUserId &&
-            String(nodeOwnerId) === String(currentUserId)
-          ) {
+          if (myRole(node, authState) === "owner") {
             footerCenter = `<a href="#" role="button" class="node-popup-action node-popup-action--danger" data-popup-action="unclaim" data-public-key="${publicKey}">${escapeAttrHtml(t("map.unclaim"))}</a>`;
           }
         }
@@ -1620,10 +1613,11 @@ mapReady.then((map) => {
   map.on("zoomstart", () => mapMenu.close());
 });
 
-/** How a node's marker looks: type icon or a companion's initials, freshness, claimed or own. */
+/** How a node's marker looks: type icon or a companion's initials, freshness, claimed or own
+ * (owned or managed by the signed-in person). */
 function nodeMarkerLook(node, auth) {
   const type = [1, 2, 3, 4].includes(Number(node.type)) ? Number(node.type) : 1;
-  const owned = Boolean(auth.authenticated && auth.user && node.discord_owner_id && String(node.discord_owner_id) === String(auth.user.id));
+  const owned = Boolean(myRole(node, auth));
   const mark = owned ? "user-owned" : isClaimed(node) ? "claimed" : "";
   const look = { type, status: node.status || "none", mark };
   if (type === 1) {
@@ -1746,6 +1740,8 @@ createApp({
       authenticated: false,
       user: null,
       loading: true,
+      /** public key → "owner" | "manager", for the signed-in person's active nodes. */
+      roles: {},
     });
 
     /** The node whose popup is open (one at a time). */
@@ -1823,12 +1819,29 @@ createApp({
         const data = await res.json();
         auth.authenticated = data.authenticated || false;
         auth.user = data.user || null;
+        await loadRoles();
       } catch (e) {
         console.error("Error checking auth:", e);
         auth.authenticated = false;
         auth.user = null;
+        auth.roles = {};
       } finally {
         auth.loading = false;
+      }
+    }
+
+    /** The nodes the signed-in person owns or manages (none when signed out). */
+    async function loadRoles() {
+      if (!auth.authenticated) {
+        auth.roles = {};
+        return;
+      }
+      try {
+        const res = await fetch("/api/v1/my-node-roles", { credentials: "include" });
+        const data = res.ok ? await res.json() : null;
+        auth.roles = data && data.roles && typeof data.roles === "object" ? data.roles : {};
+      } catch {
+        auth.roles = {};
       }
     }
 
@@ -1854,7 +1867,7 @@ createApp({
         if (res.ok && data.success) {
           alert(t("map.claim.done"));
           // Reload nodes to reflect changes
-          await downloadNodes();
+          await Promise.all([downloadNodes(), loadRoles()]);
           await nextTick();
           refreshMap();
           // the markers' glow (claimed, own) follows from refreshMap; the open card shows the new owner
@@ -1899,7 +1912,7 @@ createApp({
         if (res.ok && data.success) {
           alert(t("map.unclaim.done"));
           // Reload nodes to reflect changes
-          await downloadNodes();
+          await Promise.all([downloadNodes(), loadRoles()]);
           await nextTick();
           refreshMap();
           // the markers' glow (claimed, own) follows from refreshMap; the open card shows the new owner
@@ -2145,9 +2158,7 @@ createApp({
 
             const updateStatus = getNodeUpdateStatus(node);
             (byType[node.type] ??= []).push(node);
-            node.isOwned = Boolean(
-              auth.authenticated && auth.user && node.discord_owner_id && String(node.discord_owner_id) === String(auth.user.id),
-            );
+            node.isOwned = Boolean(myRole(node, auth));
 
             node.status = updateStatus;
             node.coords = `${node.adv_lat.toFixed(4)}, ${node.adv_lon.toFixed(
@@ -2434,13 +2445,7 @@ createApp({
 
     // Personal stats for logged-in user
     const myNodesCount = computed(() =>
-      !auth.authenticated || !auth.user
-        ? 0
-        : app.nodes.filter(
-            (node) =>
-              node.discord_owner_id &&
-              String(node.discord_owner_id) === String(auth.user.id),
-          ).length,
+      !auth.authenticated ? 0 : app.nodes.filter((node) => myRole(node, auth)).length,
     );
 
     const searchResults = computed(() => {
@@ -2578,7 +2583,7 @@ createApp({
         // claimed and own nodes glow: draw the markers with the sign-in as it is now, and on changes
         mapEngine?.refreshNodes();
         watch(
-          () => [auth.authenticated, auth.user?.id],
+          () => [auth.authenticated, auth.user?.id, auth.roles],
           () => {
             refreshOpenPopups();
             mapEngine?.refreshNodes();

@@ -238,3 +238,97 @@
     min-height: 44px;
   }
 }
+
+/* A node's role beside its type: a small outlined label. */
+.account-role {
+  flex-shrink: 0;
+  padding: 0 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--mut);
+}
+
+.account-role--owner {
+  border-color: var(--gold);
+  color: var(--gold-text);
+}
+
+/* Under a node: its managers and the owner's or manager's actions, indented like the row's text. */
+.account-node-tools {
+  display: grid;
+  justify-items: start;
+  gap: 6px;
+  padding: 0 12px 10px;
+}
+
+.account-node-tools .btn {
+  color: var(--ink);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.account-managers-title {
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.account-managers {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.account-managers li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.account-manager-name {
+  overflow-wrap: anywhere;
+}
+
+.account-invite {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+}
+
+.account-invite[hidden] {
+  display: none;
+}
+
+.account-invite-row {
+  display: flex;
+  gap: 8px;
+}
+
+.account-invite-link {
+  flex: 1;
+  min-width: 0;
+  padding: 3px 8px;
+  border: 1px solid var(--field-line);
+  border-radius: 8px;
+  background: var(--page);
+  color: var(--ink);
+  font: 12px/18px var(--font-mono);
+}
+
+.account-invite-hint {
+  font-size: 12px;
+  line-height: 16px;
+}
+
+@media (max-width: 600px) {
+  .account-node-tools .btn,
+  .account-invite-link {
+    min-height: 44px;
+  }
+}

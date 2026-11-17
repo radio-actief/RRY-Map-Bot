@@ -22,5 +22,20 @@
   "account.sharePartners": "Deel mijn nodes met partnertools",
   "account.sharePartners.hint": "Uit: partnertools zien niet welke nodes je bezit of beheert. Ze krijgen nooit je Discord-account.",
   "account.saved": "Bewaard.",
-  "account.saveFailed": "Bewaren is niet gelukt. Probeer het zo meteen opnieuw."
+  "account.saveFailed": "Bewaren is niet gelukt. Probeer het zo meteen opnieuw.",
+  "account.role.owner": "Eigenaar",
+  "account.role.manager": "Beheerder",
+  "account.managers": "Beheerders",
+  "account.invite": "Beheerder uitnodigen",
+  "account.inviteLink": "Uitnodigingslink",
+  "account.inviteHint": "Stuur deze link naar één persoon. Hij werkt één keer, 7 dagen lang.",
+  "account.copy": "Link kopiëren",
+  "account.copied": "Gekopieerd.",
+  "account.removeManager": "Verwijderen",
+  "account.removeManager.label": "{name} als beheerder verwijderen",
+  "account.removeManager.confirm": "{name} verwijderen als beheerder van {node}?",
+  "account.leave": "Stoppen met beheren",
+  "account.leave.confirm": "Stoppen met het beheer van {node}? De eigenaar kan je opnieuw uitnodigen.",
+  "account.actionFailed": "Dat is niet gelukt. Probeer het zo meteen opnieuw.",
+  "account.tooManyInvites": "Deze node heeft 10 open uitnodigingen. Wacht tot er een gebruikt is of verloopt."
 }

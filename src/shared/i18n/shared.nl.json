@@ -90,5 +90,17 @@
   "map.base.streets": "Straten",
   "map.attributionToggle": "Bronnen van de kaart",
   "map.tiles": "Tegels",
-  "map.sources": "Bronnen"
+  "map.sources": "Bronnen",
+  "invite.title": "Beheerder worden van {node}?",
+  "invite.text": "Je ziet deze node dan bij Mijn nodes en helpt hem bij te houden. Je kunt altijd stoppen; de eigenaar blijft de eigenaar.",
+  "invite.accept": "Beheerder worden",
+  "invite.gone.title": "Deze uitnodiging werkt niet meer",
+  "invite.gone.text": "Ze is al gebruikt, ze is verlopen, of de node heeft nu een andere eigenaar. Vraag de eigenaar om een nieuwe link.",
+  "invite.own.title": "Dit is je eigen node",
+  "invite.own.text": "Je bent de eigenaar van {node}. Stuur de link naar wie je als beheerder wilt.",
+  "invite.already.title": "Je beheert {node} al",
+  "invite.already.text": "Je vindt hem bij Mijn nodes.",
+  "invite.notMember.text": "Alleen leden van de #BEmesh-Discordserver kunnen nodes beheren. Word lid en open de link daarna opnieuw.",
+  "invite.myNodes": "Naar Mijn nodes",
+  "invite.openMap": "Open de kaart"
 }

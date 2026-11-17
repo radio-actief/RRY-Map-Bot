@@ -22,5 +22,20 @@
   "account.sharePartners": "Share my nodes with partner tools",
   "account.sharePartners.hint": "Off: partner tools don't see which nodes you own or manage. They never get your Discord account.",
   "account.saved": "Saved.",
-  "account.saveFailed": "Couldn't save. Try again in a moment."
+  "account.saveFailed": "Couldn't save. Try again in a moment.",
+  "account.role.owner": "Owner",
+  "account.role.manager": "Manager",
+  "account.managers": "Managers",
+  "account.invite": "Invite a manager",
+  "account.inviteLink": "Invitation link",
+  "account.inviteHint": "Send this link to one person. It works once, for 7 days.",
+  "account.copy": "Copy link",
+  "account.copied": "Copied.",
+  "account.removeManager": "Remove",
+  "account.removeManager.label": "Remove {name} as manager",
+  "account.removeManager.confirm": "Remove {name} as manager of {node}?",
+  "account.leave": "Stop managing",
+  "account.leave.confirm": "Stop managing {node}? The owner can invite you again.",
+  "account.actionFailed": "That didn't work. Try again in a moment.",
+  "account.tooManyInvites": "This node has 10 open invitations. Wait until one is used or expires."
 }

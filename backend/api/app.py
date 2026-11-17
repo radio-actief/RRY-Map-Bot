@@ -1479,8 +1479,11 @@ SITE_TOOL_SECRETS = config_site_tool_secrets
 
 
 def _safe_next(value):
-    """The page to return to after sign in or out: a map page or a listed tool, else None."""
+    """The page to return to after sign in or out: a map page, a manager invitation of this site or
+    a listed tool, else None."""
     if value in NEXT_PAGES or any(value == tool['url'] for tool in SITE_TOOLS):
+        return value
+    if isinstance(value, str) and value.startswith('/invite/') and claims.is_invite_token(value[len('/invite/'):]):
         return value
     return None
 
@@ -1852,16 +1855,18 @@ ACCOUNT_PARTS = {'nodebook': '#/account'}
 
 @app.route('/api/v1/account', methods=['GET'])
 def account_data():
-    """The account page's data: the person's name, the nodes they claimed on the map, and the
-    shown tools that have an account part. Never the Discord id."""
+    """The account page's data: the person's name, the nodes they own or manage (each with its role;
+    an owned node with its managers), their choices, and the shown tools that have an account part.
+    Never a Discord id."""
     if not is_authenticated():
         return _no_store(jsonify({'error': 'Authentication required'}), 401)
-    from backend.discord_queries import get_user_nodes
     user = get_current_user()
-    nodes = [
-        {'public_key': n.get('public_key', ''), 'name': n.get('adv_name'), 'type': n.get('type')}
-        for n in get_user_nodes(user['id'], include_inactive=False)
-    ]
+    nodes = []
+    for n in claims.nodes_of(user['id']):
+        node = {'public_key': n['public_key'], 'name': n['name'], 'type': n['type'], 'role': n['role']}
+        if n['role'] == 'owner':
+            node['managers'] = [{'id': m['id'], 'name': m['name']} for m in claims.managers_of(n['public_key'])]
+        nodes.append(node)
     tools = [
         {'key': t['key'], 'label': t['label'], 'url': t['url'] + ACCOUNT_PARTS[t['key']]}
         for t in shown_tools(SITE_TOOLS) if t['key'] in ACCOUNT_PARTS
@@ -1887,6 +1892,68 @@ def account_settings():
         return _no_store(jsonify({'error': 'invalid_request'}), 400)
     settings = claims.save_settings(get_current_user()['id'], **given)
     return _no_store(jsonify({'settings': settings}), 200)
+
+
+def _signed_in_or_401():
+    """The signed-in person, or None and the 401 to answer with."""
+    if not is_authenticated():
+        return None, _no_store(jsonify({'error': 'Authentication required'}), 401)
+    return get_current_user(), None
+
+
+@app.route('/api/v1/my-node-roles', methods=['GET'])
+def my_node_roles():
+    """For the map's markers and buttons: {"roles": {public_key: "owner"|"manager"}} of the
+    signed-in person's active nodes; empty when signed out."""
+    roles = {}
+    if is_authenticated():
+        roles = {n['public_key']: n['role'] for n in claims.nodes_of(get_current_user()['id'])}
+    resp, status = _no_store(jsonify({'roles': roles}), 200)
+    resp.vary.add('Cookie')
+    return resp, status
+
+
+@app.route('/api/v1/nodes/<public_key>/invites', methods=['POST'])
+def invite_manager(public_key):
+    """The owner makes a one-time invitation link to manage the node: {"path", "expires_at"}."""
+    user, refused = _signed_in_or_401()
+    if refused:
+        return refused
+    key = claims.normalize_key(public_key)
+    if not key:
+        return _no_store(jsonify({'error': 'invalid_key'}), 400)
+    made = claims.create_invite(key, user['id'])
+    if made is None:
+        return _no_store(jsonify({'error': 'not_owner'}), 403)
+    if made == 'too_many':
+        return _no_store(jsonify({'error': 'too_many_invites'}), 429)
+    return _no_store(jsonify({'path': '/invite/' + made['token'], 'expires_at': made['expires_at']}), 200)
+
+
+@app.route('/api/v1/nodes/<public_key>/managers/<int:manager_id>/remove', methods=['POST'])
+def remove_node_manager(public_key, manager_id):
+    """The owner removes one of the node's managers."""
+    user, refused = _signed_in_or_401()
+    if refused:
+        return refused
+    key = claims.normalize_key(public_key)
+    if not key or claims.role_of(key, user['id']) != 'owner':
+        return _no_store(jsonify({'error': 'not_owner'}), 403)
+    if not claims.remove_manager(key, user['id'], manager_id):
+        return _no_store(jsonify({'error': 'not_found'}), 404)
+    return _no_store(jsonify({'success': True}), 200)
+
+
+@app.route('/api/v1/nodes/<public_key>/leave', methods=['POST'])
+def leave_node(public_key):
+    """A manager stops managing the node."""
+    user, refused = _signed_in_or_401()
+    if refused:
+        return refused
+    key = claims.normalize_key(public_key)
+    if not key or not claims.leave(key, user['id']):
+        return _no_store(jsonify({'error': 'not_manager'}), 404)
+    return _no_store(jsonify({'success': True}), 200)
 
 
 @app.route('/account')
@@ -2104,6 +2171,69 @@ def auth_failed():
         )
     text = texts.get(f'signin.{"notMember" if reason == "not_member" else reason}.text', '')
     return _card_page(lang, texts, texts.get(f'{key}.title', 'Sign in'), [text], actions)
+
+
+def _invite_card(lang, texts, state, node_name=None, token=None, status=200):
+    """The invitation page in one of its states: 'ok' (Become manager?), 'gone', 'own',
+    'already' or 'not_member'."""
+    from html import escape
+    from config.config import DISCORD_SERVER_INVITE_URL
+
+    def text(key, fallback=''):
+        return texts.get(key, fallback).replace('{node}', node_name or '')
+
+    if state == 'ok':
+        actions = (
+            f'<a class="btn" href="/account">{escape(texts.get("signout.cancel", "Cancel"))}</a>'
+            f'<form method="post" action="/invite/{escape(token)}">'
+            f'<button type="submit" class="btn primary">{escape(text("invite.accept", "Become manager"))}</button></form>'
+        )
+        resp = _card_page(lang, texts, text('invite.title', 'Become manager of {node}?'), [text('invite.text')], actions)
+    elif state == 'not_member':
+        actions = f'<a class="btn" href="/">{escape(text("invite.openMap", "Open the map"))}</a>'
+        if DISCORD_SERVER_INVITE_URL.startswith('https://'):
+            actions += (f'<a class="btn primary" href="{escape(DISCORD_SERVER_INVITE_URL)}" target="_blank" rel="noopener">'
+                        f'{escape(text("signin.join", "Join the Discord server"))}</a>')
+        resp = _card_page(lang, texts, text('signin.notMember.title', 'Not on the #BEmesh server yet'),
+                          [text('invite.notMember.text')], actions)
+    else:
+        target = ('/', 'invite.openMap', 'Open the map') if state == 'gone' else ('/account#my-nodes', 'invite.myNodes', 'Open My nodes')
+        actions = f'<a class="btn primary" href="{target[0]}">{escape(text(target[1], target[2]))}</a>'
+        resp = _card_page(lang, texts, text(f'invite.{state}.title'), [text(f'invite.{state}.text')], actions)
+    resp.status_code = status
+    # The link's token stays on this site: no other site gets it as a referrer.
+    resp.headers['Referrer-Policy'] = 'same-origin'
+    return resp
+
+
+@app.route('/invite/<token>', methods=['GET', 'POST'])
+def manager_invite(token):
+    """An owner's invitation link to manage their node. Signed out: sign in first, then back here.
+    GET asks "Become manager of <node>?"; the POST of that page accepts (members of the #BEmesh
+    server only, checked as when claiming) and goes to My nodes."""
+    from urllib.parse import quote
+    lang = _page_lang()
+    texts = _shared_messages(lang)
+    if not claims.is_invite_token(token):
+        return _invite_card(lang, texts, 'gone', status=404)
+    if not is_authenticated():
+        return redirect('/auth/login?next=' + quote('/invite/' + token, safe=''))
+    user = get_current_user()
+    info = claims.invite_info(token, user['id'])
+    node_name = info.get('node_name') or (info.get('public_key') or '')[:8].upper()
+    if info['state'] != 'ok':
+        return _invite_card(lang, texts, info['state'], node_name, status=404 if info['state'] == 'gone' else 200)
+    if request.method == 'GET':
+        if not session.get('is_guild_member'):
+            return _invite_card(lang, texts, 'not_member', node_name, status=403)
+        return _invite_card(lang, texts, 'ok', node_name, token)
+    if not verify_guild_membership_bot(user['id']):
+        session['is_guild_member'] = False
+        return _invite_card(lang, texts, 'not_member', node_name, status=403)
+    done = claims.accept_invite(token, user['id'], user.get('global_name') or user.get('username'))
+    if done['state'] == 'ok':
+        return redirect('/account#my-nodes')
+    return _invite_card(lang, texts, done['state'], node_name, status=404 if done['state'] == 'gone' else 200)
 
 
 @app.route('/auth/me')

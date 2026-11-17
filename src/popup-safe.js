@@ -20,6 +20,14 @@ export function isClaimed(node) {
   return Boolean(String(node?.discord_owner_name ?? "").trim() || String(node?.discord_owner_id ?? "").trim());
 }
 
+/** The signed-in person's role for a node, "owner", "manager" or null, from the roles the map
+ * loaded (/api/v1/my-node-roles: public key → role). Only these two words count. */
+export function myRole(node, auth) {
+  if (!auth?.authenticated || !auth.roles) return null;
+  const role = auth.roles[String(node?.public_key ?? "").toLowerCase()];
+  return role === "owner" || role === "manager" ? role : null;
+}
+
 /**
  * The popup's owner block: "Claimed by @name", the name linked to a Discord message only when
  * `ownerId` is a Discord id (digits); "Claimed" without a name or link when the owner keeps their

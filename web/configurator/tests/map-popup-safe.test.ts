@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 // @ts-expect-error plain JS module of the map page
-import { coordsFallbackHtml, isClaimed, ownerBlockHtml, ownerHtml, typeLabelHtml } from "../../../src/popup-safe.js";
+import { coordsFallbackHtml, isClaimed, myRole, ownerBlockHtml, ownerHtml, typeLabelHtml } from "../../../src/popup-safe.js";
 
 const EVIL = `"><img src=x onerror=alert(1)><a href="javascript:x">`;
 const t = (k: string, o?: Record<string, unknown>) => (k === "map.sendDm" ? `Send ${o?.name} a message` : k);
@@ -44,6 +44,15 @@ describe("the map popup's cells from stored text", () => {
     expect(hidden.querySelector(".node-popup__panel-body")!.textContent).toBe("Name not shown");
     expect(hidden.querySelector("a")).toBeNull();
     expect(ownerBlockHtml({ claimed: false, discord_owner_name: null }, null, tt)).toBe("");
+  });
+
+  it("knows the signed-in person's role per node, owner or manager, from the loaded roles", () => {
+    const key = "AB".repeat(32);
+    const auth = { authenticated: true, roles: { [key.toLowerCase()]: "manager", ["cd".repeat(32)]: "admin" } };
+    expect(myRole({ public_key: key }, auth)).toBe("manager");
+    expect(myRole({ public_key: "cd".repeat(32) }, auth)).toBeNull();
+    expect(myRole({ public_key: "ef".repeat(32) }, auth)).toBeNull();
+    expect(myRole({ public_key: key }, { ...auth, authenticated: false })).toBeNull();
   });
 
   it("keeps odd coordinate text as text and links only to a plain search", () => {

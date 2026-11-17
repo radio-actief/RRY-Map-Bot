@@ -163,8 +163,8 @@ def test_the_account_data_names_the_person_and_their_active_nodes(db):
     body = r.get_json()
     assert body['name'] == 'Ann'
     assert body['nodes'] == [
-        {'public_key': 'b2' * 32, 'name': 'Ann phone', 'type': 1},
-        {'public_key': 'a1' * 32, 'name': 'Leuven <Rptr>', 'type': 2},
+        {'public_key': 'b2' * 32, 'name': 'Ann phone', 'type': 1, 'role': 'owner', 'managers': []},
+        {'public_key': 'a1' * 32, 'name': 'Leuven <Rptr>', 'type': 2, 'role': 'owner', 'managers': []},
     ]
 
 

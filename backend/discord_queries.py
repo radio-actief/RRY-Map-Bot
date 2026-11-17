@@ -886,7 +886,8 @@ def remove_ownership(public_key: str, user_id: str, *, source: Optional[str] = N
 
     Clears ``discord_owner_id`` / ``discord_owner_name`` on ``belgian_nodes``
     and appends an ``'unclaim'`` row to ``node_claims`` with the user that
-    held the claim. Both writes happen in the same transaction.
+    held the claim; the node's managers go too (a ``'manager_remove'`` row
+    each) with its open manager invitations. All in the same transaction.
 
     Args:
         public_key: Public key of the node (normalised to lowercase).
@@ -935,6 +936,10 @@ def remove_ownership(public_key: str, user_id: str, *, source: Optional[str] = N
                 (public_key, discord_owner_id, discord_owner_name, action, timestamp, source)
             VALUES (?, ?, ?, 'unclaim', CURRENT_TIMESTAMP, ?)
         """, (public_key_normalized, str(user_id), prior_owner_name, source))
+
+        # The node's managers and open invitations end with the claim.
+        from backend.claims import drop_managers
+        drop_managers(conn, public_key_normalized)
 
         conn.commit()
         return True

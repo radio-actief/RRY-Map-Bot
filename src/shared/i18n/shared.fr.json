@@ -90,5 +90,17 @@
   "map.base.streets": "Rues",
   "map.attributionToggle": "Crédits de la carte",
   "map.tiles": "Tuiles",
-  "map.sources": "Sources"
+  "map.sources": "Sources",
+  "invite.title": "Devenir gestionnaire de {node} ?",
+  "invite.text": "Vous verrez ce nœud dans Mes nœuds et aiderez à le tenir à jour. Vous pouvez arrêter à tout moment ; le propriétaire reste le propriétaire.",
+  "invite.accept": "Devenir gestionnaire",
+  "invite.gone.title": "Cette invitation ne fonctionne plus",
+  "invite.gone.text": "Elle a déjà été utilisée, elle a expiré, ou le nœud a maintenant un autre propriétaire. Demandez un nouveau lien au propriétaire.",
+  "invite.own.title": "C'est votre propre nœud",
+  "invite.own.text": "Vous êtes propriétaire de {node}. Envoyez le lien à la personne que vous voulez comme gestionnaire.",
+  "invite.already.title": "Vous gérez déjà {node}",
+  "invite.already.text": "Vous le trouverez dans Mes nœuds.",
+  "invite.notMember.text": "Seuls les membres du serveur Discord #BEmesh peuvent gérer des nœuds. Rejoignez le serveur, puis rouvrez le lien.",
+  "invite.myNodes": "Ouvrir Mes nœuds",
+  "invite.openMap": "Ouvrir la carte"
 }

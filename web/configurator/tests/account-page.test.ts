@@ -18,6 +18,8 @@ let account: Answer;
 let posted: Record<string, Answer> = {};
 const posts: { url: string; body: unknown }[] = [];
 const go = vi.fn();
+const ask = vi.fn(() => true);
+const copy = vi.fn(async () => {});
 
 const NODES = [
   { public_key: "b2".repeat(32), name: "Ann <img src=x>", type: 1 },
@@ -29,7 +31,10 @@ const NODEBOOK = { key: "nodebook", label: "NodeBook", url: "https://nodebook.ex
 async function load() {
   document.querySelector("main")!.outerHTML = /<main[\s\S]*<\/main>/.exec(body())![0];
   run("src/account.js");
-  (window as unknown as { BEmeshAccount: { go: typeof go } }).BEmeshAccount.go = go;
+  const page = (window as unknown as { BEmeshAccount: { go: typeof go; confirm: typeof ask; copy: typeof copy } }).BEmeshAccount;
+  page.go = go;
+  page.confirm = ask;
+  page.copy = copy;
   await settle();
 }
 
@@ -60,6 +65,9 @@ beforeAll(async () => {
 
 beforeEach(() => {
   go.mockReset();
+  ask.mockReset();
+  ask.mockReturnValue(true);
+  copy.mockClear();
   posted = {};
   posts.length = 0;
   account = { status: 200, body: { name: "Ann", nodes: NODES, tools: [NODEBOOK], settings: { show_name: true, share_partners: true } } };
@@ -160,6 +168,85 @@ describe("the account page", () => {
     expect(name.checked).toBe(true);
     expect($("account-choice-status").textContent).toBe("Couldn't save. Try again in a moment.");
     expect($("account-choice-status").classList.contains("bad")).toBe(true);
+  });
+
+  it("shows each node's role; under an owned node its managers and Invite a manager", async () => {
+    account.body = {
+      ...(account.body as object),
+      nodes: [
+        { public_key: "a1".repeat(32), name: "Ann relay", type: 2, role: "owner", managers: [{ id: 7, name: "Bob <b>" }] },
+        { public_key: "d4".repeat(32), name: "Cat relay", type: 2, role: "manager" },
+      ],
+    };
+    await load();
+    const items = Array.from($("account-nodes").children) as HTMLElement[];
+    expect(items.map((li) => li.querySelector(".account-role")!.textContent)).toEqual(["Owner", "Manager"]);
+    const owned = items[0];
+    expect(owned.querySelector(".account-managers-title")!.textContent).toBe("Managers");
+    expect(Array.from(owned.querySelectorAll(".account-manager-name")).map((x) => x.textContent)).toEqual(["Bob <b>"]);
+    expect(owned.querySelector("b")).toBeNull();
+    const remove = owned.querySelector<HTMLButtonElement>(".account-remove")!;
+    expect([remove.textContent, remove.getAttribute("aria-label")]).toEqual(["Remove", "Remove Bob <b> as manager"]);
+    expect(owned.querySelector(".account-invite-btn")!.textContent).toBe("Invite a manager");
+    expect(owned.querySelector(".account-leave")).toBeNull();
+    const managed = items[1];
+    expect(managed.querySelector(".account-leave")!.textContent).toBe("Stop managing");
+    expect(managed.querySelector(".account-invite-btn, .account-remove")).toBeNull();
+  });
+
+  it("Invite a manager makes a one-time link to copy", async () => {
+    account.body = { ...(account.body as object), nodes: [{ public_key: "a1".repeat(32), name: "Ann relay", type: 2, role: "owner", managers: [] }] };
+    posted[`/api/v1/nodes/${"a1".repeat(32)}/invites`] = { status: 200, body: { path: "/invite/tok_en", expires_at: "2026-11-24T10:00:00Z" } };
+    await load();
+    expect(document.querySelector(".account-managers")).toBeNull();
+    (document.querySelector(".account-invite-btn") as HTMLButtonElement).click();
+    await settle();
+    expect(posts.map((p) => p.url)).toEqual([`/api/v1/nodes/${"a1".repeat(32)}/invites`]);
+    const box = document.querySelector<HTMLElement>(".account-invite")!;
+    expect(box.hidden).toBe(false);
+    const input = box.querySelector<HTMLInputElement>("input")!;
+    expect([input.value, input.readOnly, input.getAttribute("aria-label")]).toEqual([`${location.origin}/invite/tok_en`, true, "Invitation link"]);
+    expect(box.querySelector(".account-invite-hint")!.textContent).toBe("Send this link to one person. It works once, for 7 days.");
+    (box.querySelector(".account-copy") as HTMLButtonElement).click();
+    await settle();
+    expect(copy).toHaveBeenCalledWith(`${location.origin}/invite/tok_en`);
+    expect(document.querySelector(".account-node-tools .account-status")!.textContent).toBe("Copied.");
+  });
+
+  it("too many open invitations says so", async () => {
+    account.body = { ...(account.body as object), nodes: [{ public_key: "a1".repeat(32), name: "Ann relay", type: 2, role: "owner", managers: [] }] };
+    posted[`/api/v1/nodes/${"a1".repeat(32)}/invites`] = { status: 429, body: { error: "too_many_invites" } };
+    await load();
+    (document.querySelector(".account-invite-btn") as HTMLButtonElement).click();
+    await settle();
+    expect(document.querySelector<HTMLElement>(".account-invite")!.hidden).toBe(true);
+    expect(document.querySelector(".account-node-tools .account-status")!.textContent).toBe("This node has 10 open invitations. Wait until one is used or expires.");
+  });
+
+  it("removing a manager asks first, then loads the page again", async () => {
+    account.body = { ...(account.body as object), nodes: [{ public_key: "a1".repeat(32), name: "Ann relay", type: 2, role: "owner", managers: [{ id: 7, name: "Bob" }] }] };
+    await load();
+    ask.mockReturnValueOnce(false);
+    (document.querySelector(".account-remove") as HTMLButtonElement).click();
+    await settle();
+    expect(ask).toHaveBeenCalledWith("Remove Bob as manager of Ann relay?");
+    expect(posts).toEqual([]);
+    account.body = { ...(account.body as object), nodes: [{ public_key: "a1".repeat(32), name: "Ann relay", type: 2, role: "owner", managers: [] }] };
+    (document.querySelector(".account-remove") as HTMLButtonElement).click();
+    await settle();
+    expect(posts.map((p) => p.url)).toEqual([`/api/v1/nodes/${"a1".repeat(32)}/managers/7/remove`]);
+    expect(document.querySelector(".account-remove")).toBeNull();
+  });
+
+  it("a manager can stop managing, after a question", async () => {
+    account.body = { ...(account.body as object), nodes: [{ public_key: "d4".repeat(32), name: "Cat relay", type: 2, role: "manager" }] };
+    await load();
+    account.body = { ...(account.body as object), nodes: [] };
+    (document.querySelector(".account-leave") as HTMLButtonElement).click();
+    await settle();
+    expect(ask).toHaveBeenCalledWith("Stop managing Cat relay? The owner can invite you again.");
+    expect(posts.map((p) => p.url)).toEqual([`/api/v1/nodes/${"d4".repeat(32)}/leave`]);
+    expect($("account-nodes-empty").hidden).toBe(false);
   });
 
   it("logs out with two forms: this browser, and everywhere with its line under it", () => {

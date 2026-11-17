@@ -90,5 +90,17 @@
   "map.base.streets": "Streets",
   "map.attributionToggle": "Map credits",
   "map.tiles": "Tiles",
-  "map.sources": "Sources"
+  "map.sources": "Sources",
+  "invite.title": "Become manager of {node}?",
+  "invite.text": "You'll see this node under My nodes and help keep it up to date. You can stop at any time; the owner stays the owner.",
+  "invite.accept": "Become manager",
+  "invite.gone.title": "This invitation no longer works",
+  "invite.gone.text": "It was used already, it expired, or the node has another owner now. Ask the owner for a new link.",
+  "invite.own.title": "This is your own node",
+  "invite.own.text": "You own {node}. Send the link to the person you want as manager.",
+  "invite.already.title": "You already manage {node}",
+  "invite.already.text": "You'll find it under My nodes.",
+  "invite.notMember.text": "Only members of the #BEmesh Discord server can manage nodes. Join the server, then open the link again.",
+  "invite.myNodes": "Open My nodes",
+  "invite.openMap": "Open the map"
 }

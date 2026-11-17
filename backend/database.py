@@ -203,6 +203,7 @@ def init_database() -> None:
         ensure_command_log_table(conn)
         ensure_sync_state_table(conn)
         ensure_person_settings_table(conn)
+        ensure_manager_tables(conn)
 
         conn.commit()
         print(f"Database initialized successfully at {get_db_path()}")
@@ -301,6 +302,44 @@ def ensure_person_settings_table(conn: sqlite3.Connection) -> None:
             share_partners INTEGER NOT NULL DEFAULT 1,
             updated_at     TEXT
         )
+    """)
+
+
+def ensure_manager_tables(conn: sqlite3.Connection) -> None:
+    """Create ``node_managers`` and ``manager_invites`` if missing.
+
+    A manager is someone the node's owner invited: one row per node and person (``id`` is the row's
+    own number, so the owner's page can name a manager without their Discord id). An invitation is
+    kept under the SHA-256 of its token, never the token itself; it works once (``used_at``) until
+    ``expires_at`` (ISO UTC).
+    """
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS node_managers (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            public_key   VARCHAR(64) NOT NULL,
+            discord_id   VARCHAR(20) NOT NULL,
+            display_name VARCHAR(100),
+            added_at     TEXT NOT NULL,
+            added_by     VARCHAR(20),
+            UNIQUE (public_key, discord_id)
+        )
+    """)
+    conn.execute("""
+        CREATE INDEX IF NOT EXISTS idx_node_managers_person
+        ON node_managers(discord_id)
+    """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS manager_invites (
+            token_hash CHAR(64) PRIMARY KEY,
+            public_key VARCHAR(64) NOT NULL,
+            created_by VARCHAR(20) NOT NULL,
+            expires_at TEXT NOT NULL,
+            used_at    TEXT
+        )
+    """)
+    conn.execute("""
+        CREATE INDEX IF NOT EXISTS idx_manager_invites_node
+        ON manager_invites(public_key)
     """)
 
 

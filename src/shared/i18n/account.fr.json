@@ -22,5 +22,20 @@
   "account.sharePartners": "Partager mes nœuds avec les outils partenaires",
   "account.sharePartners.hint": "Désactivé : les outils partenaires ne voient pas quels nœuds vous possédez ou gérez. Ils ne reçoivent jamais votre compte Discord.",
   "account.saved": "Enregistré.",
-  "account.saveFailed": "L'enregistrement n'a pas réussi. Réessayez dans un instant."
+  "account.saveFailed": "L'enregistrement n'a pas réussi. Réessayez dans un instant.",
+  "account.role.owner": "Propriétaire",
+  "account.role.manager": "Gestionnaire",
+  "account.managers": "Gestionnaires",
+  "account.invite": "Inviter un gestionnaire",
+  "account.inviteLink": "Lien d'invitation",
+  "account.inviteHint": "Envoyez ce lien à une seule personne. Il fonctionne une fois, pendant 7 jours.",
+  "account.copy": "Copier le lien",
+  "account.copied": "Copié.",
+  "account.removeManager": "Retirer",
+  "account.removeManager.label": "Retirer {name} comme gestionnaire",
+  "account.removeManager.confirm": "Retirer {name} comme gestionnaire de {node} ?",
+  "account.leave": "Ne plus gérer",
+  "account.leave.confirm": "Ne plus gérer {node} ? Le propriétaire peut vous inviter à nouveau.",
+  "account.actionFailed": "Cela n'a pas fonctionné. Réessayez dans un instant.",
+  "account.tooManyInvites": "Ce nœud a 10 invitations ouvertes. Attendez qu'une soit utilisée ou expire."
 }

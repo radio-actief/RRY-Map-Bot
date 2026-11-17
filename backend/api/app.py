@@ -75,13 +75,14 @@ STATIC_ROOT_FILES = {
 STATIC_DIRS = ('css/', 'img/', 'lib/', 'src/')
 DATA_SUFFIXES = ('.json', '.geojson')
 
-def _secret_key(data_dir: str) -> str:
+def _secret_key(data_dir: str, env: str = 'FLASK_SECRET_KEY', filename: str = '.flask_secret_key') -> str:
     """The key that signs session cookies: FLASK_SECRET_KEY, or one made once and kept in the data
-    directory, so a restart or deploy doesn't sign everyone out."""
-    key = os.getenv('FLASK_SECRET_KEY')
+    directory, so a restart or deploy doesn't sign everyone out. (Also the partner subjects' key,
+    from PARTNER_SUBJECT_SECRET or its own file.)"""
+    key = os.getenv(env)
     if key:
         return key
-    path = os.path.join(data_dir, '.flask_secret_key')
+    path = os.path.join(data_dir, filename)
     try:
         with open(path, encoding='utf-8') as f:
             kept = f.read().strip()
@@ -109,6 +110,7 @@ import backend.tool_grants as tool_grants  # noqa: E402
 tool_grants.GRANTS_DIR = os.path.join(_DATA_DIR, 'tool-grants')
 import backend.account_sessions as account_sessions  # noqa: E402
 account_sessions.INDEX_DIR = os.path.join(_DATA_DIR, 'session-index')
+import backend.partners as partners  # noqa: E402
 app.config['SESSION_TYPE'] = 'filesystem'
 # Its own name, on this host only: the site's other tools sign in through the map instead
 # (/auth/authorize), so no other address ever gets this cookie.
@@ -133,6 +135,14 @@ CORS(app, resources={r"/api/v1/*": {"origins": "*"}}, supports_credentials=False
 
 
 TOOL_SERVER_PATHS = ('/auth/token', '/auth/alive')
+
+
+def _partner_subject_key():
+    """The partner subjects' key (PARTNER_SUBJECT_SECRET, else made once in the data directory),
+    read on first use."""
+    if not partners.SUBJECT_KEY:
+        partners.SUBJECT_KEY = _secret_key(_DATA_DIR, 'PARTNER_SUBJECT_SECRET', '.partner_subject_key')
+    return partners.SUBJECT_KEY
 
 
 @app.before_request
@@ -1770,6 +1780,49 @@ def _tool_call():
             given[len('Bearer '):].encode('utf-8'), secret.encode('utf-8')):
         return None, (jsonify({'error': 'invalid_client'}), 401)
     return (key, body), None
+
+
+def _partner_by_secret():
+    """The partner tool whose secret this request's Bearer header carries, else None."""
+    import hmac
+    given = request.headers.get('Authorization', '')
+    if not given.startswith('Bearer '):
+        return None
+    given = given[len('Bearer '):].encode('utf-8')
+    found = None
+    for tool in SITE_TOOLS:
+        secret = SITE_TOOL_SECRETS.get(tool['key']) if tool.get('partner') else None
+        if secret and hmac.compare_digest(given, secret.encode('utf-8')):
+            found = tool
+    return found
+
+
+@app.route('/api/v1/partner/claims', methods=['GET'])
+def partner_claims_feed():
+    """Contract v1, phase 1 (docs/PARTNERS.md): who owns or manages which node, for a partner's
+    server. Bearer secret of a partner tool; a call from a browser (an Origin or a cookie) is
+    refused. Only people who share their nodes with partner tools; no Discord ids, a pairwise
+    subject instead; displayName null when the person hides their name. ETag / If-None-Match: 304."""
+    import hashlib
+    from backend.datetime_utils import utc_now_iso
+    if request.headers.get('Origin') or request.cookies:
+        return _no_store(jsonify({'error': 'invalid_request'}), 400)
+    partner = _partner_by_secret()
+    if not partner:
+        resp, status = _no_store(jsonify({'error': 'invalid_client'}), 401)
+        resp.headers['WWW-Authenticate'] = 'Bearer'
+        return resp, status
+    _partner_subject_key()
+    entries = partners.feed_claims(partner['key'])
+    etag = hashlib.sha256(json.dumps(entries, sort_keys=True).encode('utf-8')).hexdigest()[:32]
+    if request.if_none_match.contains_weak(etag):
+        resp = make_response('', 304)
+    else:
+        resp = jsonify({'version': 1, 'generatedAt': utc_now_iso(), 'claims': entries})
+    resp.set_etag(etag)
+    resp.headers['Cache-Control'] = 'private, no-cache'
+    resp.vary.add('Authorization')
+    return resp
 
 
 def _no_store(resp, status):

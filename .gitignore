@@ -137,3 +137,4 @@ data/sessions/
 data/session-index/
 data/tool-grants/
 data/.flask_secret_key
+data/.partner_subject_key

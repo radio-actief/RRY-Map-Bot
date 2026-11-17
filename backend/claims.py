@@ -324,3 +324,40 @@ def drop_managers(conn, public_key: str) -> None:
     'manager_remove', and its open invitations are deleted."""
     _remove(conn, public_key, '1 = 1', ())
     conn.execute("DELETE FROM manager_invites WHERE public_key = ?", (public_key,))
+
+
+# What partner tools may learn
+
+def shared_claims() -> List[Dict]:
+    """Every owner and manager of an active node who shares their nodes with partner tools:
+    {'public_key', 'role', 'discord_id', 'display_name' (None when they hide their name), 'since'
+    (ISO UTC; None for a claim older than the claim history)}, in a stable order."""
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            """
+            SELECT b.public_key, 'owner' AS role, b.discord_owner_id AS discord_id,
+                   CASE WHEN COALESCE(ps.show_name, 1) = 1 THEN b.discord_owner_name END AS display_name,
+                   (SELECT MAX(c.timestamp) FROM node_claims c
+                    WHERE c.public_key = b.public_key AND c.action = 'claim'
+                      AND c.discord_owner_id = b.discord_owner_id) AS since
+            FROM belgian_nodes b
+            LEFT JOIN person_settings ps ON ps.discord_id = b.discord_owner_id
+            WHERE b.is_active = 1 AND b.discord_owner_id IS NOT NULL AND b.discord_owner_id != ''
+              AND COALESCE(ps.share_partners, 1) = 1
+            UNION ALL
+            SELECT m.public_key, 'manager' AS role, m.discord_id,
+                   CASE WHEN COALESCE(ps.show_name, 1) = 1 THEN m.display_name END AS display_name,
+                   m.added_at AS since
+            FROM node_managers m
+            JOIN belgian_nodes b ON b.public_key = m.public_key AND b.is_active = 1
+            LEFT JOIN person_settings ps ON ps.discord_id = m.discord_id
+            WHERE COALESCE(ps.share_partners, 1) = 1
+            ORDER BY 1, 2 DESC, 3
+            """
+        ).fetchall()
+    finally:
+        conn.close()
+    return [{'public_key': r['public_key'], 'role': r['role'], 'discord_id': str(r['discord_id']),
+             'display_name': r['display_name'], 'since': format_utc_iso(r['since']) if r['since'] else None}
+            for r in rows]

@@ -207,6 +207,27 @@ The device message rules (`src/shared/device-message.js`): `tool` 1–40 charact
 `usb`/`ble`/`bridge`/null, `role` `repeater`/`room`/`sensor`/`companion`/null, USB ids 0–65535
 or null, `name` and `publicKey` up to 64 characters or null.
 
+### Partner tools
+
+A partner is another project's tool that works with the map (contract: `docs/PARTNERS.md`). It is
+a `SITE_TOOLS_JSON` entry with `"partner": true` (and `"hidden": true`), plus its secret in
+`SITE_TOOL_SECRETS_JSON`:
+
+```
+SITE_TOOLS_JSON=[..., {"key":"analyzer","label":"ON8AR analyzer","url":"https://analyzer.example/","partner":true,"hidden":true}]
+SITE_TOOL_SECRETS_JSON={"nodebook":"...", "analyzer":"<32+ characters, given to the partner>"}
+```
+
+- A partner is always hidden: no bar, menu, popup link, page security policy entry or device hub.
+- It never gets a Discord id. It knows each person by a pairwise subject: an HMAC of the person
+  and the partner under `PARTNER_SUBJECT_SECRET` (or a key made once in `data/.partner_subject_key`).
+  Keep that key: a new one changes every subject, and partners lose the link to their accounts.
+- `GET /api/v1/partner/claims` with `Authorization: Bearer <partner secret>`: who owns or manages
+  which node, for people who share their nodes with partner tools (on by default, switched off on
+  `/account`); `displayName` is null when the person hides their name. Server to server only (an
+  `Origin` header or a cookie gets 400); a wrong secret, or one of our own tools' secrets, gets 401.
+  It answers `If-None-Match` with 304; partners poll at most every 5 minutes.
+
 ### The language, shared by the tools
 
 Every tool picks its language the same way:

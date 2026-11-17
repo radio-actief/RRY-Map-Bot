@@ -272,12 +272,13 @@ SITE_TOOL_SECRETS_JSON={"nodebook":"...", "analyzer":"<32+ characters, given to 
 ```
 
 - A partner is always hidden: no bar, menu, popup link, page security policy entry or device hub.
-- It never gets a Discord id. It knows each person by a pairwise subject: an HMAC of the person
+- It knows each person by a pairwise subject: an HMAC of the person
   and the partner under `PARTNER_SUBJECT_SECRET` (or a key made once in `data/.partner_subject_key`).
   Keep that key: a new one changes every subject, and partners lose the link to their accounts.
 - `GET /api/v1/partner/claims` with `Authorization: Bearer <partner secret>`: who owns or manages
   which node, for people who share their nodes with partner tools (on by default, switched off on
-  `/account`); `displayName` is null when the person hides their name. Server to server only (an
+  `/account`); `displayName` and `discordUrl` (a link to the person's Discord profile) are null
+  when the person hides their name. Server to server only (an
   `Origin` header or a cookie gets 400); a wrong secret, or one of our own tools' secrets, gets 401.
   It answers `If-None-Match` with 304; partners poll at most every 5 minutes.
 - Sign in with #BEmesh: a partner uses the protocol of "Signing in through the map", with three

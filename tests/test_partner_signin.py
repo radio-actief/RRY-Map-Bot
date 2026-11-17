@@ -103,7 +103,7 @@ def test_the_consent_page_says_what_the_partner_gets_with_cancel_and_allow():
     assert '<header class="topbar">' in html
     assert '<h1>Sign in to Analyzer with #BEmesh?</h1>\n<p class="signout-host">analyzer.example</p>' in html
     assert '<p>Analyzer asks for: your display name, and the nodes you share with partner tools.</p>' in html
-    assert 'It never gets your Discord account.' in html
+    assert 'It gets the name you show, never your Discord avatar.' in html
     cancel = html.index(f'href="{CALLBACK}?error=access_denied&amp;state=s1"')
     allow_at = html.index('<button type="submit" class="btn primary">Allow</button>')
     assert cancel < allow_at  # Cancel on the left, the main action on the right

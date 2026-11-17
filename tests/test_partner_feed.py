@@ -1,6 +1,6 @@
 """Partner tools (SITE_TOOLS_JSON "partner": true) and the claims feed of contract v1: server to
-server with the partner's Bearer secret, no Discord ids, a pairwise subject per person and partner,
-each person's choices honoured, and ETag / 304."""
+server with the partner's Bearer secret, a pairwise subject per person and partner, a Discord
+profile link only for people who show their name, each person's choices honoured, and ETag / 304."""
 
 import base64
 import hashlib
@@ -128,9 +128,9 @@ def test_the_feed_is_the_contracts_json(db):
     assert body['version'] == 1
     assert re.fullmatch(r'\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ', body['generatedAt'])
     assert body['claims'] == [
-        {'publicKey': A, 'role': 'owner', 'subject': expected_subject('analyzer', ANN), 'displayName': 'Ann', 'since': '2026-10-01T08:00:00Z'},
-        {'publicKey': A, 'role': 'manager', 'subject': expected_subject('analyzer', CAT), 'displayName': 'Cat', 'since': '2026-11-02T09:30:00Z'},
-        {'publicKey': B, 'role': 'owner', 'subject': expected_subject('analyzer', BOB), 'displayName': 'Bob', 'since': None},
+        {'publicKey': A, 'role': 'owner', 'subject': expected_subject('analyzer', ANN), 'displayName': 'Ann', 'discordUrl': f'https://discord.com/users/{ANN}', 'since': '2026-10-01T08:00:00Z'},
+        {'publicKey': A, 'role': 'manager', 'subject': expected_subject('analyzer', CAT), 'displayName': 'Cat', 'discordUrl': f'https://discord.com/users/{CAT}', 'since': '2026-11-02T09:30:00Z'},
+        {'publicKey': B, 'role': 'owner', 'subject': expected_subject('analyzer', BOB), 'displayName': 'Bob', 'discordUrl': f'https://discord.com/users/{BOB}', 'since': None},
     ]
 
 
@@ -145,10 +145,21 @@ def test_subjects_are_pairwise_and_say_nothing_about_discord(db):
     assert mine == {c['displayName']: c['subject'] for c in feed().get_json()['claims']}
 
 
-def test_no_discord_id_anywhere_in_the_feed(db):
+def test_a_discord_id_is_only_in_the_profile_link_of_someone_who_shows_their_name(db):
+    claims.save_settings(ANN, show_name=False)
+    rows = feed().get_json()['claims']
+    for c in rows:
+        assert c['discordUrl'] is None if c['displayName'] is None else c['discordUrl'].startswith('https://discord.com/users/')
     text = feed().get_data(as_text=True)
-    for person in (ANN, BOB, CAT):
-        assert person not in text
+    assert ANN not in text
+    for person in (BOB, CAT):
+        assert text.count(person) == 1
+
+
+def test_a_profile_link_is_only_made_from_a_discord_user_id():
+    assert partners.discord_profile_url('123456789012345678') == 'https://discord.com/users/123456789012345678'
+    for bad in (None, '', 'ann', '12345', '1' * 22, '123/../x', '12345678901234567a'):
+        assert partners.discord_profile_url(bad) is None
 
 
 def test_a_hidden_name_is_null_and_switching_sharing_off_leaves_the_person_out(db):

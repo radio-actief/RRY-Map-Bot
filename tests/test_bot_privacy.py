@@ -340,10 +340,11 @@ def test_my_nodes_still_lists_everything_for_someone_who_hides_their_name(hidden
 # ---------------------------------------------------------------- /privacy
 
 SHOW = "Show my name with my nodes"
-SHOW_OFF = "Off: the map and partner tools show your nodes as claimed, without your name."
+SHOW_OFF = "Off: the map and partner tools show your nodes as claimed, without your name or a link to your Discord profile."
 SHARE = "Share my nodes with partner tools"
 SHARE_OFF = ("Off: partner tools don't see which nodes you own or manage. "
-             "They never get your Discord account.")
+             "While your name is shown, they also get a link to your Discord profile, "
+             "so people can message you.")
 
 
 def test_privacy_wording_is_the_account_pages():

@@ -105,6 +105,6 @@
   "invite.openMap": "Open the map",
   "consent.title": "Sign in to {partner} with #BEmesh?",
   "consent.asks": "{partner} asks for: your display name, and the nodes you share with partner tools.",
-  "consent.never": "It never gets your Discord account. You can withdraw this on your account page.",
+  "consent.never": "It gets the name you show, never your Discord avatar. You can withdraw this on your account page.",
   "consent.allow": "Allow"
 }

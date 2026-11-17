@@ -105,6 +105,6 @@
   "invite.openMap": "Open de kaart",
   "consent.title": "Aanmelden bij {partner} met #BEmesh?",
   "consent.asks": "{partner} vraagt: je weergavenaam, en de nodes die je deelt met partnertools.",
-  "consent.never": "Het krijgt nooit je Discord-account. Je kunt dit intrekken op je accountpagina.",
+  "consent.never": "Het krijgt de naam die je toont, nooit je Discord-avatar. Je kunt dit intrekken op je accountpagina.",
   "consent.allow": "Toestaan"
 }

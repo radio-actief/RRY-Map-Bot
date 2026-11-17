@@ -8,11 +8,14 @@ another project's tool that wants to show that information, or to let people sig
 
 ## Privacy first
 
-- You never get a Discord id, username or avatar.
+- You never get a Discord username or avatar. You get a link to a person's Discord profile
+  (`discordUrl`) only in the claims feed and only while they show their name, so your visitors
+  can message them. Sign-in never gives it.
 - Each person is known to you by a **subject**: a pairwise pseudonym, stable for that person and
   your tool, different for every other partner, and meaningless outside it.
 - Each person decides on the map's account page:
-  - **Show my name with my nodes** (on by default). Off: you get `displayName: null`.
+  - **Show my name with my nodes** (on by default). Off: you get `displayName: null` and
+    `discordUrl: null`.
   - **Share my nodes with partner tools** (on by default). Off: the person is left out of the
     claims feed entirely.
 - A change reaches you at your next poll. Drop what is no longer in the feed.
@@ -40,8 +43,8 @@ Answer:
   "version": 1,
   "generatedAt": "2026-11-17T10:00:00Z",
   "claims": [
-    {"publicKey": "<64 hex>", "role": "owner", "subject": "<22 chars>", "displayName": "Ann", "since": "2026-10-01T08:00:00Z"},
-    {"publicKey": "<64 hex>", "role": "manager", "subject": "<22 chars>", "displayName": null, "since": "2026-11-02T09:30:00Z"}
+    {"publicKey": "<64 hex>", "role": "owner", "subject": "<22 chars>", "displayName": "Ann", "discordUrl": "https://discord.com/users/<id>", "since": "2026-10-01T08:00:00Z"},
+    {"publicKey": "<64 hex>", "role": "manager", "subject": "<22 chars>", "displayName": null, "discordUrl": null, "since": "2026-11-02T09:30:00Z"}
   ]
 }
 ```
@@ -51,6 +54,8 @@ Answer:
 - `subject`: base64url(HMAC-SHA256(map secret, `"partner:" + partnerKey + ":" + personId`)), the
   first 22 characters. The same person has the same subject in the feed and at sign-in.
 - `displayName`: the name the person shows, or `null` when they hide it.
+- `discordUrl`: a link to the person's Discord profile, where people can send them a message, or
+  `null` when they hide their name. Show it as a link on `displayName`; drop it when it is gone.
 - `since`: when they became owner or manager (UTC), or `null` for claims older than the map's
   claim history.
 

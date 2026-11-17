@@ -141,8 +141,8 @@ describe("the account page", () => {
       i.checked,
     ]);
     expect(rows).toEqual([
-      ["switch", "Show my name with my nodes", "Off: the map and partner tools show your nodes as claimed, without your name.", false],
-      ["switch", "Share my nodes with partner tools", "Off: partner tools don't see which nodes you own or manage. They never get your Discord account.", true],
+      ["switch", "Show my name with my nodes", "Off: the map and partner tools show your nodes as claimed, without your name or a link to your Discord profile.", false],
+      ["switch", "Share my nodes with partner tools", "Off: partner tools don't see which nodes you own or manage. While your name is shown, they also get a link to your Discord profile, so people can message you.", true],
     ]);
   });
 

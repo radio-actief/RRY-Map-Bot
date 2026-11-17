@@ -105,6 +105,6 @@
   "invite.openMap": "Ouvrir la carte",
   "consent.title": "Se connecter à {partner} avec #BEmesh ?",
   "consent.asks": "{partner} demande : votre nom affiché, et les nœuds que vous partagez avec les outils partenaires.",
-  "consent.never": "Il ne reçoit jamais votre compte Discord. Vous pouvez retirer cette autorisation sur votre page de compte.",
+  "consent.never": "Il reçoit le nom que vous affichez, jamais votre avatar Discord. Vous pouvez retirer cette autorisation sur votre page de compte.",
   "consent.allow": "Autoriser"
 }

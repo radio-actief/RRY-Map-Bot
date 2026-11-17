@@ -128,9 +128,9 @@ NOT_FOR_YOU = "This prompt is not for you."
 PRIVACY_TITLE = "Privacy"
 PRIVACY_CHOICES = (
     ("show_name", "Show my name with my nodes",
-     "Off: the map and partner tools show your nodes as claimed, without your name."),
+     "Off: the map and partner tools show your nodes as claimed, without your name or a link to your Discord profile."),
     ("share_partners", "Share my nodes with partner tools",
-     "Off: partner tools don't see which nodes you own or manage. They never get your Discord account."),
+     "Off: partner tools don't see which nodes you own or manage. While your name is shown, they also get a link to your Discord profile, so people can message you."),
 )
 PRIVACY_BOT_NOTE = (
     "This bot follows the first choice too: with it off, its messages show your nodes as claimed, "

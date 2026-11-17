@@ -1826,8 +1826,9 @@ def _partner_by_secret():
 def partner_claims_feed():
     """Contract v1, phase 1 (docs/PARTNERS.md): who owns or manages which node, for a partner's
     server. Bearer secret of a partner tool; a call from a browser (an Origin or a cookie) is
-    refused. Only people who share their nodes with partner tools; no Discord ids, a pairwise
-    subject instead; displayName null when the person hides their name. ETag / If-None-Match: 304."""
+    refused. Only people who share their nodes with partner tools; a pairwise subject per person;
+    displayName and discordUrl (their Discord profile) null when the person hides their name.
+    ETag / If-None-Match: 304."""
     import hashlib
     from backend.datetime_utils import utc_now_iso
     if request.headers.get('Origin') or request.cookies:

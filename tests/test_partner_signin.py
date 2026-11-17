@@ -101,7 +101,7 @@ def test_the_consent_page_says_what_the_partner_gets_with_cancel_and_allow():
     assert r.status_code == 200 and r.headers['Cache-Control'] == 'no-store'
     html = r.get_data(as_text=True)
     assert '<header class="topbar">' in html
-    assert '<h1>Sign in to Analyzer with #BEmesh?</h1>' in html
+    assert '<h1>Sign in to Analyzer with #BEmesh?</h1>\n<p class="signout-host">analyzer.example</p>' in html
     assert '<p>Analyzer asks for: your display name, and the nodes you share with partner tools.</p>' in html
     assert 'It never gets your Discord account.' in html
     cancel = html.index(f'href="{CALLBACK}?error=access_denied&amp;state=s1"')
@@ -118,6 +118,15 @@ def test_the_consent_page_says_what_the_partner_gets_with_cancel_and_allow():
 def test_the_consent_page_speaks_the_visitors_language(lang, title):
     html = sign_in().get(f'/auth/consent?tool=analyzer&state=s1&lang={lang}').get_data(as_text=True)
     assert f'<h1>{title}</h1>' in html
+
+
+def test_the_partners_address_comes_from_its_registration_never_from_the_request():
+    c = sign_in()
+    r = c.get('/auth/consent?tool=analyzer&state=s1&host=evil.example&url=https://evil.example/',
+              headers={'Referer': 'https://evil.example/', 'X-Forwarded-Host': 'evil.example'})
+    html = r.get_data(as_text=True)
+    assert '<p class="signout-host">analyzer.example</p>' in html
+    assert 'evil.example' not in html
 
 
 def test_allow_is_remembered_and_the_page_is_not_shown_again():
@@ -228,7 +237,7 @@ def test_the_account_page_lists_allowed_partners_and_withdraws_them():
     c = sign_in()
     assert c.get('/api/v1/account').get_json()['partners'] == []
     body = token(partner_code(c)).get_json()
-    assert c.get('/api/v1/account').get_json()['partners'] == [{'key': 'analyzer', 'label': 'Analyzer'}]
+    assert c.get('/api/v1/account').get_json()['partners'] == [{'key': 'analyzer', 'label': 'Analyzer', 'host': 'analyzer.example'}]
     r = c.post('/api/v1/account/partners/analyzer/remove', headers=ORIGIN)
     assert r.status_code == 200
     assert c.get('/api/v1/account').get_json()['partners'] == []

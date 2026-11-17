@@ -1037,6 +1037,15 @@ body .leaflet-container .leaflet-control-attribution {
   margin: 0 0 8px;
   font-size: 1.25rem;
 }
+/* The partner's address under the consent page's title. */
+.signout .signout-host {
+  margin: -4px 0 12px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--mut);
+  overflow-wrap: anywhere;
+}
 .signout-actions {
   display: flex;
   flex-wrap: wrap;

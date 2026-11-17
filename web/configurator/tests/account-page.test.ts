@@ -251,12 +251,14 @@ describe("the account page", () => {
 
   it("lists the partner tools the person allowed, each with Remove after a question", async () => {
     expect($("account-partners-card").hidden).toBe(true);
-    account.body = { ...(account.body as object), partners: [{ key: "analyzer", label: "Analyzer <i>" }] };
+    account.body = { ...(account.body as object), partners: [{ key: "analyzer", label: "Analyzer <i>", host: "analyzer.example" }] };
     await load();
     expect($("account-partners-card").hidden).toBe(false);
     expect($("account-partners-title").textContent).toBe("Partner tools you allowed");
     const row = $("account-partners").querySelector("li")!;
     expect(row.querySelector(".account-row-name")!.textContent).toBe("Analyzer <i>");
+    // Its registered address beside the name.
+    expect(row.querySelector(".account-partner-host")!.textContent).toBe("analyzer.example");
     expect(row.querySelector("i")).toBeNull();
     const remove = row.querySelector<HTMLButtonElement>("button")!;
     expect([remove.textContent, remove.getAttribute("aria-label")]).toEqual(["Remove", "Remove Analyzer <i>"]);
@@ -266,6 +268,12 @@ describe("the account page", () => {
     expect(ask).toHaveBeenCalledWith("Remove Analyzer <i>? It can no longer sign you in until you allow it again.");
     expect(posts.map((p) => p.url)).toEqual(["/api/v1/account/partners/analyzer/remove"]);
     expect($("account-partners-card").hidden).toBe(true);
+  });
+
+  it("a partner without an address of its own shows its name only", async () => {
+    account.body = { ...(account.body as object), partners: [{ key: "local", label: "Local", host: null }] };
+    await load();
+    expect($("account-partners").querySelector(".account-partner-host")).toBeNull();
   });
 
   it("logs out with two forms: this browser, and everywhere with its line under it", () => {

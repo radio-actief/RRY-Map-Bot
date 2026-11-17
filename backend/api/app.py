@@ -2017,10 +2017,17 @@ def account_data():
     return resp, status
 
 
+def _tool_host(tool):
+    """The host name of a tool's registered address ("analyzer.example"), from the tool list, never
+    from the request; None for a tool on a path of this site."""
+    return urlparse(tool['url']).hostname if tool['url'].startswith(('https://', 'http://')) else None
+
+
 def _allowed_partners(user_id):
-    """The partner tools this person allowed to sign them in that are still listed: {key, label}."""
+    """The partner tools this person allowed to sign them in that are still listed: {key, label,
+    host}."""
     listed = {t['key']: t for t in SITE_TOOLS if t.get('partner')}
-    return [{'key': c['key'], 'label': listed[c['key']]['label']}
+    return [{'key': c['key'], 'label': listed[c['key']]['label'], 'host': _tool_host(listed[c['key']])}
             for c in partners.consents_of(user_id) if c['key'] in listed]
 
 
@@ -2220,9 +2227,10 @@ def _top_bar(texts):
 AUTH_PAGE_SCRIPTS = ('/src/shared/about.js', '/src/shared/menu-place.js', '/src/shared/topbar.js')
 
 
-def _card_page(lang, texts, title, paragraphs, actions):
+def _card_page(lang, texts, title, paragraphs, actions, host=None):
     """A small page on the shared look: the site's top bar, then one card with a title, some text
-    and its buttons. `actions` is already-escaped HTML; no inline scripts, so the strict CSP holds."""
+    and its buttons. `actions` is already-escaped HTML; no inline scripts, so the strict CSP holds.
+    `host`: an address shown under the title (the partner on the consent page)."""
     from html import escape
     font = _ui_font_file()
     body = (
@@ -2243,6 +2251,7 @@ def _card_page(lang, texts, title, paragraphs, actions):
         + _top_bar(texts)
         + '<main class="signout-main">\n<section class="card signout">\n'
         f'<h1>{escape(title)}</h1>\n'
+        + (f'<p class="signout-host">{escape(host)}</p>\n' if host else '')
         + ''.join(f'<p>{escape(p)}</p>\n' for p in paragraphs if p)
         + f'<div class="signout-actions">{actions}</div>\n'
         '</section>\n</main>\n'
@@ -2423,7 +2432,7 @@ def auth_consent():
         f'<button type="submit" class="btn primary">{escape(texts.get("consent.allow", "Allow"))}</button></form>'
     )
     resp = _card_page(lang, texts, text('consent.title', 'Sign in to {partner} with #BEmesh?'),
-                      [text('consent.asks', ''), text('consent.never', '')], actions)
+                      [text('consent.asks', ''), text('consent.never', '')], actions, host=_tool_host(tool))
     # Allow redirects to the partner; a browser checks that against the form's page policy.
     if CSP_ENABLED:
         resp.headers['Content-Security-Policy'] = page_policy(tool_origins([tool]))

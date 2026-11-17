@@ -358,6 +358,23 @@
   color: var(--ink);
 }
 
+/* The partner's name, its registered address beside it (under it when there is no room). */
+.account-partner-who {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 8px;
+  min-width: 0;
+}
+
+.account-partner-host {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--mut);
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 600px) {
   .account-partner .btn {
     min-height: 44px;

@@ -266,7 +266,10 @@
       if (!p || typeof p.key !== "string") return;
       var label = typeof p.label === "string" && p.label.trim() ? p.label : p.key;
       var li = el("li", "account-partner");
-      li.appendChild(el("span", "account-row-name", label));
+      var who = el("span", "account-partner-who");
+      who.appendChild(el("span", "account-row-name", label));
+      if (typeof p.host === "string" && p.host) who.appendChild(el("span", "account-partner-host", p.host));
+      li.appendChild(who);
       var remove = button("account-partner-remove", t("account.partnerRemove"));
       remove.setAttribute("aria-label", t("account.partnerRemove.label", { name: label }));
       remove.onclick = function () {

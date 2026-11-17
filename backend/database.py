@@ -202,6 +202,7 @@ def init_database() -> None:
         ensure_node_claims_source_column(conn)
         ensure_command_log_table(conn)
         ensure_sync_state_table(conn)
+        ensure_person_settings_table(conn)
 
         conn.commit()
         print(f"Database initialized successfully at {get_db_path()}")
@@ -282,6 +283,23 @@ def ensure_sync_state_table(conn: sqlite3.Connection) -> None:
             key        TEXT PRIMARY KEY,
             value      TEXT,  -- JSON stored as TEXT in SQLite
             updated_at TEXT
+        )
+    """)
+
+
+def ensure_person_settings_table(conn: sqlite3.Connection) -> None:
+    """Create ``person_settings`` if missing: each person's choices, by Discord id.
+
+    ``show_name`` (1 = the map and partner tools show the person's name with their nodes) and
+    ``share_partners`` (1 = partner tools may learn which nodes they own or manage). A person
+    without a row has both on.
+    """
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS person_settings (
+            discord_id     VARCHAR(20) PRIMARY KEY,
+            show_name      INTEGER NOT NULL DEFAULT 1,
+            share_partners INTEGER NOT NULL DEFAULT 1,
+            updated_at     TEXT
         )
     """)
 

@@ -15,5 +15,12 @@
   "account.nodebook": "Mijn NodeBook-vloot",
   "account.logOutEverywhere": "Overal afmelden",
   "account.everywhereHint": "Ook op je andere apparaten.",
-  "account.heading": "#BEmesh-account"
+  "account.heading": "#BEmesh-account",
+  "account.privacy": "Privacy",
+  "account.showName": "Toon mijn naam bij mijn nodes",
+  "account.showName.hint": "Uit: de kaart en partnertools tonen je nodes als geclaimd, zonder je naam.",
+  "account.sharePartners": "Deel mijn nodes met partnertools",
+  "account.sharePartners.hint": "Uit: partnertools zien niet welke nodes je bezit of beheert. Ze krijgen nooit je Discord-account.",
+  "account.saved": "Bewaard.",
+  "account.saveFailed": "Bewaren is niet gelukt. Probeer het zo meteen opnieuw."
 }

@@ -172,7 +172,7 @@ def test_the_account_data_never_holds_the_discord_id(db):
     c = sign_in(client(), user_id='42424242424242')
     text = c.get('/api/v1/account').get_data(as_text=True)
     assert '42424242424242' not in text
-    assert set(json.loads(text)) == {'name', 'nodes', 'tools'}
+    assert set(json.loads(text)) == {'name', 'nodes', 'tools', 'settings'}
 
 
 def test_without_a_display_name_the_user_name_is_shown(db):

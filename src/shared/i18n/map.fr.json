@@ -151,5 +151,7 @@
   "map.plan.profileFrom": "Profil depuis ici",
   "map.plan.profileTo": "Profil jusqu'ici",
   "map.plan.coverageHere": "Couverture depuis ici",
-  "map.plan.menu": "Menu de la carte"
+  "map.plan.menu": "Menu de la carte",
+  "map.claimed": "Revendiqué",
+  "map.ownerNameHidden": "Nom non affiché"
 }

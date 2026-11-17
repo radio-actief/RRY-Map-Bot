@@ -149,5 +149,7 @@
   "map.plan.profileFrom": "Profile from here",
   "map.plan.profileTo": "Profile to here",
   "map.plan.coverageHere": "Coverage from here",
-  "map.plan.menu": "Map menu"
+  "map.plan.menu": "Map menu",
+  "map.claimed": "Claimed",
+  "map.ownerNameHidden": "Name not shown"
 }

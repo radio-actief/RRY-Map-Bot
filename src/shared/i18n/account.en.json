@@ -15,5 +15,12 @@
   "account.nodebook": "My NodeBook fleet",
   "account.logOutEverywhere": "Log out everywhere",
   "account.everywhereHint": "Also on your other devices.",
-  "account.heading": "#BEmesh account"
+  "account.heading": "#BEmesh account",
+  "account.privacy": "Privacy",
+  "account.showName": "Show my name with my nodes",
+  "account.showName.hint": "Off: the map and partner tools show your nodes as claimed, without your name.",
+  "account.sharePartners": "Share my nodes with partner tools",
+  "account.sharePartners.hint": "Off: partner tools don't see which nodes you own or manage. They never get your Discord account.",
+  "account.saved": "Saved.",
+  "account.saveFailed": "Couldn't save. Try again in a moment."
 }

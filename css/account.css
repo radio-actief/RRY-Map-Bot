@@ -148,3 +148,93 @@
     align-items: center;
   }
 }
+
+/* The privacy choices: a switch, its label beside it, the one-line explanation under the label. */
+.account-choice {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 12px;
+  align-items: center;
+  padding: 6px 0;
+}
+
+.account-choice + .account-choice {
+  border-top: 1px solid var(--line);
+}
+
+.account-choice label {
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.account-choice .account-choice-hint {
+  grid-column: 2;
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.account-choice input[role="switch"] {
+  appearance: none;
+  position: relative;
+  width: 36px;
+  height: 20px;
+  margin: 0;
+  border: 1px solid var(--field-line);
+  border-radius: 10px;
+  background: var(--bar);
+  cursor: pointer;
+  transition: background var(--dur), border-color var(--dur);
+}
+
+.account-choice input[role="switch"]::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--mut);
+  transition: transform var(--dur), background var(--dur);
+}
+
+.account-choice input[role="switch"]:checked {
+  background: var(--gold);
+  border-color: var(--gold);
+}
+
+.account-choice input[role="switch"]:checked::before {
+  transform: translateX(16px);
+  background: var(--on-gold);
+}
+
+.account-choice input[role="switch"]:disabled {
+  cursor: progress;
+  opacity: 0.6;
+}
+
+/* "Saved." or why it wasn't, under the choices; empty takes no room. */
+.account-status {
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.account-status:empty {
+  display: none;
+}
+
+.account-status.bad {
+  color: var(--bad);
+}
+
+@media (max-width: 600px) {
+  .account-choice {
+    min-height: 44px;
+  }
+
+  .account-choice label {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+  }
+}

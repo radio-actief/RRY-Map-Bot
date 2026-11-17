@@ -14,6 +14,9 @@ const $ = (id: string) => document.getElementById(id)!;
 
 type Answer = { status: number; body: unknown };
 let account: Answer;
+/** What the POST endpoints answer, by URL (200 {} when not set). */
+let posted: Record<string, Answer> = {};
+const posts: { url: string; body: unknown }[] = [];
 const go = vi.fn();
 
 const NODES = [
@@ -34,7 +37,12 @@ beforeAll(async () => {
   history.replaceState(null, "", "/account");
   vi.stubGlobal(
     "fetch",
-    vi.fn(async (url: string) => {
+    vi.fn(async (url: string, init?: { method?: string; body?: string }) => {
+      if (init?.method === "POST") {
+        posts.push({ url, body: JSON.parse(init.body || "{}") });
+        const a = posted[url] ?? { status: 200, body: {} };
+        return { ok: a.status === 200, status: a.status, json: async () => a.body };
+      }
       if (url === "/api/v1/account") return { ok: account.status === 200, status: account.status, json: async () => account.body };
       if (url === "/auth/me") return { ok: true, status: 200, json: async () => ({ authenticated: true, user: { username: "ann", global_name: "Ann" } }) };
       return { ok: true, status: 200, json: async () => [] };
@@ -52,7 +60,9 @@ beforeAll(async () => {
 
 beforeEach(() => {
   go.mockReset();
-  account = { status: 200, body: { name: "Ann", nodes: NODES, tools: [NODEBOOK] } };
+  posted = {};
+  posts.length = 0;
+  account = { status: 200, body: { name: "Ann", nodes: NODES, tools: [NODEBOOK], settings: { show_name: true, share_partners: true } } };
 });
 
 describe("the account page", () => {
@@ -109,6 +119,47 @@ describe("the account page", () => {
     await load();
     expect($("account-name").textContent).toBe("Your account couldn't be loaded. Try again in a moment.");
     expect(go).not.toHaveBeenCalled();
+  });
+
+  it("shows the two privacy choices as switches, each with its one line under it", async () => {
+    account.body = { ...(account.body as object), settings: { show_name: false, share_partners: true } };
+    await load();
+    expect($("account-privacy").hidden).toBe(false);
+    expect($("account-privacy-title").textContent).toBe("Privacy");
+    const rows = Array.from($("account-privacy").querySelectorAll<HTMLInputElement>("input[data-choice]")).map((i) => [
+      i.getAttribute("role"),
+      document.querySelector(`label[for="${i.id}"]`)!.textContent,
+      $(i.getAttribute("aria-describedby")!).textContent,
+      i.checked,
+    ]);
+    expect(rows).toEqual([
+      ["switch", "Show my name with my nodes", "Off: the map and partner tools show your nodes as claimed, without your name.", false],
+      ["switch", "Share my nodes with partner tools", "Off: partner tools don't see which nodes you own or manage. They never get your Discord account.", true],
+    ]);
+  });
+
+  it("saves a choice as soon as it is switched, and says so", async () => {
+    await load();
+    const share = $("choice-share-partners") as HTMLInputElement;
+    share.checked = false;
+    share.dispatchEvent(new Event("change"));
+    await settle();
+    expect(posts).toEqual([{ url: "/api/v1/account/settings", body: { share_partners: false } }]);
+    expect(share.checked).toBe(false);
+    expect(share.disabled).toBe(false);
+    expect($("account-choice-status").textContent).toBe("Saved.");
+  });
+
+  it("a choice that couldn't be saved switches back and says so", async () => {
+    posted["/api/v1/account/settings"] = { status: 500, body: {} };
+    await load();
+    const name = $("choice-show-name") as HTMLInputElement;
+    name.checked = false;
+    name.dispatchEvent(new Event("change"));
+    await settle();
+    expect(name.checked).toBe(true);
+    expect($("account-choice-status").textContent).toBe("Couldn't save. Try again in a moment.");
+    expect($("account-choice-status").classList.contains("bad")).toBe(true);
   });
 
   it("logs out with two forms: this browser, and everywhere with its line under it", () => {

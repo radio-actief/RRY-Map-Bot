@@ -891,6 +891,17 @@ a.node-popup__source-icon {
   color: var(--app-text, #1a1917);
 }
 
+/* The owner keeps their name private: plain muted text, no link. */
+.leaflet-container .node-popup__discord-user--hidden,
+.bemesh-popup .node-popup__discord-user--hidden {
+  color: var(--glass-mut);
+  font-weight: 400;
+}
+
+.node-popup__discord-user--hidden:hover {
+  text-decoration: none;
+}
+
 .node-popup__radio-preset {
   display: inline-block;
   font-weight: 600;

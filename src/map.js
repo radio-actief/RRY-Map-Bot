@@ -14,7 +14,7 @@ import { render } from "./map-app.render.js";
 import { copyText } from "./shared/clipboard.js";
 import { settleAfterKeyboard } from "./shared/viewport-settle.js";
 import { nodebookApiUrl, nodebookFetchInit, nodebookState, toolLinksHtml } from "./site-tools.js";
-import { coordsFallbackHtml, ownerHtml, planningActionsHtml, typeLabelHtml } from "./popup-safe.js";
+import { coordsFallbackHtml, isClaimed, ownerBlockHtml, ownerHtml, planningActionsHtml, typeLabelHtml } from "./popup-safe.js";
 import { createMapEngine, preloadEngine } from "./map-engine/index.js";
 import { distanceKm, roundCoord, wrapLon } from "./map-engine/geo.js";
 
@@ -1173,20 +1173,8 @@ function buildNodeIdentityPanelHtml(
     );
   }
 
-  const owner = node.discord_owner_name?.trim();
-  if (owner) {
-    const oid = node.discord_owner_id;
-    const at = escapeAttrHtml(owner);
-    const linkBody =
-      oid != null && String(oid).trim() !== ""
-        ? `<a class="node-popup__discord-user" href="https://discord.com/users/${encodeURIComponent(String(oid))}" target="_blank" rel="noopener noreferrer" title="${escapeAttrHtml(t("map.dmOwner"))}" aria-label="${escapeAttrHtml(t("map.dmOwner"))}">@${at}</a>`
-        : `<span class="node-popup__discord-user node-popup__discord-user--bare">@${at}</span>`;
-    blocks.push(
-      `<div class="node-popup__panel-block node-popup__panel-block--owner">` +
-        `<div class="node-popup__panel-kicker"><span class="node-popup__panel-icon node-popup__panel-icon--discord" aria-hidden="true"><i class="bi bi-shield-check" aria-hidden="true"></i></span><span>${escapeAttrHtml(t("map.claimedBy"))}</span></div>` +
-        `<div class="node-popup__panel-body">${linkBody}</div></div>`,
-    );
-  }
+  const ownerBlock = ownerBlockHtml(node, node.discord_owner_id, t);
+  if (ownerBlock) blocks.push(ownerBlock);
 
   return `<section class="node-popup__panel" aria-label="${escapeAttrHtml(t("map.panelLabel"))}">${blocks.join("")}</section>`;
 }
@@ -1294,8 +1282,7 @@ function getTable(node, authState = null, nodes = []) {
     })() +
     "</div>" +
     (() => {
-      const isUnclaimed =
-        !node.discord_owner_name || node.discord_owner_name.trim() === "";
+      const isUnclaimed = !isClaimed(node);
       // Only a hex key goes into the claim buttons (the server checks it too).
       const publicKey = /^[0-9a-f]{1,64}$/i.test(node.public_key || "") ? node.public_key : "";
 
@@ -1637,7 +1624,7 @@ mapReady.then((map) => {
 function nodeMarkerLook(node, auth) {
   const type = [1, 2, 3, 4].includes(Number(node.type)) ? Number(node.type) : 1;
   const owned = Boolean(auth.authenticated && auth.user && node.discord_owner_id && String(node.discord_owner_id) === String(auth.user.id));
-  const mark = owned ? "user-owned" : node.discord_owner_id ? "claimed" : "";
+  const mark = owned ? "user-owned" : isClaimed(node) ? "claimed" : "";
   const look = { type, status: node.status || "none", mark };
   if (type === 1) {
     look.label = ntools.getNameIconLabel(node.adv_name);
@@ -2305,12 +2292,8 @@ createApp({
                       (node.source.toLowerCase() === "app" ||
                         node.source.toLowerCase() === "web"))))) &&
               (app.claimedFilter.length === 0 ||
-                (app.claimedFilter.includes("claimed") &&
-                  node.discord_owner_name &&
-                  node.discord_owner_name.trim() !== "") ||
-                (app.claimedFilter.includes("unclaimed") &&
-                  (!node.discord_owner_name ||
-                    node.discord_owner_name.trim() === ""))),
+                (app.claimedFilter.includes("claimed") && isClaimed(node)) ||
+                (app.claimedFilter.includes("unclaimed") && !isClaimed(node))),
           );
         const seenPk = new Set();
         filteredNodesRef.value = merged.filter((node) => {

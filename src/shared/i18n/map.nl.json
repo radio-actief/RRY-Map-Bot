@@ -149,5 +149,7 @@
   "map.plan.profileFrom": "Profiel vanaf hier",
   "map.plan.profileTo": "Profiel tot hier",
   "map.plan.coverageHere": "Bereik vanaf hier",
-  "map.plan.menu": "Kaartmenu"
+  "map.plan.menu": "Kaartmenu",
+  "map.claimed": "Geclaimd",
+  "map.ownerNameHidden": "Naam niet getoond"
 }

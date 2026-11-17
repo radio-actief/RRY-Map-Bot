@@ -28,6 +28,7 @@ from backend.database import (
     dict_from_row
 )
 from backend.datetime_utils import normalize_node_timestamps
+import backend.claims as claims
 from config.config import SITE_TOOLS as config_site_tools, SITE_TOOL_SECRETS as config_site_tool_secrets
 from config.config import LANG_COOKIE_DOMAIN, DATABASE_PATH
 from config.site_tools import shown_tools, tool_origins
@@ -378,10 +379,13 @@ def get_all_belgian_nodes():
     
     try:
         # Query all active nodes
+        # The owner's "show my name" choice (on when they never changed it).
         cursor.execute("""
-            SELECT * FROM belgian_nodes
-            WHERE is_active = 1
-            ORDER BY adv_name
+            SELECT b.*, ps.show_name AS owner_show_name
+            FROM belgian_nodes b
+            LEFT JOIN person_settings ps ON ps.discord_id = b.discord_owner_id
+            WHERE b.is_active = 1
+            ORDER BY b.adv_name
         """)
         
         rows = cursor.fetchall()
@@ -412,7 +416,10 @@ def get_all_belgian_nodes():
                 'updated_by': node_dict.get('updated_by'),
                 # Additional fields added by our system
                 'city': node_dict.get('city'),
-                'discord_owner_name': node_dict.get('discord_owner_name'),
+                # Claimed or not, always; the owner's name only when they show it.
+                'claimed': bool(node_dict.get('discord_owner_id')),
+                'discord_owner_name': (node_dict.get('discord_owner_name')
+                                       if node_dict.get('owner_show_name') != 0 else None),
                 'discord_owner_id': node_dict.get('discord_owner_id'),
             }
             
@@ -1860,9 +1867,26 @@ def account_data():
         for t in shown_tools(SITE_TOOLS) if t['key'] in ACCOUNT_PARTS
     ]
     resp, status = _no_store(jsonify({'name': user.get('global_name') or user.get('username'),
-                                      'nodes': nodes, 'tools': tools}), 200)
+                                      'nodes': nodes, 'tools': tools,
+                                      'settings': claims.get_settings(user['id'])}), 200)
     resp.vary.add('Cookie')
     return resp, status
+
+
+@app.route('/api/v1/account/settings', methods=['POST'])
+def account_settings():
+    """Saves the person's choices: {"show_name": bool, "share_partners": bool}, either or both.
+    A POST from the map's own pages only (_same_site_only)."""
+    if not is_authenticated():
+        return _no_store(jsonify({'error': 'Authentication required'}), 401)
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict):
+        return _no_store(jsonify({'error': 'invalid_request'}), 400)
+    given = {k: body[k] for k in ('show_name', 'share_partners') if k in body}
+    if not given or any(not isinstance(v, bool) for v in given.values()):
+        return _no_store(jsonify({'error': 'invalid_request'}), 400)
+    settings = claims.save_settings(get_current_user()['id'], **given)
+    return _no_store(jsonify({'settings': settings}), 200)
 
 
 @app.route('/account')

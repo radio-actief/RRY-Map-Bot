@@ -15,5 +15,12 @@
   "account.nodebook": "Ma flotte NodeBook",
   "account.logOutEverywhere": "Se déconnecter partout",
   "account.everywhereHint": "Aussi sur vos autres appareils.",
-  "account.heading": "Compte #BEmesh"
+  "account.heading": "Compte #BEmesh",
+  "account.privacy": "Confidentialité",
+  "account.showName": "Afficher mon nom avec mes nœuds",
+  "account.showName.hint": "Désactivé : la carte et les outils partenaires indiquent vos nœuds comme revendiqués, sans votre nom.",
+  "account.sharePartners": "Partager mes nœuds avec les outils partenaires",
+  "account.sharePartners.hint": "Désactivé : les outils partenaires ne voient pas quels nœuds vous possédez ou gérez. Ils ne reçoivent jamais votre compte Discord.",
+  "account.saved": "Enregistré.",
+  "account.saveFailed": "L'enregistrement n'a pas réussi. Réessayez dans un instant."
 }

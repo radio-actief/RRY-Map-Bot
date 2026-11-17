@@ -1,7 +1,8 @@
 /* The account page (account.html, served at /account to a signed-in person): their name, the nodes
- * they claimed on the map (each a link to it on the map) and the site's tools that have an account
- * part of their own, from GET /api/v1/account. Log out and Log out everywhere are plain forms in the
- * page. Signed out by now (the session ended in another tab): back through sign-in. */
+ * they claimed on the map (each a link to it on the map), their two privacy choices (saved as soon
+ * as they switch one) and the site's tools that have an account part of their own, from
+ * GET /api/v1/account. Log out and Log out everywhere are plain forms in the page. Signed out by now
+ * (the session ended in another tab): back through sign-in. */
 (function () {
   "use strict";
 
@@ -60,6 +61,62 @@
     return li;
   }
 
+  /** POSTs JSON to one of the account's own endpoints; resolves to the answer's JSON, or rejects. */
+  function post(url, body) {
+    return fetch(url, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(body || {}),
+    }).then(function (r) {
+      if (r.status === 401) {
+        api.go("/auth/login?next=/account");
+        throw new Error("signed out");
+      }
+      if (!r.ok) throw new Error(url + " " + r.status);
+      return r.json();
+    });
+  }
+
+  function status(id, text, bad) {
+    var p = byId(id);
+    if (!p) return;
+    p.textContent = text || "";
+    p.classList.toggle("bad", Boolean(bad));
+  }
+
+  /** The two privacy choices: each switch saves at once; a failed save puts it back and says so. */
+  function renderChoices(t, settings) {
+    var card = byId("account-privacy");
+    if (!settings || typeof settings !== "object") {
+      card.hidden = true;
+      return;
+    }
+    card.hidden = false;
+    Array.prototype.forEach.call(card.querySelectorAll("input[data-choice]"), function (input) {
+      var name = input.getAttribute("data-choice");
+      input.checked = settings[name] !== false;
+      input.onchange = function () {
+        var wanted = input.checked;
+        var body = {};
+        body[name] = wanted;
+        input.disabled = true;
+        status("account-choice-status", "");
+        post("/api/v1/account/settings", body)
+          .then(function () {
+            status("account-choice-status", t("account.saved"));
+          })
+          .catch(function () {
+            input.checked = !wanted;
+            status("account-choice-status", t("account.saveFailed"), true);
+          })
+          .then(function () {
+            input.disabled = false;
+          });
+      };
+    });
+  }
+
   function render(t, data) {
     var name = byId("account-name");
     name.textContent = typeof data.name === "string" ? data.name : "";
@@ -71,6 +128,7 @@
     });
     list.hidden = list.children.length === 0;
     byId("account-nodes-empty").hidden = list.children.length > 0;
+    renderChoices(t, data.settings);
     var tools = (Array.isArray(data.tools) ? data.tools : []).filter(function (x) {
       // A path on this site or https only: never a javascript: or other odd address.
       return x && typeof x.url === "string" && /^(\/(?![/\\])|https:\/\/|http:\/\/(localhost|127\.0\.0\.1)[:/])/.test(x.url);

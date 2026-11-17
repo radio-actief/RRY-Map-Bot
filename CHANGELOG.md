@@ -2,6 +2,14 @@
 
 What changed in each release of the #BEmesh map, bot and configurator.
 
+## 1.6.0 (2026-11-17)
+
+### New
+
+- On your account page you choose whether your name shows with your nodes, and whether partner tools may see your nodes. Partner tools never get your Discord account
+- Owners can add managers to a node with a one-time invitation link; managers see the node under My nodes and can step down
+- Groundwork for partner tools such as the ON8AR analyzer: they ask your permission once before you sign in with #BEmesh there, and you can withdraw it on your account page
+
 ## 1.5.0 (2026-11-16)
 
 ### Changed

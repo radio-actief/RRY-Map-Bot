@@ -2,11 +2,15 @@
 
 What changed in each release of the #BEmesh map, bot and configurator.
 
-## 1.9.0 (2026-11-17)
+## 1.9.1 (2026-11-17)
 
 ### Changed
 
 - The map, stats and region map load faster: each page now comes in a handful of files instead of dozens, and your browser keeps them, so a return visit only checks the page itself
+
+## 1.9.0 (2026-11-17)
+
+Not deployed; released as 1.9.1.
 
 ## 1.8.0 (2026-11-17)
 

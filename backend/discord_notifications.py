@@ -15,6 +15,7 @@ from typing import Any, Dict, Optional
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from config.config import DISCORD_API_BASE_URL, DISCORD_BOT_TOKEN, STARTUP_CHANNEL_ID
+from backend import claims
 from backend.discord_branding import apply_brand_to_embed_dict
 from backend.discord_formatting import (
     build_claim_embed_dict,
@@ -79,13 +80,25 @@ def _send_in_background(embed: Dict[str, Any], components: list) -> None:
     ).start()
 
 
+def _shown_id(user_id: str) -> Optional[str]:
+    """The person's id when they show their name; None (so nobody is named) when they don't, or
+    when their choice can't be read."""
+    try:
+        return claims.shown_id(user_id)
+    except Exception as e:
+        print(f"Could not read a name choice for a notification: {type(e).__name__}")
+        return None
+
+
 def notify_node_claimed(node: Dict[str, Any], user_id: str, username: str) -> None:
-    """Announce a web-app claim in the channel (sent in the background)."""
-    embed = apply_brand_to_embed_dict(build_claim_embed_dict(node, user_id, via_web=True))
+    """Announce a web-app claim in the channel (sent in the background), naming the person only
+    when they show their name with their nodes."""
+    embed = apply_brand_to_embed_dict(build_claim_embed_dict(node, _shown_id(user_id), via_web=True))
     _send_in_background(embed, map_button_components(get_map_link(node, short=True)))
 
 
 def notify_node_unclaimed(node: Dict[str, Any], user_id: str, username: str) -> None:
-    """Announce a web-app unclaim in the channel (sent in the background)."""
-    embed = apply_brand_to_embed_dict(build_unclaim_embed_dict(node, user_id, via_web=True))
+    """Announce a web-app unclaim in the channel (sent in the background), naming the person only
+    when they show their name with their nodes."""
+    embed = apply_brand_to_embed_dict(build_unclaim_embed_dict(node, _shown_id(user_id), via_web=True))
     _send_in_background(embed, map_button_components(get_map_link(node, short=True)))

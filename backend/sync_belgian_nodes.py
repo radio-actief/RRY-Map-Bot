@@ -1109,7 +1109,7 @@ def get_node_details_by_keys(public_keys: List[str], conn) -> List[Dict[str, Any
         conn: Database connection.
     
     Returns:
-        List of node dictionaries.
+        List of node dictionaries, for the sync message (see ``claims.hide_owners``).
     """
     if not public_keys:
         return []
@@ -1137,7 +1137,9 @@ def get_node_details_by_keys(public_keys: List[str], conn) -> List[Dict[str, Any
                 node['params'] = {}
         nodes.append(node)
     
-    return nodes
+    # These rows go into a Discord message: owners who don't show their name are left out.
+    from backend.claims import hide_owners
+    return hide_owners(nodes, conn=conn)
 
 
 def get_deactivated_unclaimed_discord_nodes(conn, official_node_keys: Set[str]) -> List[Dict[str, Any]]:

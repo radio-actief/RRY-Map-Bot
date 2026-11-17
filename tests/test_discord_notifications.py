@@ -63,7 +63,7 @@ def test_send_gives_up_on_errors(posts):
     assert dn.send_discord_message({"title": "x"}) is False
 
 
-def test_claim_notification_runs_in_the_background_with_a_map_button(posts, monkeypatch):
+def test_claim_notification_runs_in_the_background_with_a_map_button(posts, monkeypatch, temp_db):
     calls, _ = posts
     started = []
     real_thread = threading.Thread

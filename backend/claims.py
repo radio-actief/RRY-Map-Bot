@@ -65,6 +65,48 @@ def save_settings(discord_id: str, show_name: Optional[bool] = None,
     return current
 
 
+def shown_id(discord_id) -> Optional[str]:
+    """The person's Discord id when they show their name with their nodes, else None: what a
+    message others can read may mention."""
+    if discord_id is None or not get_settings(discord_id)['show_name']:
+        return None
+    return str(discord_id)
+
+
+def hide_owners(nodes: List[Dict], viewer_id: Optional[str] = None, conn=None) -> List[Dict]:
+    """Node rows as a message of the bot may show them: a copy of each, where the owner of a node
+    who doesn't show their name is taken out (``discord_owner_id`` and ``discord_owner_name``
+    None) and ``owner_hidden`` is True, so the node still reads as claimed. `viewer_id`'s own
+    nodes stay whole (for an answer only they see). `conn` when the caller has one open."""
+    out = [dict(n) for n in nodes]
+    owners = sorted({str(n['discord_owner_id']) for n in out if n.get('discord_owner_id')})
+    if viewer_id is not None:
+        owners = [o for o in owners if o != str(viewer_id)]
+    hidden = set()
+    if owners:
+        own = conn is None
+        if own:
+            conn = get_connection()
+        try:
+            for i in range(0, len(owners), 500):
+                chunk = owners[i:i + 500]
+                rows = conn.execute(
+                    "SELECT discord_id FROM person_settings WHERE show_name = 0 AND discord_id IN "
+                    f"({','.join('?' * len(chunk))})",
+                    chunk,
+                ).fetchall()
+                hidden.update(str(r[0]) for r in rows)
+        finally:
+            if own:
+                conn.close()
+    for n in out:
+        if n.get('discord_owner_id') and str(n['discord_owner_id']) in hidden:
+            n['discord_owner_id'] = None
+            n['discord_owner_name'] = None
+            n['owner_hidden'] = True
+    return out
+
+
 # Managers and invitations
 
 INVITE_TTL = timedelta(days=7)
@@ -159,16 +201,20 @@ def nodes_of(discord_id: str) -> List[Dict]:
 
 
 def managers_of(public_key: str) -> List[Dict]:
-    """The node's managers, oldest first: their row number and name (never their Discord id)."""
+    """The node's managers, oldest first: their row number and name (never their Discord id), and
+    whether they show their name with their nodes."""
     conn = get_connection()
     try:
         rows = conn.execute(
-            "SELECT id, display_name, added_at FROM node_managers WHERE public_key = ? ORDER BY id",
+            "SELECT m.id, m.display_name, m.added_at, COALESCE(ps.show_name, 1) AS show_name "
+            "FROM node_managers m LEFT JOIN person_settings ps ON ps.discord_id = m.discord_id "
+            "WHERE m.public_key = ? ORDER BY m.id",
             (public_key,),
         ).fetchall()
     finally:
         conn.close()
-    return [{'id': r['id'], 'name': r['display_name'], 'added_at': r['added_at']} for r in rows]
+    return [{'id': r['id'], 'name': r['display_name'], 'added_at': r['added_at'],
+             'shows_name': bool(r['show_name'])} for r in rows]
 
 
 def create_invite(public_key: str, owner_id: str):

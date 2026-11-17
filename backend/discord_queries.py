@@ -48,6 +48,7 @@ def _node_passes_filters(
     claimed: Optional[bool] = None,
     source: Optional[str] = None,
     include_inactive: bool = False,
+    viewer_id: Optional[str] = None,
 ) -> bool:
     """Check whether a single node row satisfies the same filters as query_nodes_substring."""
     if include_inactive:
@@ -65,8 +66,11 @@ def _node_passes_filters(
         if city.lower() not in node_city:
             return False
 
-    if owner_id and str(node.get('discord_owner_id')) != str(owner_id):
-        return False
+    if owner_id:
+        if str(node.get('discord_owner_id')) != str(owner_id):
+            return False
+        if not _owner_may_be_searched(owner_id, viewer_id):
+            return False
 
     if claimed is not None:
         has_owner = node.get('discord_owner_id') is not None
@@ -106,6 +110,21 @@ def _node_passes_filters(
                 return False
 
     return True
+
+
+# True for a node whose owner shows their name with their nodes (no row: they do).
+_OWNER_SHOWN_SQL = (
+    "COALESCE((SELECT ps.show_name FROM person_settings ps"
+    " WHERE ps.discord_id = belgian_nodes.discord_owner_id), 1) = 1"
+)
+
+
+def _owner_may_be_searched(owner_id: str, viewer_id: Optional[str]) -> bool:
+    """A search by owner finds the nodes of people who show their name, and one's own."""
+    if viewer_id is not None and str(owner_id) == str(viewer_id):
+        return True
+    from backend.claims import get_settings
+    return get_settings(owner_id)['show_name']
 
 
 def _sort_nodes_by_relevance(nodes: List[Dict[str, Any]], query: Optional[str]) -> List[Dict[str, Any]]:
@@ -150,18 +169,23 @@ def _search_conditions(
     include_inactive: bool = False,
     claimed: Optional[bool] = None,
     source: Optional[str] = None,
+    viewer_id: Optional[str] = None,
 ) -> tuple:
-    """WHERE conditions and parameters shared by the node search and its count."""
+    """WHERE conditions and parameters shared by the node search and its count.
+
+    Someone who doesn't show their name with their nodes isn't found through it: the text matches
+    an owner's name only when that owner shows it, and ``owner_id`` finds nothing for an owner who
+    doesn't (unless they are ``viewer_id``, asking for an answer only they see)."""
     # include_inactive=True shows ONLY inactive nodes; the default only active ones.
     conditions = ["is_active = 0" if include_inactive else "is_active = 1"]
     params: List[Any] = []
 
-    # Substring match on name, public key or owner name; wildcards taken literally.
+    # Substring match on name, public key or (shown) owner name; wildcards taken literally.
     if query:
         pattern = _like_pattern(query.lower())
         conditions.append(
             "(LOWER(adv_name) LIKE ? ESCAPE '\\' OR LOWER(public_key) LIKE ? ESCAPE '\\'"
-            " OR LOWER(discord_owner_name) LIKE ? ESCAPE '\\')"
+            f" OR (LOWER(discord_owner_name) LIKE ? ESCAPE '\\' AND {_OWNER_SHOWN_SQL}))"
         )
         params.extend([pattern, pattern, pattern])
 
@@ -187,7 +211,10 @@ def _search_conditions(
             params.extend(values)
 
     if owner_id:
-        conditions.append("discord_owner_id = ?")
+        if viewer_id is not None and str(owner_id) == str(viewer_id):
+            conditions.append("discord_owner_id = ?")
+        else:
+            conditions.append(f"discord_owner_id = ? AND {_OWNER_SHOWN_SQL}")
         params.append(str(owner_id))
 
     if claimed is not None:
@@ -226,37 +253,45 @@ def query_nodes_substring(
     limit: int = 25,
     include_inactive: bool = False,
     claimed: Optional[bool] = None,
-    source: Optional[str] = None
+    source: Optional[str] = None,
+    viewer_id: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """
     Query nodes with substring matching (case-insensitive).
     By default filters for active nodes only (is_active = TRUE).
 
     Args:
-        query: Substring to search in node name, public key or owner name.
-            ``%`` and ``_`` are matched literally.
+        query: Substring to search in node name, public key or owner name (only of owners who
+            show their name). ``%`` and ``_`` are matched literally.
         node_type: Filter by node type (1-4).
         city: Filter by city name (case-insensitive substring).
         frequency_preset_name: Filter by frequency preset name (matches nodes using that preset).
-        owner_id: Filter by Discord owner ID.
+        owner_id: Filter by Discord owner ID (nothing for an owner who hides their name, unless
+            they are ``viewer_id``).
         limit: Maximum number of results (default 25).
         include_inactive: If True, show ONLY inactive nodes (default False: only active).
         claimed: Filter by claim status (True=claimed, False=unclaimed, None=both).
         source: Filter by source type (app, uploader, web, unknown, or None for all).
+        viewer_id: The person the answer is for when only they see it; their own nodes then
+            come back whole even when they hide their name.
 
     Returns:
-        List of node dictionaries matching the criteria.
+        List of node dictionaries matching the criteria, as a message of the bot may show them:
+        an owner who hides their name is taken out (``claims.hide_owners``).
 
     Raises:
         sqlite3.Error: when the database can't be read (never an empty list).
     """
+    from backend.claims import hide_owners
+
     filters = dict(
         node_type=node_type, city=city, frequency_preset_name=frequency_preset_name,
         owner_id=owner_id, claimed=claimed, source=source, include_inactive=include_inactive,
+        viewer_id=viewer_id,
     )
     exact = _exact_key_match(normalize_pubkey(query) if query else None, filters)
     if exact:
-        return [exact]
+        return hide_owners([exact], viewer_id)
 
     where, params = _search_conditions(query=query, **filters)
     conn = get_connection()
@@ -265,9 +300,10 @@ def query_nodes_substring(
             f"SELECT * FROM belgian_nodes WHERE {where} ORDER BY adv_name LIMIT ?",
             [*params, limit],
         ).fetchall()
+        nodes = hide_owners([dict_from_row(row) for row in rows], viewer_id, conn=conn)
     finally:
         conn.close()
-    nodes = [dict_from_row(row) for row in rows]
+    # Sorted after hiding, so a hidden name doesn't move a node up either.
     return _sort_nodes_by_relevance(nodes, query) if query else nodes
 
 
@@ -280,11 +316,13 @@ def count_nodes_substring(
     include_inactive: bool = False,
     claimed: Optional[bool] = None,
     source: Optional[str] = None,
+    viewer_id: Optional[str] = None,
 ) -> int:
     """How many nodes ``query_nodes_substring`` would find without its limit."""
     filters = dict(
         node_type=node_type, city=city, frequency_preset_name=frequency_preset_name,
         owner_id=owner_id, claimed=claimed, source=source, include_inactive=include_inactive,
+        viewer_id=viewer_id,
     )
     if _exact_key_match(normalize_pubkey(query) if query else None, filters):
         return 1
@@ -296,9 +334,13 @@ def count_nodes_substring(
         conn.close()
 
 
-def search_owned_nodes(user_id: str, query: Optional[str] = None, limit: int = 25) -> List[Dict[str, Any]]:
-    """The caller's own nodes (active first, then inactive) whose name or key contains ``query``."""
+def search_owned_nodes(user_id: str, query: Optional[str] = None, limit: int = 25,
+                       *, active_only: bool = False) -> List[Dict[str, Any]]:
+    """The caller's own nodes (active first, then inactive; with ``active_only`` only those on the
+    map) whose name or key contains ``query``. Nodes they own, not nodes they manage."""
     conditions = ["discord_owner_id = ?"]
+    if active_only:
+        conditions.append("is_active = 1")
     params: List[Any] = [str(user_id)]
     norm = normalize_pubkey(query) if query else None
     if norm and len(norm) == 64:

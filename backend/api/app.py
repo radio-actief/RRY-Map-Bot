@@ -430,7 +430,8 @@ def get_all_belgian_nodes():
                 'claimed': bool(node_dict.get('discord_owner_id')),
                 'discord_owner_name': (node_dict.get('discord_owner_name')
                                        if node_dict.get('owner_show_name') != 0 else None),
-                'discord_owner_id': node_dict.get('discord_owner_id'),
+                # Never the owner's Discord id: this list is public. Signed-in members get it for
+                # the popup's message link from /api/v1/nodes/<key>/ownership.
             }
             
             # Add coords field for frontend compatibility (format: "lat, lon")
@@ -532,7 +533,8 @@ def get_belgian_nodes():
                 "inserted_by": "hex_key",
                 "updated_by": "hex_key",
                 "city": "Brussels",
-                "discord_owner_name": "username"
+                "claimed": true,
+                "discord_owner_name": "username"   # null when unclaimed or the owner hides it
             },
             ...
         ]
@@ -2573,26 +2575,28 @@ def unclaim_node(public_key: str):
 @app.route('/api/v1/nodes/<public_key>/ownership', methods=['GET'])
 def check_ownership(public_key: str):
     """
-    Check if current user owns a node.
-    
-    Returns ownership status (no authentication required, but returns False if not authenticated).
+    The signed-in person and this node: {"owned", "role", "authenticated"}; signed out
+    {"owned": false, "authenticated": false}. For a member of the #BEmesh server, also
+    "owner_discord_id" when someone else owns it and shows their name: the popup's link to send
+    them a message. The public node list never holds Discord ids.
     """
-    # Normalize public key
-    public_key_normalized = public_key.replace(' ', '').replace('-', '').lower()
-    
     if not is_authenticated():
         return jsonify({
             'owned': False,
             'authenticated': False
         }), 200
-    
+
     user = get_current_user()
-    owned = verify_ownership(public_key_normalized, user['id'])
-    
-    return jsonify({
-        'owned': owned,
-        'authenticated': True
-    }), 200
+    key = claims.normalize_key(public_key)
+    role = claims.role_of(key, user['id']) if key else None
+    answer = {'owned': role == 'owner', 'role': role, 'authenticated': True}
+    if key and role != 'owner' and session.get('is_guild_member'):
+        owner = claims.shown_owner_id(key)
+        if owner:
+            answer['owner_discord_id'] = owner
+    resp, status = _no_store(jsonify(answer), 200)
+    resp.vary.add('Cookie')
+    return resp, status
 
 
 @app.route('/api/v1/my-nodes', methods=['GET'])
@@ -2633,7 +2637,6 @@ def get_my_nodes():
             'source': node_dict.get('source'),
             'city': node_dict.get('city'),
             'discord_owner_name': node_dict.get('discord_owner_name'),
-            'discord_owner_id': node_dict.get('discord_owner_id'),
         }
         
         formatted_node['coords'] = f"{node_dict['adv_lat']}, {node_dict['adv_lon']}"

@@ -101,7 +101,11 @@ match by construction.
 buttons) set `discord_owner_id` and `discord_owner_name` on `belgian_nodes`
 and append an event row to `node_claims` with a timestamp and its source
 (`bot` or `web`). `node_claims` is an append-only log of every claim/unclaim
-event.
+event, and of managers added and removed (`manager_add`, `manager_remove`):
+people an owner invites with a one-time link (`node_managers`,
+`manager_invites`). Each person's choices (show my name, share my nodes with
+partner tools) are in `person_settings`. Public answers never hold a Discord
+id.
 
 ## Configuration
 

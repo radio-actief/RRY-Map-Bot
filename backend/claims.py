@@ -391,3 +391,21 @@ def node_status(public_key: str, discord_id: str) -> Dict:
         return answer
     finally:
         conn.close()
+
+
+def shown_owner_id(public_key: str) -> Optional[str]:
+    """The Discord id of the active node's owner when they show their name (for the popup's message
+    link, to signed-in members only), else None."""
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT b.discord_owner_id, ps.show_name FROM belgian_nodes b "
+            "LEFT JOIN person_settings ps ON ps.discord_id = b.discord_owner_id "
+            "WHERE b.public_key = ? AND b.is_active = 1",
+            (public_key,),
+        ).fetchone()
+    finally:
+        conn.close()
+    if not row or not row['discord_owner_id'] or row['show_name'] == 0:
+        return None
+    return str(row['discord_owner_id'])

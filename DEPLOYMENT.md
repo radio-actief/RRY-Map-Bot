@@ -92,7 +92,11 @@ The bot will:
 - **Health Check**: HTTP check on `/api/v1/health`
 
 Endpoints:
-- `GET /api/v1/belgian-nodes` - Get all active Belgian nodes
+- `GET /api/v1/belgian-nodes` - Get all active Belgian nodes: `claimed`, and the owner's name
+  (`discord_owner_name`) when they show it; never a Discord id. No public answer holds one: a
+  signed-in member of the server gets an owner's id for the popup's message link from
+  `GET /api/v1/nodes/<key>/ownership` (only when that owner shows their name). Our own tools ask
+  `/auth/claimed` and `/auth/node` instead (below).
 - `GET /api/v1/stats` - Get statistics
 - `GET /api/v1/health` - Health check (API process only)
 - `GET /api/v1/health/sync` - Age of the last sync run: 200 `ok`, or 503 `stale` (older than twice the sync interval) / `no_history`; point uptime monitoring here

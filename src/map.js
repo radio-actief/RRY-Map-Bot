@@ -14,7 +14,7 @@ import { render } from "./map-app.render.js";
 import { copyText } from "./shared/clipboard.js";
 import { settleAfterKeyboard } from "./shared/viewport-settle.js";
 import { nodebookApiUrl, nodebookFetchInit, nodebookState, toolLinksHtml } from "./site-tools.js";
-import { coordsFallbackHtml, isClaimed, myRole, ownerBlockHtml, ownerHtml, planningActionsHtml, typeLabelHtml } from "./popup-safe.js";
+import { coordsFallbackHtml, isClaimed, myRole, ownerBlockHtml, planningActionsHtml, typeLabelHtml } from "./popup-safe.js";
 import { createMapEngine, preloadEngine } from "./map-engine/index.js";
 import { distanceKm, roundCoord, wrapLon } from "./map-engine/geo.js";
 
@@ -962,13 +962,6 @@ const columns = {
     labelKey: "map.col.city",
     value: (val) => (val ? I18N.municipalityName(val) : t("map.unknown")),
   },
-  discord_owner_name: {
-    labelKey: "map.col.owner",
-    value: (val, node) => {
-      // This function is only called if val exists (field is shown)
-      return ownerHtml(val, node?.discord_owner_id, t);
-    },
-  },
   source: {
     labelKey: "map.col.source",
     value: (val) => {
@@ -1126,6 +1119,13 @@ function buildRadioParamsPanelHtml(node) {
   );
 }
 
+/**
+ * Owners' Discord ids for the popup's message link, by public key: the public node list holds none,
+ * so a signed-in member of the server asks /api/v1/nodes/<key>/ownership once per node (null while
+ * asking, or when the owner hides their name).
+ */
+const ownerIds = new Map();
+
 function buildNodeIdentityPanelHtml(
   node,
   nodes = [],
@@ -1173,7 +1173,7 @@ function buildNodeIdentityPanelHtml(
     );
   }
 
-  const ownerBlock = ownerBlockHtml(node, node.discord_owner_id, t);
+  const ownerBlock = ownerBlockHtml(node, ownerIds.get(String(node.public_key ?? "").toLowerCase()), t);
   if (ownerBlock) blocks.push(ownerBlock);
 
   return `<section class="node-popup__panel" aria-label="${escapeAttrHtml(t("map.panelLabel"))}">${blocks.join("")}</section>`;
@@ -1767,6 +1767,31 @@ createApp({
       popupNode = node;
       if (node.public_key) app.urlParams.node = node.public_key;
       askNodebook(node);
+      askOwnerId(node);
+    }
+
+    /**
+     * For a signed-in member of the server: the owner's Discord id behind the popup's "@name"
+     * (once per node and visit), then only the owner line of the open popup is drawn again.
+     */
+    async function askOwnerId(node) {
+      await authChecked;
+      const key = String(node.public_key ?? "").toLowerCase();
+      if (!auth.authenticated || !auth.user?.is_guild_member || !/^[0-9a-f]{64}$/.test(key)) return;
+      if (!isClaimed(node) || !String(node.discord_owner_name ?? "").trim() || ownerIds.has(key)) return;
+      ownerIds.set(key, null);
+      try {
+        const res = await fetch(`/api/v1/nodes/${key}/ownership`, { credentials: "include" });
+        const data = res.ok ? await res.json() : null;
+        const id = data?.owner_discord_id;
+        if (typeof id === "string" && /^\d{1,20}$/.test(id)) ownerIds.set(key, id);
+      } catch {
+        ownerIds.delete(key); // ask again at the next open
+        return;
+      }
+      if (popupNode !== node) return;
+      const line = mapEngine?.popupElement()?.querySelector(".node-popup__panel-block--owner");
+      if (line) line.outerHTML = ownerBlockHtml(node, ownerIds.get(key), t);
     }
 
     /** Draws the open card again (sign-in or NodeBook's answer changed what it shows). */
@@ -2585,6 +2610,7 @@ createApp({
         watch(
           () => [auth.authenticated, auth.user?.id, auth.roles],
           () => {
+            ownerIds.clear();
             refreshOpenPopups();
             mapEngine?.refreshNodes();
           },

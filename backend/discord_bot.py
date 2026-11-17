@@ -84,6 +84,7 @@ from backend.discord_formatting import (
     build_unclaim_embed_dict,
     dict_to_discord_embed,
     ensure_node_params,
+    escape_node_name,
     fit_lines,
     format_full_node_details as _format_full_node_details,
     format_node_line,
@@ -100,6 +101,7 @@ from backend.database import (
     set_sync_state,
 )
 
+from backend import claims
 from backend.discord_queries import (
     city_suggestions,
     count_nodes_substring,
@@ -117,6 +119,31 @@ from backend.discord_queries import (
 GENERIC_ERROR = "Something went wrong — try again in a minute."
 NOT_IN_SERVER = f"Claiming only works inside the {BEMESH} Discord server."
 DIGEST_NOT_IN_SERVER = f"The digest can only be run inside the {BEMESH} Discord server."
+PRIVACY_NOT_IN_SERVER = f"Your privacy choices can only be changed inside the {BEMESH} Discord server."
+INVITE_NOT_IN_SERVER = f"Managers can only be invited inside the {BEMESH} Discord server."
+NOT_FOR_YOU = "This prompt is not for you."
+
+# The account page's own words (src/shared/i18n/account.en.json): the two choices and what
+# switching each one off means. A test keeps them the same.
+PRIVACY_TITLE = "Privacy"
+PRIVACY_CHOICES = (
+    ("show_name", "Show my name with my nodes",
+     "Off: the map and partner tools show your nodes as claimed, without your name."),
+    ("share_partners", "Share my nodes with partner tools",
+     "Off: partner tools don't see which nodes you own or manage. They never get your Discord account."),
+)
+PRIVACY_BOT_NOTE = (
+    "This bot follows the first choice too: with it off, its messages show your nodes as claimed, "
+    "without your name or a mention."
+)
+OWN_MENU_TIMEOUT_S = 300.0  # how long the buttons under a private answer work
+
+INVITE_TEXT = (
+    "Send this link to one person. It works once, for 7 days. "
+    f"They sign in on the {BEMESH} map and choose Become manager."
+)
+TOO_MANY_INVITES = "This node has 10 open invitations. Wait until one is used or expires."
+ACTION_FAILED = "That didn't work. Try again in a moment."
 
 # Server (custom) emojis used in bot texts as :name:. Unicode emoji are written
 # as the characters themselves: Discord does not turn :shortcodes: sent by a
@@ -253,12 +280,43 @@ def format_full_node_details(node: Dict[str, Any], show_coordinates: bool = Fals
     return _format_full_node_details(node, branded_embed, show_coordinates)
 
 
-def build_claim_embed(node: Dict[str, Any], user_id: str) -> discord.Embed:
+def build_claim_embed(node: Dict[str, Any], user_id: Optional[str]) -> discord.Embed:
+    """``user_id`` None: the announcement names nobody (see ``claims.shown_id``)."""
     return dict_to_discord_embed(build_claim_embed_dict(node, user_id, via_web=False), branded_embed)
 
 
-def build_unclaim_embed(node: Dict[str, Any], user_id: str) -> discord.Embed:
+def build_unclaim_embed(node: Dict[str, Any], user_id: Optional[str]) -> discord.Embed:
+    """``user_id`` None: the announcement names nobody (see ``claims.shown_id``)."""
     return dict_to_discord_embed(build_unclaim_embed_dict(node, user_id, via_web=False), branded_embed)
+
+
+async def announce(interaction: discord.Interaction, embed: discord.Embed, view: discord.ui.View,
+                   *, named: bool) -> bool:
+    """The public line after a claim or unclaim. True when it was posted.
+
+    For someone who shows their name it follows their command, as before. For someone who
+    doesn't, it is a message of the bot's own in the channel: a follow-up would stay tied to the
+    person who used the command. Where the bot can't post, nothing is announced."""
+    if named:
+        await interaction.followup.send(embed=embed, view=view)
+        return True
+    channel = getattr(interaction, 'channel', None)
+    if channel is None or not hasattr(channel, 'send'):
+        return False
+    try:
+        await channel.send(embed=embed, view=view)
+    except discord.HTTPException:
+        return False
+    return True
+
+
+def announced_text(done: str, *, named: bool, posted: bool) -> str:
+    """What the person reads after their claim or unclaim went through."""
+    if named:
+        return f"✅ {done}. The announcement is in the channel."
+    if posted:
+        return f"✅ {done}. The announcement in the channel doesn't name you."
+    return f"✅ {done}. Nothing was announced: the bot can't post in this channel."
 
 
 def get_node_type_number(type_text: str) -> Optional[int]:
@@ -596,7 +654,7 @@ async def update_bot_instructions_post() -> None:
 
 node_group = app_commands.Group(
     name="node",
-    description="Claim or release your nodes",
+    description="Claim or release your nodes, and invite managers",
     guild_only=True,
 )
 
@@ -649,7 +707,7 @@ class ConfirmView(discord.ui.View):
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         """Only allow the command issuer to interact."""
         if str(interaction.user.id) != self.user_id:
-            await interaction.response.send_message("This prompt is not for you.", ephemeral=True)
+            await interaction.response.send_message(NOT_FOR_YOU, ephemeral=True)
             return False
         return True
 
@@ -688,13 +746,16 @@ class UnclaimConfirmView(ConfirmView):
             )
             return
 
-        await interaction.edit_original_response(
-            embed=notice_embed("✅ Unclaimed. The announcement is in the channel.", COLOR_OK),
-            view=None,
+        shown = await run_db(claims.shown_id, self.user_id)
+        posted = await announce(
+            interaction,
+            build_unclaim_embed(self.node, shown),
+            map_view(get_map_link(self.node, short=True), "Open on map"),
+            named=bool(shown),
         )
-        await interaction.followup.send(
-            embed=build_unclaim_embed(self.node, self.user_id),
-            view=map_view(get_map_link(self.node, short=True), "Open on map"),
+        await interaction.edit_original_response(
+            embed=notice_embed(announced_text("Unclaimed", named=bool(shown), posted=posted), COLOR_OK),
+            view=None,
         )
 
     @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary, emoji="❌")
@@ -724,13 +785,16 @@ class ClaimConfirmView(ConfirmView):
             await interaction.edit_original_response(embed=notice_embed(reason), view=None)
             return
 
-        await interaction.edit_original_response(
-            embed=notice_embed("✅ Claimed. The announcement is in the channel.", COLOR_OK),
-            view=None,
+        shown = await run_db(claims.shown_id, self.user_id)
+        posted = await announce(
+            interaction,
+            build_claim_embed(self.node, shown),
+            map_view(get_map_link(self.node, short=True), "Open on map", my_nodes=True),
+            named=bool(shown),
         )
-        await interaction.followup.send(
-            embed=build_claim_embed(self.node, self.user_id),
-            view=map_view(get_map_link(self.node, short=True), "Open on map", my_nodes=True),
+        await interaction.edit_original_response(
+            embed=notice_embed(announced_text("Claimed", named=bool(shown), posted=posted), COLOR_OK),
+            view=None,
         )
 
     @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary, emoji="❌")
@@ -826,7 +890,13 @@ async def search_nodes(
         )
         return
 
-    await interaction.response.defer(thinking=True)
+    # Someone who hides their name and asks for their own nodes gets them, but only for their eyes.
+    viewer_id = None
+    if owner is not None and owner.id == interaction.user.id:
+        if not (await run_db(claims.get_settings, str(owner.id)))['show_name']:
+            viewer_id = str(owner.id)
+    private = {"ephemeral": True} if viewer_id else {}
+    await interaction.response.defer(thinking=True, **private)
 
     filters = dict(
         query=query,
@@ -837,6 +907,7 @@ async def search_nodes(
         include_inactive=bool(inactive),
         claimed=claimed,
         source=source_value,
+        viewer_id=viewer_id,
     )
     nodes, total = await run_db(run_search, filters)
 
@@ -860,7 +931,7 @@ async def search_nodes(
             description=f"**Search:** {summary}\n\nNo nodes found matching your criteria.",
             color=COLOR_WARN,
         )
-        await interaction.followup.send(embed=embed, view=map_view())
+        await interaction.followup.send(embed=embed, view=map_view(), **private)
         return
 
     if total == 1:
@@ -870,12 +941,14 @@ async def search_nodes(
         await interaction.followup.send(
             embed=embed,
             view=map_view(get_map_link(node, short=True), "Open on map", my_nodes=True),
+            **private,
         )
         return
 
     await interaction.followup.send(
         embed=build_search_list_embed(summary, nodes, total),
         view=map_view(my_nodes=True),
+        **private,
     )
 
 
@@ -899,8 +972,8 @@ def explain_unclaimable(query: str, user_id: str) -> str:
     """Why ``query`` has no node to claim: yours, someone else's, inactive, or no match."""
     shown_query = strip_backticks(query)
     matches = (
-        query_nodes_substring(query=query, limit=2)
-        + query_nodes_substring(query=query, limit=2, include_inactive=True)
+        query_nodes_substring(query=query, limit=2, viewer_id=user_id)
+        + query_nodes_substring(query=query, limit=2, include_inactive=True, viewer_id=user_id)
     )
     if len(matches) == 1:
         node = matches[0]
@@ -910,6 +983,8 @@ def explain_unclaimable(query: str, user_id: str) -> str:
             return f"This node is already yours:\n{line}"
         if owner_id:
             return f"This node is already claimed by <@{owner_id}>:\n{line}"
+        if node.get('owner_hidden'):  # its owner doesn't show their name
+            return f"This node is already claimed:\n{line}"
         if not node.get('is_active', 1):
             return f"This node is inactive, so it can't be claimed:\n{line}"
     if matches:
@@ -948,8 +1023,12 @@ async def node_claim(interaction: discord.Interaction, query: str):
         return
 
     node = ensure_node_params(nodes[0])
+    if (await run_db(claims.get_settings, user_id))['show_name']:
+        after = "After this, you are shown as its owner on the map."
+    else:
+        after = "After this, the map shows it as claimed, without your name."
     embed = notice_embed(
-        f"{format_node_line(node, owner=False)}\n\nAfter this, you are shown as its owner on the map.",
+        f"{format_node_line(node, owner=False)}\n\n{after}",
         title="⚠️ Claim this node?",
     )
     view = ClaimConfirmView(node, user_id)
@@ -1053,6 +1132,279 @@ async def unclaim_query_autocomplete(interaction: discord.Interaction, current: 
         print(f"[node unclaim autocomplete] {e}")
         return []
     return [app_commands.Choice(name=autocomplete_label(n), value=n['public_key']) for n in nodes]
+
+
+# ============================================================================
+# Managers by invitation
+# ============================================================================
+
+def find_own_active_nodes(user_id: str, query: str) -> List[Dict[str, Any]]:
+    """The caller's own nodes on the map matching ``query`` (nodes they manage don't count)."""
+    return search_owned_nodes(user_id, query, AUTOCOMPLETE_MAX + 1, active_only=True)
+
+
+async def pick_own_active_node(interaction: discord.Interaction, query: str) -> Optional[Dict[str, Any]]:
+    """The one node of the caller that ``query`` names; otherwise answers why not and gives None."""
+    nodes = await run_db(find_own_active_nodes, str(interaction.user.id), query)
+    if not nodes:
+        await interaction.followup.send(embed=notice_embed(
+            f"You don't own an active node matching `{strip_backticks(query)}`. /mynodes lists your nodes."
+        ), ephemeral=True)
+        return None
+    if len(nodes) > 1:
+        intro = (
+            f"**{len(nodes)}** of your nodes match `{strip_backticks(query)}`. "
+            "Pick one from the suggestions, or type more of its name or key:"
+        )
+        await interaction.followup.send(embed=pick_one_embed(intro, nodes, len(nodes)), ephemeral=True)
+        return None
+    return ensure_node_params(nodes[0])
+
+
+async def own_active_node_autocomplete(interaction: discord.Interaction, current: str) -> List[app_commands.Choice[str]]:
+    try:
+        nodes = await run_db(search_owned_nodes, str(interaction.user.id), current, AUTOCOMPLETE_MAX, active_only=True)
+    except Exception as e:
+        print(f"[own node autocomplete] {e}")
+        return []
+    return [app_commands.Choice(name=autocomplete_label(n), value=n['public_key']) for n in nodes]
+
+
+@node_group.command(name="invite-manager", description="Get a one-time link that lets someone help manage one of your nodes")
+@app_commands.describe(node="Start typing one of your nodes' name or public key, then pick it")
+@app_commands.autocomplete(node=own_active_node_autocomplete)
+async def node_invite_manager(interaction: discord.Interaction, node: str):
+    """The owner gets the same one-time invitation link the account page makes; only they see it."""
+    if not is_home_guild_member(interaction):
+        await interaction.response.send_message(INVITE_NOT_IN_SERVER, ephemeral=True)
+        return
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    found = await pick_own_active_node(interaction, node)
+    if found is None:
+        return
+    made = await run_db(claims.create_invite, found['public_key'], str(interaction.user.id))
+    if made is None:  # unclaimed or gone since the lookup
+        await interaction.followup.send(
+            embed=notice_embed("You don't own this node any more, so no invitation was made."), ephemeral=True)
+        return
+    if made == 'too_many':
+        await interaction.followup.send(embed=notice_embed(TOO_MANY_INVITES), ephemeral=True)
+        return
+    link = f"{get_map_base_url()}/invite/{made['token']}"
+    embed = branded_embed(
+        title="🔗 Invitation link",
+        description=f"{format_node_line(found, owner=False, seen=False)}\n\n{link}\n\n{INVITE_TEXT}",
+        color=COLOR_OK,
+    )
+    embed.set_footer(text="Only you see this message.")
+    await interaction.followup.send(embed=embed, ephemeral=True)
+
+
+def manager_label(manager: Dict[str, Any], number: int) -> str:
+    """A manager as the node's owner sees them, as on the account page: by name. The owner
+    invited them, so the name shows whatever the manager chose for the public."""
+    name = " ".join(str(manager.get('name') or '').split())
+    return name or f"Manager {number}"
+
+
+class RemoveManagerConfirmView(ConfirmView):
+    """Yes / Cancel before the owner removes a manager."""
+
+    def __init__(self, node: Dict[str, Any], user_id: str, manager_id: int):
+        super().__init__(node, user_id)
+        self.manager_id = manager_id
+
+    @discord.ui.button(label="Yes, remove", style=discord.ButtonStyle.danger, emoji="✅")
+    async def confirm_remove(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not await self._answer(interaction):
+            return
+        removed = await run_db(claims.remove_manager, self.node['public_key'], self.user_id, self.manager_id)
+        if removed:
+            embed = notice_embed("✅ Removed. They no longer manage this node.", COLOR_OK)
+        else:
+            embed = notice_embed(ACTION_FAILED)
+        await interaction.response.edit_message(content=None, embed=embed, view=None)
+
+    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary, emoji="❌")
+    async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._cancelled(interaction, "Nothing changed.")
+
+
+class ManagerSelect(discord.ui.Select):
+    """The owner picks the manager to remove; a confirmation follows."""
+
+    def __init__(self, node: Dict[str, Any], user_id: str, managers: List[Dict[str, Any]]):
+        self.node = node
+        self.user_id = user_id
+        self.labels = {str(m['id']): manager_label(m, i) for i, m in enumerate(managers, 1)}
+        super().__init__(
+            placeholder="Remove a manager…",
+            options=[discord.SelectOption(label=label[:100], value=value)
+                     for value, label in list(self.labels.items())[:AUTOCOMPLETE_MAX]],
+        )
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        picked = ((getattr(interaction, 'data', None) or {}).get('values') or [None])[0]
+        if picked not in self.labels:
+            await interaction.response.send_message(ACTION_FAILED, ephemeral=True)
+            return
+        node_name = escape_node_name(self.node.get('adv_name') or 'Unknown')
+        embed = notice_embed(
+            f"Remove {escape_node_name(self.labels[picked])} as manager of {node_name}?",
+            title="⚠️ Remove this manager?",
+        )
+        view = RemoveManagerConfirmView(self.node, self.user_id, int(picked))
+        await interaction.response.edit_message(content=None, embed=embed, view=view)
+        if self.view is not None:
+            self.view.stop()  # the menu is replaced by the question
+
+
+class OwnMenuView(discord.ui.View):
+    """Buttons or a menu under an answer only one person sees: only they can use them, and they
+    go away when the menu expires (``origin`` is the interaction whose answer carries them)."""
+
+    def __init__(self, user_id: str, origin: Optional[discord.Interaction] = None) -> None:
+        super().__init__(timeout=OWN_MENU_TIMEOUT_S)
+        self.user_id = str(user_id)
+        self.origin = origin
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if str(interaction.user.id) != self.user_id:
+            await interaction.response.send_message(NOT_FOR_YOU, ephemeral=True)
+            return False
+        return True
+
+    async def on_timeout(self) -> None:
+        if self.origin is None:
+            return
+        try:
+            await self.origin.edit_original_response(view=None)
+        except discord.HTTPException as e:
+            print(f"Error removing an expired menu: {e}")
+
+    async def on_error(self, interaction: discord.Interaction, error: Exception, item) -> None:
+        traceback.print_exception(type(error), error, error.__traceback__)
+        await send_error_reply(interaction)
+
+
+class ManagersView(OwnMenuView):
+    """The remove menu under a node's managers; only its owner can use it."""
+
+    def __init__(self, node: Dict[str, Any], user_id: str, managers: List[Dict[str, Any]],
+                 origin: Optional[discord.Interaction] = None):
+        super().__init__(user_id, origin)
+        self.add_item(ManagerSelect(node, user_id, managers))
+
+
+@node_group.command(name="managers", description="List the managers of one of your nodes, or remove one")
+@app_commands.describe(node="Start typing one of your nodes' name or public key, then pick it")
+@app_commands.autocomplete(node=own_active_node_autocomplete)
+async def node_managers(interaction: discord.Interaction, node: str):
+    """The node's managers, for its owner only; a menu removes one after a confirmation."""
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    found = await pick_own_active_node(interaction, node)
+    if found is None:
+        return
+    user_id = str(interaction.user.id)
+    managers = await run_db(claims.managers_of, found['public_key'])
+    line = format_node_line(found, owner=False, seen=False)
+    if not managers:
+        embed = notice_embed(
+            f"{line}\n\nThis node has no managers yet. Invite one with /node invite-manager.",
+            COLOR_INFO, title="Managers (0)",
+        )
+        await interaction.followup.send(embed=embed, ephemeral=True)
+        return
+    names = [f"{i}. {escape_node_name(manager_label(m, i))}" for i, m in enumerate(managers, 1)]
+    shown, rest = fit_lines(names, DISCORD_EMBED_DESC_LIMIT - len(line) - 200)
+    text = f"{line}\n\n" + "\n".join(shown)
+    if rest:
+        text += f"\n+{rest} more on your [account page]({get_map_base_url()}/account)"
+    embed = notice_embed(text, COLOR_INFO, title=f"Managers ({len(managers)})")
+    embed.set_footer(text="Add a manager with /node invite-manager.")
+    await interaction.followup.send(
+        embed=embed, view=ManagersView(found, user_id, managers, interaction), ephemeral=True)
+
+
+# ============================================================================
+# Privacy choices
+# ============================================================================
+
+def _on_off(value: bool) -> str:
+    return "On" if value else "Off"
+
+
+def build_privacy_embed(settings: Dict[str, bool], saved: Optional[str] = None) -> discord.Embed:
+    """The two choices with their state, in the account page's words; ``saved`` is the choice
+    (its key) that was just switched."""
+    blocks = [f"**{label}: {_on_off(settings[key])}**\n{off}" for key, label, off in PRIVACY_CHOICES]
+    text = "\n\n".join(blocks) + f"\n\n{PRIVACY_BOT_NOTE}"
+    if saved:
+        label = next(label for key, label, _ in PRIVACY_CHOICES if key == saved)
+        text += f"\n\n✅ Saved. {label} is now **{_on_off(settings[saved])}**."
+    embed = branded_embed(title=PRIVACY_TITLE, description=text, color=COLOR_OK if saved else COLOR_INFO)
+    embed.set_footer(text="The same choices as on your account page. Only you see this message.")
+    return embed
+
+
+class PrivacyButton(discord.ui.Button):
+    """Switches one choice to the state its label names."""
+
+    def __init__(self, key: str, label: str, turn_on: bool) -> None:
+        super().__init__(
+            label=f"Turn {'on' if turn_on else 'off'}: {label}",
+            style=discord.ButtonStyle.success if turn_on else discord.ButtonStyle.secondary,
+        )
+        self.key = key
+        self.turn_on = turn_on
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        started = time.monotonic()
+        ok = False
+        try:
+            # The person is the one who clicked, never an id carried by the message.
+            user_id = str(interaction.user.id)
+            settings = await run_db(claims.save_settings, user_id, **{self.key: self.turn_on})
+            await interaction.response.edit_message(
+                content=None,
+                embed=build_privacy_embed(settings, saved=self.key),
+                view=PrivacyView(user_id, settings, interaction),
+            )
+            if self.view is not None:
+                self.view.stop()  # replaced by the new buttons
+            ok = True
+        finally:
+            await log_command_result(
+                interaction, "privacy button", ok=ok,
+                duration_ms=int((time.monotonic() - started) * 1000),
+            )
+
+
+class PrivacyView(OwnMenuView):
+    """One button per choice and a link to the account page; only the person themself."""
+
+    def __init__(self, user_id: str, settings: Dict[str, bool],
+                 origin: Optional[discord.Interaction] = None) -> None:
+        super().__init__(user_id, origin)
+        for key, label, _ in PRIVACY_CHOICES:
+            self.add_item(PrivacyButton(key, label, turn_on=not settings[key]))
+        self.add_item(discord.ui.Button(label="Account page", url=f"{get_map_base_url()}/account"))
+
+
+@bot.tree.command(name="privacy", description="See or change your two privacy choices")
+@app_commands.guild_only()
+async def privacy(interaction: discord.Interaction):
+    """The caller's two choices, only for them, with a button to switch each."""
+    if not is_home_guild_member(interaction):
+        await interaction.response.send_message(PRIVACY_NOT_IN_SERVER, ephemeral=True)
+        return
+    user_id = str(interaction.user.id)
+    settings = await run_db(claims.get_settings, user_id)
+    await interaction.response.send_message(
+        embed=build_privacy_embed(settings),
+        view=PrivacyView(user_id, settings, interaction),
+        ephemeral=True,
+    )
 
 
 def build_stats_embed(

@@ -204,8 +204,17 @@ def format_node_town(node: Dict[str, Any]) -> str:
     return f"{town} ({code})" if code else town
 
 
+def owner_text(node: Dict[str, Any], *, hidden: str, unclaimed: str = "") -> str:
+    """Who owns the node, for a message others can read: a mention, or ``hidden`` when the owner
+    doesn't show their name (``owner_hidden``, set by ``claims.hide_owners``), or ``unclaimed``."""
+    owner_id = node.get('discord_owner_id')
+    if owner_id:
+        return f"<@{owner_id}>"
+    return hidden if node.get('owner_hidden') else unclaimed
+
+
 def format_digest_node_line(node: Dict[str, Any], *, link: bool = True) -> str:
-    """One short digest line: icon, name (linked to the map), town, owner."""
+    """One short digest line: icon, name (linked to the map), town, owner (or "claimed")."""
     icon = get_node_type_icon(node.get('type', 0) or 0)
     raw = " ".join(str(node.get('adv_name') or 'Unknown').split())
     if len(raw) > DIGEST_NAME_MAX_CHARS:
@@ -215,15 +224,15 @@ def format_digest_node_line(node: Dict[str, Any], *, link: bool = True) -> str:
     town = format_node_town(node)
     if town:
         parts.append(town)
-    owner_id = node.get('discord_owner_id')
-    if owner_id:
-        parts.append(f"<@{owner_id}>")
+    owner = owner_text(node, hidden="claimed")
+    if owner:
+        parts.append(owner)
     return f"{icon} " + " · ".join(parts)
 
 
 def format_node_line(node: Dict[str, Any], *, owner: bool = True, seen: bool = True) -> str:
     """The bot's one-line node: the digest line, plus ``seen <t:…:R>`` when known."""
-    line = format_digest_node_line(node if owner else {**node, 'discord_owner_id': None})
+    line = format_digest_node_line(node if owner else {**node, 'discord_owner_id': None, 'owner_hidden': False})
     last = node_last_seen(node) if seen else None
     if last:
         line += " · seen " + discord_timestamp(last)
@@ -241,18 +250,22 @@ def format_node_compact(node: Dict[str, Any]) -> str:
     icon = get_node_type_icon(type_num)
     pk_disp = truncate_public_key(node.get('public_key', ''), show_full=False)
     name = escape_node_name(node.get('adv_name') or 'Unknown')
-    owner_id = node.get('discord_owner_id')
-    owner = f"<@{owner_id}>" if owner_id else "Unclaimed"
+    owner = owner_text(node, hidden="Claimed", unclaimed="Unclaimed")
     return f"{icon} `{pk_disp}` - {name} - {owner}"
 
 
-def build_claim_embed_dict(node: Dict[str, Any], user_id: str, *, via_web: bool = False) -> Dict[str, Any]:
-    """Two lines: who claimed it, then the node line. The map button goes with the message."""
+def _who(user_id: Optional[str]) -> str:
+    return f"<@{user_id}>" if user_id else "A member"
+
+
+def build_claim_embed_dict(node: Dict[str, Any], user_id: Optional[str], *, via_web: bool = False) -> Dict[str, Any]:
+    """Two lines: who claimed it, then the node line. The map button goes with the message.
+    ``user_id`` is None for someone who doesn't show their name (``claims.shown_id``)."""
     type_icon = get_node_type_icon(node.get('type', 0))
     if via_web:
-        what = f"<@{user_id}> claimed this node on the map."
+        what = f"{_who(user_id)} claimed this node on the map."
     else:
-        what = f"<@{user_id}> claimed this node."
+        what = f"{_who(user_id)} claimed this node."
     return {
         "title": f"{type_icon} Node claimed",
         "description": f"{what}\n{format_node_line(node, owner=False)}",
@@ -260,13 +273,14 @@ def build_claim_embed_dict(node: Dict[str, Any], user_id: str, *, via_web: bool 
     }
 
 
-def build_unclaim_embed_dict(node: Dict[str, Any], user_id: str, *, via_web: bool = False) -> Dict[str, Any]:
-    """Two lines: who unclaimed it, then the node line. The map button goes with the message."""
+def build_unclaim_embed_dict(node: Dict[str, Any], user_id: Optional[str], *, via_web: bool = False) -> Dict[str, Any]:
+    """Two lines: who unclaimed it, then the node line. The map button goes with the message.
+    ``user_id`` is None for someone who doesn't show their name (``claims.shown_id``)."""
     type_icon = get_node_type_icon(node.get('type', 0))
     if via_web:
-        what = f"<@{user_id}> unclaimed this node on the map."
+        what = f"{_who(user_id)} unclaimed this node on the map."
     else:
-        what = f"<@{user_id}> unclaimed this node."
+        what = f"{_who(user_id)} unclaimed this node."
     return {
         "title": f"{type_icon} Node unclaimed",
         "description": f"{what}\n{format_node_line(node, owner=False)}",
@@ -315,7 +329,6 @@ def format_full_node_details(
 
     ensure_node_params(node)
     type_num = node.get('type', 0)
-    owner_id = node.get('discord_owner_id')
 
     embed = branded_embed(
         title=f"{get_node_type_icon(type_num)} Node details",
@@ -325,7 +338,7 @@ def format_full_node_details(
     embed.add_field(name="Public key", value=f"`{truncate_public_key(node.get('public_key', ''), show_full=True)}`", inline=False)
     embed.add_field(name="Type", value=get_node_type_display(type_num), inline=True)
     embed.add_field(name="Town", value=format_node_town(node) or "Unknown", inline=True)
-    embed.add_field(name="Owner", value=f"<@{owner_id}>" if owner_id else "Unclaimed", inline=True)
+    embed.add_field(name="Owner", value=owner_text(node, hidden="Claimed", unclaimed="Unclaimed"), inline=True)
 
     if show_coordinates:
         lat = node.get('adv_lat')

@@ -15,6 +15,11 @@ Gebruik je de bot liever niet? Claimen kan ook op de [**#BEmesh map**]({MAP_URL}
 - **`/mynodes`** - Bekijk al je nodes, actief en inactief
 - **`/node claim`** - Claim een node die nog geen eigenaar heeft
 - **`/node unclaim`** - Geef een van je nodes vrij (de lijst toont alleen jouw nodes)
+- **`/node invite-manager`** - Maak een eenmalige uitnodigingslink (7 dagen geldig) waarmee iemand een van je nodes mee beheert
+- **`/node managers`** - Bekijk de beheerders van een van je nodes, of verwijder er een
+
+### 🔒 Privacy
+- **`/privacy`** - Kies of je naam bij je nodes staat en of partnertools je nodes zien. Staat je naam uit, dan toont ook de bot je nodes als geclaimd, zonder naam of vermelding.
 
 ### 🔍 Zoeken
 - **`/search`** - Zoek op naam, public key of eigenaar, en filter op type, stad, frequentiepreset, eigenaar, claimstatus, inactief of bron. Minstens één criterium invullen.
@@ -24,7 +29,7 @@ Gebruik je de bot liever niet? Claimen kan ook op de [**#BEmesh map**]({MAP_URL}
 
 ### 💡 Tips
 - **Node types**: 📱 Companion | 📡 Repeater | 💾 Room Server | 🌡️ Sensor
-- **Zichtbaarheid**: Alleen jij ziet je node-overzicht, foutmeldingen en de vraag of je een node echt wil vrijgeven. Zoekresultaten, statistieken en geslaagde acties (claimen, unclaimen) verschijnen in het kanaal, zichtbaar voor iedereen.
+- **Zichtbaarheid**: Alleen jij ziet je node-overzicht, je privacykeuzes, uitnodigingslinks, foutmeldingen en de vraag of je een node echt wil vrijgeven. Zoekresultaten, statistieken en geslaagde acties (claimen, unclaimen) verschijnen in het kanaal, zichtbaar voor iedereen.
 
 ### 🆘 Hulp
 Voor vragen of problemen, stuur een bericht in <#1454797139959091412> en tag {ADMIN}.

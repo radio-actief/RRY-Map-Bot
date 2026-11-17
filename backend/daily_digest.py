@@ -250,7 +250,9 @@ def _get_node_details_by_keys(public_keys: List[str], conn) -> List[Dict[str, An
         )
         for r in cursor.fetchall():
             out.append(dict(r) if not isinstance(r, dict) else r)
-    return out
+    # The digest is read by everyone: owners who don't show their name are left out of it.
+    from backend.claims import hide_owners
+    return hide_owners(out, conn=conn)
 
 
 # ---------------------------------------------------------------------------

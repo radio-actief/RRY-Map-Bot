@@ -14,6 +14,8 @@ export type EngineOptions = {
   controls?: "bottom-left" | "top-right" | false;
   /** false: a still map, without controls or gestures */
   interactive?: boolean;
+  /** true: zoomed out, the earth is a globe (MapLibre only; the Leaflet map stays flat) */
+  globe?: boolean;
   /** leaflet-engine.js only: a Leaflet module to use instead of loading lib/leaflet.js */
   leaflet?: unknown;
 };

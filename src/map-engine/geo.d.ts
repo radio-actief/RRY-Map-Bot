@@ -2,6 +2,10 @@
 import type { Bounds, Spot } from "./index";
 export function toMapZoom(zoom: number): number;
 export function fromMapZoom(zoom: number): number;
+export const GLOBE_UNTIL_ZOOM: number;
+export const FLAT_FROM_ZOOM: number;
+export function globeProjection(): { type: unknown[] };
+export function globeStyle<T extends object>(style: T): Omit<T, "sky"> & { projection: { type: unknown[] } };
 export function clusterMaxZoomFor(until: number): number;
 export function wrapLon(lon: number): number;
 export function roundCoord(x: number): number;

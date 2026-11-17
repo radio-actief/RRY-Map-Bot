@@ -78,9 +78,47 @@ curl http://localhost:8000/api/v1/health
 
 The bot will:
 - Connect to Discord on startup
-- Sync slash commands to your guild
+- Sync its slash commands with Discord (globally, at every start; a new or
+  changed command can take up to an hour to show up everywhere, usually minutes)
 - Update instructions post (if configured)
 - Handle all Discord commands
+
+No step is needed at deploy for a new slash command: the restart of the
+`discord-bot` container registers it.
+
+#### Privacy choices in the bot
+
+The bot follows the two choices of the account page (`person_settings`, both on
+without a row) and lets members change them:
+
+- **Show my name with my nodes** off: everything the bot shows to others reads
+  "claimed" without a name, mention or id. That covers `/search` (list and
+  single node), the daily digest, the claim and unclaim announcements (from the
+  bot and from the map: "A member claimed this node."), the "already claimed"
+  answer of `/node claim`, and the per-sync message behind `--notify`. A
+  `/search` by text doesn't match such an owner's name, and a `/search` by
+  `owner` finds none of their nodes; only the person themself gets their own
+  nodes that way, in an answer only they see. `/mynodes` is unchanged.
+  `/node managers` shows the owner every manager's name, as the account page
+  does: the owner invited them. The bot shows managers nowhere else.
+- The announcement of a claim or unclaim by someone who hides their name is a
+  message of the bot's own in the channel where the command was used, not a
+  follow-up of their command (that would stay tied to them). The bot needs
+  Send Messages and Embed Links there; where it can't post, nothing is
+  announced and the person is told.
+- `/privacy` shows both choices to the caller only and switches each with a
+  button. It stores them with `claims.save_settings`, the function the account
+  page's `/api/v1/account/settings` uses, so the map, the partner feed and the
+  bot read the same values.
+- `/node invite-manager` makes the account page's invitation
+  (`claims.create_invite`: `manager_invites`, 7 days, one use, at most 10 open
+  per node) for a node the caller owns and shows the link to the caller only.
+  `/node managers` lists a node's managers for its owner and removes one
+  (`claims.remove_manager`). The bot never posts a link in a channel, never
+  sends a DM and never offers a member list.
+- `command_log` gets one row per `/privacy` button click (`privacy button`),
+  like every command: time, command name, user id, ok, duration. Not which
+  choice, not its value, no invitation link.
 
 ### API Server Service
 

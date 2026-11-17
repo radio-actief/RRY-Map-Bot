@@ -2,6 +2,20 @@
 
 What changed in each release of the #BEmesh map, bot and configurator.
 
+## 1.8.0 (2026-11-17)
+
+### New
+
+- Zoom the map out and the earth now shows as a globe, as on the official MeshCore map. From Belgium level inward the map is the same flat map as before. The region map and the configurator are unchanged
+
+## 1.7.0 (2026-11-17)
+
+### New
+
+- The Discord bot follows "Show my name with my nodes": with it off, search results, the daily digest and the claim and unclaim announcements show your nodes as claimed, without your name or a mention, and nobody finds your nodes by searching for you
+- `/privacy` in Discord shows your two privacy choices and lets you switch each one; it is the same setting as on your account page, and only you see the answer
+- `/node invite-manager` gives the owner of a node a one-time invitation link to send to the person who will help manage it; `/node managers` lists a node's managers and lets the owner remove one
+
 ## 1.6.1 (2026-11-17)
 
 ### Fixed

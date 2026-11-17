@@ -166,12 +166,22 @@ All commands work only inside a server, not in DMs.
 
 - `/search` – search by name, key or owner, with filters (type, city with
   suggestions, frequency preset, owner, claimed, inactive, source). One
-  public reply; a single hit shows the node's details.
+  public reply; a single hit shows the node's details. A node whose owner
+  switched "Show my name with my nodes" off reads as claimed, without a name
+  or mention, and isn't found by its owner (see `DEPLOYMENT.md`).
 - `/mynodes` – the caller's nodes, active and inactive (only they see it).
 - `/node claim <query>` – claim an unclaimed node; suggestions list
   unclaimed nodes. Only for members of `DISCORD_GUILD_ID`.
 - `/node unclaim <query>` – release one of your nodes after a confirmation;
   suggestions list only your nodes.
+- `/node invite-manager <node>` – the owner gets a one-time invitation link
+  (7 days, one use) to send to the person who will help manage the node; only
+  the owner sees it. Only for members of `DISCORD_GUILD_ID`.
+- `/node managers <node>` – the owner sees the node's managers and can remove
+  one after a confirmation.
+- `/privacy` – the caller's two choices from the account page ("Show my name
+  with my nodes", "Share my nodes with partner tools") with a button to switch
+  each; only they see it. Only for members of `DISCORD_GUILD_ID`.
 - `/stats` – network statistics.
 - `/digest run` – post the daily activity digest now (visible only to members
   with Manage Server).

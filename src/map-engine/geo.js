@@ -5,6 +5,27 @@
 export const toMapZoom = (zoom) => zoom - 1;
 export const fromMapZoom = (zoom) => zoom + 1;
 
+// The globe (the map page): zoomed out, the earth is a globe. From page zoom 5 it flattens, and from
+// 6 up (Belgium fits a phone just under 7) the map is the flat one, as without the globe.
+export const GLOBE_UNTIL_ZOOM = 5;
+export const FLAT_FROM_ZOOM = 6;
+
+/** A MapLibre style's `projection` for the globe: MapLibre's own globe, flat from FLAT_FROM_ZOOM. */
+export function globeProjection() {
+  return {
+    type: ["interpolate", ["linear"], ["zoom"], toMapZoom(GLOBE_UNTIL_ZOOM), "vertical-perspective", toMapZoom(FLAT_FROM_ZOOM), "mercator"],
+  };
+}
+
+/**
+ * A style for the globe: its projection, and no sky of the style's own (no atmosphere or glow: the
+ * page's own colour shows around the earth).
+ */
+export function globeStyle(style) {
+  const { sky: _sky, ...rest } = style;
+  return { ...rest, projection: globeProjection() };
+}
+
 /**
  * MapLibre clusters at tile zooms up to clusterMaxZoom. The page clusters below `until` (Leaflet's
  * disableClusteringAtZoom): -1 means no clustering at all.

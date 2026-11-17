@@ -65,6 +65,48 @@ def save_settings(discord_id: str, show_name: Optional[bool] = None,
     return current
 
 
+def shown_id(discord_id) -> Optional[str]:
+    """The person's Discord id when they show their name with their nodes, else None: what a
+    message others can read may mention."""
+    if discord_id is None or not get_settings(discord_id)['show_name']:
+        return None
+    return str(discord_id)
+
+
+def hide_owners(nodes: List[Dict], viewer_id: Optional[str] = None, conn=None) -> List[Dict]:
+    """Node rows as a message of the bot may show them: a copy of each, where the owner of a node
+    who doesn't show their name is taken out (``discord_owner_id`` and ``discord_owner_name``
+    None) and ``owner_hidden`` is True, so the node still reads as claimed. `viewer_id`'s own
+    nodes stay whole (for an answer only they see). `conn` when the caller has one open."""
+    out = [dict(n) for n in nodes]
+    owners = sorted({str(n['discord_owner_id']) for n in out if n.get('discord_owner_id')})
+    if viewer_id is not None:
+        owners = [o for o in owners if o != str(viewer_id)]
+    hidden = set()
+    if owners:
+        own = conn is None
+        if own:
+            conn = get_connection()
+        try:
+            for i in range(0, len(owners), 500):
+                chunk = owners[i:i + 500]
+                rows = conn.execute(
+                    "SELECT discord_id FROM person_settings WHERE show_name = 0 AND discord_id IN "
+                    f"({','.join('?' * len(chunk))})",
+                    chunk,
+                ).fetchall()
+                hidden.update(str(r[0]) for r in rows)
+        finally:
+            if own:
+                conn.close()
+    for n in out:
+        if n.get('discord_owner_id') and str(n['discord_owner_id']) in hidden:
+            n['discord_owner_id'] = None
+            n['discord_owner_name'] = None
+            n['owner_hidden'] = True
+    return out
+
+
 # Managers and invitations
 
 INVITE_TTL = timedelta(days=7)

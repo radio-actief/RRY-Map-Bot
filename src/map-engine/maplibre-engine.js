@@ -5,7 +5,7 @@
 // map pans to make room for it, as Leaflet's does.
 import { LngLatBounds, Map as MapLibreMap, Marker, Popup, setWorkerUrl } from "../../lib/maplibre-gl.mjs";
 import { baseMapIds, baseMapLabel, prepareStyle, rasterStyle, readBaseMap, storeBaseMap, styleFor } from "./basemaps.js";
-import { boundsOfGeoJSON, circleRing, clusterMaxZoomFor, wrapLon, dashInLineWidths, fromMapZoom, toMapZoom } from "./geo.js";
+import { boundsOfGeoJSON, circleRing, clusterMaxZoomFor, wrapLon, dashInLineWidths, fromMapZoom, toMapZoom, FLAT_FROM_ZOOM, globeStyle } from "./geo.js";
 import { prefersReducedMotion } from "./motion.js";
 import { CLUSTER_SIZE, drawClusterImage, drawNodeImage, nodeImageId, parseNodeImageId, readLook } from "./node-images.js";
 
@@ -58,9 +58,10 @@ setWorkerUrl(new URL("../../lib/maplibre-gl-worker.mjs", import.meta.url).href);
 
 /**
  * options: { center, zoom, t, attribution, controls: "bottom-left" (default) | "top-right" | false,
- * interactive: false for a still map (no controls, no gestures) }
+ * interactive: false for a still map (no controls, no gestures), globe: true for the earth as a
+ * globe when zoomed out (flat at the zooms of ./geo.js) }
  */
-export async function createMapLibreEngine(container, { center, zoom, t, attribution, controls: controlsAt = "bottom-left", interactive = true }) {
+export async function createMapLibreEngine(container, { center, zoom, t, attribution, controls: controlsAt = "bottom-left", interactive = true, globe = false }) {
   await loadCss();
   container.classList.add("bemesh-map");
   const shadeApi = window.BEmeshMapShade;
@@ -90,6 +91,16 @@ export async function createMapLibreEngine(container, { center, zoom, t, attribu
   });
   map.touchZoomRotate.disableRotation();
   map.keyboard.disableRotation();
+  // the globe: around the earth the map's area is ink in both themes, while the globe can show
+  if (globe) {
+    const space = () => container.classList.toggle("bemesh-map--space", map.getZoom() < toMapZoom(FLAT_FROM_ZOOM));
+    map.on("zoom", space);
+    space();
+    // a popup whose spot turned to the far side closes
+    map.on("move", () => {
+      if (popup && !inSight(popup.getLngLat())) closePopup();
+    });
+  }
 
   const listeners = new Map();
   const emit = (type, payload) => {
@@ -155,7 +166,7 @@ export async function createMapLibreEngine(container, { center, zoom, t, attribu
       layers.push(...o.layers());
     }
     layers.push(...nodeLayers());
-    return { ...style, sources, layers };
+    return { ...(globe ? globeStyle(style) : style), sources, layers };
   }
   function addImagesToStyle() {
     for (const o of orderedOverlays()) {
@@ -364,6 +375,22 @@ export async function createMapLibreEngine(container, { center, zoom, t, attribu
     else map[move]({ center: camera.center, zoom: camera.zoom });
   }
 
+  // The globe has a far side and room beside it: both answers come from MapLibre's own projecting
+  // there and back (exact for what is in sight).
+  const globeShows = () => globe && map.getZoom() < toMapZoom(FLAT_FROM_ZOOM);
+  /** False beside the globe: a point of the map's area that is no spot on the earth. */
+  function onEarth(point) {
+    if (!globeShows()) return true;
+    const back = map.project(map.unproject(point));
+    return Math.hypot(back.x - point.x, back.y - point.y) < 2;
+  }
+  /** False for a spot on the far side of the globe. */
+  function inSight(ll) {
+    if (!globeShows()) return true;
+    const back = map.unproject(map.project(ll));
+    return Math.abs(back.lat - ll.lat) < 0.01 && Math.abs(wrapLon(back.lng - ll.lng)) < 0.01;
+  }
+
   const hitLayers = () => (map.getLayer(NODES) ? [CLUSTERS, NODES] : []);
   /** The topmost feature of the page's interactive overlays (areas, points) at a point, with its overlay. */
   function hitOverlay(point) {
@@ -381,7 +408,7 @@ export async function createMapLibreEngine(container, { center, zoom, t, attribu
       const hit = hitOverlay(e.point);
       if (hit?.overlay.click) hit.overlay.click(hit.feature, { lat: e.lngLat.lat, lon: e.lngLat.lng });
       // a click on the map itself (not on a mark of its own)
-      else if (!e.originalEvent?.target?.closest?.(".maplibregl-marker, .maplibregl-popup")) emit("click", { lat: e.lngLat.lat, lon: wrapLon(e.lngLat.lng) });
+      else if (onEarth(e.point) && !e.originalEvent?.target?.closest?.(".maplibregl-marker, .maplibregl-popup")) emit("click", { lat: e.lngLat.lat, lon: wrapLon(e.lngLat.lng) });
       return;
     }
     if (feature.layer.id === CLUSTERS) zoomIntoCluster(feature).catch((err) => console.error(err));
@@ -522,6 +549,7 @@ export async function createMapLibreEngine(container, { center, zoom, t, attribu
 
   // ------------------------------------------------------------------ right click / long press
   function menuAt(point, clientX, clientY, touch, originalEvent) {
+    if (!onEarth(point)) return;
     const ll = map.unproject(point);
     emit("contextmenu", { lat: ll.lat, lon: ll.lng, clientX, clientY, touch, originalEvent });
   }
@@ -585,9 +613,11 @@ export async function createMapLibreEngine(container, { center, zoom, t, attribu
   const zoomOut = zoomButton("bi-dash-lg", t("zoom.out"), () => map.zoomOut());
   const updateZoomButtons = () => {
     zoomIn.disabled = map.getZoom() >= map.getMaxZoom();
-    zoomOut.disabled = map.getZoom() <= map.getMinZoom();
+    // (on the globe the limit depends on the latitude: MapLibre's own answer for this spot)
+    zoomOut.disabled = map.getZoom() <= map.getMinZoom(globe);
   };
   map.on("zoomend", updateZoomButtons);
+  if (globe) map.on("moveend", updateZoomButtons);
   updateZoomButtons();
 
   // the base map choice: a button that opens a list of radio buttons

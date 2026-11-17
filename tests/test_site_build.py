@@ -187,3 +187,17 @@ def test_the_built_files_are_served(monkeypatch):
         assert r.status_code == 200 and r.headers['Cache-Control'] == YEAR, name
         if name.endswith(('.js', '.mjs')):
             assert r.mimetype == 'application/javascript', name
+
+
+@needs_build
+def test_the_built_map_page_has_the_globes_styles_and_projection():
+    """Zoomed out, the map page shows the earth as a globe: its background rule is in the page's
+    one stylesheet (after the map's own area rule), and the engine chunk carries the projection."""
+    css_name = re.search(r'href="/assets/([\w.-]+\.css)"', built_page('index.html')).group(1)
+    css = open(os.path.join(DIST, 'assets', css_name), encoding='utf-8').read()
+    area, space = css.find('.bemesh-map {'), css.find('.bemesh-map.bemesh-map--space {')
+    assert 0 <= area < space
+    assert 'background: var(--code-bg);' in css[space:space + 120]
+    engine = next(f for f in os.listdir(os.path.join(DIST, 'assets')) if re.fullmatch(r'maplibre-engine-[\w-]+\.js', f))
+    code = open(os.path.join(DIST, 'assets', engine), encoding='utf-8').read()
+    assert 'vertical-perspective' in code and 'bemesh-map--space' in code and 'transformStyle' in code

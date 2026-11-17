@@ -249,6 +249,25 @@ describe("the account page", () => {
     expect($("account-nodes-empty").hidden).toBe(false);
   });
 
+  it("lists the partner tools the person allowed, each with Remove after a question", async () => {
+    expect($("account-partners-card").hidden).toBe(true);
+    account.body = { ...(account.body as object), partners: [{ key: "analyzer", label: "Analyzer <i>" }] };
+    await load();
+    expect($("account-partners-card").hidden).toBe(false);
+    expect($("account-partners-title").textContent).toBe("Partner tools you allowed");
+    const row = $("account-partners").querySelector("li")!;
+    expect(row.querySelector(".account-row-name")!.textContent).toBe("Analyzer <i>");
+    expect(row.querySelector("i")).toBeNull();
+    const remove = row.querySelector<HTMLButtonElement>("button")!;
+    expect([remove.textContent, remove.getAttribute("aria-label")]).toEqual(["Remove", "Remove Analyzer <i>"]);
+    account.body = { ...(account.body as object), partners: [] };
+    remove.click();
+    await settle();
+    expect(ask).toHaveBeenCalledWith("Remove Analyzer <i>? It can no longer sign you in until you allow it again.");
+    expect(posts.map((p) => p.url)).toEqual(["/api/v1/account/partners/analyzer/remove"]);
+    expect($("account-partners-card").hidden).toBe(true);
+  });
+
   it("logs out with two forms: this browser, and everywhere with its line under it", () => {
     const forms = Array.from(document.querySelectorAll<HTMLFormElement>("main form"));
     expect(forms.map((f) => [f.getAttribute("method"), f.getAttribute("action"), f.querySelector("button")!.textContent])).toEqual([

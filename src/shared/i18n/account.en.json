@@ -37,5 +37,10 @@
   "account.leave": "Stop managing",
   "account.leave.confirm": "Stop managing {node}? The owner can invite you again.",
   "account.actionFailed": "That didn't work. Try again in a moment.",
-  "account.tooManyInvites": "This node has 10 open invitations. Wait until one is used or expires."
+  "account.tooManyInvites": "This node has 10 open invitations. Wait until one is used or expires.",
+  "account.partners": "Partner tools you allowed",
+  "account.partners.hint": "They can sign you in and see your display name and the nodes you share.",
+  "account.partnerRemove": "Remove",
+  "account.partnerRemove.label": "Remove {name}",
+  "account.partnerRemove.confirm": "Remove {name}? It can no longer sign you in until you allow it again."
 }

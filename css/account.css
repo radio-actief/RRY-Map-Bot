@@ -332,3 +332,29 @@
     min-height: 44px;
   }
 }
+
+/* A card's one-line explanation under its title. */
+.account-card-hint {
+  margin: -4px 0 8px;
+  font-size: 12px;
+  line-height: 16px;
+}
+
+/* A partner tool the person allowed: its name, Remove on the right. */
+.account-partner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 12px;
+}
+
+.account-partner .btn {
+  color: var(--ink);
+}
+
+@media (max-width: 600px) {
+  .account-partner .btn {
+    min-height: 44px;
+  }
+}

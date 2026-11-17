@@ -37,5 +37,10 @@
   "account.leave": "Stoppen met beheren",
   "account.leave.confirm": "Stoppen met het beheer van {node}? De eigenaar kan je opnieuw uitnodigen.",
   "account.actionFailed": "Dat is niet gelukt. Probeer het zo meteen opnieuw.",
-  "account.tooManyInvites": "Deze node heeft 10 open uitnodigingen. Wacht tot er een gebruikt is of verloopt."
+  "account.tooManyInvites": "Deze node heeft 10 open uitnodigingen. Wacht tot er een gebruikt is of verloopt.",
+  "account.partners": "Partnertools die je toeliet",
+  "account.partners.hint": "Ze kunnen je aanmelden en zien je weergavenaam en de nodes die je deelt.",
+  "account.partnerRemove": "Verwijderen",
+  "account.partnerRemove.label": "{name} verwijderen",
+  "account.partnerRemove.confirm": "{name} verwijderen? Het kan je pas weer aanmelden als je het opnieuw toestaat."
 }

@@ -59,3 +59,47 @@ Errors: 401 `{"error": "invalid_client"}` for a missing or wrong secret; 400
 
 Caching: poll at most every 5 minutes. Send the last `ETag` as `If-None-Match`; an unchanged feed
 answers 304 without a body.
+
+## Sign in with #BEmesh (phase 2)
+
+People sign in to your tool with their #BEmesh account. Your sessions stay your own; you never
+see the map's cookie.
+
+1. Send the person's browser to
+   `{map}/auth/authorize?tool={partnerKey}&state={random}` (`state`: 1–128 characters of
+   `A-Z a-z 0-9 . _ ~ -`; check it when they come back). Add `&prompt=none` to check silently.
+2. The map signs them in with Discord when needed. The first time, it asks them on the map's own
+   page: "{your label} asks for: your display name, and the nodes you share with partner tools",
+   Cancel or Allow. That choice is remembered; they can withdraw it on the map's account page.
+3. The map sends the browser to `{your url}auth/callback` with one of:
+   - `?code={code}&state={state}`;
+   - `?error=access_denied&state={state}`: they pressed Cancel;
+   - `?error=login_required&state={state}` or `?error=consent_required&state={state}`: only with
+     `prompt=none`, when they aren't signed in on the map or haven't allowed your tool yet.
+4. Your server swaps the code within 60 seconds:
+
+   ```
+   POST {map}/auth/token
+   Authorization: Bearer {secret}
+   Content-Type: application/json
+
+   {"tool": "{partnerKey}", "code": "{code}"}
+   ```
+
+   Answer: `{"handle": "…", "user": {"subject": "<22 chars>", "displayName": "Ann" | null,
+   "isMember": true | false}}`. `subject` is the same as in the claims feed. `isMember` says
+   whether they are a member of the #BEmesh Discord server. A code works once; a wrong, used or
+   expired code (or one made before they withdrew your tool) gives 400 `{"error": "invalid_grant"}`.
+5. Later, to check that the person is still signed in on the map and still allows your tool:
+
+   ```
+   POST {map}/auth/alive
+   Authorization: Bearer {secret}
+
+   {"tool": "{partnerKey}", "handle": "{handle}"}
+   ```
+
+   Answer: `{"alive": true, "user": {…as above}}` or `{"alive": false}`.
+
+Calls 4 and 5 are server to server: a request with an `Origin` header or a cookie is refused
+(400), a wrong secret gets 401.

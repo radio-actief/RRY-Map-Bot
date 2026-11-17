@@ -1,6 +1,7 @@
 """
 Add the tables behind the account page's choices: ``person_settings`` (show my name, share my
-nodes with partner tools), ``node_managers`` and ``manager_invites`` (managers an owner invites).
+nodes with partner tools), ``node_managers`` and ``manager_invites`` (managers an owner invites), and ``partner_consents``
+(partner tools a person allowed to sign them in).
 
 Only ``CREATE TABLE IF NOT EXISTS``: safe on the live database and safe to run more than once.
 The bot, the API and the sync also apply it on start (through ``init_database``), so running this
@@ -13,7 +14,12 @@ from __future__ import annotations
 
 import sqlite3
 
-from backend.database import ensure_manager_tables, ensure_person_settings_table, get_db_path
+from backend.database import (
+    ensure_manager_tables,
+    ensure_partner_consents_table,
+    ensure_person_settings_table,
+    get_db_path,
+)
 
 
 def main() -> int:
@@ -22,6 +28,7 @@ def main() -> int:
     try:
         ensure_person_settings_table(conn)
         ensure_manager_tables(conn)
+        ensure_partner_consents_table(conn)
         conn.commit()
     finally:
         conn.close()

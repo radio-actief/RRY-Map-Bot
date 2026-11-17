@@ -1,9 +1,10 @@
 /* The account page (account.html, served at /account to a signed-in person): their name, the nodes
  * they own or manage (each a link to it on the map, with its role; an owned node with its managers,
  * Remove, and "Invite a manager" for a one-time link; a managed one with Stop managing), their two
- * privacy choices (saved as soon as they switch one) and the site's tools that have an account part
- * of their own, from GET /api/v1/account. Log out and Log out everywhere are plain forms in the page. Signed out by now
- * (the session ended in another tab): back through sign-in. */
+ * privacy choices (saved as soon as they switch one), the partner tools they allowed (each with
+ * Remove) and the site's tools that have an account part of their own, from GET /api/v1/account.
+ * Log out and Log out everywhere are plain forms in the page. Signed out by now (the session ended
+ * in another tab): back through sign-in. */
 (function () {
   "use strict";
 
@@ -257,6 +258,33 @@
     });
   }
 
+  /** The partner tools the person allowed to sign them in, each with Remove (after a question). */
+  function renderPartners(t, partners) {
+    var list = byId("account-partners");
+    list.textContent = "";
+    (Array.isArray(partners) ? partners : []).forEach(function (p) {
+      if (!p || typeof p.key !== "string") return;
+      var label = typeof p.label === "string" && p.label.trim() ? p.label : p.key;
+      var li = el("li", "account-partner");
+      li.appendChild(el("span", "account-row-name", label));
+      var remove = button("account-partner-remove", t("account.partnerRemove"));
+      remove.setAttribute("aria-label", t("account.partnerRemove.label", { name: label }));
+      remove.onclick = function () {
+        if (!api.confirm(t("account.partnerRemove.confirm", { name: label }))) return;
+        remove.disabled = true;
+        post("/api/v1/account/partners/" + encodeURIComponent(p.key) + "/remove")
+          .then(api.reload)
+          .catch(function () {
+            remove.disabled = false;
+            status("account-partners-status", t("account.actionFailed"), true);
+          });
+      };
+      li.appendChild(remove);
+      list.appendChild(li);
+    });
+    byId("account-partners-card").hidden = list.children.length === 0;
+  }
+
   function render(t, data) {
     var name = byId("account-name");
     name.textContent = typeof data.name === "string" ? data.name : "";
@@ -269,6 +297,7 @@
     list.hidden = list.children.length === 0;
     byId("account-nodes-empty").hidden = list.children.length > 0;
     renderChoices(t, data.settings);
+    renderPartners(t, data.partners);
     var tools = (Array.isArray(data.tools) ? data.tools : []).filter(function (x) {
       // A path on this site or https only: never a javascript: or other odd address.
       return x && typeof x.url === "string" && /^(\/(?![/\\])|https:\/\/|http:\/\/(localhost|127\.0\.0\.1)[:/])/.test(x.url);

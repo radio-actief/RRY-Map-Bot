@@ -37,5 +37,10 @@
   "account.leave": "Ne plus gérer",
   "account.leave.confirm": "Ne plus gérer {node} ? Le propriétaire peut vous inviter à nouveau.",
   "account.actionFailed": "Cela n'a pas fonctionné. Réessayez dans un instant.",
-  "account.tooManyInvites": "Ce nœud a 10 invitations ouvertes. Attendez qu'une soit utilisée ou expire."
+  "account.tooManyInvites": "Ce nœud a 10 invitations ouvertes. Attendez qu'une soit utilisée ou expire.",
+  "account.partners": "Outils partenaires autorisés",
+  "account.partners.hint": "Ils peuvent vous connecter et voient votre nom affiché et les nœuds que vous partagez.",
+  "account.partnerRemove": "Retirer",
+  "account.partnerRemove.label": "Retirer {name}",
+  "account.partnerRemove.confirm": "Retirer {name} ? Il ne pourra plus vous connecter tant que vous ne l'aurez pas autorisé à nouveau."
 }

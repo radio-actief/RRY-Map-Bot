@@ -227,6 +227,14 @@ SITE_TOOL_SECRETS_JSON={"nodebook":"...", "analyzer":"<32+ characters, given to 
   `/account`); `displayName` is null when the person hides their name. Server to server only (an
   `Origin` header or a cookie gets 400); a wrong secret, or one of our own tools' secrets, gets 401.
   It answers `If-None-Match` with 304; partners poll at most every 5 minutes.
+- Sign in with #BEmesh: a partner uses the protocol of "Signing in through the map", with three
+  differences. Before its first code for a person, the map shows a consent page on its own address
+  ("<label> asks for: your display name, and the nodes you share with partner tools", Cancel or
+  Allow), once per person and partner; Cancel returns `?error=access_denied`, and `prompt=none`
+  without consent returns `?error=consent_required`. `/auth/token` and `/auth/alive` answer with
+  `"user": {"subject", "displayName", "isMember"}` only (`displayName` null when the person hides
+  their name). The person withdraws a partner under "Partner tools you allowed" on `/account`;
+  from then on its handles are not alive and its codes are refused.
 
 ### The language, shared by the tools
 

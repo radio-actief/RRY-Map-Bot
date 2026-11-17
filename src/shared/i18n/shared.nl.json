@@ -102,5 +102,9 @@
   "invite.already.text": "Je vindt hem bij Mijn nodes.",
   "invite.notMember.text": "Alleen leden van de #BEmesh-Discordserver kunnen nodes beheren. Word lid en open de link daarna opnieuw.",
   "invite.myNodes": "Naar Mijn nodes",
-  "invite.openMap": "Open de kaart"
+  "invite.openMap": "Open de kaart",
+  "consent.title": "Aanmelden bij {partner} met #BEmesh?",
+  "consent.asks": "{partner} vraagt: je weergavenaam, en de nodes die je deelt met partnertools.",
+  "consent.never": "Het krijgt nooit je Discord-account. Je kunt dit intrekken op je accountpagina.",
+  "consent.allow": "Toestaan"
 }

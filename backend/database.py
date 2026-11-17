@@ -204,6 +204,7 @@ def init_database() -> None:
         ensure_sync_state_table(conn)
         ensure_person_settings_table(conn)
         ensure_manager_tables(conn)
+        ensure_partner_consents_table(conn)
 
         conn.commit()
         print(f"Database initialized successfully at {get_db_path()}")
@@ -340,6 +341,19 @@ def ensure_manager_tables(conn: sqlite3.Connection) -> None:
     conn.execute("""
         CREATE INDEX IF NOT EXISTS idx_manager_invites_node
         ON manager_invites(public_key)
+    """)
+
+
+def ensure_partner_consents_table(conn: sqlite3.Connection) -> None:
+    """Create ``partner_consents`` if missing: which partner tool each person allowed to sign them
+    in (the consent page, once per person and partner; withdrawn on the account page)."""
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS partner_consents (
+            discord_id  VARCHAR(20) NOT NULL,
+            partner_key VARCHAR(31) NOT NULL,
+            granted_at  TEXT NOT NULL,
+            PRIMARY KEY (discord_id, partner_key)
+        )
     """)
 
 

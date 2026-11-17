@@ -1652,7 +1652,7 @@ def _auth_callback(entry, waiting):
     if not state or not entry or not waiting or not _same_state(entry, state):
         if state and is_authenticated():
             if tool:
-                return _back_to_tool_with_code(tool, tool_state)
+                return _continue_to_tool(tool, tool_state)
             return redirect(next_page or '/')
         return failed('expired')
 
@@ -1689,9 +1689,10 @@ def _auth_callback(entry, waiting):
     account_sessions.remember(session['user_id'], app.session_interface._get_store_id(session.sid),
                               app.permanent_session_lifetime.total_seconds())
 
-    # Back to the tool that asked, with a code; the tool decides what membership means to it.
+    # Back to the tool that asked, with a code (a partner after the person's consent); the tool
+    # decides what membership means to it.
     if tool:
-        return _back_to_tool_with_code(tool, tool_state)
+        return _continue_to_tool(tool, tool_state)
 
     # Signed in, but not on the server yet: the page with the invite, then back.
     if not is_member:
@@ -1742,6 +1743,20 @@ def _back_to_tool_with_code(tool, tool_state):
     return redirect(_tool_callback(tool) + '?' + urlencode({'code': code, 'state': tool_state}))
 
 
+def _needs_consent(tool):
+    """A partner tool the signed-in person hasn't allowed yet."""
+    return bool(tool.get('partner')) and not partners.has_consent(session.get('user_id'), tool['key'])
+
+
+def _continue_to_tool(tool, tool_state):
+    """Signed in: back to the tool with a code, or for a partner not allowed yet, the consent page
+    first."""
+    from urllib.parse import urlencode
+    if _needs_consent(tool):
+        return redirect('/auth/consent?' + urlencode({'tool': tool['key'], 'state': tool_state}))
+    return _back_to_tool_with_code(tool, tool_state)
+
+
 def _plain_400(text):
     resp = make_response(text + '\n', 400)
     resp.mimetype = 'text/plain'
@@ -1752,15 +1767,18 @@ def _plain_400(text):
 @app.route('/auth/authorize')
 def auth_authorize():
     """A tool asks who is signed in on the map: back to the tool with a one-time code, after a
-    Discord sign-in when needed; with ?prompt=none and nobody signed in, back at once with
-    error=login_required."""
+    Discord sign-in when needed (and for a partner, after the person's consent, asked once);
+    with ?prompt=none and nobody signed in, back at once with error=login_required (a partner
+    not allowed yet: error=consent_required)."""
     from urllib.parse import urlencode
     tool = _sign_in_tool(request.args.get('tool'))
     tool_state = request.args.get('state')
     if not tool or not _good_tool_state(tool_state):
         return _plain_400('Unknown tool or state.')
     if is_authenticated():
-        return _back_to_tool_with_code(tool, tool_state)
+        if request.args.get('prompt') == 'none' and _needs_consent(tool):
+            return redirect(_tool_callback(tool) + '?' + urlencode({'error': 'consent_required', 'state': tool_state}))
+        return _continue_to_tool(tool, tool_state)
     if request.args.get('prompt') == 'none':
         return redirect(_tool_callback(tool) + '?' + urlencode({'error': 'login_required', 'state': tool_state}))
     return _start_discord_sign_in({'next': tool['url'], 'tool': tool['key'], 'tool_state': tool_state})
@@ -1838,6 +1856,24 @@ def _signed_in_user(store_id, user_id):
     return user_from_session(data)
 
 
+def _is_partner(key):
+    return any(t['key'] == key and t.get('partner') for t in SITE_TOOLS)
+
+
+def _tool_may_know(key, user):
+    """Our own tools always; a partner only while the person allows it."""
+    return not _is_partner(key) or partners.has_consent(user['id'], key)
+
+
+def _user_for_tool(key, user):
+    """The person as the tool gets them: our own tools as the map's session holds them; a partner
+    {subject, displayName, isMember} only (docs/PARTNERS.md)."""
+    if not _is_partner(key):
+        return user
+    _partner_subject_key()
+    return partners.partner_user(key, user)
+
+
 @app.route('/auth/token', methods=['POST'])
 def auth_token():
     """A tool's server swaps a one-time code for a handle and the signed-in person."""
@@ -1847,11 +1883,11 @@ def auth_token():
     key, body = call
     record = tool_grants.redeem_code(key, body.get('code'))
     user = record and _signed_in_user(record['store_id'], record['user_id'])
-    if not user:
+    if not user or not _tool_may_know(key, user):
         return _no_store(jsonify({'error': 'invalid_grant'}), 400)
     handle = tool_grants.issue_handle(key, record['store_id'], record['user_id'],
                                       app.permanent_session_lifetime.total_seconds())
-    return _no_store(jsonify({'handle': handle, 'user': user}), 200)
+    return _no_store(jsonify({'handle': handle, 'user': _user_for_tool(key, user)}), 200)
 
 
 @app.route('/auth/alive', methods=['POST'])
@@ -1863,9 +1899,9 @@ def auth_alive():
     key, body = call
     record = tool_grants.find_handle(key, body.get('handle'))
     user = record and _signed_in_user(record['store_id'], record['user_id'])
-    if not user:
+    if not user or not _tool_may_know(key, user):
         return _no_store(jsonify({'alive': False}), 200)
-    return _no_store(jsonify({'alive': True, 'user': user}), 200)
+    return _no_store(jsonify({'alive': True, 'user': _user_for_tool(key, user)}), 200)
 
 
 def _after_logout_target(next_page, done):
@@ -1926,9 +1962,17 @@ def account_data():
     ]
     resp, status = _no_store(jsonify({'name': user.get('global_name') or user.get('username'),
                                       'nodes': nodes, 'tools': tools,
-                                      'settings': claims.get_settings(user['id'])}), 200)
+                                      'settings': claims.get_settings(user['id']),
+                                      'partners': _allowed_partners(user['id'])}), 200)
     resp.vary.add('Cookie')
     return resp, status
+
+
+def _allowed_partners(user_id):
+    """The partner tools this person allowed to sign them in that are still listed: {key, label}."""
+    listed = {t['key']: t for t in SITE_TOOLS if t.get('partner')}
+    return [{'key': c['key'], 'label': listed[c['key']]['label']}
+            for c in partners.consents_of(user_id) if c['key'] in listed]
 
 
 @app.route('/api/v1/account/settings', methods=['POST'])
@@ -2287,6 +2331,66 @@ def manager_invite(token):
     if done['state'] == 'ok':
         return redirect('/account#my-nodes')
     return _invite_card(lang, texts, done['state'], node_name, status=404 if done['state'] == 'gone' else 200)
+
+
+def _consent_target():
+    """The partner tool and state of a consent request (query or form), or (None, None)."""
+    source = request.form if request.method == 'POST' else request.args
+    tool = _sign_in_tool(source.get('tool'))
+    tool_state = source.get('state')
+    if not tool or not tool.get('partner') or not _good_tool_state(tool_state):
+        return None, None
+    return tool, tool_state
+
+
+@app.route('/auth/consent', methods=['GET', 'POST'])
+def auth_consent():
+    """Before a partner tool signs someone in for the first time: "<partner> asks for: your
+    display name, and the nodes you share with partner tools", Cancel or Allow. Allow (a POST from
+    this page) is remembered per person and partner, and withdrawn on the account page."""
+    from html import escape
+    from urllib.parse import urlencode
+    tool, tool_state = _consent_target()
+    if not tool:
+        return _plain_400('Unknown tool or state.')
+    if not is_authenticated():
+        return redirect('/auth/authorize?' + urlencode({'tool': tool['key'], 'state': tool_state}))
+    if request.method == 'POST':
+        partners.grant_consent(session['user_id'], tool['key'])
+        return _back_to_tool_with_code(tool, tool_state)
+    if not _needs_consent(tool):
+        return _back_to_tool_with_code(tool, tool_state)
+    lang = _page_lang()
+    texts = _shared_messages(lang)
+
+    def text(key, fallback):
+        return texts.get(key, fallback).replace('{partner}', tool['label'])
+    cancel = _tool_callback(tool) + '?' + urlencode({'error': 'access_denied', 'state': tool_state})
+    actions = (
+        f'<a class="btn" href="{escape(cancel)}">{escape(texts.get("signout.cancel", "Cancel"))}</a>'
+        '<form method="post" action="/auth/consent">'
+        f'<input type="hidden" name="tool" value="{escape(tool["key"])}">'
+        f'<input type="hidden" name="state" value="{escape(tool_state)}">'
+        f'<button type="submit" class="btn primary">{escape(texts.get("consent.allow", "Allow"))}</button></form>'
+    )
+    resp = _card_page(lang, texts, text('consent.title', 'Sign in to {partner} with #BEmesh?'),
+                      [text('consent.asks', ''), text('consent.never', '')], actions)
+    # Allow redirects to the partner; a browser checks that against the form's page policy.
+    if CSP_ENABLED:
+        resp.headers['Content-Security-Policy'] = page_policy(tool_origins([tool]))
+    return resp
+
+
+@app.route('/api/v1/account/partners/<key>/remove', methods=['POST'])
+def withdraw_partner(key):
+    """The person withdraws a partner tool's consent: it can no longer sign them in (its handles
+    are no longer alive) until they allow it again."""
+    user, refused = _signed_in_or_401()
+    if refused:
+        return refused
+    if not partners.withdraw_consent(user['id'], key):
+        return _no_store(jsonify({'error': 'not_found'}), 404)
+    return _no_store(jsonify({'success': True}), 200)
 
 
 @app.route('/auth/me')

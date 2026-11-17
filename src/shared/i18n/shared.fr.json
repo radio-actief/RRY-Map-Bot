@@ -102,5 +102,9 @@
   "invite.already.text": "Vous le trouverez dans Mes nœuds.",
   "invite.notMember.text": "Seuls les membres du serveur Discord #BEmesh peuvent gérer des nœuds. Rejoignez le serveur, puis rouvrez le lien.",
   "invite.myNodes": "Ouvrir Mes nœuds",
-  "invite.openMap": "Ouvrir la carte"
+  "invite.openMap": "Ouvrir la carte",
+  "consent.title": "Se connecter à {partner} avec #BEmesh ?",
+  "consent.asks": "{partner} demande : votre nom affiché, et les nœuds que vous partagez avec les outils partenaires.",
+  "consent.never": "Il ne reçoit jamais votre compte Discord. Vous pouvez retirer cette autorisation sur votre page de compte.",
+  "consent.allow": "Autoriser"
 }

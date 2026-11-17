@@ -63,6 +63,10 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
 # Built configurator app (Vite output, produced by `npm run build`)
 CONFIGURATOR_DIST = os.path.join(PROJECT_ROOT, 'dist', 'configurator')
 
+# Built map, stats and region map pages (Vite output of web/site, produced by `npm run build`):
+# the pages in dist/site, their files in dist/site/assets under names that carry a content hash
+SITE_DIST = os.path.join(PROJECT_ROOT, 'dist', 'site')
+
 # Static files are served by serve_static() below, from an allowlist only
 app = Flask(__name__, static_folder=None)
 
@@ -197,9 +201,10 @@ def _cache_policy(path: str) -> Optional[str]:
 
     Vite's hashed assets never change under the same name; the configurator page and the node
     list revalidate on every visit (ETag, so an unchanged one costs a 304); the data files are
-    reused for an hour, then revalidated.
+    reused for an hour, then revalidated. (The map, stats and region map pages revalidate too:
+    send_page() says so itself, as the map page also answers on other paths.)
     """
-    if path.startswith(('/configurator/assets/', '/src/shared/fonts/', '/lib/css/fonts/')):
+    if path.startswith(('/assets/', '/configurator/assets/', '/src/shared/fonts/', '/lib/css/fonts/')):
         return 'public, max-age=31536000, immutable'  # names carry their content hash
     if path in ('/configurator', '/configurator/', '/configurator/index.html'):
         return 'no-cache'
@@ -1461,14 +1466,14 @@ def not_found(error):
 
     # Anything that looks like a file, or is one that isn't public, gets a
     # real 404 instead of the map page
-    if (request.path.startswith('/configurator/')
+    if (request.path.startswith(('/configurator/', '/assets/'))
             or '.' in request.path.rsplit('/', 1)[-1]
             or os.path.lexists(os.path.join(PROJECT_ROOT, request.path.lstrip('/')))):
         return NotFound()
     
     # For non-API routes (SPA routing), serve index.html
     try:
-        return send_from_directory(PROJECT_ROOT, 'index.html')
+        return send_page('index.html')
     except Exception:
         return NotFound()
 
@@ -2646,16 +2651,39 @@ def get_my_nodes():
     return jsonify(formatted_nodes), 200
 
 
+SITE_PAGES = ('index.html', 'stats.html', 'region-map.html')
+
+
+def send_page(name):
+    """A page of SITE_PAGES: as built (dist/site, its files under /assets/) when the build is there,
+    else as it is in the repository, loading its files one by one (development, no build needed).
+
+    The browser asks again on every visit (ETag, so an unchanged page costs a 304): a built page
+    names files that exist only in its own release, so a kept copy must never outlive a deploy.
+    """
+    built = os.path.isfile(os.path.join(SITE_DIST, name))
+    resp = send_from_directory(SITE_DIST if built else PROJECT_ROOT, name)
+    resp.headers['Cache-Control'] = 'no-cache'
+    return resp
+
+
 @app.route('/')
 def index():
-    """Serve the main index.html file."""
-    return send_from_directory(PROJECT_ROOT, 'index.html')
+    """Serve the map page."""
+    return send_page('index.html')
 
 
 @app.route('/stats')
 def stats_page():
     """Serve the historical node stats page (sync history, charts, playback)."""
-    return send_from_directory(PROJECT_ROOT, 'stats.html')
+    return send_page('stats.html')
+
+
+@app.route('/assets/<path:path>')
+def site_asset(path):
+    """Serve files of the built pages (404 if missing)."""
+    mimetype = 'application/javascript' if path.endswith(('.js', '.mjs')) else None
+    return send_from_directory(os.path.join(SITE_DIST, 'assets'), path, mimetype=mimetype)
 
 
 @app.route('/configurator')
@@ -2729,8 +2757,8 @@ def device_hub_page():
 
 @app.route('/region-map')
 def region_map_page():
-    """Serve the #BEmesh region codes map page (Leaflet)."""
-    return send_from_directory(PROJECT_ROOT, 'region-map.html')
+    """Serve the #BEmesh region codes map page."""
+    return send_page('region-map.html')
 
 
 def _is_public_path(path: str) -> bool:
@@ -2749,6 +2777,8 @@ def serve_static(path):
     from werkzeug.exceptions import NotFound
     if '..' in path.split('/') or '\\' in path or not _is_public_path(path):
         raise NotFound()
+    if path in SITE_PAGES:
+        return send_page(path)
     full_path = os.path.join(PROJECT_ROOT, path)
     if not os.path.isfile(full_path):
         raise NotFound()

@@ -6,7 +6,9 @@
   "scripts": {
     "parse-link": "node parse_meshcore_link.mjs",
     "dev": "vite --config web/configurator/vite.config.ts",
-    "build": "vite build --config web/configurator/vite.config.ts",
+    "build": "npm run build:configurator && npm run build:site",
+    "build:configurator": "vite build --config web/configurator/vite.config.ts",
+    "build:site": "vite build --config web/site/vite.config.mjs",
     "build:map": "node scripts/build-map-template.mjs",
     "test": "vitest run --config web/configurator/vite.config.ts",
     "typecheck": "tsc -p web/configurator --noEmit",

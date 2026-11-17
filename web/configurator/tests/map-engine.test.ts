@@ -367,6 +367,34 @@ describe("preloading MapLibre", () => {
     const links = [...doc.head.querySelectorAll("link")].map((l) => `${l.rel} ${l.getAttribute("href")?.replace(/^.*\/(lib|src)\//, "$1/")}`);
     expect(links).toEqual(["modulepreload lib/maplibre-gl.mjs", "modulepreload src/map-engine/maplibre-engine.js", "preload lib/css/maplibre-gl.css"]);
   });
+
+  it("hints a built page's own files, which the build names in the page", () => {
+    const doc = document.implementation.createHTMLDocument("x");
+    const meta = doc.createElement("meta");
+    meta.name = "bemesh-engine-files";
+    meta.content = JSON.stringify([["modulepreload", "/assets/maplibre-engine-abc.js"], ["preload", "/assets/maplibre-gl-abc.css", "style"]]);
+    doc.head.append(meta);
+    preloadEngine(doc, { webgl: () => true });
+    preloadEngine(doc, { webgl: () => true });
+    const links = [...doc.head.querySelectorAll("link")].map((l) => `${l.rel} ${l.getAttribute("href")}`);
+    expect(links).toEqual(["modulepreload /assets/maplibre-engine-abc.js", "preload /assets/maplibre-gl-abc.css"]);
+  });
+
+  it("hints nothing when a built page's list can't be read (the map still starts)", () => {
+    const doc = document.implementation.createHTMLDocument("x");
+    const meta = doc.createElement("meta");
+    meta.name = "bemesh-engine-files";
+    meta.content = "[oops";
+    doc.head.append(meta);
+    expect(() => preloadEngine(doc, { webgl: () => true })).not.toThrow();
+    expect(doc.head.querySelectorAll("link")).toHaveLength(0);
+  });
+
+  it("puts an engine's stylesheet before the page's own, also the built page's one file", () => {
+    for (const f of ["src/map-engine/maplibre-engine.js", "src/map-engine/leaflet-engine.js"]) {
+      expect(read(f), f).toContain(`document.querySelector('link[href*="bemesh-tokens.css"], link[data-bemesh-styles]')`);
+    }
+  });
 });
 
 // @ts-ignore plain JS module of the map page

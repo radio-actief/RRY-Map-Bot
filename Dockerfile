@@ -1,15 +1,17 @@
 # RRY-Map-Bot Docker Image
 # Supports running Discord bot, API server, or sync service
 
-# Stage 1: build the configurator web app
+# Stage 1: build the web apps: the configurator, and the map, stats and region map pages
 FROM node:22-slim AS web
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY web/ web/
-# What the configurator imports from the tool pages: the shared code, the map engine, and the
-# MapLibre build it loads (tests/test_dockerfile.py checks this list against the imports).
-COPY src/shared/ src/shared/
-COPY src/map-engine/ src/map-engine/
+# What the two builds read outside web/: the pages and their icons, their scripts and styles, the
+# libraries and the images (tests/test_dockerfile.py checks this list against what they reach).
+COPY index.html stats.html region-map.html favicon.ico favicon.png favicon-16.png favicon-32.png ./
+COPY src/ src/
+COPY css/ css/
+COPY img/ img/
 COPY lib/ lib/
 RUN npm ci && npm run build
 
@@ -33,8 +35,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
-# Built configurator app
+# Built configurator app and built pages
 COPY --from=web /app/dist/configurator /app/dist/configurator
+COPY --from=web /app/dist/site /app/dist/site
 
 # Create data directory for database
 RUN mkdir -p /app/data

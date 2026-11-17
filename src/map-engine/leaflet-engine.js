@@ -27,7 +27,7 @@ function loadCss(href) {
     link.rel = "stylesheet";
     link.href = href;
     link.onload = link.onerror = () => resolve();
-    const before = document.querySelector('link[href*="bemesh-tokens.css"]');
+    const before = document.querySelector('link[href*="bemesh-tokens.css"], link[data-bemesh-styles]');
     if (before) before.before(link);
     else document.head.append(link);
   });

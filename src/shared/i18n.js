@@ -386,11 +386,23 @@
     };
     if (pending) setTimeout(reveal, 3000);
     var wanted = api.lang === "en" ? ["en"] : ["en", api.lang];
+    /* The built page (web/site) names one file per language, shared and page messages together. */
+    var built = {};
+    try {
+      built = JSON.parse(script.getAttribute("data-i18n-files") || "{}");
+    } catch (e) {
+      built = {};
+    }
     var files = [];
     wanted.forEach(function (l) {
-      (page === "shared" ? ["shared"] : ["shared", page]).forEach(function (name) {
+      var urls = built[l]
+        ? [built[l]]
+        : (page === "shared" ? ["shared"] : ["shared", page]).map(function (name) {
+            return base + name + "." + l + ".json";
+          });
+      urls.forEach(function (url) {
         files.push(
-          fetch(base + name + "." + l + ".json")
+          fetch(url)
             .then(function (r) {
               return r.ok ? r.json() : {};
             })

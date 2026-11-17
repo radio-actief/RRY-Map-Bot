@@ -54,8 +54,26 @@ npm ci
 npm run dev        # Vite dev server; /api and /data are proxied to the Flask container on :8000
 npm test           # Vitest
 npm run typecheck  # tsc --noEmit
-npm run build      # production build into dist/configurator/
+npm run build      # production build into dist/configurator/ (and the pages, below)
 ```
+
+## Map, stats and region map pages
+
+`index.html`, `stats.html` and `region-map.html` load as they are, file by file, with no build: that
+is how they run in development. `npm run build` also builds them (`web/site/`, Vite) into
+`dist/site/`: per page one stylesheet, the scripts in a few files, messages in one file per
+language, everything under `/assets/` with a content hash in its name. Flask serves the built page
+when `dist/site/` is there (the Dockerfile builds it in its first stage) and tells browsers to keep
+`/assets/` files for a year and to ask for the page itself on every visit.
+
+```bash
+npm run build:site   # only the pages, into dist/site/
+rm -r dist/site      # back to the pages as they are
+```
+
+The pages' classic scripts (`<script src>` without `type="module"`) are joined per run of
+neighbours and stay classic; each must be one call with no declarations at the top, or the build
+stops and says which file.
 
 Parity fixtures in `web/configurator/tests/fixtures/parity/` pair saved backup files with the exact CLI script the
 configurator must generate for them, so changes to script generation cannot silently alter what is sent to a repeater.

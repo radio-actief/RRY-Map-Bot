@@ -1200,11 +1200,11 @@ async def node_invite_manager(interaction: discord.Interaction, node: str):
     await interaction.followup.send(embed=embed, ephemeral=True)
 
 
-def manager_label(manager: Dict[str, Any], number: int, *, short: bool = False) -> str:
-    """A manager as the bot names them: their name, or that they hide it."""
-    if manager.get('shows_name') and manager.get('name'):
-        return " ".join(str(manager['name']).split())
-    return f"Manager {number} (name hidden)" if short else "A manager who hides their name"
+def manager_label(manager: Dict[str, Any], number: int) -> str:
+    """A manager as the node's owner sees them, as on the account page: by name. The owner
+    invited them, so the name shows whatever the manager chose for the public."""
+    name = " ".join(str(manager.get('name') or '').split())
+    return name or f"Manager {number}"
 
 
 class RemoveManagerConfirmView(ConfirmView):
@@ -1236,7 +1236,7 @@ class ManagerSelect(discord.ui.Select):
     def __init__(self, node: Dict[str, Any], user_id: str, managers: List[Dict[str, Any]]):
         self.node = node
         self.user_id = user_id
-        self.labels = {str(m['id']): manager_label(m, i, short=True) for i, m in enumerate(managers, 1)}
+        self.labels = {str(m['id']): manager_label(m, i) for i, m in enumerate(managers, 1)}
         super().__init__(
             placeholder="Remove a manager…",
             options=[discord.SelectOption(label=label[:100], value=value)

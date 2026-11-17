@@ -201,20 +201,16 @@ def nodes_of(discord_id: str) -> List[Dict]:
 
 
 def managers_of(public_key: str) -> List[Dict]:
-    """The node's managers, oldest first: their row number and name (never their Discord id), and
-    whether they show their name with their nodes."""
+    """The node's managers, oldest first: their row number and name (never their Discord id)."""
     conn = get_connection()
     try:
         rows = conn.execute(
-            "SELECT m.id, m.display_name, m.added_at, COALESCE(ps.show_name, 1) AS show_name "
-            "FROM node_managers m LEFT JOIN person_settings ps ON ps.discord_id = m.discord_id "
-            "WHERE m.public_key = ? ORDER BY m.id",
+            "SELECT id, display_name, added_at FROM node_managers WHERE public_key = ? ORDER BY id",
             (public_key,),
         ).fetchall()
     finally:
         conn.close()
-    return [{'id': r['id'], 'name': r['display_name'], 'added_at': r['added_at'],
-             'shows_name': bool(r['show_name'])} for r in rows]
+    return [{'id': r['id'], 'name': r['display_name'], 'added_at': r['added_at']} for r in rows]
 
 
 def create_invite(public_key: str, owner_id: str):

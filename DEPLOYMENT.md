@@ -98,8 +98,9 @@ without a row) and lets members change them:
   answer of `/node claim`, and the per-sync message behind `--notify`. A
   `/search` by text doesn't match such an owner's name, and a `/search` by
   `owner` finds none of their nodes; only the person themself gets their own
-  nodes that way, in an answer only they see. `/mynodes` is unchanged. The same
-  goes for a manager's name in `/node managers`.
+  nodes that way, in an answer only they see. `/mynodes` is unchanged.
+  `/node managers` shows the owner every manager's name, as the account page
+  does: the owner invited them. The bot shows managers nowhere else.
 - The announcement of a claim or unclaim by someone who hides their name is a
   message of the bot's own in the channel where the command was used, not a
   follow-up of their command (that would stay tied to them). The bot needs

@@ -631,10 +631,13 @@ def test_managers_lists_them_for_the_owner_only(db):
     _, kwargs = inter.followup.sent[0]
     assert kwargs["ephemeral"] is True
     text = kwargs["embed"].description
-    assert "1. Carol" in text and "2. A manager who hides their name" in text
-    assert "Dave" not in text and "333" not in text and "444" not in text
+    # As on the account page: the owner invited them, so sees both names, also Dave's, who
+    # hides his name from everyone else. Never an id.
+    assert "1. Carol" in text and "2. Dave" in text
+    assert "name hidden" not in text and "hides their name" not in text
+    assert "333" not in text and "444" not in text
     select = kwargs["view"].children[0]
-    assert [o.label for o in select.options] == ["Carol", "Manager 2 (name hidden)"]
+    assert [o.label for o in select.options] == ["Carol", "Dave"]
 
     other = interaction(user_id=333)  # a manager, not the owner
     run(bot_mod.node_managers.callback(other, "a3" * 32))

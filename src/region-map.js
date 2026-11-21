@@ -1,6 +1,7 @@
 // The region map: region codes (eu, be, be-* and the neighbouring countries) on the map engine of the
-// map page (src/map-engine/: MapLibre, or Leaflet without WebGL), with Turf for the province areas
-// when their outlines can't be loaded.
+// map page (src/map-engine/: MapLibre, or Leaflet without WebGL). When the province outlines can't be
+// loaded, the provinces are drawn as the areas around their places (data/be-province-hulls.geojson,
+// scripts/generate-be-province-hulls.mjs).
 import { createMapEngine, preloadEngine } from "./map-engine/index.js";
 import { boundsOf, boundsOfGeoJSON } from "./map-engine/geo.js";
 
@@ -311,51 +312,24 @@ function loadData() {
           });
         }
 
-        function pointsToFeatureCollection(points) {
-          return {
-            type: "FeatureCollection",
-            features: points.map(function (p) {
-              return {
-                type: "Feature",
-                geometry: { type: "Point", coordinates: [p.lon, p.lat] },
-                properties: {},
-              };
-            }),
-          };
-        }
-
-        function buildHullFromPoints(points, maxEdgeKm) {
-          if (!points.length || typeof turf === "undefined") return null;
-          if (points.length < 3) return null;
-          var fc = pointsToFeatureCollection(points);
-          var hull = null;
-          try {
-            if (turf.concave) {
-              hull = turf.concave(fc, {
-                maxEdge: maxEdgeKm || 50,
-                units: "kilometers",
+        /** The areas around each province's places, fetched once when the outlines didn't load. */
+        let provinceHullsFC = null;
+        let provinceHullsLoading = null;
+        function loadProvinceHulls() {
+          if (!provinceHullsLoading) {
+            provinceHullsLoading = fetch(rryDataUrl("be-province-hulls.geojson"))
+              .then(function (r) {
+                return r.ok ? r.json() : null;
+              })
+              .catch(function () {
+                return null;
+              })
+              .then(function (fc) {
+                provinceHullsFC = fc && fc.features && fc.features.length ? fc : null;
+                if (provinceHullsFC && overlayMode === "provinces" && !provincesLayer) updateOverlays();
               });
-            }
-          } catch (e) {}
-          if (!hull && turf.convex) {
-            try {
-              hull = turf.convex(fc);
-            } catch (e2) {}
           }
-          return hull;
-        }
-
-        function buildProvinceAreas() {
-          var layers = {};
-          var withCoords = getLocationsWithCoords();
-          PROVINCE_CODES.forEach(function (code) {
-            var pts = withCoords.filter(function (l) {
-              return l.province_code === code;
-            });
-            var hull = buildHullFromPoints(pts, 50);
-            if (hull) layers[code] = hull;
-          });
-          return layers;
+          return provinceHullsLoading;
         }
 
         /** One distinct fill + outline per province, or per gewest in gewesten mode. */
@@ -524,22 +498,10 @@ function loadData() {
               provinceBoundariesFC.features.length
             ) {
               provincesLayer = addAreas(provinceBoundariesFC, provinceLocodePopupHtml);
-            } else if (typeof turf !== "undefined") {
-              var areas = buildProvinceAreas();
-              var features = [];
-              for (var code in areas) {
-                if (areas[code]) {
-                  var feat = areas[code];
-                  var geom = feat.geometry || feat;
-                  var props = feat.properties
-                    ? Object.assign({}, feat.properties, { code: code })
-                    : { code: code };
-                  features.push({ type: "Feature", geometry: geom, properties: props });
-                }
-              }
-              if (features.length) {
-                provincesLayer = addAreas({ type: "FeatureCollection", features: features }, provinceLocodePopupHtml);
-              }
+            } else if (provinceHullsFC) {
+              provincesLayer = addAreas(provinceHullsFC, provinceLocodePopupHtml);
+            } else {
+              loadProvinceHulls();
             }
           } else if (overlayMode === "countries") {
             if (

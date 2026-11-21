@@ -234,13 +234,11 @@ def csp_enabled():
 CSP_ENABLED = csp_enabled()
 
 # What the pages load from elsewhere. Scripts: the files they take from the CDN, pinned by version
-# (the map's QR codes and the module those import, the stats charts, the region map's geometry;
-# Turf 7: version 6 builds code with eval).
+# (the map's QR codes and the module those import, the stats charts).
 CSP_CDN_SCRIPTS = (
     'https://cdn.jsdelivr.net/npm/qrcode@1.5.4/+esm',
     'https://cdn.jsdelivr.net/npm/dijkstrajs@1.0.3/+esm',
     'https://cdn.jsdelivr.net/npm/apexcharts@3.45.1/dist/apexcharts.min.js',
-    'https://cdn.jsdelivr.net/npm/@turf/turf@7.2.0/turf.min.js',
 )
 # Images: map tiles, and QR codes drawn as data: URLs.
 # The map's coverage and profile tools fetch terrain (Mapterhorn) and forests and buildings

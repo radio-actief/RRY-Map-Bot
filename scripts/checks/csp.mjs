@@ -91,19 +91,24 @@ export default async function (ctx) {
     await finish(ctx, "stats", page);
   }
   {
-    const page = await open(ctx, "/region-map");
-    await page.waitForFunction(() => typeof window.turf === "object", null, { timeout: 15000 }).catch(() => {});
-    ctx.check("csp region map: its geometry library loads", await page.evaluate(() => typeof window.turf === "object"));
-    // The province outlines are hulls: they must still compute (a refused eval would fail quietly).
-    const hulls = await page.evaluate(() => {
-      const pts = { type: "FeatureCollection", features: [[3.7, 51], [4.4, 51.2], [4.1, 50.6], [3.9, 50.9], [4.3, 50.8]].map((c) => ({ type: "Feature", properties: {}, geometry: { type: "Point", coordinates: c } })) };
-      try {
-        return [window.turf.concave(pts, { maxEdge: 200, units: "kilometers" })?.geometry?.type, window.turf.convex(pts)?.geometry?.type].join(" ");
-      } catch (e) {
-        return String(e);
-      }
+    // Without the province outlines, the provinces are the areas around their places, from a file of
+    // this site: no geometry script from elsewhere.
+    const asked = [];
+    const page = await open(ctx, "/region-map", async (p) => {
+      p.on("request", (r) => asked.push(r.url()));
+      await p.route("**/data/be-provinces.geojson", (r) => r.fulfill({ contentType: "application/geo+json", body: '{"type":"FeatureCollection","features":[]}' }));
     });
-    ctx.check("csp region map: outlines compute", hulls === "Polygon Polygon", hulls);
+    await page.waitForFunction(() => window.bemeshMap && document.querySelector("#counter-text")?.textContent, null, { timeout: 15000 }).catch(() => {});
+    await page.waitForTimeout(800);
+    const drawn = await page.evaluate(() => {
+      const m = window.bemeshMap;
+      if (!m) return 0;
+      if (m.kind !== "maplibre") return document.querySelectorAll(".leaflet-overlay-pane path.leaflet-interactive").length;
+      const layers = m.map.getStyle().layers.map((l) => l.id).filter((id) => /^bemesh-o\d+-fill$/.test(id));
+      return new Set(m.map.queryRenderedFeatures({ layers }).map((f) => f.properties.i)).size;
+    });
+    ctx.check("csp region map: without the outlines, the province areas come from this site", drawn >= 10 && asked.some((u) => u.endsWith("/data/be-province-hulls.geojson")), `${drawn} areas`);
+    ctx.check("csp region map: no geometry script from elsewhere", !asked.some((u) => /turf/i.test(u)), asked.filter((u) => /turf/i.test(u)).join(" "));
     await finish(ctx, "region map", page);
   }
   {

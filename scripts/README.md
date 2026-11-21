@@ -123,6 +123,21 @@ Run it again only when `data/be-provinces.geojson` changes.
 
 **Output schema (per feature):** `properties.code` (`be-vlg` / `be-wal`), `properties.name`; `geometry` is a `Polygon` or `MultiPolygon` in EPSG:4326 (same CRS as the source).
 
+## `generate-be-province-hulls.mjs`
+
+Builds [`data/be-province-hulls.geojson`](../data/be-province-hulls.geojson): per province the area around its places in [`data/be-locode.json`](../data/be-locode.json) (Turf's concave hull with edges up to 50 km, else the convex hull). The [region map](../region-map.html) fetches and draws it only when the province outlines ([`data/be-provinces.geojson`](../data/be-provinces.geojson)) can't be loaded, so the page itself needs no geometry library.
+
+**Dependencies:** `@turf/turf` 7.2.0, for this script only (not a dependency of the site):
+
+```bash
+npm install --prefix /tmp/turf @turf/turf@7.2.0
+NODE_PATH=/tmp/turf/node_modules node scripts/generate-be-province-hulls.mjs
+```
+
+Run it again when `data/be-locode.json` changes.
+
+**Output schema (per feature):** `properties.code` (`be-van` … `be-wlx`, in the order of `PROVINCE_CODES` in [`src/shared/be-regions.js`](../src/shared/be-regions.js)); `geometry` is a `Polygon` in EPSG:4326.
+
 ## One-shot DB backfills
 
 ### `backfill_cities.py`

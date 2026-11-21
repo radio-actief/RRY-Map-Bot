@@ -113,7 +113,9 @@ into `belgian_nodes`, and records every add / remove / update / restore in
 node on its `inserted_date`; daily increments come from `node_changes`. Map
 header, stats chips, chart, and timeline playback all read the same row set
 (`is_active = 1 AND adv_lat IS NOT NULL AND adv_lon IS NOT NULL`), so totals
-match by construction.
+match by construction. The server replays the node changes for the chart's
+lines by type, the top growth days and the playback map
+(`GET /api/v1/stats-history`, `backend/stats_history.py`); the page only draws.
 
 **Discord ownership.** `/node claim` and `/node unclaim` (or the map's claim
 buttons) set `discord_owner_id` and `discord_owner_name` on `belgian_nodes`

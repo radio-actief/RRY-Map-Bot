@@ -28,6 +28,7 @@ from backend.database import (
     dict_from_row
 )
 from backend.datetime_utils import normalize_node_timestamps
+from backend.stats_history import build_stats_history
 import backend.claims as claims
 from config.config import SITE_TOOLS as config_site_tools, SITE_TOOL_SECRETS as config_site_tool_secrets
 from config.config import LANG_COOKIE_DOMAIN, DATABASE_PATH
@@ -210,7 +211,7 @@ def _cache_policy(path: str) -> Optional[str]:
         return 'no-cache'
     if path.startswith('/data/'):
         return 'public, max-age=3600'
-    if path in ('/api/v1/belgian-nodes', '/api/v1/node-changes', '/api/v1/sync-history'):
+    if path in ('/api/v1/belgian-nodes', '/api/v1/node-changes', '/api/v1/stats-history', '/api/v1/sync-history'):
         return 'no-cache'
     return None
 
@@ -344,8 +345,9 @@ def compress_and_cache(resp):
     return resp
 
 
-# The stats page's data (node changes, sync history) only changes when the database does (the sync
-# every half hour, a claim): each answer is built once per database version and kept, per query.
+# The stats page's data (change history, node changes, sync history) only changes when the database
+# does (the sync every half hour, a claim): each answer is built once per database version and kept,
+# per query.
 _STATS_DATA_MAX = 16
 _stats_data_cache: "OrderedDict[tuple, tuple]" = OrderedDict()
 _stats_data_lock = threading.Lock()
@@ -1205,6 +1207,22 @@ def get_node_changes_since(
     return combined
 
 
+def _node_changes_query():
+    """get_node_changes_since's arguments from the query: since, limit (default 5000, at most
+    20000), frequency_preset, or a custom radio (freq, sf, bw, cr), which overrides the preset."""
+    limit = request.args.get('limit', type=int) or 5000
+    radio_custom = _parse_radio_custom_from_request()
+    preset = request.args.get('frequency_preset')
+    if preset == 'all' or radio_custom:
+        preset = None
+    return {
+        'since_date': request.args.get('since'),
+        'limit': min(max(1, limit), 20000),
+        'frequency_preset': preset,
+        'radio_custom': radio_custom,
+    }
+
+
 @app.route('/api/v1/node-changes', methods=['GET'])
 def node_changes():
     """
@@ -1215,23 +1233,27 @@ def node_changes():
         or custom radio: any of freq (MHz), sf, bw (kHz), cr — combine as needed; overrides preset.
     """
     try:
-        since = request.args.get('since')
-        limit = request.args.get('limit', type=int) or 5000
-        limit = min(max(1, limit), 20000)
-        radio_custom = _parse_radio_custom_from_request()
-        preset = request.args.get('frequency_preset')
-        if preset == 'all':
-            preset = None
-        if radio_custom:
-            preset = None
-        return _kept_json(lambda: get_node_changes_since(
-            since_date=since,
-            limit=limit,
-            frequency_preset=preset,
-            radio_custom=radio_custom,
-        )), 200
+        query = _node_changes_query()
+        return _kept_json(lambda: get_node_changes_since(**query)), 200
     except Exception as e:
         print(f"Error in node_changes endpoint: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@app.route('/api/v1/stats-history', methods=['GET'])
+def stats_history():
+    """
+    GET /api/v1/stats-history
+
+    The stats page's history from the same change list as /api/v1/node-changes (same query), replayed
+    once on the server: the nodes shown per day by type, the repeater growth per day and the playback
+    map's steps (see backend/stats_history.py). Kept per database version like the other stats data.
+    """
+    try:
+        query = _node_changes_query()
+        return _kept_json(lambda: build_stats_history(get_node_changes_since(**query))), 200
+    except Exception as e:
+        print(f"Error in stats_history endpoint: {e}")
         return jsonify({'error': 'Internal server error'}), 500
 
 

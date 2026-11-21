@@ -292,6 +292,7 @@ class TestErrorResponses(unittest.TestCase):
         for path in (
             "/api/v1/belgian-nodes/count",
             "/api/v1/node-changes",
+            "/api/v1/stats-history",
             "/api/v1/sync-history",
             "/api/v1/stats",
             "/api/v1/repeaters/contacts",

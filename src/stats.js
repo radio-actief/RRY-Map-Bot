@@ -611,45 +611,9 @@
           else row(tCities, "—", "—");
         }
 
-        function initStatsPlaybackMap(changes) {
-          if (!changes || changes.length === 0) return;
-          var byDate = {};
-          changes.forEach(function (c) {
-            var d = (c.sync_date || "").slice(0, 10);
-            if (!byDate[d]) byDate[d] = [];
-            byDate[d].push(c);
-          });
-          var sortedDates = Object.keys(byDate).sort();
-          var frames = [];
-          var visible = {};
-          sortedDates.forEach(function (d) {
-            byDate[d].forEach(function (c) {
-              if (c.change_type === "added" || c.change_type === "restored") {
-                visible[c.public_key] = {
-                  lat: c.lat,
-                  lon: c.lon,
-                  adv_name: c.adv_name,
-                  type: c.type || 1,
-                };
-              } else if (c.change_type === "updated" && visible[c.public_key]) {
-                visible[c.public_key] = {
-                  lat: c.lat,
-                  lon: c.lon,
-                  adv_name: c.adv_name,
-                  type: c.type || 1,
-                };
-              } else if (c.change_type === "removed") {
-                delete visible[c.public_key];
-              }
-            });
-            frames.push({
-              date: d,
-              nodes: Object.keys(visible).map(function (k) {
-                return visible[k];
-              }),
-            });
-          });
-          if (frames.length === 0) return;
+        /** The playback map over `frames` (BEmeshStatsHistory.playbackFrames). */
+        function initStatsPlaybackMap(frames) {
+          if (!frames || frames.length === 0) return;
 
           var nodeTypeColors = {
             1: { fill: "#2196f3", stroke: "#1565C0" },
@@ -896,7 +860,7 @@
         }
         function fetchChartData(preset, opts) {
           opts = opts || {};
-          var includeNodeChanges = opts.includeNodeChanges !== false;
+          var includeChangeHistory = opts.includeChangeHistory !== false;
           if (!window.__statsRadioCustom) {
             chartPresetValue = preset != null ? preset : chartPresetValue;
           }
@@ -907,16 +871,16 @@
             if (!r.ok) throw new Error(tr("stats.error.syncHistory"));
             return r.json();
           });
-          if (!includeNodeChanges) {
+          if (!includeChangeHistory) {
             return syncP.then(function (history) {
-              return [history, []];
+              return [history, null];
             });
           }
           return Promise.all([
             syncP,
-            fetch("/api/v1/node-changes?limit=15000" + presetParam).then(
+            fetch("/api/v1/stats-history?limit=15000" + presetParam).then(
               function (r) {
-                return r.ok ? r.json() : [];
+                return r.ok ? r.json() : null;
               },
             ),
           ]);
@@ -936,7 +900,9 @@
             String(d.getDate()).padStart(2, "0")
           );
         }
-        function initStatsContent(history, nodeChanges) {
+        /** The chart, tables and playback map from the sync history and the server's change history
+         * (GET /api/v1/stats-history; null when it is not loaded: the playback map asks for it). */
+        function initStatsContent(history, changeHistory) {
           __statsPlaybackGen++;
           var playbackGen = __statsPlaybackGen;
           if (window.__statsChartInstance) {
@@ -1101,77 +1067,18 @@
           }
 
           var topN = 3;
-          function syncDayKey(syncDate) {
-            return String(syncDate == null ? "" : syncDate).slice(0, 10);
-          }
-          function applyNodeChangeForPlayback(visibleCh, c) {
-            var t = c.type || 1;
-            if (c.change_type === "added" || c.change_type === "restored") {
-              visibleCh[c.public_key] = t;
-            } else if (
-              c.change_type === "updated" &&
-              visibleCh[c.public_key] !== undefined
-            ) {
-              visibleCh[c.public_key] = t;
-            } else if (c.change_type === "removed") {
-              delete visibleCh[c.public_key];
-            }
-          }
-          function repeaterCountFromVisible(visibleCh) {
-            var n = 0;
-            for (var pk in visibleCh) {
-              if (visibleCh[pk] === 2) n++;
-            }
-            return n;
-          }
-          function topRepeaterGrowthDays(dayList, changes) {
-            if (!dayList.length) return [];
-            var sorted = changes.slice().sort(function (a, b) {
-              return (a.sync_date || "").localeCompare(b.sync_date || "");
+          /** Repeater growth on each day of dayList (the server replays the changes: growthByDay). */
+          function topRepeaterGrowthDays(dayList) {
+            var byDay = window.BEmeshStatsHistory.growthByDay(changeHistory);
+            return dayList.map(function (day) {
+              return { date: day, growth: byDay[day] || 0 };
             });
-            var visibleCh = {};
-            var chIx = 0;
-            var n = sorted.length;
-
-            function consumeBeforeDay(day) {
-              while (chIx < n && syncDayKey(sorted[chIx].sync_date) < day) {
-                applyNodeChangeForPlayback(visibleCh, sorted[chIx]);
-                chIx++;
-              }
-            }
-            function consumeOnDay(day) {
-              while (chIx < n && syncDayKey(sorted[chIx].sync_date) === day) {
-                applyNodeChangeForPlayback(visibleCh, sorted[chIx]);
-                chIx++;
-              }
-            }
-
-            consumeBeforeDay(dayList[0]);
-            var rows = [];
-            for (var i = 0; i < dayList.length; i++) {
-              var day = dayList[i];
-              var repStart = repeaterCountFromVisible(visibleCh);
-              consumeOnDay(day);
-              var repEnd = repeaterCountFromVisible(visibleCh);
-              rows.push({ date: day, growth: repEnd - repStart });
-              var nextDay = dayList[i + 1];
-              if (nextDay) {
-                while (
-                  chIx < n &&
-                  syncDayKey(sorted[chIx].sync_date) < nextDay
-                ) {
-                  applyNodeChangeForPlayback(visibleCh, sorted[chIx]);
-                  chIx++;
-                }
-              }
-            }
-            return rows;
           }
 
           var dayListForGrowth = dailyRowsTable.map(function (r) {
             return r.date;
           });
-          var topGrowth = topRepeaterGrowthDays(dayListForGrowth, nodeChanges)
+          var topGrowth = topRepeaterGrowthDays(dayListForGrowth)
             .sort(function (a, b) {
               return b.growth - a.growth;
             })
@@ -1222,36 +1129,8 @@
             return cumulative;
           });
 
-          // Cumulative by node type from node_changes (same logic as playback)
-          var byDateCh = {};
-          nodeChanges.forEach(function (c) {
-            var d = (c.sync_date || "").slice(0, 10);
-            if (!byDateCh[d]) byDateCh[d] = [];
-            byDateCh[d].push(c);
-          });
-          var sortedDatesCh = Object.keys(byDateCh).sort();
-          var visibleCh = {};
-          var framesByType = [];
-          sortedDatesCh.forEach(function (d) {
-            byDateCh[d].forEach(function (c) {
-              var t = c.type || 1;
-              if (c.change_type === "added" || c.change_type === "restored") {
-                visibleCh[c.public_key] = t;
-              } else if (
-                c.change_type === "updated" &&
-                visibleCh[c.public_key]
-              ) {
-                visibleCh[c.public_key] = t;
-              } else if (c.change_type === "removed") {
-                delete visibleCh[c.public_key];
-              }
-            });
-            var counts = { 1: 0, 2: 0, 3: 0, 4: 0 };
-            Object.values(visibleCh).forEach(function (t) {
-              counts[t] = (counts[t] || 0) + 1;
-            });
-            framesByType.push({ date: d, counts: counts });
-          });
+          // Cumulative by node type: the nodes shown after each day (the server replays the changes)
+          var framesByType = window.BEmeshStatsHistory.typeFrames(changeHistory);
           function cumulativeByTypeForDate(dateStr) {
             if (framesByType.length === 0) return { 1: 0, 2: 0, 3: 0, 4: 0 };
             if (dateStr < framesByType[0].date)
@@ -2189,18 +2068,18 @@
             };
           }
 
-          // Playback map: defer heavy node_changes + Leaflet until idle (or run immediately when refetch passes data).
-          function runPlaybackWithChanges(ch) {
+          // Playback map: Leaflet (and the history when it isn't loaded yet) once the browser is idle.
+          function runPlaybackWithChanges(frames) {
             if (playbackGen !== __statsPlaybackGen) return;
             ensureStatsLeaflet()
               .then(function () {
                 if (playbackGen !== __statsPlaybackGen) return;
-                initStatsPlaybackMap(ch || []);
+                initStatsPlaybackMap(frames || []);
               })
               .catch(function () {});
           }
-          if (nodeChanges && nodeChanges.length) {
-            runPlaybackWithChanges(nodeChanges);
+          if (changeHistory) {
+            runPlaybackWithChanges(window.BEmeshStatsHistory.playbackFrames(changeHistory));
           } else {
             var ric =
               window.requestIdleCallback ||
@@ -2210,15 +2089,15 @@
             ric(function () {
               if (playbackGen !== __statsPlaybackGen) return;
               var pp = statsFrequencyQuerySuffix();
-              fetch("/api/v1/node-changes?limit=15000" + pp).then(function (r) {
+              fetch("/api/v1/stats-history?limit=15000" + pp).then(function (r) {
                 if (playbackGen !== __statsPlaybackGen) return;
                 if (!r.ok) {
                   runPlaybackWithChanges([]);
                   return;
                 }
-                return r.json().then(function (ch) {
+                return r.json().then(function (h) {
                   if (playbackGen !== __statsPlaybackGen) return;
-                  runPlaybackWithChanges(ch || []);
+                  runPlaybackWithChanges(window.BEmeshStatsHistory.playbackFrames(h));
                 });
               });
             });
@@ -2265,7 +2144,7 @@
           }
           fetchChartData(null)
             .then(function (results) {
-              initStatsContent(results[0], results[1] || []);
+              initStatsContent(results[0], results[1]);
             })
             .catch(function (err) {
               showError(err.message || tr("stats.error.history"));
@@ -2283,9 +2162,9 @@
               return r.json();
             },
           ),
-          fetch("/api/v1/node-changes?limit=15000" + presetParamBoot).then(
+          fetch("/api/v1/stats-history?limit=15000" + presetParamBoot).then(
             function (r) {
-              return r.ok ? r.json() : [];
+              return r.ok ? r.json() : null;
             },
           ),
           ensureApexCharts(),
@@ -2293,7 +2172,7 @@
           .then(function (tuple) {
             var s = tuple[0];
             var history = tuple[1];
-            var nodeChangesBoot = tuple[2] || [];
+            var changeHistoryBoot = tuple[2];
             statsDataCache = s;
             fillHeaderChips(s);
             var main = document.querySelector(".stats-header-main");
@@ -2309,7 +2188,7 @@
               populatePresetDropdown(s);
               updateNetworkChipFromPreset();
             }
-            initStatsContent(history, nodeChangesBoot);
+            initStatsContent(history, changeHistoryBoot);
           })
           .catch(function (err) {
             loadingEl.style.display = "none";

@@ -66,7 +66,7 @@ def get_routes():
 
 def test_the_scan_covers_the_public_answers():
     urls = get_routes()
-    for url in ('/api/v1/belgian-nodes', '/api/v1/node-changes', '/api/v1/sync-history', '/api/v1/stats',
+    for url in ('/api/v1/belgian-nodes', '/api/v1/node-changes', '/api/v1/stats-history', '/api/v1/sync-history', '/api/v1/stats',
                 '/api/v1/config', '/api/v1/repeaters/contacts', f'/api/v1/nodes/{A}/ownership', '/auth/me'):
         assert url in urls
 

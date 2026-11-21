@@ -136,6 +136,10 @@ Endpoints:
   `GET /api/v1/nodes/<key>/ownership` (only when that owner shows their name). Our own tools ask
   `/auth/claimed` and `/auth/node` instead (below).
 - `GET /api/v1/stats` - Get statistics
+- `GET /api/v1/stats-history` - The stats page's history: the node change list (the same query as
+  `GET /api/v1/node-changes`) replayed on the server into the nodes shown per day by type, the
+  repeater growth per day and the playback map's steps (`backend/stats_history.py`). Like
+  `node-changes` and `sync-history`, it is built once per database change.
 - `GET /api/v1/health` - Health check (API process only)
 - `GET /api/v1/health/sync` - Age of the last sync run: 200 `ok`, or 503 `stale` (older than twice the sync interval) / `no_history`; point uptime monitoring here
 - `GET /` - Web map interface

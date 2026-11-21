@@ -5,7 +5,7 @@ const PAGES = ["/", "/stats", "/region-map", "/configurator"];
 const LINKS = ["Radio-Actief Website", "#BEmesh Website", "Documentation", "Discord", "GitHub"];
 const text = (s) => (s || "").replace(/\s+/g, " ").trim();
 const signedIn = async (p) => {
-  await p.route("**/auth/me", (r) => r.fulfill({ contentType: "application/json", body: JSON.stringify({ authenticated: true, user: { id: "1", username: "tester" } }) }));
+  await p.route("**/auth/me", (r) => r.fulfill({ contentType: "application/json", body: JSON.stringify({ authenticated: true, user: { id: "1", username: "tester", global_name: "Tester" } }) }));
 };
 const signedOut = async (p) => {
   await p.route("**/auth/me", (r) => r.fulfill({ contentType: "application/json", body: JSON.stringify({ authenticated: false }) }));
@@ -83,14 +83,17 @@ export default async function (ctx) {
     ctx.check(`${name}: signed in has no sign-in chip`, (await me.locator(".topbar a.signin-chip").count()) === 0);
     await me.locator("#menu-toggle").click();
     const menu = text(await me.locator("#page-menu").textContent());
-    ctx.check(`${name}: signed in ☰ shows @tester and Log out`, menu.includes("@tester") && menu.includes("Log out") && !menu.includes("Sign in"), menu);
+    ctx.check(`${name}: signed in ☰ shows the name, @tester under it and Log out`, /Tester\s*@tester/.test(menu) && menu.includes("Log out") && !menu.includes("Sign in"), menu);
     // Log out is a form POST back to this page; a plain link can't sign anyone out.
     const out = await me.locator('#page-menu form:has(button:has-text("Log out"))').evaluate((f) => `${f.getAttribute("method")} ${f.getAttribute("action")}`).catch(() => "none");
     ctx.check(`${name}: Log out returns to this page`, out === `post /auth/logout?next=${path}`, out);
+    // My nodes links to the account page on every page; only the map knows the count.
+    const mine = await me.locator("#page-menu a:has-text('My nodes')").getAttribute("href").catch(() => null);
+    ctx.check(`${name}: ☰ links My nodes to the account page`, mine === "/account#my-nodes", String(mine));
     if (path === "/") {
-      ctx.check("topbar /: ☰ shows My nodes next to @tester", /@tester\s*My nodes \d+/.test(menu), menu);
-    } else if (path !== "/configurator") {
-      ctx.check(`${name}: no My nodes outside the map`, !menu.includes("My nodes"), menu);
+      ctx.check("topbar /: ☰ shows My nodes with a count under @tester", /@tester\s*My nodes\s*\d+/.test(menu), menu);
+    } else {
+      ctx.check(`${name}: ☰ shows My nodes without a count outside the map`, /@tester\s*My nodes\s*Account/.test(menu), menu);
     }
     await me.close();
 

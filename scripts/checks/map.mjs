@@ -65,7 +65,7 @@ export default async function (ctx) {
   const panel = page.locator("#node-filter");
   ctx.check("map: Filters opens the panel", await panel.isVisible());
   const chips = (await panel.locator(".chip").allTextContents()).map(text);
-  ctx.check("map: four type chips", ["Clients", "Repeaters", "Room servers", "Sensors"].every((c) => chips.includes(c)), chips.join(","));
+  ctx.check("map: four type chips", ["Companions", "Repeaters", "Room servers", "Sensors"].every((c) => chips.includes(c)), chips.join(","));
   const segs = await panel.locator(".segmented").evaluateAll((els) => els.map((e) => [...e.querySelectorAll("button")].map((b) => b.textContent.trim()).join(",")));
   ctx.check("map: Source segment", segs.includes("All,App,Uploader"), segs.join("|"));
   ctx.check("map: Discord segment", segs.includes("All,Claimed,Unclaimed"), segs.join("|"));
@@ -105,7 +105,7 @@ export default async function (ctx) {
   });
   await signed.locator("#menu-toggle").click();
   const smenu = text(await signed.locator("#page-menu").textContent());
-  ctx.check("map: signed in menu shows @tester", smenu.includes("@tester"), smenu);
+  ctx.check("map: signed in menu shows the name", smenu.includes("tester") && !smenu.includes("@tester"), smenu);
   ctx.check("map: signed in menu shows Log out", smenu.includes("Log out"), smenu);
   ctx.check("map: signed in has no sign-in link", (await signed.locator('a[href^="/auth/login"]').count()) === 0);
   await signed.close();
@@ -166,15 +166,18 @@ export default async function (ctx) {
   const sysLight = await layersLook("light", null);
   ctx.check("map: layers icon follows system dark and chosen dark, not light", sysDark === chosenDark && sysDark !== sysLight, `${sysDark} | ${chosenDark} | ${sysLight}`);
 
-  // Signed in on a phone, ☰ shows the user's node count under @user (the top-bar chip is hidden there).
+  // Signed in on a phone, ☰ shows the count of the nodes the person owns or manages
+  // (/api/v1/my-node-roles) under the name and @handle (the top-bar chip is hidden there).
+  const roles = Object.fromEntries(nodes.filter((n) => n.discord_owner_id === "1").map((n, i) => [n.public_key, i % 3 ? "owner" : "manager"]));
   const me = (extra) => withNodes(async (p) => {
-    await p.route("**/auth/me", (r) => r.fulfill({ contentType: "application/json", body: JSON.stringify({ authenticated: true, user: { id: "1", username: "tester" } }) }));
+    await p.route("**/auth/me", (r) => r.fulfill({ contentType: "application/json", body: JSON.stringify({ authenticated: true, user: { id: "1", username: "tester", global_name: "Tester" } }) }));
+    await p.route("**/api/v1/my-node-roles", (r) => r.fulfill({ contentType: "application/json", body: JSON.stringify({ roles }) }));
     if (extra) await extra(p);
   });
   const mine = await ctx.open("/", { width: 390, height: 800, setup: me() });
   await mine.locator("#menu-toggle").click();
   const mt = text(await mine.locator("#page-menu").textContent());
-  ctx.check("map: phone ☰ shows My nodes 9 under @tester", /@tester\s*My nodes 9/.test(mt), mt);
+  ctx.check("map: phone ☰ shows My nodes 9 under Tester @tester", /Tester\s*@tester\s*My nodes\s*9/.test(mt), mt);
   await mine.close();
   const wide = await ctx.open("/", { setup: me() });
   await wide.locator("#menu-toggle").click();

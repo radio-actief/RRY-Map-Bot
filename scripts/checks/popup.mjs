@@ -1,4 +1,5 @@
-// Node popup: compact (no taller than 420px), every field still there, no text under 11px.
+// Node popup: compact (no taller than 420px; 440px on a phone, where the close ×, the actions and
+// the coverage row are 44px tap targets), every field still there, no text under 11px.
 // The popup's frame: MapLibre's (WebGL) or Leaflet's (no WebGL), whichever the browser got.
 const FRAME = ":is(.leaflet-popup-content-wrapper, .bemesh-popup .maplibregl-popup-content)";
 const CLOSE = ":is(.leaflet-popup-close-button, .bemesh-popup .maplibregl-popup-close-button)";
@@ -57,15 +58,15 @@ const buttons = (page) =>
 const GOLD = "rgb(212, 160, 23)";
 
 export default async function (ctx) {
-  for (const [width, height, size] of [
-    [1440, 900, "desktop"],
-    [390, 844, "390"],
+  for (const [width, height, size, most] of [
+    [1440, 900, "desktop", 420],
+    [390, 844, "390", 440],
   ]) {
     const n = `popup (${size})`;
     const page = await ctx.open(`/?node=${node.public_key}`, { width, height, setup });
     await page.waitForSelector(".node-popup img.node-qr", { timeout: 10000 }).catch(() => {});
     const box = await page.locator(FRAME).boundingBox();
-    ctx.check(`${n}: no taller than 420px`, !!box && box.height <= 420, box ? `${Math.round(box.height)}px` : "no popup");
+    ctx.check(`${n}: no taller than ${most}px`, !!box && box.height <= most, box ? `${Math.round(box.height)}px` : "no popup");
 
     const text = (await page.locator(".node-popup").innerText()).replace(/\s+/g, " ");
     const wanted = ["BE-GEN-Popup check", "Gent", "Inserted", "Updated", "Last advert", "Public key", "MeshCore link", "Radio", "EU/UK (Narrow)", "Added by", "Updated by", "Claimed by", "@radiofan"];

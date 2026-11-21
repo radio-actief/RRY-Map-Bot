@@ -162,9 +162,11 @@ export default async function (ctx) {
 
     // The map popup: links on the tools' own addresses, and the NodeBook lookup with cookies.
     await context.addCookies([{ name: "nbcheck", value: "1", url: nbTool.url }]);
+    // Signed in for every page of the context: the device hub in NodeBook's tab must agree with the
+    // map, or the two keep rewriting the bemesh.account.seen record and asking /auth/me again.
+    await context.route("**/auth/me", (r) => r.fulfill({ contentType: "application/json", body: JSON.stringify({ authenticated: true, user: { id: "1", username: "tester" } }) }));
     const mapPage = await context.newPage();
     await mapPage.route("**/api/v1/belgian-nodes", (r) => r.fulfill({ contentType: "application/json", body: JSON.stringify(NODES) }));
-    await mapPage.route("**/auth/me", (r) => r.fulfill({ contentType: "application/json", body: JSON.stringify({ authenticated: true, user: { id: "1", username: "tester" } }) }));
     await mapPage.goto(`${ctx.base}/?node=${KEY(0)}`, { waitUntil: "networkidle" });
     await mapPage.waitForSelector(".node-popup__tools a >> nth=1", { timeout: 10000 }).catch(() => {});
     const links = await mapPage.locator(".node-popup__tools a").evaluateAll((as) => as.map((a) => `${a.textContent}=${a.getAttribute("href")}`));

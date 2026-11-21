@@ -1,9 +1,13 @@
-// Site translations: each page in Dutch and French via ?lang, <html lang>, the EN · NL · FR switch,
-// and the layout in all three languages (390 px: no horizontal scroll, the switch in ☰; the top bar on
-// one line at 390 and 1440 px; no clipped buttons).
+// Site translations: each page in Dutch and French via ?lang, <html lang>, the EN · NL · FR switch
+// (a pick is saved in the shared bemesh_lang cookie; ?lang alone saves nothing), and the layout in
+// all three languages (390 px: no horizontal scroll, the switch in ☰; the top bar on one line at 390
+// and 1440 px; no clipped buttons).
 import { mockStats } from "./fixtures/mock-stats.mjs";
 
 const text = (s) => (s || "").replace(/\s+/g, " ").trim();
+/** The shared language choice the page can see (cookie bemesh_lang), and the old per-page store. */
+const saved = (page) =>
+  page.evaluate(() => [(document.cookie.match(/(?:^|;\s*)bemesh_lang=([^;]*)/) || [])[1] ?? null, localStorage.getItem("bemesh.lang")]);
 const HTML_LANG = { en: "en", nl: "nl", fr: "fr" };
 const FIRST_LINK = { en: "Map", nl: "Kaart", fr: "Carte" };
 
@@ -114,7 +118,8 @@ export default async function (ctx) {
       ctx.check(`${name}: page text in ${lang}`, own === spec.want[lang], own);
       const pressed = await page.locator('.topbar .lang-switch:not(.menu-lang) button[aria-pressed="true"]').textContent();
       ctx.check(`${name}: the switch marks ${lang.toUpperCase()}`, text(pressed) === lang.toUpperCase(), pressed);
-      ctx.check(`${name}: ?lang is remembered`, (await page.evaluate(() => localStorage.getItem("bemesh.lang"))) === lang);
+      const kept = await saved(page);
+      ctx.check(`${name}: ?lang alone saves nothing`, kept[0] === null && kept[1] === null, kept.join(" "));
       ctx.check(`${name}: no page errors`, !page.errors.length, page.errors.join("; "));
 
       // The switch: EN puts the page (and the ?lang in the address) back in English.
@@ -125,22 +130,38 @@ export default async function (ctx) {
         await page.waitForFunction((want) => document.querySelector(".topbar .switcher a")?.textContent.trim() === want, "Map", { timeout: 15000 }).catch(() => {});
         const after = text(await page.locator(".topbar .switcher a").first().textContent());
         const own2 = await pageText(page, spec);
-        const where = await page.evaluate(() => [location.search, localStorage.getItem("bemesh.lang")]);
+        const search = await page.evaluate(() => location.search);
+        const [cookie] = await saved(page);
         ctx.check(
-          `${name}: EN switches the page to English`,
-          after === "Map" && own2 === spec.want.en && where[0].includes("lang=en") && where[1] === "en",
-          `${after} | ${own2} | ${where.join(" ")}`,
+          `${name}: EN switches the page to English and saves the pick`,
+          after === "Map" && own2 === spec.want.en && search.includes("lang=en") && cookie === "en",
+          `${after} | ${own2} | ${search} ${cookie}`,
         );
       }
       await page.close();
     }
   }
 
-  // Remembered without ?lang, and the browser language on a first visit.
-  const stored = await ctx.open("/region-map", { setup: async (p) => { await setup("/region-map")(p); await p.addInitScript(() => localStorage.setItem("bemesh.lang", "fr")); } });
+  // The shared choice applies without ?lang; the old per-page store is cleared and not read.
+  const stored = await ctx.open("/region-map", {
+    setup: async (p) => {
+      await setup("/region-map")(p);
+      await p.context().addCookies([{ name: "bemesh_lang", value: "fr", url: ctx.base }]);
+    },
+  });
   await ready(stored);
-  ctx.check("i18n: a stored choice applies without ?lang", (await stored.evaluate(() => document.documentElement.lang)) === "fr");
+  ctx.check("i18n: the shared choice applies without ?lang", (await stored.evaluate(() => document.documentElement.lang)) === "fr");
   await stored.close();
+  const old = await ctx.open("/region-map", {
+    setup: async (p) => {
+      await setup("/region-map")(p);
+      await p.addInitScript(() => localStorage.setItem("bemesh.lang", "fr"));
+    },
+  });
+  await ready(old);
+  const oldLang = await old.evaluate(() => [document.documentElement.lang, localStorage.getItem("bemesh.lang")]);
+  ctx.check("i18n: an old per-page choice is cleared, not read", oldLang[0] === "en" && oldLang[1] === null, oldLang.join(" "));
+  await old.close();
   const browser = await ctx.open("/stats", { locale: "nl-BE", setup: setup("/stats") });
   await ready(browser);
   ctx.check("i18n: a first visit follows the browser language (nl-BE → nl)", text(await browser.locator(".topbar .switcher a").first().textContent()) === "Kaart");

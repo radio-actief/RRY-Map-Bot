@@ -234,18 +234,19 @@ export default async function (ctx) {
   ctx.check("glass: configurator no page errors", !conf.errors.length, conf.errors.join("; "));
   await conf.close();
 
-  // Configurator in dark: Leaflet's own stylesheet loads after ours there, and must not win on the
-  // tooltip text or the credit line.
+  // Configurator in dark: the map library's own stylesheet must not win on the tooltip text or the
+  // credit line (MapLibre's map, or Leaflet's without WebGL).
   const confDark = await openConfigurator(ctx);
   await confDark.emulateMedia({ colorScheme: "dark" });
+  await confDark.waitForSelector(".bemesh-map", { timeout: 15000 }).catch(() => {});
   await confDark.waitForTimeout(200);
   const cd = await confDark.evaluate(() => {
-    const host = document.querySelector(".leaflet-container");
+    const host = document.querySelector(".bemesh-map");
     const tip = document.createElement("div");
-    tip.className = "leaflet-tooltip";
+    tip.className = host.classList.contains("leaflet-container") ? "leaflet-tooltip" : "bemesh-tooltip";
     tip.textContent = "BE-GEN-Check";
     host.appendChild(tip);
-    const attr = document.querySelector(".leaflet-control-attribution");
+    const attr = document.querySelector(".leaflet-control-attribution, .maplibregl-ctrl-attrib");
     return { tip: getComputedStyle(tip).color, attrBg: attr && getComputedStyle(attr).backgroundColor, attrInk: attr && getComputedStyle(attr).color };
   });
   ctx.check("glass: configurator tooltip text is light in dark", cd.tip === "rgb(237, 242, 247)", JSON.stringify(cd));

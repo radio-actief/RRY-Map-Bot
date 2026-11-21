@@ -303,13 +303,14 @@
   font-family: var(--app-font-body);
 }
 
-/* The credit line: solid, 11px, as on the Leaflet map */
+/* The credit line: solid, 11px, as on the Leaflet map (above MapLibre's own rule also where its
+   stylesheet loads after this one, as in the configurator) */
 .bemesh-map .maplibregl-ctrl-bottom-right {
   margin-right: max(0px, env(safe-area-inset-right, 0px));
   margin-bottom: var(--map-safe-bottom, 0px);
 }
 
-.bemesh-map .maplibregl-ctrl-attrib {
+.bemesh-map .maplibregl-ctrl.maplibregl-ctrl-attrib {
   background: var(--panel);
   color: var(--ink);
   font: 11px/14px var(--font-ui);

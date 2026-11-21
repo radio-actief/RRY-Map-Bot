@@ -411,8 +411,8 @@ export const ACL_SAVE_WAIT_MS = 6000;
 
 /**
  * Apply (old applyToRepeater) sends `script`, the one the Send step shows. Nothing is sent when
- * there are no commands or a line is over the console's length limit. Then `ver` is re-read: old
- * firmware stops here, unreadable firmware waits for "Continue anyway" (which calls this again with
+ * there are no commands or a line is over the console's length limit. Then the firmware is checked
+ * (`ver`, asked once per connection and again after a restart: see checkFirmware): old firmware stops here, unreadable firmware waits for "Continue anyway" (which calls this again with
  * skipFirmwareCheck). The lines go out in order, stopping at the first failure; once a `setperm`
  * line went out, a reboot waits for the access list save (see waitForAclSave). On success the plan
  * that was sent becomes the starting point, the clock is set (see setClock), the repeater is read

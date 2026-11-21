@@ -207,7 +207,7 @@ describe("Send step: script", () => {
 
 describe("Send step: Apply", () => {
   it("firmware v1.15.0 never writes, shows the blocking notice and keeps Apply disabled", async () => {
-    // Connected as 1.17.1, but the board was swapped: Apply re-reads `ver`.
+    // The store says 1.17.1, but this link never answered `ver`: Apply asks it.
     const { port } = await connect(okReplies(applyLines(), "v1.15.0 (Build: 01-Jan-2026)"));
     render(<Send />);
     expect(applyButton().disabled).toBe(false);
@@ -362,13 +362,28 @@ describe("Send step: Apply", () => {
 
   it("an unplug during Apply stops it and shows the unplug notice", async () => {
     const lines = applyLines();
-    // connect's `ver`, `get name` and `board`, Apply's `ver`, then commands 1-3.
-    await connectApp(okReplies(lines), { disconnectAfter: 7 });
+    // connect's `ver`, `get name` and `board`, then commands 1-3 (Apply keeps connect's `ver`).
+    await connectApp(okReplies(lines), { disconnectAfter: 6 });
     render(<Send />);
     fireEvent.click(applyButton());
     expect(await screen.findByText(`Stopped at command 3 of ${lines.length}: ${lines[2]}`, { selector: ".notice p" })).toBeTruthy();
     expect(store.notice.value).toEqual({ kind: "error", text: expect.stringMatching(/repeater was disconnected/) });
     expect(store.device.value.status).toBe("none");
+  });
+
+  it("a second Apply on the same connection keeps the firmware connect read", async () => {
+    const lines = applyLines();
+    const port = await connectApp(okReplies(lines));
+    render(<Send />);
+    fireEvent.click(applyButton());
+    expect(await screen.findByRole("button", { name: "Reboot now" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Later" }));
+    const before = port.received.length;
+    fireEvent.click(screen.getByLabelText(SEND_ALL));
+    fireEvent.click(applyButton());
+    expect(await screen.findByRole("button", { name: "Reboot now" })).toBeTruthy();
+    expect(port.received.length).toBeGreaterThan(before);
+    expect(port.received.filter((c) => c === "ver")).toEqual(["ver"]);
   });
 
   it("an unplug during the firmware check goes back to idle without asking", async () => {

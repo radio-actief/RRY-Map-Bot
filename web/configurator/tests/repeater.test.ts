@@ -296,6 +296,34 @@ describe("run and checkFirmware", () => {
     const r = await checkFirmware(link);
     expect(r).toEqual({ state, version });
   });
+
+  it("asks `ver` once per connection", async () => {
+    const { port, link } = await linkTo({ ver: "v1.17.1" });
+    expect(await checkFirmware(link)).toEqual({ state: "ok", version: "v1.17.1" });
+    expect(await checkFirmware(link)).toEqual({ state: "ok", version: "v1.17.1" });
+    expect(port.received.filter((c) => c === "ver")).toHaveLength(1);
+    // Another connection to the same device asks again.
+    const other = await linkTo({ ver: "v1.15.0" });
+    expect(await checkFirmware(other.link)).toEqual({ state: "old", version: "v1.15.0" });
+    expect(other.port.received).toEqual(["ver"]);
+  });
+
+  it.each(["reboot", "start ota", "erase"])("%s ends the connection, so nothing is answered from before it", async (cmd) => {
+    const { link } = await linkTo({ ver: "v1.17.1" });
+    await checkFirmware(link);
+    await run(link, cmd);
+    expect(link.connected).toBe(false);
+    const again = await linkTo({ ver: "v1.18.0" });
+    expect(await checkFirmware(again.link)).toEqual({ state: "ok", version: "v1.18.0" });
+    expect(again.port.received).toEqual(["ver"]);
+  });
+
+  it("an answer without a version is asked again", async () => {
+    const { port, link } = await linkTo({ ver: "" });
+    expect((await checkFirmware(link)).state).toBe("unknown");
+    expect((await checkFirmware(link)).state).toBe("unknown");
+    expect(port.received.filter((c) => c === "ver")).toHaveLength(2);
+  });
 });
 
 describe("stoppedApply", () => {

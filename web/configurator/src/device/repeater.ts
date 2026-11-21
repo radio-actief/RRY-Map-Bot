@@ -221,9 +221,21 @@ export function run(link: SerialLink, cmd: string): Promise<string> {
   return link.command(cmd);
 }
 
-export async function checkFirmware(
-  link: SerialLink,
-): Promise<{ state: "ok" | "old" | "unknown"; version: string | null }> {
+export type FirmwareCheck = { state: "ok" | "old" | "unknown"; version: string | null };
+
+/** The firmware each connection's device answered. */
+const firmwareSeen = new WeakMap<SerialLink, FirmwareCheck>();
+
+/**
+ * The firmware from `ver`, read once per connection: a readable answer is kept for the link, so
+ * each Apply on the same connection skips the question. A reconnect is a new link and asks again,
+ * and so does every reboot, OTA update or reset, since the link ends when one goes out (see
+ * expectsDeviceDisconnect). An answer without a version is asked again (a board still starting
+ * may answer later).
+ */
+export async function checkFirmware(link: SerialLink): Promise<FirmwareCheck> {
+  const seen = firmwareSeen.get(link);
+  if (seen) return seen;
   let reply = "";
   try {
     reply = await link.command("ver");
@@ -232,5 +244,7 @@ export async function checkFirmware(
   }
   const v = parseVersion(reply);
   if (!v) return { state: "unknown", version: null };
-  return { state: supportsRegionDef(v) ? "ok" : "old", version: v.text };
+  const check: FirmwareCheck = { state: supportsRegionDef(v) ? "ok" : "old", version: v.text };
+  firmwareSeen.set(link, check);
+  return check;
 }

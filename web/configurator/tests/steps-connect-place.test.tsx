@@ -21,6 +21,7 @@ import { canApply, placeChosen, placeLeft, resetPlan, setLocation, stepStatus, s
 import { FakePort } from "./fakes/fake-port";
 import { engines, resetFakeEngine } from "./fakes/map-engine";
 import read from "./fixtures/read-ronse.json";
+import neighborsSnr from "./fixtures/neighbors-snr.json";
 
 const PLACES: PlaceRow[] = JSON.parse(readFileSync(resolve(__dirname, "../../../data/be-locode.json"), "utf8"));
 const MUNIS = JSON.parse(readFileSync(resolve(__dirname, "fixtures/municipalities-3.json"), "utf8"));
@@ -216,8 +217,36 @@ describe("Connect step", () => {
     fireEvent.click(screen.getByRole("button", { name: "Read settings from repeater" }));
     const list = await screen.findByRole("list", { name: "Hears 2 repeaters" });
     const items = [...list.querySelectorAll("li")].map((li) => li.textContent);
-    expect(items[0]).toMatch(/^BE-RON-Proefberg.*5 min.*SNR 7 dB$/);
-    expect(items[1]).toMatch(/^5e6f7a8b.*2 h.*SNR -2\.5 dB$/);
+    expect(items[0]).toMatch(/^BE-RON-Proefberg.*5 min.*SNR 7 dBgood$/);
+    expect(items[1]).toMatch(/^5e6f7a8b.*2 h.*SNR -2\.5 dBweak$/);
+  });
+
+  it("shows each neighbour's signal: SNR in dB, filled bars and a word (good from 5 dB, fair above 0, weak at 0 or below)", async () => {
+    const { link } = await connectedLink({ ...read, neighbors: neighborsSnr.neighbors });
+    store.device.value = { status: "connected", link, firmware: "v1.17.1" };
+    render(<Connect />);
+    fireEvent.click(screen.getByRole("button", { name: "Read settings from repeater" }));
+    const list = await screen.findByRole("list", { name: "Hears 7 repeaters" });
+    const rows = [...list.querySelectorAll("li")].map((li) => ({
+      who: li.querySelector(".neighbour-who")!.textContent,
+      snr: li.querySelector(".neighbour-snr")!.textContent,
+      word: li.querySelector(".neighbour-quality")!.textContent,
+      quality: li.querySelector(".neighbour-signal")!.classList[1],
+      bars: li.querySelectorAll(".signal-bars i.on").length,
+    }));
+    expect(rows.map((r) => [r.snr, r.word, r.quality, r.bars])).toEqual([
+      ["SNR -10 dB", "weak", "weak", 1],
+      ["SNR 9 dB", "good", "good", 3],
+      ["SNR 2 dB", "fair", "fair", 2],
+      ["SNR 5 dB", "good", "good", 3],
+      ["SNR 4.8 dB", "fair", "fair", 2],
+      ["SNR 0 dB", "weak", "weak", 1],
+      ["SNR -3.5 dB", "weak", "weak", 1],
+    ]);
+    expect(rows[0].who).toMatch(/^99aabbcc · /);
+    // The bars are decoration: the word is what a screen reader reads.
+    expect(list.querySelector(".signal-bars")!.getAttribute("aria-hidden")).toBe("true");
+    expect(screen.getByText("Signal: good from 5 dB, fair above 0 dB, weak at 0 dB or below.")).toBeTruthy();
   });
 
   it("a repeater that hears no one says so", async () => {

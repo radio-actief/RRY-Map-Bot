@@ -2,6 +2,15 @@
 
 What changed in each release of the #BEmesh map, bot and configurator.
 
+## 1.11.0 (2026-11-22)
+
+### Changed
+
+- The stats page downloads about 20 times less (37 KB instead of 692 KB) and draws its history straight away
+- The region map loads faster: it no longer fetches an extra drawing library from another site
+- In the configurator, each Apply is about 0.2 seconds quicker: the repeater's firmware version is asked once per connection
+- In dark mode, the configurator's map credit line is easy to read again
+
 ## 1.10.0 (2026-11-17)
 
 ### Changed

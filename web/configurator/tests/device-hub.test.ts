@@ -296,3 +296,53 @@ describe("device hub: reading the map's account", () => {
     expect(f).toHaveBeenCalledWith("/auth/me", { credentials: "same-origin", cache: "no-store" });
   });
 });
+
+describe("device hub: the configurator's settings for its own address", () => {
+  const CONF = "https://conf.example";
+  const WITH_CONF = [...TOOLS, { key: "configurator", label: "Configurator", url: `${CONF}/` }];
+  const QUERY = { kind: "bemesh.configurator.prefs.query", v: 1 };
+
+  it("hands the configurator on its own address its settings kept here, and nothing else", async () => {
+    const h = hub(WITH_CONF);
+    h.storage.setItem("configurator.theme", "dark");
+    h.storage.setItem("configurator.layers", '{"nodes":false,"borders":true}');
+    h.storage.setItem("bemesh.device.last", "{}");
+    h.storage.setItem("other", "x");
+    await h.send(QUERY, CONF);
+    expect(h.parent.postMessage.mock.calls).toEqual([
+      [
+        {
+          kind: "bemesh.configurator.prefs",
+          v: 1,
+          values: {
+            "configurator.theme": "dark",
+            "configurator.layers": '{"nodes":false,"borders":true}',
+            "configurator.includeDefaults": null,
+            "configurator.serialShowCommandLog": null,
+          },
+        },
+        CONF,
+      ],
+    ]);
+  });
+
+  it("answers no other tool, a hidden configurator, or one on the map's own address", async () => {
+    const h = hub(WITH_CONF);
+    await h.send(QUERY, NODEBOOK);
+    await h.send(QUERY, "https://evil.example");
+    expect(h.parent.postMessage).not.toHaveBeenCalled();
+    const hidden = hub([...TOOLS, { key: "configurator", label: "Configurator", url: `${CONF}/`, hidden: true }]);
+    await hidden.send(QUERY, CONF);
+    expect(hidden.parent.postMessage).not.toHaveBeenCalled();
+    const onPath = hub([...TOOLS, { key: "configurator", label: "Configurator", url: "/configurator" }]);
+    await onPath.send(QUERY, MAP);
+    expect(onPath.parent.postMessage).not.toHaveBeenCalled();
+  });
+
+  it("leaves out a value that is too long", async () => {
+    const h = hub(WITH_CONF);
+    h.storage.setItem("configurator.theme", "x".repeat(5000));
+    await h.send(QUERY, CONF);
+    expect(h.parent.postMessage.mock.calls[0][0].values["configurator.theme"]).toBeNull();
+  });
+});

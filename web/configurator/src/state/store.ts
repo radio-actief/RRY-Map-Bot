@@ -298,6 +298,12 @@ effect(() => {
   lastStep = s;
 });
 
+/** Takes the theme and the map layers from storage again (after the one-time move, state/moved.ts). */
+export function reloadPrefs(): void {
+  store.theme.value = storedTheme();
+  store.layers.value = storedLayers();
+}
+
 let firstThemeRun = true;
 effect(() => {
   const theme = store.theme.value;

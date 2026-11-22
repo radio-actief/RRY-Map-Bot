@@ -3,6 +3,10 @@
  * `bemesh-device` channel which device it holds, answers `who`, lets go on `release` (or answers
  * `busy` while it sends to the device), remembers the device for the next tool, and offers
  * "Reconnect <name>" for a remembered port this browser already granted.
+ *
+ * On an address of its own it also joins through the map's device hub (state/hub.ts): every message
+ * goes to the hub too, the hub's device messages count as the channel's, and the hub's remembered
+ * device counts when it is newer than this address's own.
  */
 import { signal } from "@preact/signals";
 import {
@@ -20,6 +24,8 @@ import {
   type MessageType,
 } from "../core/devicebus";
 import type { PortLike } from "../device/serial";
+import type { LastDevice } from "../../../../src/shared/device-message.js";
+import type { Hub } from "./hub";
 import { busy, store } from "./store";
 
 /** A remembered device whose port is granted and plugged in: the chip offers to open it again. */
@@ -32,11 +38,15 @@ type Deps = {
   channel?: Channel | null;
   storage?: Pick<Storage, "getItem" | "setItem"> | null;
   getPorts?: () => Promise<PortLike[]>;
+  /** The map's device hub, on an address of its own; none on the map's. */
+  hub?: Hub | null;
   /** Closes this tab's device (the release a `release` asks for). */
   disconnect: () => Promise<void>;
 };
 
 let deps: Deps | null = null;
+/** The hub's remembered device, once it has answered. */
+let hubLast: LastDevice | null = null;
 
 function storageOrNull(): Pick<Storage, "getItem" | "setItem"> | null {
   try {
@@ -60,11 +70,19 @@ function held(): Parameters<typeof message>[1] | null {
 }
 
 function post(type: MessageType, about: Parameters<typeof message>[1] = {}): void {
+  const m = message(type, about);
   try {
-    deps?.channel?.postMessage(message(type, about));
+    deps?.channel?.postMessage(m);
   } catch {
     /* channel closed */
   }
+  deps?.hub?.send(m);
+}
+
+/** The remembered device: this address's own, or the hub's when that one is newer. */
+function lastDevice(): LastDevice | null {
+  const ours = readLast(deps?.storage ?? null);
+  return hubLast && (!ours || hubLast.at > ours.at) ? hubLast : ours;
 }
 
 /** Sending, reading or counting: a release has to wait. */
@@ -99,10 +117,22 @@ export function startDeviceBus(d: Deps): () => void {
   const channel =
     d.channel !== undefined ? d.channel : typeof BroadcastChannel === "undefined" ? null : (new BroadcastChannel(CHANNEL) as Channel);
   deps = { storage: storageOrNull(), getPorts: defaultGetPorts, ...d, channel };
+  hubLast = null;
   if (channel) channel.onmessage = (e) => void onMessage(e.data);
+  const hub = deps.hub;
+  const unlisten = hub?.listen((data) => void onMessage(data));
   post("who");
   void refreshReconnect();
+  if (hub) {
+    void hub.ask({ kind: "bemesh.device.getLast", v: 1 }, "bemesh.device.last", ANSWER_MS * 3).then((answer) => {
+      if (!deps || deps.hub !== hub) return;
+      hubLast = answer ? readLast({ getItem: () => JSON.stringify(answer.last ?? null), setItem: () => {} }) : null;
+      void refreshReconnect();
+    });
+  }
   return () => {
+    unlisten?.();
+    hubLast = null;
     if (channel) channel.onmessage = null;
     try {
       channel?.close();
@@ -137,7 +167,7 @@ export function deviceReleased(usb: { usbVendorId?: number; usbProductId?: numbe
 /** Look for the remembered device among the granted ports, for the chip's "Reconnect <name>". */
 export async function refreshReconnect(): Promise<void> {
   if (!deps || store.device.peek().status !== "none") return void (reconnect.value = null);
-  const last = readLast(deps.storage ?? null);
+  const last = lastDevice();
   let ports: PortLike[] = [];
   try {
     ports = (await deps.getPorts?.()) ?? [];
@@ -164,27 +194,34 @@ export function askRelease(
   usb: { usbVendorId?: number; usbProductId?: number } | null | undefined,
   channelFactory: () => Channel | null = () => (typeof BroadcastChannel === "undefined" ? null : (new BroadcastChannel(CHANNEL) as Channel)),
   waitMs = ANSWER_MS,
+  hub: Hub | null | undefined = deps?.hub,
 ): Promise<"released" | "busy" | "noAnswer"> {
   const ch = channelFactory();
-  if (!ch) return Promise.resolve("noAnswer");
+  if (!ch && !hub) return Promise.resolve("noAnswer");
   return new Promise((resolve) => {
     const done = (r: "released" | "busy" | "noAnswer") => {
       clearTimeout(timer);
-      ch.onmessage = null;
-      try {
-        ch.close();
-      } catch {
-        /* closed */
+      unlisten?.();
+      if (ch) {
+        ch.onmessage = null;
+        try {
+          ch.close();
+        } catch {
+          /* closed */
+        }
       }
       resolve(r);
     };
-    ch.onmessage = (e) => {
-      const m = e.data;
+    const hear = (m: unknown) => {
       if (!isDeviceMessage(m) || m.tool === TOOL || !samePort(m, usb)) return;
       if (m.type === "released") done("released");
       if (m.type === "busy") done("busy");
     };
+    if (ch) ch.onmessage = (e) => hear(e.data);
+    const unlisten = hub?.listen(hear);
     const timer = setTimeout(() => done("noAnswer"), waitMs);
-    ch.postMessage(message("release", { usb: usb ?? null }));
+    const ask = message("release", { usb: usb ?? null });
+    ch?.postMessage(ask);
+    hub?.send(ask);
   });
 }

@@ -11,18 +11,27 @@
  * "bemesh.account" {signedIn, name}): the display name only, never an id or anything to sign in
  * with, and only to its direct parent from a visible listed origin. It says it again when the state
  * changes: on the record "bemesh.account.seen" another tab's hub (or map page) writes, and when the
- * page comes back into view. The message list is in DEPLOYMENT.md. */
+ * page comes back into view.
+ *
+ * To the configurator on an address of its own (the listed "configurator" entry, shown, on another
+ * origin than the hub's) it hands the configurator's settings kept on the map's address
+ * ("bemesh.configurator.prefs.query" → "bemesh.configurator.prefs"), so the configurator can take
+ * them over once. The message list is in DEPLOYMENT.md. */
+import { readPrefs } from "./shared/configurator-prefs.js";
 import { CHANNEL, isDeviceMessage, LAST_KEY, lastFromInput, readLast } from "./shared/device-message.js";
 import { isToolUrl } from "./shared/site-urls.js";
 
 const isObject = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
 
-/** Adds the listed tools' origins to `origins`. */
-function addToolOrigins(origins, list, here) {
+/** Adds the listed tools' origins to `origins`, and the configurator's own (when it is on another
+ * origin than `here`) to `configurator`. */
+function addToolOrigins(origins, list, here, configurator) {
   for (const tool of Array.isArray(list) ? list : []) {
     if (!tool || tool.hidden || !isToolUrl(tool.url)) continue;
     try {
-      origins.add(new URL(tool.url, here).origin);
+      const origin = new URL(tool.url, here).origin;
+      origins.add(origin);
+      if (tool.key === "configurator" && origin !== new URL(here).origin) configurator.add(origin);
     } catch {
       /* not an address */
     }
@@ -55,9 +64,10 @@ export async function mapAccount(fetchFn = fetch) {
 
 export function startHub({ win, channel, storage, tools, now = Date.now, waitMs = 1500, account = null, accountMs = 3000 }) {
   const origins = new Set([new URL(win.location.href).origin]);
+  const configurator = new Set();
   const listed = Promise.resolve(tools)
     .catch(() => [])
-    .then((list) => addToolOrigins(origins, list, win.location.href));
+    .then((list) => addToolOrigins(origins, list, win.location.href, configurator));
   const known = async (origin) => {
     if (origins.has(origin)) return true;
     let timer;
@@ -132,6 +142,10 @@ export function startHub({ win, channel, storage, tools, now = Date.now, waitMs 
       asked = true;
       told = null; // a query always gets an answer
       await checkAccount();
+    } else if (isObject(data) && data.v === 1 && data.kind === "bemesh.configurator.prefs.query") {
+      if (!configurator.has(e.origin)) return;
+      parentOrigin = e.origin;
+      toParent({ kind: "bemesh.configurator.prefs", v: 1, values: readPrefs(storage) });
     } else if (isObject(data) && data.v === 1 && data.kind === "bemesh.device.setLast") {
       const last = lastFromInput(data.last, now());
       if (!last) return;

@@ -1,10 +1,13 @@
 import { useEffect } from "preact/hooks";
 import { lang, t } from "../i18n/t";
 import { ensureData, loadAppData, loadOnDemand } from "../state/appdata";
-import { isWide, listenToHash, store } from "../state/store";
+import { isWide, listenToHash, reloadPrefs, store } from "../state/store";
 import { receiveHandoff } from "../state/handoff";
 import { disconnectUsb } from "../state/device";
 import { refreshReconnect, startDeviceBus } from "../state/devicebus";
+import { openHub } from "../state/hub";
+import { moveSettings } from "../state/moved";
+import { SITE } from "./pages";
 import { DeviceDrawer } from "./DeviceDrawer";
 import { HandoffDialog } from "./HandoffDialog";
 import { useLazy } from "./lazy";
@@ -30,7 +33,17 @@ export function App() {
     const stopData = loadOnDemand();
     const stopHash = listenToHash();
     const stopHandoff = receiveHandoff();
-    const stopDevices = startDeviceBus({ disconnect: disconnectUsb });
+    // On its own address (and shown there) it joins through the map's device hub, and takes its
+    // settings from the map's address once.
+    const hub = SITE?.hub ? openHub(SITE.hub) : null;
+    const stopDevices = startDeviceBus({ disconnect: disconnectUsb, hub });
+    if (hub) {
+      void moveSettings(hub).then((r) => {
+        if (r.status !== "moved" || !r.copied.length) return;
+        reloadPrefs();
+        void refreshReconnect();
+      });
+    }
     // A board plugged in or out may be the remembered one.
     const serial = (navigator as unknown as { serial?: EventTarget }).serial;
     const replug = () => void refreshReconnect();
@@ -38,6 +51,7 @@ export function App() {
     serial?.addEventListener?.("disconnect", replug);
     return () => {
       stopDevices();
+      hub?.close();
       serial?.removeEventListener?.("connect", replug);
       serial?.removeEventListener?.("disconnect", replug);
       stopData();

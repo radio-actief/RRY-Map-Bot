@@ -203,7 +203,84 @@ another's or act as the signed-in person there. What that needs:
   `Content-Security-Policy: frame-ancestors`). Browsers keep a frame's storage and channels apart
   per top-level site, so the hub joins the configurator only when the tools share a site (one
   registrable domain, e.g. `map.example.org` and `nodebook.example.org`, or one host with a port
-  per tool); the popup's NodeBook cookies need the same.
+  per tool); the popup's NodeBook cookies need the same. The proxy must not send
+  `X-Frame-Options` on `/device-hub.html` (Traefik's `frameDeny` does, on every path of a router
+  that uses it): browsers that let it win over `frame-ancestors` then refuse the hub in any frame.
+
+### One application, four addresses
+
+The map's stats, region map and configurator may each have a host name of their own, with their
+page at `/` there, served by this same application (one session store, one API, one deploy). The
+tool list decides it: entries with the keys `map`, `stats`, `regionMap` and `configurator` whose
+`url` is an address at its root (`https://stats.example/`). Host routing is on only when the map
+itself is listed that way and at least one of the three is; otherwise (a list without them, or
+with them on paths) every page stays on its path of the map's address, exactly as without a list.
+
+```
+SITE_TOOLS_JSON=[{"key":"map","label":"Map","url":"https://map.example/"},
+  {"key":"stats","label":"Stats","url":"https://stats.example/"},
+  {"key":"regionMap","label":"Region map","url":"https://regions.example/"},
+  {"key":"configurator","label":"Configurator","url":"https://configurator.example/"},
+  {"key":"nodebook","label":"NodeBook","url":"https://nodebook.example/"}]
+```
+
+With host routing on:
+
+- `/` answers with the page of the request's `Host` (the port counts, e.g. `127.0.0.1:4802`). The
+  map's own host and any host the list doesn't name get the map, as before.
+- Everything else answers on every host: `/api`, `/data`, `/src`, `/lib`, `/css`, `/img`, `/auth`,
+  `/assets`, `/configurator/…` (the configurator page loads its files from there on every host),
+  `/device-hub.html`, the old paths. Each page asks its own host for data, so data needs no CORS.
+- The pages' links: the server puts the four links for that host in
+  `<meta name="bemesh-site" content='{"pages": {...}, "map": "<map origin>", "hub": "<map>/device-hub.html"}'>`
+  right after `<head>` of the map, stats, region map and configurator pages, and the top bars and ☰
+  menus use them (`src/shared/topbar.js`, `web/configurator/src/app/pages.ts`). A page links to a
+  shown page by its address, to itself by `/`, and to a hidden page by its path on the map's
+  address. `map` and `hub` are there only on another host than the map's; `hub` only for a shown
+  page. Without host routing there is no meta and the links are the fixed paths.
+- Signing in stays on the map: its session cookie stays host-only on the map's host, and Discord
+  still calls back to the map's `/auth/callback` only. A page on its own host asks
+  `<map>/auth/me` with `credentials: "include"`: the map answers with
+  `Access-Control-Allow-Origin: <that exact origin>`, `Access-Control-Allow-Credentials: true` and
+  `Vary: Origin`, for the origins of these three pages only (hidden ones too), never for NodeBook,
+  partners or anyone else. That needs the names on one site (one registrable domain), as the
+  cookie is `SameSite=Lax`. Sign in links to `<map>/auth/login?next=<its own address>`, log out to
+  `<map>/auth/signout?next=<its own address>`, the account to `<map>/account`; `next` must be a
+  listed `url` exactly. After log out the page gets its address with `?logout=success`, as the
+  map's pages do.
+- Page security policy: a page on its own host may also connect to (and send forms to) the map's
+  origin; a shown one may frame the map's device hub (`frame-src 'self' <map>`). The map's own pages
+  keep their policy. The device hub's `frame-ancestors` are the shown tools' origins, so the shown
+  pages are among them automatically.
+- The configurator on its own host joins the device convention through the map's hub, as NodeBook
+  and MeshMate do (the hub's device messages and remembered device count as its own channel's and
+  storage's). USB permission is per origin: there a person picks the port once more.
+- Browser storage is per origin. On its first visit to its own host, the configurator asks the hub
+  for its settings kept on the map's address (`configurator.theme`, `.layers`, `.includeDefaults`,
+  `.serialShowCommandLog`) and the remembered device, copies each one this host doesn't have yet
+  (a remembered device only when it is newer), and marks the move done in `configurator.moved`.
+  Nothing set on the new host is overwritten, the map's address keeps its copy (its pages read the
+  theme there), and without an answer (the configurator still hidden, the hub unreachable) nothing
+  is marked and the next visit asks again. The configurator keeps no plan or backup in storage (a
+  backup is a downloaded file), so there is none to move. The language is the shared cookie and
+  needs nothing.
+
+Three steps, each a change of `SITE_TOOLS_JSON` and a deploy, each undone by the previous value:
+
+1. Hidden (`"hidden": true` on the three): each host serves its page and signing in back to it
+   works, but no page, menu, popup, page policy or device hub names it.
+2. Shown: remove `"hidden"`. The bars of every tool link the new addresses; the old paths still
+   answer with their pages.
+3. Old paths redirect: `"redirectOldPath": true` on the three. On every host, `/stats`,
+   `/region-map` and `/configurator` (and anything under them) answer 301 to that page's address,
+   keeping what follows the old path and the query (`/configurator/?lang=nl` →
+   `https://configurator.example/?lang=nl`); the browser carries a fragment (`#handoff=…`) over by
+   itself. The configurator's built files under `/configurator/` keep answering. `/join`, `/visit`
+   and `/region-configurator` then go straight to the configurator's address. The flag does
+   nothing on a hidden entry or on the map. Browsers keep a 301, so this is the last step.
+
+`node scripts/check-hosts.mjs` (with `PYTHON` pointing at a Python that has `requirements.txt`)
+runs these three steps in a browser, each address a port of `127.0.0.1`.
 
 ### Signing in through the map
 
@@ -254,6 +331,7 @@ it has had one valid message:
 | `{kind: "bemesh.device", v: 1, type, tool, transport, role, usbVendorId, usbProductId, name, publicKey}`, `type` one of `who`, `held`, `release`, `released`, `busy` | passes it to the channel `bemesh-device`; a `held` one is also kept as the last device (as `setLast` would), so a tool needn't send `setLast` too |
 | `{kind: "bemesh.device.getLast", v: 1}` | answers within 2 s `{kind: "bemesh.device.last", v: 1, last}`: the remembered device (`{transport, usbVendorId, usbProductId, role, name, publicKey, at}`), or `null` when none or older than 12 hours |
 | `{kind: "bemesh.device.setLast", v: 1, last: {transport?, usbVendorId, usbProductId, role, name, publicKey}}` | remembers it, stamped with the current time (`transport` defaults to `usb`) |
+| `{kind: "bemesh.configurator.prefs.query", v: 1}`, only from the listed `configurator` on another origin than the map's (shown) | answers `{kind: "bemesh.configurator.prefs", v: 1, values}`: `configurator.theme`, `.layers`, `.includeDefaults` and `.serialShowCommandLog` as kept on the map's address, each a string or `null` (for the one-time move, above) |
 | `{kind: "bemesh.account.query", v: 1}` | answers within 3 s `{kind: "bemesh.account", v: 1, signedIn, name}` from the map's `/auth/me`: `name` is the person's display name (or `null`), nothing else; signed out, an error or no answer in time gives `signedIn: false`. After a query it sends the same message again whenever the state changes: when another tab's hub records a change (`localStorage` `bemesh.account.seen`) and when the page comes back into view. It is a hint for the page; a tool that needs the person signs in through `/auth/authorize`. Hidden tools get no answer (they are not among the hub's origins). |
 
 | From the channel | Hub does |
@@ -319,7 +397,8 @@ share it without a setting. The other tools use the same name, codes and domain 
 
 Every page and the configurator get a Content-Security-Policy: scripts only from the site and the
 few files they load from the CDN by exact version, no inline scripts and no `eval`; data requests to
-the site and the listed tools; forms to the site and the listed tools (log out returns there).
+the site and the listed tools; forms to the site and the listed tools (log out returns there). A
+page on its own address (above) may also ask the map's origin and frame its device hub.
 The map page's template is compiled ahead of time for this: after changing anything inside
 `#app` in `index.html`, run `npm run build:map` (a test fails while `src/map-app.render.js` is
 out of date). `CSP_ENABLED=false` turns the policy off, for local debugging only.
@@ -452,7 +531,8 @@ npm run release:publish               # add -- --dry-run to see the steps first
 (New, Fixed, Other). Rewrite them for the people using the map; a commit title is often not that.
 `publish` commits the release on `dev`, merges `dev` into `main`, tags `main` with the notes and
 pushes `dev`, `main` and the tag. Run the browser checks
-(`node scripts/check-tool-pages.mjs`) before publishing; the pipeline doesn't run them.
+(`node scripts/check-tool-pages.mjs` against a running server, and `node scripts/check-hosts.mjs`,
+which starts its own) before publishing; the pipeline doesn't run them.
 
 **What the tag starts** (`.forgejo/workflows/release.yml`):
 

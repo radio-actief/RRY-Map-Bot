@@ -10,14 +10,20 @@ const DEF = SETTINGS.find((d) => d.key === "adminPassword")!;
 
 /**
  * On a repeater that was not read (a new board) an empty field would leave the factory password:
- * the user sets one or ticks "Don't set a password", which warns. A read repeater keeps its
- * password when the field is empty.
+ * the user sets one or ticks "Don't set a password". A read repeater keeps its password when the
+ * field is empty. The tick is never set by default; ticking it empties and disables the field, so
+ * no password command goes out, and a warning says what that means on this repeater.
  */
 export function PasswordField() {
   const [shown, setShown] = useState(false);
   const plan = store.plan.value;
   const read = !!store.snapshot.value;
-  const empty = !rawOf(plan, "adminPassword").trim();
+  const skip = !!plan.adminPasswordSkip;
+  const setSkip = (on: boolean) => {
+    const p = store.plan.peek();
+    editPlan({ adminPasswordSkip: on, settings: on ? { ...p.settings, adminPassword: "" } : p.settings });
+    if (on) setShown(false);
+  };
   const show = () => setShown(true);
   const hide = () => setShown(false);
   const holdKey = (e: KeyboardEvent) => e.key === " " || e.key === "Enter";
@@ -30,10 +36,12 @@ export function PasswordField() {
           <input
             id="set-adminPassword"
             aria-invalid={invalid || undefined}
+            aria-describedby={skip ? "pw-skip-warn" : undefined}
+            disabled={skip}
             {...(shown ? { type: "text" as const } : { type: "password" as const })}
             autocomplete="new-password"
             value={rawOf(store.plan.value, "adminPassword")}
-            placeholder={t(read ? "settings.adminPassword.placeholder" : "settings.adminPassword.placeholderNew")}
+            placeholder={t(skip ? "settings.adminPassword.placeholderSkip" : read ? "settings.adminPassword.placeholder" : "settings.adminPassword.placeholderNew")}
             onInput={(e) => {
               const plan = store.plan.peek();
               store.plan.value = {
@@ -45,6 +53,7 @@ export function PasswordField() {
           <button
             type="button"
             class={`icon eye${shown ? " held" : ""}`}
+            disabled={skip}
             aria-label={t("send.showPassword")}
             title={t("send.showPassword")}
             onPointerDown={show}
@@ -64,17 +73,18 @@ export function PasswordField() {
             <span aria-hidden="true">👁</span>
           </button>
         </div>
-        {!read && empty ? (
-          <label class="check-line pw-skip">
-            <input
-              type="checkbox"
-              checked={!!plan.adminPasswordSkip}
-              onChange={(e) => editPlan({ adminPasswordSkip: (e.currentTarget as HTMLInputElement).checked })}
-            />
-            <span>{t("settings.adminPassword.skip")}</span>
-          </label>
+        <label class="check-line pw-skip">
+          <input type="checkbox" checked={skip} onChange={(e) => setSkip((e.currentTarget as HTMLInputElement).checked)} />
+          <span>{t("settings.adminPassword.skip")}</span>
+        </label>
+        {skip ? (
+          <p id="pw-skip-warn" class="pw-warn" role="status">
+            <span class="pw-warn-icon" aria-hidden="true">
+              ⚠
+            </span>
+            <span>{t(read ? "settings.adminPassword.skipWarnRead" : "settings.adminPassword.skipWarn")}</span>
+          </p>
         ) : null}
-        {!read && empty && plan.adminPasswordSkip ? <p class="field-error pw-warn">{t("settings.adminPassword.skipWarn")}</p> : null}
         </>
       )}
     />

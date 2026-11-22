@@ -1720,6 +1720,40 @@ path.map-region-denied {
   font-size: 13px;
 }
 
+/* The checkbox, not a text field: .field input would stretch it across the row. */
+.field .pw-skip input {
+  flex: none;
+  width: auto;
+  margin: 0;
+  padding: 0;
+}
+
+.pw-row input:disabled,
+.pw-row .icon.eye:disabled {
+  background: var(--bar);
+  color: var(--mut);
+  cursor: not-allowed;
+}
+
+/* "Don't set a password" is ticked: the warning in the notice's warn look. */
+.pw-warn {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 6px 0 0;
+  padding: 6px 10px;
+  border: 1px solid var(--warn);
+  border-radius: 8px;
+  color: var(--warn);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.pw-warn-icon {
+  flex-shrink: 0;
+  font-weight: 700;
+}
+
 .ro-line {
   display: flex;
   justify-content: space-between;

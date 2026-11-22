@@ -278,7 +278,16 @@ describe("summarize", () => {
     const p = defaultPlan();
     expect(summarize(p).adminPassword).toBe("missing");
     expect(summarize({ ...p, adminPasswordSkip: true }).adminPassword).toBe("factory");
-    expect(summarize({ ...p, adminPasswordSkip: true, settings: { ...p.settings, adminPassword: "x" } }).adminPassword).toBe("changed");
+    // The tick wins over a typed password (an imported plan may hold both): nothing is sent.
+    expect(summarize({ ...p, adminPasswordSkip: true, settings: { ...p.settings, adminPassword: "x" } }).adminPassword).toBe("factory");
+    expect(summarize({ ...p, adminPasswordSkip: false, settings: { ...p.settings, adminPassword: "x" } }).adminPassword).toBe("changed");
+  });
+
+  it("Don't set a password on a read repeater keeps its own, and the plan has no admin password error", () => {
+    const p = { ...defaultPlan(), adminPasswordSkip: true, settings: { ...defaultPlan().settings, adminPassword: "x".repeat(40) } };
+    expect(summarize(p, { settings: {}, missing: [] }).adminPassword).toBe("kept");
+    expect(planErrors(p).some((e) => e.key === "adminPassword")).toBe(false);
+    expect(planErrors({ ...p, adminPasswordSkip: false }).some((e) => e.key === "adminPassword")).toBe(true);
   });
 
   it("reports the admin password as kept on a read repeater unless one is entered", () => {
@@ -362,5 +371,26 @@ describe("the access list from a Read", () => {
   });
   it("is absent when the reply has no ACL: line", () => {
     expect(snapshotFromReplies({ "get acl": "??: acl" }).acl).toBeUndefined();
+  });
+});
+
+describe("Don't set a password in the script", () => {
+  const withPassword = (skip: boolean) => {
+    const p = defaultPlan();
+    return { ...p, adminPasswordSkip: skip, settings: { ...p.settings, adminPassword: "s3cret" } };
+  };
+  const passwordLines = (lines: string[]) => lines.filter((l) => /^password\s/.test(l));
+
+  it("unticked, a typed admin password is sent as before", () => {
+    expect(passwordLines(commandLines(buildScript(withPassword(false), [], { includeDefaults: true })))).toEqual(["password s3cret"]);
+  });
+
+  it("ticked, no password line goes out, with or without a Read, and the guest password is unaffected", () => {
+    const plan = { ...withPassword(true), settings: { ...withPassword(true).settings, guestPassword: "guest" } };
+    const full = commandLines(buildScript(plan, [], { includeDefaults: true }));
+    expect(passwordLines(full)).toEqual([]);
+    expect(full).toContain("set guest.password guest");
+    const afterRead = commandLines(buildScript(plan, [], { includeDefaults: false, snapshot: { settings: {}, missing: [] } }));
+    expect(passwordLines(afterRead)).toEqual([]);
   });
 });

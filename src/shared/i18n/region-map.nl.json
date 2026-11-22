@@ -1,6 +1,8 @@
 {
-  "regionMap.title": "Kaart van de regiocodes – #BEmesh",
-  "regionMap.description": "Kaart van de #BEmesh-regiocodes (eu, be, be-* en de buurlanden) — grenzen van land, provincies en gewesten, en locatiepunten van de gemeenten",
+  "regionMap.title": "#BEmesh-regiokaart – MeshCore België | Radio-Actief",
+  "regionMap.description": "Regiocodes van het #BEmesh MeshCore-netwerk in België op een kaart: eu, be en de be-*-codes, met de grenzen van Vlaanderen, Wallonië, Brussel en de provincies.",
+  "regionMap.intro.heading": "#BEmesh-regiocodes",
+  "regionMap.intro.text": "De regiocodes van MeshCore België op een kaart: eu, be en de be-*-codes voor de provincies en plaatsen van Vlaanderen, Wallonië en Brussel, om repeaters op het LoRa-meshnetwerk af te bakenen.",
   "regionMap.wordmark": "mesh regiokaart",
   "regionMap.search": "Zoek gemeente, provincie of regio",
   "regionMap.borders": "Grenzen",

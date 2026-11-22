@@ -1,6 +1,8 @@
 {
-  "stats.title": "Statistiques - Carte #BEmesh",
-  "stats.description": "Statistiques historiques des nœuds de la carte MeshCore belge",
+  "stats.title": "Statistiques #BEmesh – MeshCore Belgique | Radio-Actief",
+  "stats.description": "Statistiques du réseau maillé LoRa #BEmesh de MeshCore Belgique : répéteurs et companions actifs, croissance, communes en tête en Flandre, Wallonie, Bruxelles.",
+  "stats.intro.heading": "MeshCore Belgique en chiffres",
+  "stats.intro.text": "Statistiques de #BEmesh, le réseau maillé LoRa MeshCore en Belgique : répéteurs, companions et room servers au fil du temps, de la Flandre et la Wallonie à Bruxelles.",
   "stats.wordmark": "mesh statistiques",
   "stats.filter.title": "Filtrer le graphique et les statistiques par fréquence ou par réglages radio personnalisés",
   "stats.filter.label": "Filtres des statistiques",

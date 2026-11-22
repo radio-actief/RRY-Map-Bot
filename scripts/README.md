@@ -138,6 +138,16 @@ Run it again when `data/be-locode.json` changes.
 
 **Output schema (per feature):** `properties.code` (`be-van` … `be-wlx`, in the order of `PROVINCE_CODES` in [`src/shared/be-regions.js`](../src/shared/be-regions.js)); `geometry` is a `Polygon` in EPSG:4326.
 
+## `build-share-image.mjs`
+
+Renders the share card [`img/share/bemesh-card.svg`](../img/share/bemesh-card.svg) to `img/share/bemesh-card.png` (1200×630, the pages' `og:image` and `twitter:image`) in headless Chromium, with the site's own fonts and logo, served to the browser from the repository on this machine only.
+
+```bash
+node scripts/build-share-image.mjs
+```
+
+Run it again after changing the SVG, and commit both files.
+
 ## One-shot DB backfills
 
 ### `backfill_cities.py`

@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1200" height="630" viewBox="0 0 1200 630">
+  <!-- The #BEmesh share card (Open Graph / Twitter, 1200×630) in the Radio-Actief house style: the ink
+       bar's colours, the #BEmesh word mark (Orbitron, #BE in signal yellow), Figtree text, a gold rule.
+       scripts/build-share-image.mjs renders it to bemesh-card.png with the site's own fonts. -->
+  <style>
+    @import url("/src/shared/fonts.css");
+    .mark { font-family: "Orbitron", sans-serif; font-weight: 800; font-size: 132px; letter-spacing: 1px; }
+    .ui { font-family: "Figtree", sans-serif; }
+  </style>
+  <rect width="1200" height="630" fill="#1a202c"/>
+  <!-- A few mesh links and nodes, faint, behind the text -->
+  <g stroke="#2d3748" stroke-width="3" fill="none">
+    <path d="M790 120 L930 210 L1080 150 M930 210 L900 360 L1060 420 M900 360 L760 450 L860 560 M1060 420 L1130 300 L1080 150 M760 450 L640 560"/>
+  </g>
+  <g fill="#2d3748">
+    <circle cx="790" cy="120" r="9"/><circle cx="930" cy="210" r="12"/><circle cx="1080" cy="150" r="9"/>
+    <circle cx="900" cy="360" r="12"/><circle cx="1060" cy="420" r="9"/><circle cx="760" cy="450" r="9"/>
+    <circle cx="860" cy="560" r="9"/><circle cx="1130" cy="300" r="9"/><circle cx="640" cy="560" r="7"/>
+  </g>
+  <image href="/img/radio-actief-logo-256.png" x="930" y="240" width="200" height="200"/>
+  <text x="72" y="250" class="mark"><tspan fill="#ffff00">#BE</tspan><tspan fill="#edf2f7">mesh</tspan></text>
+  <text x="76" y="338" class="ui" fill="#edf2f7" font-size="50" font-weight="700">MeshCore Belgium</text>
+  <text x="76" y="392" class="ui" fill="#a0aec0" font-size="30" font-weight="500">MeshCore België · MeshCore Belgique</text>
+  <text x="76" y="476" class="ui" fill="#edf2f7" font-size="28" font-weight="500">LoRa mesh network: map · stats · regions · configurator</text>
+  <rect x="76" y="520" width="120" height="8" rx="4" fill="#d4a017"/>
+  <text x="76" y="574" class="ui" fill="#a0aec0" font-size="24" font-weight="600">Radio-Actief</text>
+</svg>

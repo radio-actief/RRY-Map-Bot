@@ -308,3 +308,10 @@ html.region-map-embed .topbar {
     display: none;
   }
 }
+
+/* The page's "what this is", last in the side panel */
+.region-map-intro {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}

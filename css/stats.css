@@ -714,3 +714,10 @@ button.chip {
   margin-top: 4.5px;
   border-radius: 2px;
 }
+
+/* The page's "what this is", last on the page */
+.stats-intro {
+  margin: 24px 0 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}

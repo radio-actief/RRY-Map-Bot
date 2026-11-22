@@ -403,6 +403,38 @@ The map page's template is compiled ahead of time for this: after changing anyth
 `#app` in `index.html`, run `npm run build:map` (a test fails while `src/map-app.render.js` is
 out of date). `CSP_ENABLED=false` turns the policy off, for local debugging only.
 
+### Search engines
+
+Search engines may read the four public pages; AI crawlers and agents may read nothing
+(`backend/seo.py`).
+
+- `/robots.txt`, per address: one group of AI crawlers and agents (`AI_BOTS`) with `Disallow: /`;
+  then `User-agent: *` with `Disallow` for the API, signing in, the account and invitations, `/join`,
+  `/visit`, the device hub, the data files and the old redirect-only names; and `Sitemap:` with that
+  address's sitemap. Search engines (Googlebot, Bingbot and the others) fall under `*`.
+- `/sitemap.xml`, per address: the pages whose public address is on that address (with addresses
+  of their own, one page each; without, all four on their paths), each as the clean address
+  (English, also `x-default`), `?lang=nl` and `?lang=fr`, with `xhtml:link` alternates. A host
+  the tool list doesn't name (another name for the map) answers 301 to
+  the map's sitemap, and its `robots.txt` names that one.
+- The pages' heads, made by the server for the language served (the order of "The language" above,
+  `?lang=`, cookie, browser): `<html lang>`, a title and description from the pages' own messages
+  (`<page>.title` / `<page>.description`, `app.title` / `app.description` for the configurator),
+  `keywords`, `canonical` (the page's public address: its own address when shown, else its path on
+  the map's; it keeps a `?lang=nl|fr` and nothing else), `hreflang` en/nl/fr/x-default, Open Graph
+  and Twitter tags with the share card `img/share/bemesh-card.png` (1200×630), and JSON-LD
+  (Radio-Actief as `Organization`, the address as `WebSite`, then `Map`, `Dataset` or
+  `WebApplication`). JSON-LD is data, not a script, so the page policy stays without inline scripts.
+  These pages vary with `Cookie` and `Accept-Language`.
+- Each public page shows a short "what this is" (`<page>.intro.heading` / `.intro.text`): on the map
+  a glass caption beside the map controls that a person may close (kept closed on that device), at
+  the end of the stats page and of the region map's side panel, and on the configurator's first step.
+- The API, signing in, the account, invitations and the device hub answer with
+  `X-Robots-Tag: noindex`; the account and sign-in pages also carry `<meta name="robots" content="noindex">`.
+- The share card: edit `img/share/bemesh-card.svg`, then `node scripts/build-share-image.mjs`.
+- Search Console (Google) and Webmaster Tools (Bing) need each address verified by its owner; then
+  submit `https://<address>/sitemap.xml` there.
+
 ### Sync Service
 
 - **Container**: `rry-map-bot-sync`

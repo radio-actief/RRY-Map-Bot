@@ -1841,3 +1841,69 @@ time {
     min-width: 0;
   }
 }
+
+/* The page's "what this is" caption: glass, bottom left beside the map controls and above the credit
+ * line; it covers the map only, never a control, and a person may close it (page-intro.js). */
+.map-intro {
+  position: fixed;
+  z-index: 800;
+  left: calc(max(10px, env(safe-area-inset-left, 0px)) + 48px);
+  bottom: calc(30px + var(--map-safe-bottom));
+  box-sizing: border-box;
+  width: max-content;
+  max-width: min(420px, calc(100% - 200px));
+  padding: 7px 34px 8px 10px;
+  border: 1px solid var(--glass-line);
+  border-radius: 8px;
+  background: var(--glass);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass-shadow);
+  color: var(--glass-mut);
+}
+
+.map-intro[hidden] {
+  display: none;
+}
+
+.page-intro-close {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--glass-mut);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+/* 44px to tap */
+.page-intro-close::after {
+  content: "";
+  position: absolute;
+  inset: -10px;
+}
+
+.page-intro-close:hover {
+  color: var(--ink);
+}
+
+.page-intro-close:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+@media (max-width: 600px) {
+  .map-intro {
+    bottom: calc(10px + var(--map-safe-bottom));
+    max-width: none;
+    width: auto;
+    right: 84px;
+  }
+}

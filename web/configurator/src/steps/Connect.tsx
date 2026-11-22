@@ -219,6 +219,10 @@ export function Connect() {
           {t("connect.continue")}
         </button>
       </p>
+      <section class="page-intro" aria-labelledby="page-intro-title">
+        <h1 id="page-intro-title">{t("app.intro.heading")}</h1>
+        <p>{t("app.intro.text")}</p>
+      </section>
       <Dialog
         open={asking}
         title={t("read.title")}

@@ -2417,3 +2417,25 @@ path.map-region-denied {
   align-items: center;
   gap: 6px;
 }
+
+/* The configurator's "what this is", last on its first step (also what search engines read) */
+.page-intro {
+  margin-top: 24px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  color: var(--mut);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.page-intro h1 {
+  margin: 0 0 2px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.page-intro p {
+  margin: 0;
+}

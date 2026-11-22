@@ -1,6 +1,8 @@
 {
-  "map.title": "Carte #BEmesh",
-  "map.description": "Carte des nœuds MeshCore belges : répéteurs, companions, room servers et capteurs",
+  "map.title": "Carte #BEmesh – MeshCore Belgique | Radio-Actief",
+  "map.description": "Carte en direct du réseau maillé LoRa #BEmesh de MeshCore Belgique : répéteurs, companions et room servers en Flandre, en Wallonie et à Bruxelles, hors réseau.",
+  "map.intro.heading": "La carte #BEmesh de MeshCore Belgique",
+  "map.intro.text": "Tous les répéteurs, companions et room servers du réseau maillé LoRa en Flandre, en Wallonie et à Bruxelles.",
   "map.wordmark": "mesh carte",
   "map.search": "Chercher des nœuds, nom ou clé",
   "map.filters": "Filtres",

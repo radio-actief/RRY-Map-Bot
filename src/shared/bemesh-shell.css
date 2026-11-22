@@ -1114,3 +1114,18 @@ body .leaflet-container .leaflet-control-attribution {
     bottom: calc(84px + env(safe-area-inset-bottom, 0px));
   }
 }
+
+/* A page's short "what this is" (its heading and one sentence, in the page language): plain text
+ * in the page, which is also what search engines read. Muted, so the page's own tools stay first. */
+.page-intro {
+  color: var(--mut);
+  font: 12px/1.45 var(--font-ui);
+}
+.page-intro h1 {
+  margin: 0 0 2px;
+  color: var(--ink);
+  font: 700 13px/1.35 var(--font-ui);
+}
+.page-intro p {
+  margin: 0;
+}

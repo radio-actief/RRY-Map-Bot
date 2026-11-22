@@ -148,7 +148,7 @@ def test_old_paths_redirect_only_when_shown_and_switched_on():
 # Today's list: nothing changes
 
 
-@pytest.mark.parametrize('path, title', [('/', 'map'), ('/stats', 'stats'), ('/region-map', 'region'), ('/configurator', 'configurator-index')])
+@pytest.mark.parametrize('path, title', [('/', 'map'), ('/stats', 'stats'), ('/region-map', 'region'), ('/configurator', 'configurator')])
 def test_with_todays_list_every_page_is_on_its_path_and_unchanged(tools, path, title):
     r = get(path, 'map.example')
     assert r.status_code == 200
@@ -178,7 +178,7 @@ def test_with_todays_list_the_short_links_stay(tools):
 
 
 @pytest.mark.parametrize('host, title', [
-    ('map.example', 'map'), ('stats.example', 'stats'), ('regions.example', 'region'), ('conf.example', 'configurator-index'),
+    ('map.example', 'map'), ('stats.example', 'stats'), ('regions.example', 'region'), ('conf.example', 'configurator'),
     ('unknown.example', 'map'),
 ])
 def test_each_host_serves_its_page_at_the_root(tools, host, title):
@@ -210,7 +210,7 @@ def test_the_old_paths_keep_their_pages_without_the_switch(tools):
     tools(VISIBLE)
     assert 'stats' in title_of(get('/stats', 'map.example')).lower()
     assert 'region' in title_of(get('/region-map', 'map.example')).lower()
-    assert 'configurator-index' in title_of(get('/configurator', 'map.example')).lower()
+    assert 'configurator' in title_of(get('/configurator', 'map.example')).lower()
 
 
 def test_hidden_pages_are_reachable_but_named_nowhere_on_the_map(tools):

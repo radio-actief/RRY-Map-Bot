@@ -173,6 +173,25 @@ await withServer({ redirectOldPath: true }, async () => {
   }
   const r = await fetch(`${at("map")}/configurator/assets/does-not-exist.js`, { redirect: "manual" });
   check("redirects: an old path answers 301", r.status === 301);
+
+  // Search engines: each address names itself, its robots.txt its own sitemap; another name for the
+  // map points at the map.
+  for (const key of KEYS) {
+    const page = await open(context, `${at(key)}/?lang=fr`);
+    const head = await page.evaluate(() => ({
+      canonical: document.querySelector('link[rel="canonical"]')?.href,
+      xdefault: document.querySelector('link[rel="alternate"][hreflang="x-default"]')?.href,
+      lang: document.documentElement.lang,
+    }));
+    check(`search: ${key} names its own address`, head.canonical === `${at(key)}/?lang=fr` && head.xdefault === `${at(key)}/` && head.lang === "fr", JSON.stringify(head));
+    await page.close();
+    const robots = await (await fetch(`${at(key)}/robots.txt`)).text();
+    check(`search: ${key}'s robots.txt names its sitemap`, robots.includes(`Sitemap: ${at(key)}/sitemap.xml`) && /User-agent: GPTBot[\s\S]*?Disallow: \/\n/.test(robots));
+  }
+  const other = await open(context, `${at("other")}/`);
+  const canonical = await other.evaluate(() => document.querySelector('link[rel="canonical"]')?.href);
+  check("search: another name for the map points at the map", canonical === `${at("map")}/`, canonical);
+  await other.close();
   await context.close();
 });
 

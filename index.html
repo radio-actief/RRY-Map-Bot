@@ -22,10 +22,10 @@
     />
     <meta
       name="description"
-      content="Map of the Belgian MeshCore nodes: repeaters, companions, room servers and sensors"
+      content="Live map of the #BEmesh LoRa mesh network of MeshCore Belgium: repeaters, companions and room servers for off-grid messaging in Flanders, Wallonia and Brussels."
       data-i18n-attr="content:map.description"
     />
-    <title data-i18n="map.title">#BEmesh Map</title>
+    <title data-i18n="map.title">#BEmesh map – MeshCore Belgium | Radio-Actief</title>
   </head>
   <body class="map-page">
     <div id="map"></div>
@@ -272,11 +272,17 @@
         >
       </div>
     </div>
+    <section class="page-intro map-intro" data-page-intro="map" aria-labelledby="page-intro-title">
+      <h1 id="page-intro-title" data-i18n="map.intro.heading">The #BEmesh map of MeshCore Belgium</h1>
+      <p data-i18n="map.intro.text">Every repeater, companion and room server on the LoRa mesh network in Flanders, Wallonia and Brussels.</p>
+      <button type="button" class="page-intro-close" data-page-intro-close aria-label="Close" data-i18n-attr="aria-label:about.close"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
+    </section>
     <script src="./src/shared/about.js"></script>
     <script src="./src/shared/menu-place.js"></script>
     <script src="./src/shared/logout-notice.js"></script>
     <script src="./src/shared/topbar.js"></script>
     <script src="./src/shared/map-shade.js"></script>
+    <script src="./src/shared/page-intro.js"></script>
   </body>
   <script type="module" src="./src/map.js"></script>
 </html>

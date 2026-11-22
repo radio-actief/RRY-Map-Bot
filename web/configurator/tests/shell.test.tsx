@@ -299,7 +299,7 @@ describe("Notice and Dialog", () => {
 describe("index.html", () => {
   it("has the #BEmesh title and the site favicon served at the root", () => {
     const doc = new DOMParser().parseFromString(readFileSync(resolve(__dirname, "../index.html"), "utf8"), "text/html");
-    expect(doc.title).toBe("#BEmesh configurator");
+    expect(doc.title).toBe("#BEmesh configurator – MeshCore Belgium | Radio-Actief");
     expect(doc.querySelector('link[rel="icon"]')?.getAttribute("href")).toBe("/favicon.ico");
   });
 });

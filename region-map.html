@@ -8,7 +8,7 @@
     />
     <meta
       name="description"
-      content="Map of #BEmesh region codes (eu, be, be-* and the neighbouring countries) — country, province and gewest boundaries and municipality location points"
+      content="Region codes of the #BEmesh MeshCore network in Belgium on a map: eu, be and the be-* codes, with the borders of Flanders, Wallonia, Brussels and the provinces."
       data-i18n-attr="content:regionMap.description"
     />
     <link rel="icon" href="./favicon.ico" sizes="any" />
@@ -26,7 +26,7 @@
     <script src="./src/shared/i18n.js" data-i18n-page="region-map"></script>
     <script src="./src/shared/theme.js"></script>
     <script src="./src/region-map-embed.js"></script>
-    <title data-i18n="regionMap.title">Region codes map – #BEmesh</title>
+    <title data-i18n="regionMap.title">#BEmesh region map – MeshCore Belgium | Radio-Actief</title>
   </head>
   <body class="region-map-body">
     <header class="topbar">
@@ -87,6 +87,10 @@
           </label>
           <div class="field-label" data-i18n="regionMap.codes">Region codes</div>
           <div class="hierarchy-tree" id="hierarchy"></div>
+          <section class="page-intro region-map-intro" aria-labelledby="page-intro-title">
+            <h1 id="page-intro-title" data-i18n="regionMap.intro.heading">#BEmesh region codes</h1>
+            <p data-i18n="regionMap.intro.text">The MeshCore Belgium region codes on a map: eu, be and the be-* codes for the provinces and places of Flanders, Wallonia and Brussels, to scope repeaters on the LoRa mesh network.</p>
+          </section>
         </div>
       </aside>
       <button

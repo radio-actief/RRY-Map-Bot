@@ -1,6 +1,8 @@
 {
-  "regionMap.title": "Region codes map – #BEmesh",
-  "regionMap.description": "Map of #BEmesh region codes (eu, be, be-* and the neighbouring countries) — country, province and gewest boundaries and municipality location points",
+  "regionMap.title": "#BEmesh region map – MeshCore Belgium | Radio-Actief",
+  "regionMap.description": "Region codes of the #BEmesh MeshCore network in Belgium on a map: eu, be and the be-* codes, with the borders of Flanders, Wallonia, Brussels and the provinces.",
+  "regionMap.intro.heading": "#BEmesh region codes",
+  "regionMap.intro.text": "The MeshCore Belgium region codes on a map: eu, be and the be-* codes for the provinces and places of Flanders, Wallonia and Brussels, to scope repeaters on the LoRa mesh network.",
   "regionMap.wordmark": "mesh region map",
   "regionMap.search": "Search city, province or region",
   "regionMap.borders": "Borders",

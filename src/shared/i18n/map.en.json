@@ -1,6 +1,8 @@
 {
-  "map.title": "#BEmesh Map",
-  "map.description": "Map of the Belgian MeshCore nodes: repeaters, companions, room servers and sensors",
+  "map.title": "#BEmesh map – MeshCore Belgium | Radio-Actief",
+  "map.description": "Live map of the #BEmesh LoRa mesh network of MeshCore Belgium: repeaters, companions and room servers for off-grid messaging in Flanders, Wallonia and Brussels.",
+  "map.intro.heading": "The #BEmesh map of MeshCore Belgium",
+  "map.intro.text": "Every repeater, companion and room server on the LoRa mesh network in Flanders, Wallonia and Brussels.",
   "map.wordmark": "mesh map",
   "map.search": "Search nodes, name or key",
   "map.filters": "Filters",

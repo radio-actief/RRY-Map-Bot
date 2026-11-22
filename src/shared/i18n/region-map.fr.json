@@ -1,6 +1,8 @@
 {
-  "regionMap.title": "Carte des codes de région – #BEmesh",
-  "regionMap.description": "Carte des codes de région #BEmesh (eu, be, be-* et les pays voisins) — frontières du pays, des provinces et des régions, et points de localisation des communes",
+  "regionMap.title": "Carte des régions #BEmesh – MeshCore Belgique | Radio-Actief",
+  "regionMap.description": "Codes de région du réseau MeshCore #BEmesh en Belgique sur une carte : eu, be et codes be-*, avec les limites de Flandre, Wallonie, Bruxelles et des provinces.",
+  "regionMap.intro.heading": "Codes de région #BEmesh",
+  "regionMap.intro.text": "Les codes de région de MeshCore Belgique sur une carte : eu, be et les codes be-* des provinces et lieux de Flandre, de Wallonie et de Bruxelles, pour délimiter les répéteurs du réseau maillé LoRa.",
   "regionMap.wordmark": "mesh carte des régions",
   "regionMap.search": "Chercher une commune, une province ou une région",
   "regionMap.borders": "Frontières",

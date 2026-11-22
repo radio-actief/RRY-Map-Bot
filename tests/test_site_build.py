@@ -56,7 +56,13 @@ def test_a_built_page_is_served_and_asked_for_again_on_every_visit(built, path, 
 def test_without_a_build_the_page_of_the_repository_is_served(unbuilt, path, name):
     r = unbuilt.get(path)
     assert r.status_code == 200
-    assert r.data == open(os.path.join(ROOT, name), 'rb').read()
+    page = open(os.path.join(ROOT, name), encoding='utf-8').read()
+    served = r.get_data(as_text=True)
+    # The repository's page: its body as it is, its head with the search-engine tags (test_seo.py)
+    # in place of its own title and description
+    assert served.split('<body', 1)[1] == page.split('<body', 1)[1]
+    for tag in re.findall(r'<(?:link|script)\b[^>]*>', page.split('</head>', 1)[0]):
+        assert tag in served
     assert r.headers['Cache-Control'] == 'no-cache'
 
 

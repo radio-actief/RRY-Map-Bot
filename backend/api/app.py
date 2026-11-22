@@ -30,6 +30,7 @@ from backend.database import (
 from backend.datetime_utils import normalize_node_timestamps
 from backend.stats_history import build_stats_history
 import backend.claims as claims
+import backend.seo as seo
 from config.config import SITE_TOOLS as config_site_tools, SITE_TOOL_SECRETS as config_site_tool_secrets
 from config.config import LANG_COOKIE_DOMAIN, DATABASE_PATH
 from config.site_tools import (
@@ -322,6 +323,15 @@ def content_security_policy(resp):
     """Every HTML page gets page_policy(), unless it set its own (the device hub)."""
     if CSP_ENABLED and resp.mimetype == 'text/html' and 'Content-Security-Policy' not in resp.headers:
         resp.headers['Content-Security-Policy'] = page_policy(links=page_links(SITE_TOOLS, request.host))
+    return resp
+
+
+@app.after_request
+def not_for_search_engines(resp):
+    """The API, signing in, the account, invitations and the device hub: noindex, whatever they
+    answer (robots.txt also asks every crawler to stay away from them)."""
+    if request.path.startswith(seo.NOINDEX_PREFIXES):
+        resp.headers['X-Robots-Tag'] = 'noindex'
     return resp
 
 
@@ -2749,11 +2759,16 @@ def _links_meta():
     return f'<meta name="{LINKS_META}" content="{escape(json.dumps(links, separators=(",", ":")))}">'
 
 
-def _page(directory, name):
+def _page(directory, name, seo_key=None):
     """The page `name` of `directory`, with _links_meta() right after <head>. Without any page on its
-    own address the file goes out as it is."""
+    own address the file goes out as it is.
+
+    One of the four public pages (`seo_key`: map, stats, regionMap, configurator) also gets its
+    search-engine head (seo.render_page): <html lang>, title and description in the language served
+    (?lang=, else the shared choice, else the browser's), its public address, its languages, the share
+    card and what it is; the answer then varies with the language cookie and the browser's languages."""
     meta = _links_meta()
-    if not meta:
+    if not meta and not seo_key:
         return send_from_directory(directory, name)
     from werkzeug.exceptions import NotFound
     from werkzeug.security import safe_join
@@ -2762,9 +2777,19 @@ def _page(directory, name):
         raise NotFound()
     with open(path, encoding='utf-8') as f:
         html = f.read()
-    html = re.sub(r'<head(\s[^>]*)?>', lambda m: m.group(0) + meta, html, count=1)
+    if seo_key:
+        asked = request.args.get('lang')
+        html = seo.render_page(
+            html, seo_key, _page_lang(), seo.page_urls(SITE_TOOLS, request.url_root)[seo_key],
+            asked if asked in seo.LANGS else None, after_head=meta, discord_url=DISCORD_SERVER_INVITE_URL,
+        )
+    else:
+        html = re.sub(r'<head(\s[^>]*)?>', lambda m: m.group(0) + meta, html, count=1)
     out = make_response(html)
     out.mimetype = 'text/html'
+    if seo_key:
+        out.vary.add('Cookie')
+        out.vary.add('Accept-Language')
     return out
 
 
@@ -2776,7 +2801,7 @@ def send_page(name):
     names files that exist only in its own release, so a kept copy must never outlive a deploy.
     """
     built = os.path.isfile(os.path.join(SITE_DIST, name))
-    resp = _page(SITE_DIST if built else PROJECT_ROOT, name)
+    resp = _page(SITE_DIST if built else PROJECT_ROOT, name, seo_key=seo.PAGE_FILES.get(name))
     resp.headers['Cache-Control'] = 'no-cache'
     return resp
 
@@ -2796,6 +2821,35 @@ def index():
     return send_page(HOST_PAGES.get(key, 'index.html'))
 
 
+@app.route('/robots.txt')
+def robots_txt():
+    """Per address: AI crawlers nowhere, search engines everywhere but the API, signing in, the
+    account and other non-pages, and this address's sitemap (the map's, on another name for the map)."""
+    origin = seo.host_origin(SITE_TOOLS, request.host, request.url_root)
+    if origin is None:
+        origin = seo.origin_of(seo.page_urls(SITE_TOOLS, request.url_root)['map'])
+    resp = make_response(seo.robots_txt(origin + '/sitemap.xml'))
+    resp.mimetype = 'text/plain'
+    resp.headers['Cache-Control'] = 'public, max-age=3600'
+    return resp
+
+
+@app.route('/sitemap.xml')
+def sitemap_xml():
+    """The public pages on this address, each in its three languages. Another name for the map
+    (one the tool list doesn't name) answers with the map's sitemap address."""
+    urls = seo.page_urls(SITE_TOOLS, request.url_root)
+    origin = seo.host_origin(SITE_TOOLS, request.host, request.url_root)
+    if origin is None:
+        resp = redirect(seo.origin_of(urls['map']) + '/sitemap.xml', code=301)
+        resp.autocorrect_location_header = False
+        return resp
+    resp = make_response(seo.sitemap_xml([u for u in urls.values() if seo.origin_of(u) == origin]))
+    resp.mimetype = 'application/xml'
+    resp.headers['Cache-Control'] = 'public, max-age=3600'
+    return resp
+
+
 @app.route('/stats')
 def stats_page():
     """Serve the historical node stats page (sync history, charts, playback)."""
@@ -2812,7 +2866,7 @@ def site_asset(path):
 @app.route('/configurator')
 def configurator_page():
     """Serve the built configurator app."""
-    return _page(CONFIGURATOR_DIST, 'index.html')
+    return _page(CONFIGURATOR_DIST, 'index.html', seo_key='configurator')
 
 
 def _configurator_url(fragment: str = '') -> str:

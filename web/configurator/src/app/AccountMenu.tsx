@@ -9,11 +9,15 @@ import "../../../../src/shared/menu-place.js";
 import "../../../../src/shared/logout-notice.js";
 import { I18N, lang, t } from "../i18n/t";
 import { store } from "../state/store";
-import { HERE, PAGES, siteTools, toolText } from "./pages";
+import { HERE, MAP, PAGES, selfUrl, siteTools, toolText } from "./pages";
 
-const PAGE = "/configurator";
 /** The site's one account page, on the map. */
-const ACCOUNT = "/account";
+const ACCOUNT = `${MAP}/account`;
+
+/** Sign in, on the map's address, back here. */
+function signInHref(): string {
+  return MAP ? `${MAP}/auth/login?next=${encodeURIComponent(selfUrl())}` : `/auth/login?next=${selfUrl()}`;
+}
 
 /** A signed-in person: the Discord user name and the name Discord shows (display name, else user name). */
 type Person = { username: string; name: string };
@@ -30,7 +34,7 @@ function loadAccount() {
     recordSeen(person !== null);
   };
   try {
-    fetch("/auth/me", { credentials: "include" })
+    fetch(`${MAP}/auth/me`, { credentials: "include" })
       .then((r) => (r.ok ? r.json() : null))
       .then((d: { authenticated?: boolean; user?: { username?: string; global_name?: string | null } } | null) => {
         const username = d?.authenticated ? d.user?.username : undefined;
@@ -183,10 +187,18 @@ function AccountRows({ person }: { person: Person }) {
         {t("account.title")}
       </a>
       <hr />
-      {/* A POST from this page: the server refuses a logout by link or from another site. */}
-      <form class="menu-logout" method="post" action={`/auth/logout?next=${PAGE}`}>
-        <button type="submit">{t("menu.logOut")}</button>
-      </form>
+      {MAP ? (
+        // On its own address: the map's sign-out page asks and logs out (a post from here is refused).
+        <form class="menu-logout" method="get" action={`${MAP}/auth/signout`}>
+          <input type="hidden" name="next" value={selfUrl()} />
+          <button type="submit">{t("menu.logOut")}</button>
+        </form>
+      ) : (
+        // A POST from this page: the server refuses a logout by link or from another site.
+        <form class="menu-logout" method="post" action={`/auth/logout?next=${selfUrl()}`}>
+          <button type="submit">{t("menu.logOut")}</button>
+        </form>
+      )}
     </>
   );
 }
@@ -253,7 +265,7 @@ export function AccountMenu() {
     <>
       {user ? <AccountButton person={user} /> : null}
       {user === null ? (
-        <a class="chip signin-chip" href={`/auth/login?next=${PAGE}`} title={t("menu.signInHint")} aria-label={t("menu.signIn")}>
+        <a class="chip signin-chip" href={signInHref()} title={t("menu.signInHint")} aria-label={t("menu.signIn")}>
           <i class="bi bi-person-circle" aria-hidden="true" />
           <span class="signin-text">{t("menu.signIn")}</span>
         </a>
@@ -275,10 +287,10 @@ export function AccountMenu() {
         </button>
         <nav class="menu page-menu" id="page-menu" ref={menu} aria-label={t("menu.label")} hidden={!open}>
           {/* The tools: shown on a phone and a tablet only (bemesh-shell.css), where the top bar has no room for them. */}
-          {PAGES.map(([href, key]) => (
-            <a key={href} class="menu-page" href={href} aria-current={href === HERE ? "page" : undefined}>
+          {PAGES.map(([href, key, page]) => (
+            <a key={page} class="menu-page" href={href} aria-current={page === HERE ? "page" : undefined}>
               {t(key)}
-              {href === HERE ? <i class="bi bi-check-lg menu-check" aria-hidden="true" /> : null}
+              {page === HERE ? <i class="bi bi-check-lg menu-check" aria-hidden="true" /> : null}
             </a>
           ))}
           {siteTools.value.map((tool) => (
@@ -309,7 +321,7 @@ export function AccountMenu() {
               <AccountRows person={user} />
             </>
           ) : user === null ? (
-            <a class="menu-signin" href={`/auth/login?next=${PAGE}`}>{t("menu.signIn")}</a>
+            <a class="menu-signin" href={signInHref()}>{t("menu.signIn")}</a>
           ) : null}
           <hr class="menu-lang" />
           <LangSwitch inMenu />

@@ -14,17 +14,38 @@
  * When another tab signs in or out (localStorage "bemesh.account.seen" changes), the bar asks
  * /auth/me again and redraws. After a log out (?logout= in the address) it shows the word of
  * src/shared/logout-notice.js when the page loads that file.
+ * The four pages' links are their paths on the map's address, unless the server put the links for
+ * this host in <meta name="bemesh-site"> (once a page has an address of its own, see
+ * config/site_tools.py page_links): then they come from there, and on another address than the
+ * map's the account, sign in and log out go to the map's address ("map" in that meta).
  * The configurator renders the same menu in AccountMenu.tsx. */
 (function () {
   var PAGES = [
-    ["/", "page.map"],
-    ["/stats", "page.stats"],
-    ["/region-map", "page.regionMap"],
-    ["/configurator", "page.configurator"],
+    ["/", "page.map", "map"],
+    ["/stats", "page.stats", "stats"],
+    ["/region-map", "page.regionMap", "regionMap"],
+    ["/configurator", "page.configurator", "configurator"],
   ];
   var OWN_KEYS = ["map", "stats", "regionMap", "configurator"];
   /** The site's account page: not a tool, so no link of the switcher is current there. */
   var ACCOUNT = "/account";
+  /** The links for this host from the server ({pages, map?, hub?}), or null: the fixed paths. */
+  var SITE = (function () {
+    try {
+      var meta = document.querySelector('meta[name="bemesh-site"]');
+      var v = meta ? JSON.parse(meta.getAttribute("content")) : null;
+      return v && typeof v.pages === "object" && v.pages ? v : null;
+    } catch (e) {
+      return null;
+    }
+  })();
+  /** The map's address when this page is on another one ("" on the map's own). */
+  var MAP = SITE && typeof SITE.map === "string" ? SITE.map : "";
+  /** Where a page's link goes: its link for this host, else its path. */
+  function pageHref(p) {
+    var v = SITE && SITE.pages[p[2]];
+    return typeof v === "string" ? v : p[0];
+  }
   // A copy of bemesh-links.json (this file is a classic script), so the menu needs no request.
   var LINKS = [
     { key: "link.radioActief", label: "Radio-Actief Website", href: "https://radio-actief.be", title: "Radio-Actief website" },
@@ -90,6 +111,17 @@
   function afterLogout(here) {
     return here === ACCOUNT ? "/" : here;
   }
+
+  /** This page's own address, for sign in and log out on the map's address. */
+  function selfUrl() {
+    return location.origin + "/";
+  }
+
+  /** Sign in: on the map's address, back to this page. */
+  function signInHref(here) {
+    if (MAP) return MAP + "/auth/login?next=" + encodeURIComponent(selfUrl());
+    return "/auth/login?next=" + (here || "/");
+  }
   var myNodes = null;
   var loaded = null;
   /** What the bar shows: user is undefined until /auth/me has answered, null when signed out. */
@@ -100,6 +132,10 @@
     if (p === ACCOUNT) return p;
     // The sign-out and failed pages are none of the pages.
     if (p.indexOf("/auth/") === 0) return null;
+    // A page on its own address is at "/" there; the page says which one it is.
+    var key = document.documentElement.getAttribute("data-bemesh-page");
+    var mine = PAGES.filter(function (x) { return x[2] === key; })[0];
+    if (MAP && mine) return mine[0];
     return PAGES.some(function (x) { return x[0] === p; }) ? p : "/";
   }
 
@@ -127,7 +163,7 @@
 
   /** Asks who is signed in; the bar redraws with the answer. */
   function askMe() {
-    return fetch("/auth/me", { credentials: "include" })
+    return fetch(MAP + "/auth/me", { credentials: "include" })
       .then(function (r) { return r.ok ? r.json() : null; })
       .catch(function () { return null; })
       .then(function (d) {
@@ -186,7 +222,7 @@
       return;
     }
     if (user !== null) return;
-    var a = link("/auth/login?next=" + (here || "/"), "", "chip signin-chip");
+    var a = link(signInHref(here), "", "chip signin-chip");
     a.title = t("menu.signInHint");
     a.setAttribute("aria-label", t("menu.signIn"));
     var icon = el("i", "bi bi-person-circle");
@@ -199,8 +235,19 @@
   /** Log out of this browser: a POST from this page (the server refuses a logout by link or from another site). */
   function logoutForm(here) {
     var out = el("form", "menu-logout");
-    out.method = "post";
-    out.setAttribute("action", "/auth/logout?next=" + afterLogout(here || "/"));
+    if (MAP) {
+      // On another address the map's sign-out page asks and logs out (a post from here is refused).
+      out.method = "get";
+      out.setAttribute("action", MAP + "/auth/signout");
+      var next = el("input");
+      next.type = "hidden";
+      next.name = "next";
+      next.value = selfUrl();
+      out.appendChild(next);
+    } else {
+      out.method = "post";
+      out.setAttribute("action", "/auth/logout?next=" + afterLogout(here || "/"));
+    }
     var outBtn = el("button", null, t("menu.logOut"));
     outBtn.type = "submit";
     out.appendChild(outBtn);
@@ -217,13 +264,13 @@
     who.appendChild(el("span", "menu-name", name));
     if (user.username && user.username !== name) who.appendChild(el("span", "menu-handle", "@" + user.username));
     menu.appendChild(who);
-    var nodes = link(ACCOUNT + "#my-nodes", "", "menu-account-nodes");
+    var nodes = link(MAP + ACCOUNT + "#my-nodes", "", "menu-account-nodes");
     nodes.appendChild(el("span", null, t("menu.myNodes")));
     var count = el("span", "menu-mynodes");
     count.hidden = true;
     nodes.appendChild(count);
     menu.appendChild(nodes);
-    var page = link(ACCOUNT, t("account.title"), "menu-account");
+    var page = link(MAP + ACCOUNT, t("account.title"), "menu-account");
     if (here === ACCOUNT) page.setAttribute("aria-current", "page");
     menu.appendChild(page);
     menu.appendChild(el("hr"));
@@ -262,8 +309,14 @@
     return t("page." + tool.key, tool.label);
   }
 
-  /** The listed tools after the map's own links in the top bar; again on every call (the map page re-renders its bar). */
+  /** The listed tools after the map's own links in the top bar; again on every call (the map page re-renders its bar).
+   * The four pages' links (marked by their data-i18n) take their link for this host. */
   function fillSwitcher(nav, tools) {
+    if (SITE) {
+      PAGES.forEach(function (p) {
+        nav.querySelectorAll('a[data-i18n="' + p[1] + '"]').forEach(function (a) { a.setAttribute("href", pageHref(p)); });
+      });
+    }
     nav.querySelectorAll("[data-site-tool]").forEach(function (a) { a.remove(); });
     tools.forEach(function (tool) {
       var a = link(tool.url, toolText(tool));
@@ -293,7 +346,7 @@
     var focused = menu.contains(document.activeElement) ? Array.prototype.indexOf.call(menu.querySelectorAll("a, button"), document.activeElement) : -1;
     menu.textContent = "";
     PAGES.forEach(function (p) {
-      var a = link(p[0], t(p[1]), "menu-page");
+      var a = link(pageHref(p), t(p[1]), "menu-page");
       if (p[0] === here) {
         a.setAttribute("aria-current", "page");
         a.appendChild(icon("bi-check-lg", "menu-check"));
@@ -332,7 +385,7 @@
       if (user) {
         accountRows(menu, user, here);
       } else {
-        menu.appendChild(link("/auth/login?next=" + (here || "/"), t("menu.signIn"), "menu-signin"));
+        menu.appendChild(link(signInHref(here), t("menu.signIn"), "menu-signin"));
       }
     }
     var langRow = langSwitch("lang-switch menu-lang");

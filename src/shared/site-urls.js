@@ -40,3 +40,34 @@ export function isOtherOrigin(url, here) {
     return false;
   }
 }
+
+/** The four pages' fixed paths on the map's address, by key. */
+export const PAGE_PATHS = { map: "/", stats: "/stats", regionMap: "/region-map", configurator: "/configurator" };
+
+/**
+ * The links the server gives a page for its host (<meta name="bemesh-site">, config/site_tools.py
+ * page_links): {pages: {map, stats, regionMap, configurator}, map?, hub?}. `map` (the map's origin)
+ * and `hub` (its device hub) are there only on another address than the map's. null without the
+ * meta (no page on an address of its own yet) or when it is unreadable: the fixed paths then.
+ */
+export function readSiteLinks(doc = typeof document === "undefined" ? null : document) {
+  try {
+    const meta = doc?.querySelector('meta[name="bemesh-site"]');
+    const v = meta ? JSON.parse(meta.getAttribute("content") ?? "") : null;
+    if (!v || typeof v !== "object" || !v.pages || typeof v.pages !== "object") return null;
+    const pages = {};
+    for (const [key, path] of Object.entries(PAGE_PATHS)) pages[key] = typeof v.pages[key] === "string" ? v.pages[key] : path;
+    const origin = (u) => {
+      try {
+        return typeof u === "string" ? new URL(u).origin : null;
+      } catch {
+        return null;
+      }
+    };
+    const map = origin(v.map);
+    const hub = map && typeof v.hub === "string" && origin(v.hub) === map ? v.hub : null;
+    return { pages, map, hub };
+  } catch {
+    return null;
+  }
+}

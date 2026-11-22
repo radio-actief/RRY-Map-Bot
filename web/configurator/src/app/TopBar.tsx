@@ -13,8 +13,8 @@ import { busy, isWide, store, type Theme } from "../state/store";
 export function PageSwitcher() {
   return (
     <nav class="switcher" aria-label={t("top.pages")}>
-      {PAGES.map(([href, key]) => (
-        <a key={href} href={href} aria-current={href === HERE ? "page" : undefined}>
+      {PAGES.map(([href, key, page]) => (
+        <a key={page} href={href} aria-current={page === HERE ? "page" : undefined}>
           {t(key)}
         </a>
       ))}

@@ -2,6 +2,13 @@
 
 What changed in each release of the #BEmesh map, bot and configurator.
 
+## 1.14.0 (2026-11-22)
+
+### New
+
+- The map, stats, region map and configurator are easier to find in search engines, in English, Dutch and French, and each page says in a short line what it is (on the map you can close it). AI crawlers are not let in.
+- A link to one of the pages now shows a #BEmesh preview card when shared.
+
 ## 1.13.0 (2026-11-22)
 
 ### New

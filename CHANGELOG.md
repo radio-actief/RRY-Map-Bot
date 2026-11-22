@@ -2,6 +2,13 @@
 
 What changed in each release of the #BEmesh map, bot and configurator.
 
+## 1.13.0 (2026-11-22)
+
+### New
+
+- Configurator: after a Read, each repeater yours hears shows its signal strength (SNR) with bars and "good", "fair" or "weak"
+- Configurator: on the Send step you can choose "Don't set a password". It is never ticked for you, and a warning says what it means: anyone in radio reach can log in as admin if the factory password is still set
+
 ## 1.12.0 (2026-11-22)
 
 ### Other

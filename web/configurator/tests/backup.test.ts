@@ -187,6 +187,34 @@ describe("v2 export and import", () => {
     expect(hasPasswords({ ...defaultPlan(), settings: { ...defaultPlan().settings, adminPassword: "   " } })).toBe(false);
   });
 
+  it("keeps Don't set a password, and never writes an admin password beside it", () => {
+    const base = defaultPlan();
+    const plan = { ...base, adminPasswordSkip: true, settings: { ...base.settings, adminPassword: "s3cret", guestPassword: "guest1" } };
+    const exported = exportBackup(plan);
+    expect(exported.plan.adminPasswordSkip).toBe(true);
+    expect(exported.plan.settings).toMatchObject({ adminPassword: "", guestPassword: "guest1" });
+    const imported = importBackup(JSON.parse(JSON.stringify(exported)), PLACES);
+    expect(imported.adminPasswordSkip).toBe(true);
+    expect(imported.settings.adminPassword).toBe("");
+    // Unticked is not written at all, so older configurators read the file as before.
+    expect(exportBackup({ ...base, adminPasswordSkip: false }).plan).not.toHaveProperty("adminPasswordSkip");
+  });
+
+  it("an imported file with the tick and a password keeps the tick only; a non-boolean tick is rejected", () => {
+    const file = JSON.parse(JSON.stringify(exportBackup(defaultPlan())));
+    file.plan.adminPasswordSkip = true;
+    file.plan.settings.adminPassword = "s3cret";
+    expect(importBackup(file, PLACES).settings.adminPassword).toBe("");
+    file.plan.adminPasswordSkip = "yes";
+    expect(() => importBackup(file, PLACES)).toThrow("backup.error.invalid");
+  });
+
+  it("with Don't set a password ticked, only the guest password counts as a password in the file", () => {
+    const base = defaultPlan();
+    expect(hasPasswords({ ...base, adminPasswordSkip: true, settings: { ...base.settings, adminPassword: "s3cret" } })).toBe(false);
+    expect(hasPasswords({ ...base, adminPasswordSkip: true, settings: { ...base.settings, guestPassword: "g" } })).toBe(true);
+  });
+
   it("round-trips the default plan", () => {
     expect(importBackup(JSON.parse(JSON.stringify(exportBackup(defaultPlan()))), PLACES)).toEqual(defaultPlan());
   });

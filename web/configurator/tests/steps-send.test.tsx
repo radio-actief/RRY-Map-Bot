@@ -930,6 +930,7 @@ describe("Send step: Before you send", () => {
   });
 
   it("puts the typed passwords in the plan and keeps them off Advanced", () => {
+    store.plan.value = { ...store.plan.value, adminPasswordSkip: false };
     render(<Send />);
     fireEvent.input(admin(), { target: { value: "secret" } });
     fireEvent.input(screen.getByLabelText("Guest password"), { target: { value: "hello" } });
@@ -950,14 +951,51 @@ describe("Send step: Before you send", () => {
     expect(screen.queryByText(/factory password/)).toBeNull();
     fireEvent.click(skip);
     expect(store.plan.value.adminPasswordSkip).toBe(true);
-    expect(screen.getByText(/Anyone who reaches it can log in with the factory password "password"/)).toBeTruthy();
+    expect(screen.getByText(/the factory password "password" stays\. Anyone within radio reach, directly or through other repeaters, can log in as admin/)).toBeTruthy();
     expect(applyButton().disabled).toBe(false);
     expect(screen.getByText(/No admin password set: the factory password stays/)).toBeTruthy();
     fireEvent.click(skip);
+    expect(screen.queryByText(/Anyone within radio reach/)).toBeNull();
     fireEvent.input(admin(), { target: { value: "s3cret" } });
     expect(applyButton().disabled).toBe(false);
-    expect(screen.queryByRole("checkbox", { name: "Don't set a password" })).toBeNull();
+    expect(skip.checked).toBe(false);
     expect(screen.getByText(/Admin password will be changed/)).toBeTruthy();
+  });
+
+  it("the tick is there with a typed password too: ticking empties and disables the field, unticking frees it", async () => {
+    await connect({ ver: VER });
+    store.plan.value = { ...store.plan.value, adminPasswordSkip: false };
+    render(<Send />);
+    fireEvent.input(admin(), { target: { value: "s3cret" } });
+    expect(admin().disabled).toBe(false);
+    const skip = screen.getByRole("checkbox", { name: "Don't set a password" }) as HTMLInputElement;
+    expect(skip.checked).toBe(false);
+    fireEvent.click(skip);
+    expect(admin().disabled).toBe(true);
+    expect(admin().value).toBe("");
+    expect(admin().placeholder).toBe("No password is sent");
+    expect(admin().getAttribute("aria-describedby")).toBe("pw-skip-warn");
+    expect((eye() as HTMLButtonElement).disabled).toBe(true);
+    expect(store.plan.value.settings.adminPassword).toBe("");
+    expect(scriptText()).not.toMatch(/^password /m);
+    expect(applyLines().some((l) => l.startsWith("password "))).toBe(false);
+    fireEvent.click(skip);
+    expect(admin().disabled).toBe(false);
+    expect(admin().placeholder).toBe("Set one for this new board");
+    expect(applyButton().disabled).toBe(true);
+  });
+
+  it("Apply with the tick sends no password command to the repeater", async () => {
+    store.plan.value = { ...store.plan.value, adminPasswordSkip: false, settings: { ...store.plan.value.settings, adminPassword: "s3cret" } };
+    const lines = applyLines();
+    expect(lines).toContain("password s3cret");
+    const { port } = await connect(okReplies(lines));
+    render(<Send />);
+    fireEvent.click(screen.getByRole("checkbox", { name: "Don't set a password" }));
+    fireEvent.click(applyButton());
+    await screen.findByRole("button", { name: "Reboot now" });
+    expect(port.received.length).toBeGreaterThan(3);
+    expect(port.received.some((l) => /^password\s/.test(l))).toBe(false);
   });
 
   it("a read repeater keeps its admin password when the field is empty", () => {
@@ -965,9 +1003,23 @@ describe("Send step: Before you send", () => {
     store.plan.value = { ...store.plan.value, adminPasswordSkip: false };
     render(<Send />);
     expect(admin().placeholder).toBe("Leave empty to keep the current one");
-    expect(screen.queryByRole("checkbox", { name: "Don't set a password" })).toBeNull();
+    const skip = screen.getByRole("checkbox", { name: "Don't set a password" }) as HTMLInputElement;
+    expect(skip.checked).toBe(false);
+    expect(admin().disabled).toBe(false);
     expect(screen.queryByText("Set an admin password, or tick Don't set a password.")).toBeNull();
     expect(screen.getByText(/Admin password stays as it is/)).toBeTruthy();
+  });
+
+  it("on a read repeater the tick warns that its current password stays, which may still be the factory one", () => {
+    store.snapshot.value = { settings: {}, missing: [] };
+    store.plan.value = { ...store.plan.value, adminPasswordSkip: false };
+    render(<Send />);
+    fireEvent.input(admin(), { target: { value: "s3cret" } });
+    expect(screen.getByText(/Admin password will be changed/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Don't set a password" }));
+    expect(screen.getByText(/the repeater keeps its current one\. If that is still the factory "password", anyone within radio reach/)).toBeTruthy();
+    expect(screen.getByText(/Admin password stays as it is/)).toBeTruthy();
+    expect(applyLines().some((l) => l.startsWith("password "))).toBe(false);
   });
 
   it("shows the radio, duty cycle and TX power on one read-only line that links to Settings", () => {

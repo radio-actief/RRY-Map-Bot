@@ -690,8 +690,82 @@ path.map-region-denied {
 }
 
 .neighbour-list li {
-  padding: 2px 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 2px 8px;
+  padding: 3px 0;
   overflow-wrap: anywhere;
+}
+
+.neighbour-who {
+  min-width: 0;
+}
+
+/* The SNR per neighbour: bars and word in the quality's colour, the dB value in the ink. */
+.neighbour-signal {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.neighbour-snr {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.neighbour-quality {
+  font-weight: 700;
+}
+
+.neighbour-signal.good {
+  color: var(--ok);
+}
+
+.neighbour-signal.fair {
+  color: var(--warn);
+}
+
+.neighbour-signal.weak {
+  color: var(--bad);
+}
+
+.signal-bars {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 10px;
+  align-self: center;
+}
+
+.signal-bars i {
+  width: 3px;
+  border-radius: 1px;
+  background: var(--line);
+}
+
+.signal-bars i:nth-child(1) {
+  height: 4px;
+}
+
+.signal-bars i:nth-child(2) {
+  height: 7px;
+}
+
+.signal-bars i:nth-child(3) {
+  height: 10px;
+}
+
+.signal-bars i.on {
+  background: currentColor;
+}
+
+.neighbour-legend {
+  margin: 4px 0 0;
+  font-size: 11px;
 }
 
 .search {
@@ -1718,6 +1792,40 @@ path.map-region-denied {
   gap: 6px;
   margin-top: 6px;
   font-size: 13px;
+}
+
+/* The checkbox, not a text field: .field input would stretch it across the row. */
+.field .pw-skip input {
+  flex: none;
+  width: auto;
+  margin: 0;
+  padding: 0;
+}
+
+.pw-row input:disabled,
+.pw-row .icon.eye:disabled {
+  background: var(--bar);
+  color: var(--mut);
+  cursor: not-allowed;
+}
+
+/* "Don't set a password" is ticked: the warning in the notice's warn look. */
+.pw-warn {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 6px 0 0;
+  padding: 6px 10px;
+  border: 1px solid var(--warn);
+  border-radius: 8px;
+  color: var(--warn);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.pw-warn-icon {
+  flex-shrink: 0;
+  font-weight: 700;
 }
 
 .ro-line {

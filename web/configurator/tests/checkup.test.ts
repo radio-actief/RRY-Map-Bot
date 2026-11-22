@@ -156,6 +156,13 @@ describe("applyCheckup", () => {
     );
   });
 
+  it("a repeater on another coding rate gets the radio line ticked, back to CR 8", () => {
+    const cr5 = { ...P, radio: { ...P.radio, cr: 5 }, radioCustom: true };
+    const line = checkupLines(cr5, PLACES).find((l) => l.id === "radio")!;
+    expect(line).toMatchObject({ from: "869.618,62.5,8,5", to: "869.618,62.5,8,8", ticked: true });
+    expect(applyCheckup(cr5, PLACES, new Set(["radio"])).radio.cr).toBe(8);
+  });
+
   it("applying the radio line sets the #BEmesh radio", () => {
     const off = { ...P, radio: { ...P.radio, freq: 869.525 }, radioCustom: true };
     const line = checkupLines(off, PLACES).find((l) => l.id === "radio")!;

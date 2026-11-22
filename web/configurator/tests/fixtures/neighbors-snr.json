@@ -1,0 +1,4 @@
+{
+  "_note": "A neighbors reply as the repeater firmware prints it (formatNeighborsReply): uppercase key prefix, seconds since heard, SNR x 4, newest first. The first line was heard before the clock was set back, so its seconds are negative.",
+  "neighbors": "99AABBCC:-7:-40\nA1B2C3D4:42:36\n55667788:120:8\n5E6F7A8B:310:20\nDEADBEEF:600:19\n0C0D0E0F:905:0\n11223344:3600:-14"
+}

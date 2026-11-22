@@ -20,18 +20,25 @@ export class BackupError extends Error {
   }
 }
 
-/** Whether the plan holds an admin or guest password (the export then asks whether to keep them). */
+/**
+ * Whether the plan holds an admin or guest password (the export then asks whether to keep them).
+ * With "Don't set a password" ticked the admin field is not used, so it does not count.
+ */
 export function hasPasswords(plan: Plan): boolean {
-  return ["adminPassword", "guestPassword"].some((k) => String(plan.settings[k as SettingKey] ?? "").trim() !== "");
+  const keys: SettingKey[] = plan.adminPasswordSkip ? ["guestPassword"] : ["adminPassword", "guestPassword"];
+  return keys.some((k) => String(plan.settings[k] ?? "").trim() !== "");
 }
 
 /**
  * The backup file for a plan; the access list is left out, as it belongs to one repeater.
  * `passwords: false` empties the admin and guest password: an import then keeps the repeater's own.
+ * "Don't set a password" is kept as `adminPasswordSkip: true`, and then no admin password is written.
  */
 export function exportBackup(plan: Plan, { passwords = true } = {}): { app: string; version: number; plan: Plan } {
   const { acl: _acl, ...rest } = structuredClone(plan);
   if (!passwords) rest.settings = { ...rest.settings, adminPassword: "", guestPassword: "" };
+  if (rest.adminPasswordSkip) rest.settings = { ...rest.settings, adminPassword: "" };
+  else delete rest.adminPasswordSkip;
   return { app: APP, version: VERSION, plan: rest };
 }
 
@@ -135,6 +142,7 @@ function planFromV2(raw: unknown): Plan {
     (raw.location === null || (isObject(raw.location) && isNum(raw.location.lat) && isNum(raw.location.lon))) &&
     validAnchor(raw.anchor) &&
     (raw.floodMaxFollow === undefined || typeof raw.floodMaxFollow === "boolean") &&
+    (raw.adminPasswordSkip === undefined || typeof raw.adminPasswordSkip === "boolean") &&
     (raw.regions === null ||
       (isObject(raw.regions) &&
         Array.isArray(raw.regions.rows) &&
@@ -149,6 +157,9 @@ function planFromV2(raw: unknown): Plan {
   );
   if (badSetting || controlText(rest)) throw new BackupError("backup.error.invalid");
   const { acl: _acl, ...plan } = structuredClone(raw) as Plan;
+  // "Don't set a password" wins over an admin password in the same file, as in the form.
+  if (plan.adminPasswordSkip) plan.settings = { ...plan.settings, adminPassword: "" };
+  else delete plan.adminPasswordSkip;
   return plan.regions ? { ...plan, regions: settlePolicy(plan.regions) } : plan;
 }
 

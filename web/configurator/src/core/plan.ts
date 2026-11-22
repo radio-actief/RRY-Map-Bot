@@ -65,20 +65,24 @@ export type Plan = {
   acl?: AclEntry[];
   /** Max flood hops follows the hop preset (FLOOD_MAX); not a repeater setting. */
   floodMaxFollow?: boolean;
-  /** "Don't set a password" is ticked: a repeater that was not read keeps the factory admin password. */
+  /**
+   * "Don't set a password" is ticked: no admin password is sent, whatever the field held. A repeater
+   * that was not read keeps the factory one; a read repeater keeps the one it has. Never ticked by default.
+   */
   adminPasswordSkip?: boolean;
   /** The repeater's public key from a Read, for recommendations that differ per repeater; not a setting. */
   nodeKey?: string;
 };
 
 /**
- * What happens to the admin password: a typed one is changed; on a read repeater an empty field
- * keeps the current one; on one that was not read (a new board) it stays the factory "password"
- * only when "Don't set a password" is ticked, and is missing until then.
+ * What happens to the admin password. "Don't set a password" sends none: a read repeater keeps
+ * its own, one that was not read (a new board) the factory "password". Otherwise a typed one is
+ * changed; on a read repeater an empty field keeps the current one; on a new board it is missing.
  */
 export type AdminPasswordState = "changed" | "kept" | "factory" | "missing";
 
 export function adminPasswordState(plan: Plan, read: boolean): AdminPasswordState {
+  if (plan.adminPasswordSkip) return read ? "kept" : "factory";
   if (String(plan.settings.adminPassword ?? "").trim()) return "changed";
   if (read) return "kept";
   return plan.adminPasswordSkip ? "factory" : "missing";
@@ -229,8 +233,12 @@ export function sendableLocation(plan: Plan): { lat: number; lon: number } | nul
   return l && hasValidCoords(l.lat, l.lon) ? l : null;
 }
 
-/** validateSetting on the plan value (the form default when absent); null when there is no value (txPower). */
+/**
+ * validateSetting on the plan value (the form default when absent); null when there is no value
+ * (txPower), and for the admin password when "Don't set a password" is ticked.
+ */
 function checkSetting(plan: Plan, key: SettingKey): ValidateResult | null {
+  if (key === "adminPassword" && plan.adminPasswordSkip) return null;
   const raw = plan.settings[key] ?? BY_KEY.get(key)!.formDefault;
   if (raw === null || raw === undefined) return null;
   return validateSetting(key, String(raw));

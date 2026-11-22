@@ -5,7 +5,7 @@ import { Dialog } from "../app/Dialog";
 import { Notice } from "../app/Notice";
 import { checkupCounts, checkupLines, type CheckupGroup } from "../core/checkup";
 import { parseVersion, REGION_DEF_MIN_TEXT, supportsRegionDef } from "../core/firmware";
-import { neighbourName } from "../core/neighbours";
+import { neighbourName, SNR_GOOD_DB, snrQuality, type SignalQuality } from "../core/neighbours";
 import { hasValidCoords } from "../core/plan";
 import { hasWebSerial } from "../device/serial";
 import { formatAgo, formatNumber, t } from "../i18n/t";
@@ -54,7 +54,23 @@ function DeviceCard() {
   );
 }
 
-/** After a Read: the repeaters it hears, newest first, named from the map's node list where it knows them. */
+const BARS: Record<SignalQuality, number> = { good: 3, fair: 2, weak: 1 };
+
+/** Three bars, as many filled as the quality; the word next to it carries the meaning. */
+function SignalBars({ quality }: { quality: SignalQuality }) {
+  return (
+    <span class={`signal-bars ${quality}`} aria-hidden="true">
+      {[1, 2, 3].map((i) => (
+        <i key={i} class={i <= BARS[quality] ? "on" : undefined} />
+      ))}
+    </span>
+  );
+}
+
+/**
+ * After a Read: the repeaters it hears, newest first, named from the map's node list where it
+ * knows them, each with how well it is heard (SNR in dB, bars and a word; see snrQuality).
+ */
 function Neighbours() {
   const list = store.snapshot.value?.neighbours;
   const nodes = store.data.value.nodes;
@@ -70,19 +86,26 @@ function Neighbours() {
       <ul class="neighbour-list" aria-label={label}>
         {list.map((n) => {
           const name = neighbourName(n.prefix, nodes);
+          const quality = snrQuality(n.snr);
           return (
             <li key={n.prefix}>
-              <span class={name ? "" : "mono"}>{name ?? n.prefix}</span>
-              <span class="sub">
-                {" · "}
-                {formatAgo(n.agoS)}
-                {" · "}
-                {t("device.snr", { snr: formatNumber(n.snr, { maximumFractionDigits: 1 }) })}
+              <span class="neighbour-who">
+                <span class={name ? "" : "mono"}>{name ?? n.prefix}</span>
+                <span class="sub">
+                  {" · "}
+                  {formatAgo(n.agoS)}
+                </span>
+              </span>
+              <span class={`neighbour-signal ${quality}`}>
+                <SignalBars quality={quality} />
+                <span class="neighbour-snr">{t("device.snr", { snr: formatNumber(n.snr, { maximumFractionDigits: 1 }) })}</span>
+                <span class="neighbour-quality">{t(`device.signal.${quality}`)}</span>
               </span>
             </li>
           );
         })}
       </ul>
+      <p class="sub neighbour-legend">{t("device.signalLegend", { good: formatNumber(SNR_GOOD_DB) })}</p>
     </div>
   );
 }

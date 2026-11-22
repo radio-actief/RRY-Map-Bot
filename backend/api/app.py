@@ -32,7 +32,10 @@ from backend.stats_history import build_stats_history
 import backend.claims as claims
 from config.config import SITE_TOOLS as config_site_tools, SITE_TOOL_SECRETS as config_site_tool_secrets
 from config.config import LANG_COOKIE_DOMAIN, DATABASE_PATH
-from config.site_tools import shown_tools, tool_origins
+from config.site_tools import (
+    OWN_PAGES, host_page, old_path_target, own_page_origins, own_page_tools, page_links, shown_tools,
+    tool_origins,
+)
 from backend.auth import (
     get_authorization_url,
     exchange_code_for_token,
@@ -150,6 +153,39 @@ def _partner_subject_key():
     return partners.SUBJECT_KEY
 
 
+OLD_PATH = re.compile(r'^/(stats|region-map|configurator)(/.*)?$')
+OLD_PATH_KEYS = {path[1:]: key for key, path in OWN_PAGES.items() if key != 'map'}
+
+
+@app.before_request
+def _old_paths_to_their_address():
+    """/stats, /region-map and /configurator (and anything under them) answer 301 to that page's own
+    address, keeping what follows the old path and the query, once its tool list entry says
+    "redirectOldPath": true (old_path_target). The configurator's built files under /configurator/
+    keep answering here: its page loads them from there on every address."""
+    if request.method not in ('GET', 'HEAD'):
+        return None
+    m = OLD_PATH.match(request.path)
+    if not m:
+        return None
+    target = old_path_target(SITE_TOOLS, OLD_PATH_KEYS[m[1]])
+    if not target:
+        return None
+    from urllib.parse import quote
+    from werkzeug.security import safe_join
+    rest = (m[2] or '/')[1:]
+    if m[1] == 'configurator' and rest:
+        built = safe_join(CONFIGURATOR_DIST, rest)
+        if built and os.path.isfile(built):
+            return None
+    query = request.query_string.decode('latin-1')
+    location = target + '/' + quote(rest, safe="/:@!$&'()*+,;=-._~") + (f'?{query}' if query else '')
+    resp = redirect(location, code=301)
+    # Don't let Werkzeug make it relative or change it: the browser gets exactly this address.
+    resp.autocorrect_location_header = False
+    return resp
+
+
 @app.before_request
 def _same_site_only():
     """Changes (claim, unclaim, logout) only from the map's own pages: the browser's Origin (or,
@@ -257,23 +293,27 @@ CSP_IMAGES = (
 )
 
 
-def page_policy(form_to=()):
+def page_policy(form_to=(), links=None):
     """The Content-Security-Policy of the map's pages and the configurator. The shown tools on their
     own address may be asked for data (the popup's NodeBook lookup) and are where log out may return;
     `form_to` adds origins a page's form may lead to (the sign-out page of a hidden tool). Hidden tools
-    are named nowhere else."""
+    are named nowhere else. A page on its own address (`links` from page_links, with "map") may also
+    ask the map's address (who is signed in) and, when shown, frame its device hub."""
     tools = tool_origins(shown_tools(SITE_TOOLS))
+    away = [links['map']] if links and links.get('map') else []
     directives = [
         ("default-src", ["'self'"]),
         ("script-src", ["'self'", *CSP_CDN_SCRIPTS]),
         ("style-src", ["'self'", "'unsafe-inline'"]),
         ("font-src", ["'self'"]),
         ("img-src", list(CSP_IMAGES)),
-        ("connect-src", ["'self'", *tools, *dict.fromkeys([*CSP_PLANNING_DATA, *CSP_MAP_TILES])]),
-        ("form-action", ["'self'", *dict.fromkeys([*tools, *form_to])]),
+        ("connect-src", ["'self'", *dict.fromkeys([*tools, *away]), *dict.fromkeys([*CSP_PLANNING_DATA, *CSP_MAP_TILES])]),
+        ("form-action", ["'self'", *dict.fromkeys([*tools, *form_to, *away])]),
         ("object-src", ["'none'"]),
         ("base-uri", ["'self'"]),
     ]
+    if links and links.get('hub'):
+        directives.append(("frame-src", ["'self'", links['map']]))
     return '; '.join(f"{name} {' '.join(sources)}" for name, sources in directives)
 
 
@@ -281,7 +321,25 @@ def page_policy(form_to=()):
 def content_security_policy(resp):
     """Every HTML page gets page_policy(), unless it set its own (the device hub)."""
     if CSP_ENABLED and resp.mimetype == 'text/html' and 'Content-Security-Policy' not in resp.headers:
-        resp.headers['Content-Security-Policy'] = page_policy()
+        resp.headers['Content-Security-Policy'] = page_policy(links=page_links(SITE_TOOLS, request.host))
+    return resp
+
+
+@app.after_request
+def own_pages_ask_who(resp):
+    """GET /auth/me from one of the map's own pages on its own address (stats, region map,
+    configurator; hidden ones too): CORS with the visitor's cookie, for exactly that origin. Every
+    other origin gets no CORS header, as before."""
+    if request.path != '/auth/me':
+        return resp
+    origins = own_page_origins(SITE_TOOLS)
+    if not origins:
+        return resp
+    resp.vary.add('Origin')
+    origin = request.headers.get('Origin')
+    if origin in origins:
+        resp.headers['Access-Control-Allow-Origin'] = origin
+        resp.headers['Access-Control-Allow-Credentials'] = 'true'
     return resp
 
 
@@ -1982,11 +2040,14 @@ def auth_node():
 
 
 def _after_logout_target(next_page, done):
-    """Where log out goes: a map page with ?logout=<done> (the page says it worked), or a listed tool
-    as it is (the tool says so itself). The account page needs a sign-in, so it goes to the map."""
+    """Where log out goes: a map page with ?logout=<done> (the page says it worked), also one of the
+    map's pages on its own address, or another listed tool as it is (the tool says so itself). The
+    account page needs a sign-in, so it goes to the map."""
     if next_page in NEXT_PAGES:
         page = '/' if next_page == '/account' else next_page
         return f'{page}?logout={done}'
+    if next_page and next_page in {t['url'] for t in own_page_tools(SITE_TOOLS)}:
+        return f'{next_page}?logout={done}'
     return next_page or f'/?logout={done}'
 
 
@@ -2142,7 +2203,7 @@ def account_page():
     """The site's one account page (the site's tools link here); signed out, sign in first."""
     if not is_authenticated():
         return redirect('/auth/login?next=/account')
-    resp = send_from_directory(PROJECT_ROOT, 'account.html')
+    resp = _page(PROJECT_ROOT, 'account.html')
     resp.headers['Cache-Control'] = 'no-store'
     return resp
 
@@ -2263,7 +2324,7 @@ def _card_page(lang, texts, title, paragraphs, actions, host=None):
     font = _ui_font_file()
     body = (
         '<!doctype html>\n'
-        f'<html lang="{lang}">\n<head>\n<meta charset="utf-8">\n'
+        f'<html lang="{lang}">\n<head>\n<meta charset="utf-8">\n{_links_meta()}'
         '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n'
         '<meta name="robots" content="noindex">\n'
         f'<title>{escape(title)} – #BEmesh</title>\n'
@@ -2675,6 +2736,38 @@ def get_my_nodes():
 SITE_PAGES = ('index.html', 'stats.html', 'region-map.html')
 
 
+LINKS_META = 'bemesh-site'
+
+
+def _links_meta():
+    """<meta name="bemesh-site"> with the four pages' links for this host (page_links), which the top
+    bars read; "" while no page has an address of its own."""
+    from html import escape
+    links = page_links(SITE_TOOLS, request.host)
+    if links is None:
+        return ''
+    return f'<meta name="{LINKS_META}" content="{escape(json.dumps(links, separators=(",", ":")))}">'
+
+
+def _page(directory, name):
+    """The page `name` of `directory`, with _links_meta() right after <head>. Without any page on its
+    own address the file goes out as it is."""
+    meta = _links_meta()
+    if not meta:
+        return send_from_directory(directory, name)
+    from werkzeug.exceptions import NotFound
+    from werkzeug.security import safe_join
+    path = safe_join(directory, name)
+    if not path or not os.path.isfile(path):
+        raise NotFound()
+    with open(path, encoding='utf-8') as f:
+        html = f.read()
+    html = re.sub(r'<head(\s[^>]*)?>', lambda m: m.group(0) + meta, html, count=1)
+    out = make_response(html)
+    out.mimetype = 'text/html'
+    return out
+
+
 def send_page(name):
     """A page of SITE_PAGES: as built (dist/site, its files under /assets/) when the build is there,
     else as it is in the repository, loading its files one by one (development, no build needed).
@@ -2683,15 +2776,24 @@ def send_page(name):
     names files that exist only in its own release, so a kept copy must never outlive a deploy.
     """
     built = os.path.isfile(os.path.join(SITE_DIST, name))
-    resp = send_from_directory(SITE_DIST if built else PROJECT_ROOT, name)
+    resp = _page(SITE_DIST if built else PROJECT_ROOT, name)
     resp.headers['Cache-Control'] = 'no-cache'
     return resp
 
 
+HOST_PAGES = {'stats': 'stats.html', 'regionMap': 'region-map.html'}
+
+
 @app.route('/')
 def index():
-    """Serve the map page."""
-    return send_page('index.html')
+    """The page of this host name: the map, or on a page's own address (SITE_TOOLS_JSON, see
+    host_page) the stats, the region map or the configurator. A host not listed gets the map."""
+    key = host_page(SITE_TOOLS, request.host)
+    if key == 'configurator':
+        resp = configurator_page()
+        resp.headers['Cache-Control'] = 'no-cache'
+        return resp
+    return send_page(HOST_PAGES.get(key, 'index.html'))
 
 
 @app.route('/stats')
@@ -2710,14 +2812,16 @@ def site_asset(path):
 @app.route('/configurator')
 def configurator_page():
     """Serve the built configurator app."""
-    return send_from_directory(CONFIGURATOR_DIST, 'index.html')
+    return _page(CONFIGURATOR_DIST, 'index.html')
 
 
 def _configurator_url(fragment: str = '') -> str:
-    """/configurator, carrying a known ?lang= only; everything else in the query is dropped."""
+    """/configurator (its own address once its old path answers there, see old_path_target),
+    carrying a known ?lang= only; everything else in the query is dropped."""
     lang = request.args.get('lang')
     query = f'?lang={lang}' if lang in COMPANION_LANGS else ''
-    return f'/configurator{query}{fragment}'
+    target = old_path_target(SITE_TOOLS, 'configurator')
+    return f'{target + "/" if target else "/configurator"}{query}{fragment}'
 
 
 @app.route('/configurator.html')
@@ -2753,14 +2857,14 @@ def companion_short_link():
 
 @app.route('/region-configurator')
 def region_configurator_redirect():
-    """Redirect legacy region-configurator URL to the new configurator path."""
-    return redirect('/configurator', code=301)
+    """Redirect legacy region-configurator URL to the configurator."""
+    return redirect(_configurator_url(), code=301)
 
 
 @app.route('/region-configurator.html')
 def region_configurator_html_redirect():
-    """Redirect legacy static filename to /configurator."""
-    return redirect('/configurator', code=301)
+    """Redirect legacy static filename to the configurator."""
+    return redirect(_configurator_url(), code=301)
 
 
 @app.route('/device-hub.html')

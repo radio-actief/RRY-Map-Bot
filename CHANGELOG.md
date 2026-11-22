@@ -2,6 +2,12 @@
 
 What changed in each release of the #BEmesh map, bot and configurator.
 
+## 1.12.0 (2026-11-22)
+
+### Other
+
+- Groundwork for the stats, region map and configurator to each get an address of their own; nothing changes yet
+
 ## 1.11.0 (2026-11-22)
 
 ### Changed
